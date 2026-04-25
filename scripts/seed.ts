@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-// Load .env so RENDER_DATABASE_URL / SESSION_SECRET are available in local dev
+// Load .env so DATABASE_URL / SESSION_SECRET are available in local dev
 // (Replit injects secrets automatically; this only matters for bare `tsx` runs)
 const envFile = path.join(__dirname, "..", ".env");
 if (fs.existsSync(envFile)) {
@@ -25,7 +25,7 @@ import type { Store } from "../lib/types";
 async function main() {
   const reset = process.argv.includes("--reset");
 
-  console.log("[seed] connecting to Render Postgres …");
+  console.log("[seed] connecting to Postgres …");
   await initDb();
   const pool = getPool();
 

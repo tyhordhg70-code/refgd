@@ -1,29 +1,41 @@
 /**
  * PostgreSQL pool singleton.
  *
- * Connection string read from RENDER_DATABASE_URL (Replit secret).
- * In development the secret is injected automatically.
- * For self-hosting: set RENDER_DATABASE_URL in your host environment.
+ * Reads connection string from DATABASE_URL (preferred) or
+ * RENDER_DATABASE_URL (legacy fallback) environment variable.
  *
- * Tables are created on first call to initDb().
+ * Works with Neon, Render Postgres, Supabase, or any standard Postgres host.
+ * Tables are created on first call to initDb() and then cached in memory —
+ * subsequent calls are no-ops (no DB round-trip).
  */
 import { Pool } from "pg";
+import {
+  isDbInitialized,
+  setDbInitialized,
+  getDbInitPromise,
+  setDbInitPromise,
+} from "./cache";
 
 declare global {
-  // eslint-disable-next-line no-var
   var _pgPool: Pool | undefined;
 }
 
 function createPool(): Pool {
-  const url = process.env.RENDER_DATABASE_URL;
+  // RENDER_DATABASE_URL takes priority (explicit secret — avoids Replit's
+  // auto-injected DATABASE_URL which points to Replit's internal database).
+  // On Neon / other self-hosted envs, DATABASE_URL is the standard name.
+  const url =
+    process.env.RENDER_DATABASE_URL ??
+    process.env.NEON_DATABASE_URL ??
+    process.env.DATABASE_URL;
   if (!url) {
     throw new Error(
-      "RENDER_DATABASE_URL is not set. Add it as a Replit secret or environment variable."
+      "No database URL found. Set RENDER_DATABASE_URL (Render) or DATABASE_URL (Neon/other Postgres) as an environment variable."
     );
   }
   return new Pool({
     connectionString: url,
-    ssl: { rejectUnauthorized: false }, // required for Render external connections
+    ssl: { rejectUnauthorized: false },
     max: 5,
     idleTimeoutMillis: 30_000,
   });
@@ -37,34 +49,44 @@ export function getPool(): Pool {
   return global._pgPool;
 }
 
-/** Create tables if they don't exist. Call once at startup / in seed. */
-export async function initDb(): Promise<void> {
-  const pool = getPool();
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS stores (
-      id           TEXT PRIMARY KEY,
-      name         TEXT NOT NULL,
-      domain       TEXT,
-      region       TEXT NOT NULL,
-      category     TEXT NOT NULL DEFAULT 'Other',
-      price_limit  TEXT,
-      item_limit   TEXT,
-      fee          TEXT,
-      timeframe    TEXT,
-      notes        TEXT,
-      tags         TEXT NOT NULL DEFAULT '[]',
-      prismatic_glow BOOLEAN NOT NULL DEFAULT FALSE,
-      logo_url     TEXT,
-      raw_text     TEXT,
-      sort_order   INTEGER NOT NULL DEFAULT 0,
-      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
+/** Create tables if they don't exist. Cached — only runs SQL once per process.
+ *  Promise-locked so concurrent callers share the same in-flight query. */
+export function initDb(): Promise<void> {
+  if (isDbInitialized()) return Promise.resolve();
 
-    CREATE TABLE IF NOT EXISTS content_blocks (
-      id         TEXT PRIMARY KEY,
-      value      TEXT NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
+  const inflight = getDbInitPromise();
+  if (inflight) return inflight;
+
+  const p = getPool()
+    .query(`
+      CREATE TABLE IF NOT EXISTS stores (
+        id           TEXT PRIMARY KEY,
+        name         TEXT NOT NULL,
+        domain       TEXT,
+        region       TEXT NOT NULL,
+        category     TEXT NOT NULL DEFAULT 'Other',
+        price_limit  TEXT,
+        item_limit   TEXT,
+        fee          TEXT,
+        timeframe    TEXT,
+        notes        TEXT,
+        tags         TEXT NOT NULL DEFAULT '[]',
+        prismatic_glow BOOLEAN NOT NULL DEFAULT FALSE,
+        logo_url     TEXT,
+        raw_text     TEXT,
+        sort_order   INTEGER NOT NULL DEFAULT 0,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS content_blocks (
+        id         TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `)
+    .then(() => setDbInitialized());
+
+  setDbInitPromise(p);
+  return p;
 }

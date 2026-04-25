@@ -1,4 +1,9 @@
 import { getPool, initDb } from "./db";
+import {
+  getCachedStores,
+  setCachedStores,
+  invalidateStores,
+} from "./cache";
 import type { Region, Store } from "./types";
 
 function rowToStore(row: Record<string, unknown>): Store {
@@ -23,32 +28,49 @@ function rowToStore(row: Record<string, unknown>): Store {
   };
 }
 
-export async function listStores(opts: { region?: Region; search?: string } = {}): Promise<Store[]> {
+/** Load all stores from DB into cache (called once on first request). */
+async function loadAll(): Promise<Store[]> {
   await initDb();
-  const pool = getPool();
-  let sql = "SELECT * FROM stores WHERE 1=1";
-  const params: unknown[] = [];
+  const { rows } = await getPool().query(
+    "SELECT * FROM stores ORDER BY sort_order ASC, name ASC"
+  );
+  const stores = rows.map(rowToStore);
+  setCachedStores(stores);
+  return stores;
+}
+
+/** Get the full store list, using cache when available. */
+async function getAllStores(): Promise<Store[]> {
+  return getCachedStores() ?? (await loadAll());
+}
+
+/**
+ * List stores with optional region + search filters.
+ * Filtering is done in-memory against the cache — no extra DB round-trips.
+ */
+export async function listStores(
+  opts: { region?: Region; search?: string } = {}
+): Promise<Store[]> {
+  let stores = await getAllStores();
 
   if (opts.region) {
-    params.push(opts.region);
-    sql += ` AND region = $${params.length}`;
+    stores = stores.filter((s) => s.region === opts.region);
   }
   if (opts.search) {
-    params.push(`%${opts.search.toLowerCase()}%`);
-    sql += ` AND (LOWER(name) LIKE $${params.length} OR LOWER(COALESCE(notes,'')) LIKE $${params.length} OR LOWER(category) LIKE $${params.length})`;
+    const q = opts.search.toLowerCase();
+    stores = stores.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        (s.notes ?? "").toLowerCase().includes(q) ||
+        s.category.toLowerCase().includes(q)
+    );
   }
-  sql += " ORDER BY sort_order ASC, name ASC";
-
-  const { rows } = await pool.query(sql, params);
-  return rows.map(rowToStore);
+  return stores;
 }
 
 export async function getStore(id: string): Promise<Store | null> {
-  await initDb();
-  const pool = getPool();
-  const { rows } = await pool.query("SELECT * FROM stores WHERE id = $1", [id]);
-  if (!rows.length) return null;
-  return rowToStore(rows[0]);
+  const stores = await getAllStores();
+  return stores.find((s) => s.id === id) ?? null;
 }
 
 export async function upsertStore(s: Store): Promise<Store> {
@@ -87,24 +109,21 @@ export async function upsertStore(s: Store): Promise<Store> {
       s.createdAt ?? now, now,
     ]
   );
+  invalidateStores();
   return { ...s, updatedAt: now };
 }
 
 export async function deleteStore(id: string): Promise<void> {
   await initDb();
-  const pool = getPool();
-  await pool.query("DELETE FROM stores WHERE id = $1", [id]);
+  await getPool().query("DELETE FROM stores WHERE id = $1", [id]);
+  invalidateStores();
 }
 
 export async function regionCounts(): Promise<Record<Region, number>> {
-  await initDb();
-  const pool = getPool();
-  const { rows } = await pool.query(
-    "SELECT region, COUNT(*)::int AS cnt FROM stores GROUP BY region"
-  );
+  const stores = await getAllStores();
   const out: Record<Region, number> = { USA: 0, CAD: 0, EU: 0, UK: 0 };
-  for (const row of rows) {
-    if (row.region in out) out[row.region as Region] = Number(row.cnt);
+  for (const s of stores) {
+    if (s.region in out) out[s.region]++;
   }
   return out;
 }

@@ -1,4 +1,9 @@
 import { getPool, initDb } from "./db";
+import {
+  getCachedContent,
+  setCachedContent,
+  invalidateContent,
+} from "./cache";
 import type { ContentBlock } from "./types";
 
 export const DEFAULT_CONTENT: Record<string, string> = {
@@ -18,43 +23,50 @@ export const DEFAULT_CONTENT: Record<string, string> = {
   "buy.url": "https://refundgod.bgng.io/",
 };
 
-export async function getContentBlock(id: string): Promise<string> {
+/** Load all content blocks from DB into cache. */
+async function loadAll(): Promise<Map<string, string>> {
   await initDb();
-  const pool = getPool();
-  const { rows } = await pool.query(
-    "SELECT value FROM content_blocks WHERE id = $1",
-    [id]
+  const { rows } = await getPool().query(
+    "SELECT id, value FROM content_blocks"
   );
-  if (rows.length) return rows[0].value as string;
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    map.set(row.id as string, row.value as string);
+  }
+  setCachedContent(map);
+  return map;
+}
+
+async function getAllContent(): Promise<Map<string, string>> {
+  return getCachedContent() ?? (await loadAll());
+}
+
+export async function getContentBlock(id: string): Promise<string> {
+  const content = await getAllContent();
+  if (content.has(id)) return content.get(id)!;
   return DEFAULT_CONTENT[id] ?? "";
 }
 
 export async function setContentBlock(id: string, value: string): Promise<void> {
   await initDb();
-  const pool = getPool();
-  await pool.query(
+  await getPool().query(
     `INSERT INTO content_blocks (id, value, updated_at)
      VALUES ($1, $2, NOW())
      ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
     [id, value]
   );
+  invalidateContent();
 }
 
 export async function listContentBlocks(): Promise<ContentBlock[]> {
-  await initDb();
-  const pool = getPool();
-  const { rows } = await pool.query(
-    "SELECT id, value, updated_at FROM content_blocks"
-  );
-  const stored = new Map(rows.map((r) => [r.id as string, r]));
-  const ids = new Set([...stored.keys(), ...Object.keys(DEFAULT_CONTENT)]);
+  const content = await getAllContent();
+  const ids = new Set([...content.keys(), ...Object.keys(DEFAULT_CONTENT)]);
   const out: ContentBlock[] = [];
   for (const id of Array.from(ids).sort()) {
-    const row = stored.get(id);
     out.push({
       id,
-      value: row ? (row.value as string) : (DEFAULT_CONTENT[id] ?? ""),
-      updatedAt: row ? String(row.updated_at) : "",
+      value: content.has(id) ? content.get(id)! : (DEFAULT_CONTENT[id] ?? ""),
+      updatedAt: content.has(id) ? "" : "",
     });
   }
   return out;
