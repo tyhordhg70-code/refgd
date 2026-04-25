@@ -1,0 +1,67 @@
+import "./globals.css";
+import type { Metadata } from "next";
+import Nav from "@/components/Nav";
+import Footer from "@/components/Footer";
+import AnnouncementBanner from "@/components/AnnouncementBanner";
+import { getContentBlock } from "@/lib/content";
+
+export const metadata: Metadata = {
+  title: "RefundGod — Refunds, Replacements, Mentorships",
+  description:
+    "RefundGod offers refund services, exclusive mentorships, and a curated store list across USA, Canada, EU and UK. Safe, fast, encrypted process.",
+  keywords: [
+    "refundgod",
+    "refund service",
+    "refund mentorship",
+    "social engineering",
+    "evade cancelations",
+    "store list",
+  ],
+  openGraph: {
+    title: "RefundGod",
+    description:
+      "Refunds, replacements, and exclusive mentorships across USA, Canada, EU, UK.",
+    url: process.env.NEXT_PUBLIC_SITE_URL,
+    siteName: "RefundGod",
+    type: "website",
+  },
+  robots: { index: true, follow: true },
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const banner = {
+    text: getContentBlock("banner.text"),
+    cta: getContentBlock("banner.cta"),
+    url: getContentBlock("banner.url"),
+  };
+  return (
+    <html lang="en" className="bg-ink-950">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: "RefundGod",
+              url: process.env.NEXT_PUBLIC_SITE_URL,
+              sameAs: ["https://t.me/+nwkW2Mw3959mZDc0"],
+            }),
+          }}
+        />
+      </head>
+      <body className="min-h-screen bg-ink-950 text-white antialiased">
+        <AnnouncementBanner text={banner.text} cta={banner.cta} url={banner.url} />
+        <Nav />
+        <main>{children}</main>
+        <Footer />
+      </body>
+    </html>
+  );
+}

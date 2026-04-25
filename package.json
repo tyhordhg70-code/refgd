@@ -1,0 +1,32 @@
+{
+  "name": "refgd",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RefundGod self-hosted rebuild",
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p ${PORT:-3000}",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "seed": "tsx scripts/seed.ts",
+    "parse-stores": "tsx scripts/parse-stores.ts"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "framer-motion": "^11.11.17",
+    "jose": "^5.9.6",
+    "next": "14.2.18",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.9.0",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.14",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
