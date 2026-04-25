@@ -21,12 +21,11 @@ declare global {
 }
 
 function createPool(): Pool {
-  // RENDER_DATABASE_URL takes priority (explicit secret — avoids Replit's
-  // auto-injected DATABASE_URL which points to Replit's internal database).
-  // On Neon / other self-hosted envs, DATABASE_URL is the standard name.
+  // Priority: Neon → Render → any other Postgres (never Replit's internal DATABASE_URL first,
+  // as Replit auto-injects DATABASE_URL pointing to its own internal database).
   const url =
-    process.env.RENDER_DATABASE_URL ??
     process.env.NEON_DATABASE_URL ??
+    process.env.RENDER_DATABASE_URL ??
     process.env.DATABASE_URL;
   if (!url) {
     throw new Error(
