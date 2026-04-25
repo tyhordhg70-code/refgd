@@ -7,6 +7,16 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+
+// Load .env so ADMIN_USERNAME / ADMIN_PASSWORD / SESSION_SECRET are available
+const envFile = path.join(__dirname, "..", ".env");
+if (fs.existsSync(envFile)) {
+  for (const line of fs.readFileSync(envFile, "utf8").split("\n")) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/i);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+  }
+}
+
 import { db, withDb } from "../lib/db";
 import { upsertStore } from "../lib/stores";
 import { ensureBootstrapAdmin } from "../lib/auth";

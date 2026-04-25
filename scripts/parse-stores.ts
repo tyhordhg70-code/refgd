@@ -142,32 +142,50 @@ function extractStoreEntries(body: string): string[] {
   // stores can also be chained with " — " (em-dash with spaces around it,
   // mostly seen in the CAD page). The en-dash "–" is a *field separator
   // within* a store entry and must NOT split entries.
+  //
+  // CAD pages format every entry as "## StoreName / ..." — so we *strip*
+  // leading "#" markdown-header prefixes as preprocessing, never treat them
+  // as section dividers. Real category dividers were already removed by
+  // splitIntoCategorySections() before this function runs. Inline "###"
+  // header tokens that leaked mid-content (rare USA case) are handled by
+  // the inline splitter below.
   const blocks: string[] = [];
   let buf: string[] = [];
+  const flush = () => { if (buf.length) { blocks.push(buf.join(" ")); buf = []; } };
   for (const raw of body.split("\n")) {
-    const line = raw.trim();
+    // Strip leading markdown-heading prefix BEFORE separator detection
+    const line = raw.replace(/^\s*#{1,6}\s*/, "").trim();
     if (/^—+$/.test(line) || /^[-]{2,}$/.test(line)) {
-      if (buf.length) blocks.push(buf.join(" "));
-      buf = [];
+      flush();
     } else if (line.length === 0) {
       // ignore
     } else {
       buf.push(line);
     }
   }
-  if (buf.length) blocks.push(buf.join(" "));
+  flush();
 
-  // Further split blocks that chain stores with " — " inline (em-dash + spaces)
+  // Further split blocks on:
+  //  - inline " — " chains (em-dash with spaces)
+  //  - inline "###"/"####" header tokens that leaked into a single line
   const out: string[] = [];
   for (const block of blocks) {
     const cleaned = block.replace(/\s+/g, " ").trim();
     if (!cleaned) continue;
-    const parts = cleaned.split(/\s—\s+/);
-    for (const p of parts) {
-      const t = p.trim();
-      if (t.length < 4) continue;
-      if (isNoise(t)) continue;
-      out.push(t);
+    // First split on inline header tokens (markdown headers leaked into a line)
+    const headerSplit = cleaned.split(/\s*#{2,}\s*/);
+    for (const seg of headerSplit) {
+      const segTrim = seg.trim();
+      if (!segTrim) continue;
+      // Then split on " — " store chains
+      const parts = segTrim.split(/\s—\s+/);
+      for (const p of parts) {
+        // Strip any trailing "###" residue at end of part
+        const t = p.replace(/\s*#{2,}\s*$/, "").trim();
+        if (t.length < 4) continue;
+        if (isNoise(t)) continue;
+        out.push(t);
+      }
     }
   }
   return out;
@@ -191,6 +209,10 @@ function extractName(entry: string): string {
   // Reject if name is just metadata residue like "1 item" or "$5,000"
   if (/^\$?\d+([,.]\d+)?\s*(items?|tickets?|limit)?$/i.test(name)) return "";
   if (/^(NO LIMIT|no item limit|instant|worldwide|electronics|clothing|home|food|jewel(?:ery|ry)|stores price limits|store list)$/i.test(name)) return "";
+  // Reject URL/markup leftovers like "https", "http", "www", or 2-letter language codes
+  if (/^(https?|www|ftp|en|uk|us|ca|eu|de|fr|it|es)$/i.test(name)) return "";
+  // Reject pure punctuation/symbols
+  if (!/[A-Za-z0-9]{2,}/.test(name)) return "";
   return name;
 }
 
@@ -252,10 +274,28 @@ function extractNotes(entry: string, fields: { name: string; priceLimit?: string
   return s;
 }
 
-function makeId(region: Region, name: string, idx: number): string {
+function makeId(region: Region, name: string, _idx: number, taken: Set<string>): string {
+  // Stable ID: region + canonicalized name only. Index is intentionally ignored
+  // so re-parses produce identical IDs and admin edits survive reseeds.
+  // If the same (region,name) appears twice, append -2, -3, ... deterministically.
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40);
-  const hash = crypto.createHash("md5").update(`${region}:${name}:${idx}`).digest("hex").slice(0, 6);
-  return `${region.toLowerCase()}-${slug || "store"}-${hash}`;
+  const base = `${region.toLowerCase()}-${slug || "store"}`;
+  if (!taken.has(base)) {
+    taken.add(base);
+    return base;
+  }
+  for (let n = 2; n < 100; n++) {
+    const cand = `${base}-${n}`;
+    if (!taken.has(cand)) {
+      taken.add(cand);
+      return cand;
+    }
+  }
+  // pathological: fall back to short content hash
+  const h = crypto.createHash("md5").update(`${region}:${name}`).digest("hex").slice(0, 6);
+  const cand = `${base}-${h}`;
+  taken.add(cand);
+  return cand;
 }
 
 function parseFile(src: ParseSource): Store[] {
@@ -269,6 +309,7 @@ function parseFile(src: ParseSource): Store[] {
   const sections = splitIntoCategorySections(trimmed);
   const out: Store[] = [];
   let order = 0;
+  const idsTaken = new Set<string>();
 
   for (const { category, body } of sections) {
     const entries = extractStoreEntries(body);
@@ -294,7 +335,7 @@ function parseFile(src: ParseSource): Store[] {
 
       const now = new Date().toISOString();
       const store: Store = {
-        id: makeId(src.region, name, order),
+        id: makeId(src.region, name, order, idsTaken),
         name,
         domain,
         region: src.region,

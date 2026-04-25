@@ -6,7 +6,7 @@ A fully self-hosted rebuild of refundgod.io. No external SaaS dependencies — r
 
 - **Next.js 14** (App Router, SSR for Jina/AI crawler readability)
 - **TypeScript + Tailwind CSS**
-- **better-sqlite3** for persistent storage (single file)
+- **Pure JSON file storage** (`data/refgd.db.json`) — zero native deps, atomic writes, deploys anywhere Node.js runs
 - **bcryptjs + jose (JWT)** for hidden admin auth
 - **framer-motion** for animations
 
@@ -34,7 +34,13 @@ npm start
 
 ## Hidden admin
 
-Visit `/admin` (or whatever you set `ADMIN_PATH` to in `.env`).
+The admin lives at `/admin` by default. To **hide** it behind a secret slug,
+set `ADMIN_PATH=your-secret-slug` in `.env`. Then:
+
+- `/your-secret-slug` → admin login
+- `/admin` → 404
+
+Implemented via `middleware.ts`. Only operators who know the slug can find it.
 
 Admin can:
 - Add / edit / delete stores in any region
