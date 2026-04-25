@@ -11,6 +11,6 @@ export async function GET(req: Request) {
   const regionParam = url.searchParams.get("region") as Region | null;
   const region = regionParam && VALID_REGIONS.has(regionParam) ? regionParam : undefined;
   const search = url.searchParams.get("q") ?? undefined;
-  const stores = listStores({ region, search });
+  const stores = await listStores({ region, search });
   return NextResponse.json({ stores, count: stores.length });
 }

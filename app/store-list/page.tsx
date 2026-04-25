@@ -32,8 +32,8 @@ const RULES_BLOCKS = [
   },
 ];
 
-export default function StoreListPage() {
-  const stores = listStores();
+export default async function StoreListPage() {
+  const stores = await listStores();
   return (
     <>
       {/* Header */}

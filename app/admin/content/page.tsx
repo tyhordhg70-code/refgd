@@ -9,7 +9,7 @@ export const metadata = { title: "Edit content — Admin", robots: { index: fals
 export default async function AdminContentPage() {
   const s = await readSession();
   if (!s) redirect("/admin");
-  const blocks = listContentBlocks();
+  const blocks = await listContentBlocks();
   return (
     <div className="container-px py-10">
       <ContentAdmin initial={blocks} />

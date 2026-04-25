@@ -11,9 +11,12 @@ export const metadata = { title: "Admin Dashboard — RefundGod", robots: { inde
 export default async function AdminDashboard() {
   const session = await readSession();
   if (!session) redirect("/admin");
-  const stores = listStores();
-  const counts = regionCounts();
-  const content = listContentBlocks();
+
+  const [stores, counts, content] = await Promise.all([
+    listStores(),
+    regionCounts(),
+    listContentBlocks(),
+  ]);
 
   return (
     <div className="container-px py-12">

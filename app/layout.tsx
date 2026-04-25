@@ -28,12 +28,13 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const banner = {
-    text: getContentBlock("banner.text"),
-    cta: getContentBlock("banner.cta"),
-    url: getContentBlock("banner.url"),
-  };
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const [bannerText, bannerCta, bannerUrl] = await Promise.all([
+    getContentBlock("banner.text"),
+    getContentBlock("banner.cta"),
+    getContentBlock("banner.url"),
+  ]);
+
   return (
     <html lang="en" className="bg-ink-950">
       <head>
@@ -57,7 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-screen bg-ink-950 text-white antialiased">
-        <AnnouncementBanner text={banner.text} cta={banner.cta} url={banner.url} />
+        <AnnouncementBanner text={bannerText} cta={bannerCta} url={bannerUrl} />
         <Nav />
         <main>{children}</main>
         <Footer />

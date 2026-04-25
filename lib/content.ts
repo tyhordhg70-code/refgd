@@ -1,4 +1,4 @@
-import { db, withDb } from "./db";
+import { getPool, initDb } from "./db";
 import type { ContentBlock } from "./types";
 
 export const DEFAULT_CONTENT: Record<string, string> = {
@@ -18,29 +18,43 @@ export const DEFAULT_CONTENT: Record<string, string> = {
   "buy.url": "https://refundgod.bgng.io/",
 };
 
-export function getContentBlock(id: string): string {
-  const row = db().contentBlocks[id];
-  if (row) return row.value;
+export async function getContentBlock(id: string): Promise<string> {
+  await initDb();
+  const pool = getPool();
+  const { rows } = await pool.query(
+    "SELECT value FROM content_blocks WHERE id = $1",
+    [id]
+  );
+  if (rows.length) return rows[0].value as string;
   return DEFAULT_CONTENT[id] ?? "";
 }
 
-export function setContentBlock(id: string, value: string): void {
-  const now = new Date().toISOString();
-  withDb((d) => {
-    d.contentBlocks[id] = { value, updatedAt: now };
-  });
+export async function setContentBlock(id: string, value: string): Promise<void> {
+  await initDb();
+  const pool = getPool();
+  await pool.query(
+    `INSERT INTO content_blocks (id, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+    [id, value]
+  );
 }
 
-export function listContentBlocks(): ContentBlock[] {
-  const stored = db().contentBlocks;
-  const ids = new Set([...Object.keys(stored), ...Object.keys(DEFAULT_CONTENT)]);
+export async function listContentBlocks(): Promise<ContentBlock[]> {
+  await initDb();
+  const pool = getPool();
+  const { rows } = await pool.query(
+    "SELECT id, value, updated_at FROM content_blocks"
+  );
+  const stored = new Map(rows.map((r) => [r.id as string, r]));
+  const ids = new Set([...stored.keys(), ...Object.keys(DEFAULT_CONTENT)]);
   const out: ContentBlock[] = [];
   for (const id of Array.from(ids).sort()) {
-    const row = stored[id];
+    const row = stored.get(id);
     out.push({
       id,
-      value: row?.value ?? DEFAULT_CONTENT[id] ?? "",
-      updatedAt: row?.updatedAt ?? "",
+      value: row ? (row.value as string) : (DEFAULT_CONTENT[id] ?? ""),
+      updatedAt: row ? String(row.updated_at) : "",
     });
   }
   return out;

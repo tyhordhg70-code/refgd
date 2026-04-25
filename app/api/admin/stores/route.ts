@@ -22,7 +22,7 @@ async function requireAuth(): Promise<NextResponse | null> {
 export async function GET() {
   const u = await requireAuth();
   if (u) return u;
-  return NextResponse.json({ stores: listStores() });
+  return NextResponse.json({ stores: await listStores() });
 }
 
 export async function POST(req: Request) {
@@ -60,6 +60,6 @@ export async function POST(req: Request) {
     updatedAt: now,
   };
   if (!store.name) return NextResponse.json({ error: "name required" }, { status: 400 });
-  const saved = upsertStore(store);
+  const saved = await upsertStore(store);
   return NextResponse.json({ store: saved });
 }

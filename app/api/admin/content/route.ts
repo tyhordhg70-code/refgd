@@ -13,7 +13,7 @@ async function requireAuth(): Promise<NextResponse | null> {
 export async function GET() {
   const u = await requireAuth();
   if (u) return u;
-  return NextResponse.json({ blocks: listContentBlocks() });
+  return NextResponse.json({ blocks: await listContentBlocks() });
 }
 
 export async function PUT(req: Request) {
@@ -25,8 +25,8 @@ export async function PUT(req: Request) {
   }
   for (const b of body.blocks as Array<{ id: string; value: string }>) {
     if (typeof b.id === "string" && typeof b.value === "string") {
-      setContentBlock(b.id, b.value);
+      await setContentBlock(b.id, b.value);
     }
   }
-  return NextResponse.json({ ok: true, blocks: listContentBlocks() });
+  return NextResponse.json({ ok: true, blocks: await listContentBlocks() });
 }

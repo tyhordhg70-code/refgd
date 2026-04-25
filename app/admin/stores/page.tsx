@@ -9,7 +9,7 @@ export const metadata = { title: "Manage Stores — Admin", robots: { index: fal
 export default async function AdminStoresPage() {
   const s = await readSession();
   if (!s) redirect("/admin");
-  const stores = listStores();
+  const stores = await listStores();
   return (
     <div className="container-px py-10">
       <StoresAdmin initialStores={stores} />

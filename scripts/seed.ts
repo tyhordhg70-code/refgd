@@ -1,14 +1,15 @@
 /**
- * Seeds the SQLite database from data/stores.json.
- * Idempotent: skips stores that already exist by id.
+ * Seeds the Render PostgreSQL database from data/stores.json.
+ * Idempotent — uses INSERT … ON CONFLICT DO UPDATE.
  *
- *   npm run seed         # only inserts new
- *   npm run seed -- --reset   # wipes & reseeds
+ *   npm run seed          # upsert all stores from stores.json
+ *   npm run seed -- --reset   # DELETE all stores first, then upsert
  */
 import fs from "node:fs";
 import path from "node:path";
 
-// Load .env so ADMIN_USERNAME / ADMIN_PASSWORD / SESSION_SECRET are available
+// Load .env so RENDER_DATABASE_URL / SESSION_SECRET are available in local dev
+// (Replit injects secrets automatically; this only matters for bare `tsx` runs)
 const envFile = path.join(__dirname, "..", ".env");
 if (fs.existsSync(envFile)) {
   for (const line of fs.readFileSync(envFile, "utf8").split("\n")) {
@@ -17,15 +18,19 @@ if (fs.existsSync(envFile)) {
   }
 }
 
-import { db, withDb } from "../lib/db";
+import { initDb, getPool } from "../lib/db";
 import { upsertStore } from "../lib/stores";
-import { ensureBootstrapAdmin } from "../lib/auth";
 import type { Store } from "../lib/types";
 
 async function main() {
   const reset = process.argv.includes("--reset");
+
+  console.log("[seed] connecting to Render Postgres …");
+  await initDb();
+  const pool = getPool();
+
   if (reset) {
-    withDb((d) => { d.stores = {}; });
+    await pool.query("DELETE FROM stores");
     console.log("[seed] reset: cleared stores");
   }
 
@@ -36,26 +41,19 @@ async function main() {
   }
   const stores: Store[] = JSON.parse(fs.readFileSync(file, "utf8"));
 
-  let inserted = 0;
-  let skipped = 0;
-  const existing = new Set(Object.keys(db().stores));
+  console.log(`[seed] upserting ${stores.length} stores …`);
+  let count = 0;
   for (const s of stores) {
-    if (!reset && existing.has(s.id)) {
-      skipped++;
-      continue;
-    }
-    upsertStore(s);
-    inserted++;
+    await upsertStore(s);
+    count++;
+    if (count % 50 === 0) console.log(`  … ${count}/${stores.length}`);
   }
 
-  await ensureBootstrapAdmin();
-  console.log(`[seed] inserted ${inserted}, skipped ${skipped}`);
-  console.log("[seed] admin bootstrap OK (uses ADMIN_USERNAME / ADMIN_PASSWORD)");
-  // give the async write queue a moment to flush
-  await new Promise((r) => setTimeout(r, 250));
+  console.log(`[seed] done — ${count} stores upserted into Postgres`);
+  await pool.end();
 }
 
 main().catch((e) => {
-  console.error(e);
+  console.error("[seed] error:", e);
   process.exit(1);
 });

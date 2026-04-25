@@ -44,13 +44,15 @@ const PATHS = [
   },
 ];
 
-export default function HomePage() {
-  const kicker = getContentBlock("hero.kicker");
-  const title = getContentBlock("hero.title");
-  const subtitle = getContentBlock("hero.subtitle");
-  const ctaLabel = getContentBlock("hero.cta.label");
-  const ctaUrl = getContentBlock("hero.cta.url");
-  const telegramHeadline = getContentBlock("telegram.headline");
+export default async function HomePage() {
+  const [kicker, title, subtitle, ctaLabel, ctaUrl, telegramHeadline] = await Promise.all([
+    getContentBlock("hero.kicker"),
+    getContentBlock("hero.title"),
+    getContentBlock("hero.subtitle"),
+    getContentBlock("hero.cta.label"),
+    getContentBlock("hero.cta.url"),
+    getContentBlock("telegram.headline"),
+  ]);
 
   return (
     <>

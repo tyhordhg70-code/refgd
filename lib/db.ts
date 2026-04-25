@@ -1,70 +1,70 @@
 /**
- * Tiny atomic JSON-file store.
+ * PostgreSQL pool singleton.
  *
- * Why not SQLite? Zero native deps means this app installs and runs on any
- * Node host without a build toolchain. For a few hundred stores + admin
- * sessions this is plenty fast and the file is human-readable / git-trackable.
+ * Connection string read from RENDER_DATABASE_URL (Replit secret).
+ * In development the secret is injected automatically.
+ * For self-hosting: set RENDER_DATABASE_URL in your host environment.
  *
- * Atomic writes via tmp-file + rename so a crash mid-write can't corrupt data.
+ * Tables are created on first call to initDb().
  */
-import fs from "node:fs";
-import path from "node:path";
+import { Pool } from "pg";
 
-export interface DbShape {
-  stores: Record<string, unknown>;       // id -> Store
-  contentBlocks: Record<string, { value: string; updatedAt: string }>;
-  admins: Record<string, { passwordHash: string; createdAt: string }>;
+declare global {
+  // eslint-disable-next-line no-var
+  var _pgPool: Pool | undefined;
 }
 
-const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "refgd.db.json");
-
-let _cache: DbShape | null = null;
-let _writeQueue: Promise<void> = Promise.resolve();
-
-function emptyDb(): DbShape {
-  return { stores: {}, contentBlocks: {}, admins: {} };
-}
-
-function readSync(): DbShape {
-  if (_cache) return _cache;
-  const dir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  if (!fs.existsSync(DB_PATH)) {
-    _cache = emptyDb();
-    fs.writeFileSync(DB_PATH, JSON.stringify(_cache, null, 2));
-    return _cache;
+function createPool(): Pool {
+  const url = process.env.RENDER_DATABASE_URL;
+  if (!url) {
+    throw new Error(
+      "RENDER_DATABASE_URL is not set. Add it as a Replit secret or environment variable."
+    );
   }
-  try {
-    _cache = JSON.parse(fs.readFileSync(DB_PATH, "utf8")) as DbShape;
-  } catch {
-    _cache = emptyDb();
-  }
-  // ensure all tables present
-  if (!_cache.stores) _cache.stores = {};
-  if (!_cache.contentBlocks) _cache.contentBlocks = {};
-  if (!_cache.admins) _cache.admins = {};
-  return _cache;
-}
-
-function writeSync(db: DbShape): void {
-  _cache = db;
-  const tmp = `${DB_PATH}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
-  fs.renameSync(tmp, DB_PATH);
-}
-
-/** Read the in-memory snapshot. Cheap. */
-export function db(): DbShape {
-  return readSync();
-}
-
-/** Mutate the db with a callback. Serialises writes to avoid races. */
-export function withDb<T>(fn: (d: DbShape) => T): T {
-  const d = readSync();
-  const result = fn(d);
-  // Serialise writes
-  _writeQueue = _writeQueue.then(() => {
-    writeSync(d);
+  return new Pool({
+    connectionString: url,
+    ssl: { rejectUnauthorized: false }, // required for Render external connections
+    max: 5,
+    idleTimeoutMillis: 30_000,
   });
-  return result;
+}
+
+/** Singleton pool — reused across hot-reloads in dev. */
+export function getPool(): Pool {
+  if (!global._pgPool) {
+    global._pgPool = createPool();
+  }
+  return global._pgPool;
+}
+
+/** Create tables if they don't exist. Call once at startup / in seed. */
+export async function initDb(): Promise<void> {
+  const pool = getPool();
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS stores (
+      id           TEXT PRIMARY KEY,
+      name         TEXT NOT NULL,
+      domain       TEXT,
+      region       TEXT NOT NULL,
+      category     TEXT NOT NULL DEFAULT 'Other',
+      price_limit  TEXT,
+      item_limit   TEXT,
+      fee          TEXT,
+      timeframe    TEXT,
+      notes        TEXT,
+      tags         TEXT NOT NULL DEFAULT '[]',
+      prismatic_glow BOOLEAN NOT NULL DEFAULT FALSE,
+      logo_url     TEXT,
+      raw_text     TEXT,
+      sort_order   INTEGER NOT NULL DEFAULT 0,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS content_blocks (
+      id         TEXT PRIMARY KEY,
+      value      TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
 }

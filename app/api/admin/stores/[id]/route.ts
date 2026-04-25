@@ -13,7 +13,7 @@ async function requireAuth(): Promise<NextResponse | null> {
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const u = await requireAuth();
   if (u) return u;
-  const existing = getStore(params.id);
+  const existing = await getStore(params.id);
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
@@ -25,15 +25,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     createdAt: existing.createdAt,
   };
   if (Array.isArray(body.tags)) merged.tags = body.tags;
-  const saved = upsertStore(merged);
+  const saved = await upsertStore(merged);
   return NextResponse.json({ store: saved });
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const u = await requireAuth();
   if (u) return u;
-  const existing = getStore(params.id);
+  const existing = await getStore(params.id);
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  deleteStore(params.id);
+  await deleteStore(params.id);
   return NextResponse.json({ ok: true });
 }
