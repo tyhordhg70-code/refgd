@@ -4,6 +4,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import MusicPlayer from "@/components/MusicPlayer";
+import CustomCursor from "@/components/CustomCursor";
 import { getContentBlock } from "@/lib/content";
 
 export const metadata: Metadata = {
@@ -72,6 +73,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <main>{children}</main>
         <Footer />
         <MusicPlayer />
+        <CustomCursor />
       </body>
     </html>
   );

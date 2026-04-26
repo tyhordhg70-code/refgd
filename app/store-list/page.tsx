@@ -1,7 +1,10 @@
 import { listStores } from "@/lib/stores";
 import StoreFilters from "@/components/StoreFilters";
 import ServiceSection from "@/components/ServiceSection";
-import ScrollReveal3D from "@/components/ScrollReveal3D";
+import GlassCard from "@/components/GlassCard";
+import KineticText from "@/components/KineticText";
+import HeroBackground from "@/components/HeroBackground";
+import { Reveal } from "@/components/Reveal";
 
 export const dynamic = "force-dynamic";
 
@@ -14,23 +17,31 @@ export const metadata = {
 const RULES_BLOCKS = [
   {
     n: "01",
+    h: "Confirm your cart",
     body:
       "Order your items from one of the stores below. To ensure a smooth process and peace of mind, please confirm with us your cart before placing an order.",
+    tint: "amber" as const,
   },
   {
     n: "02",
+    h: "Hold the originals",
     body:
       "Please don't activate electronics, or throw away packages during the process. It is always advised to hold on to original items, in case an unexpected situation may occur.",
+    tint: "violet" as const,
   },
   {
     n: "03",
+    h: "Pay within 48h",
     body:
       "Once your order ships or delivers, we do our job. Once you receive a confirmation from the store regarding your refund, please pay our service fee within 48 hours.",
+    tint: "cyan" as const,
   },
   {
     n: "04",
+    h: "Minimum 100",
     body:
       "Our minimum fee is 100! Meaning the minimum amount you pay us no matter the order value is 100 in whatever currency your order is.",
+    tint: "fuchsia" as const,
   },
 ];
 
@@ -39,95 +50,127 @@ export default async function StoreListPage() {
 
   return (
     <>
-      {/* Section 1 — Our Service (merged from /our-service) */}
+      {/* Section 1 — Our Service (multi-act) */}
       <ServiceSection />
 
-      {/* Divider */}
-      <div className="container-px pb-2">
+      {/* Divider with editorial chapter mark */}
+      <div className="container-wide pt-8 pb-2">
         <div className="mx-auto h-px w-full max-w-3xl bg-gradient-to-r from-transparent via-white/15 to-transparent" />
       </div>
 
-      {/* Store list section */}
+      {/* Store list intro */}
       <section
         id="storelist"
-        className="container-px relative scroll-mt-16 pt-12 pb-6"
+        className="relative scroll-mt-16 py-20 sm:py-28"
       >
-        <ScrollReveal3D intensity={0.7}>
-          <div className="mx-auto max-w-3xl text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-300/85">
-              Curated · 480+ stores
+        <HeroBackground />
+        <div className="container-wide relative">
+          <div className="mx-auto max-w-5xl text-center">
+            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300/80 sm:text-sm">
+              — chapter 05 / curated · 480+ stores
             </p>
-            <h2 className="heading-display mt-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">
-              The Store List
-            </h2>
-            <p className="mt-4 text-base text-white/70">
-              Filter by region, search by name, and see live limits, fees and
-              timeframes. Join our channels for the latest store drops.
-            </p>
+            <KineticText
+              as="h2"
+              text="The Store List"
+              className="editorial-display mt-6 bg-gradient-to-b from-white via-white to-amber-200 bg-clip-text text-transparent text-[clamp(3rem,10vw,9rem)] uppercase"
+            />
+            <Reveal delay={0.4}>
+              <p className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-white/70">
+                Filter by region, search by name, and see live limits, fees and
+                timeframes. Join our channels for the latest store drops.
+              </p>
+            </Reveal>
           </div>
-        </ScrollReveal3D>
-      </section>
-
-      {/* Rules blocks */}
-      <section className="container-px pb-10">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {RULES_BLOCKS.map((b, i) => (
-            <ScrollReveal3D key={b.n} intensity={0.5}>
-              <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-transparent p-5">
-                <div className="heading-display text-3xl font-bold text-amber-300/90">
-                  {b.n}
-                </div>
-                <p className="mt-2 text-sm font-medium leading-relaxed text-white/80">
-                  {b.body}
-                </p>
-              </div>
-            </ScrollReveal3D>
-          ))}
         </div>
       </section>
 
-      {/* Non-payment + payment */}
-      <section className="container-px pb-12">
-        <div className="grid gap-4 lg:grid-cols-3">
-          <ScrollReveal3D className="lg:col-span-2" intensity={0.6}>
-            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-6">
-              <h3 className="heading-display text-lg font-bold text-rose-200">
+      {/* Rules — glass cards in 4-up grid */}
+      <section className="relative py-12">
+        <HeroBackground />
+        <div className="container-wide relative">
+          <Reveal>
+            <p className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300/75">
+              — the rules
+            </p>
+          </Reveal>
+          <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            {RULES_BLOCKS.map((b, i) => (
+              <GlassCard key={b.n} tint={b.tint} delay={i * 0.08}>
+                <div className="p-6 sm:p-7">
+                  <div className="heading-display text-aurora text-5xl font-bold leading-none tracking-tight">
+                    {b.n}
+                  </div>
+                  <h3 className="heading-display mt-3 text-lg font-bold uppercase tracking-tight text-white">
+                    {b.h}
+                  </h3>
+                  <p className="mt-3 text-sm font-medium leading-relaxed text-white/75">
+                    {b.body}
+                  </p>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Non-payment + payment — magazine 2/3 + 1/3 */}
+      <section className="relative py-12">
+        <HeroBackground />
+        <div className="container-wide relative grid gap-5 lg:grid-cols-3">
+          <GlassCard tint="rose" className="lg:col-span-2">
+            <div className="p-8 sm:p-10">
+              <h3 className="heading-display text-2xl font-bold uppercase tracking-tight text-rose-100">
                 Non-payment disclaimer
               </h3>
-              <p className="mt-2 text-sm leading-relaxed text-white/75">
+              <p className="mt-4 text-base leading-relaxed text-white/80">
                 Failure to pay our service fee within the agreed timeframe will
                 result in a rebill and pursuit of legal action by the company
                 and local authorities, with all documentation and evidence
-                supporting this activity. We have automated scripts that
-                inform us of pending orders awaiting payment. Given our
-                service is constructed to help you, it is only fair to treat
-                us with a little gratitude in return.
+                supporting this activity. We have automated scripts that inform
+                us of pending orders awaiting payment. Given our service is
+                constructed to help you, it is only fair to treat us with a
+                little gratitude in return.
               </p>
             </div>
-          </ScrollReveal3D>
-          <ScrollReveal3D intensity={0.6}>
-            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6">
-              <h3 className="heading-display text-lg font-bold text-emerald-200">
+          </GlassCard>
+          <GlassCard tint="emerald">
+            <div className="p-8 sm:p-10">
+              <h3 className="heading-display text-2xl font-bold uppercase tracking-tight text-emerald-100">
                 Payment
               </h3>
-              <p className="mt-2 text-sm leading-relaxed text-white/75">
+              <p className="mt-4 text-base leading-relaxed text-white/80">
                 We accept ALL cryptocurrencies as payment.
               </p>
-              <p className="mt-2 text-sm leading-relaxed text-white/75">
+              <p className="mt-3 text-base leading-relaxed text-white/80">
                 Don&apos;t see a store you&apos;re interested in below? We&apos;d be more than
                 happy to try it out for you, for a discounted rate!
               </p>
             </div>
-          </ScrollReveal3D>
+          </GlassCard>
         </div>
       </section>
 
       {/* Filters + grid */}
-      <section className="container-px pb-24" id="region">
-        <h2 className="heading-display mb-5 text-2xl font-bold tracking-tight text-white">
-          Select your region
-        </h2>
-        <StoreFilters stores={stores} />
+      <section className="relative py-20" id="region">
+        <HeroBackground />
+        <div className="container-wide relative">
+          <div className="mb-10 grid items-end gap-6 sm:grid-cols-[1fr_auto]">
+            <div>
+              <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300/80">
+                — chapter 06 / browse
+              </p>
+              <KineticText
+                as="h2"
+                text="Select your region."
+                className="editorial-display mt-5 bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent text-[clamp(2rem,6vw,5rem)] uppercase"
+              />
+            </div>
+            <p className="max-w-xs text-sm text-white/55">
+              One region at a time. Search across name, category and notes.
+            </p>
+          </div>
+          <StoreFilters stores={stores} />
+        </div>
       </section>
     </>
   );

@@ -29,11 +29,14 @@ export default function StoreCard({ store, idx }: { store: Store; idx: number })
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: Math.min(idx * 0.015, 0.25) }}
+      data-cursor="hover"
+      data-cursor-label={store.name}
+      whileHover={{ y: -4 }}
       className={`relative ${store.prismaticGlow ? "p-[1.5px]" : "p-px"} rounded-2xl ${
         store.prismaticGlow ? "prismatic-border" : "bg-white/10"
-      }`}
+      } transition-shadow duration-300 hover:shadow-[0_30px_70px_-25px_rgba(245,185,69,0.5)]`}
     >
-      <div className="relative h-full rounded-2xl bg-ink-900/85 p-5 backdrop-blur transition group-hover:bg-ink-800/85">
+      <div className="relative h-full rounded-2xl bg-ink-900/70 p-5 backdrop-blur-xl transition group-hover:bg-ink-800/85">
         <div className="flex items-start gap-4">
           <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/10 bg-white">
             {logoSrc ? (

@@ -33,6 +33,8 @@ export default function Nav() {
                   href={it.href}
                   target={it.external ? "_blank" : undefined}
                   rel={it.external ? "noopener noreferrer" : undefined}
+                  data-cursor="link"
+                  data-cursor-label={it.label}
                   className="rounded-full px-3 py-2 text-white/75 transition hover:bg-white/5 hover:text-white"
                 >
                   {it.label}

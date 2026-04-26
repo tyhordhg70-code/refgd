@@ -11,22 +11,31 @@ interface PathCardProps {
   title: string;
   imageSrc: string;
   accent: "gold" | "fuchsia" | "cyan" | "violet" | "orange";
+  size?: "sm" | "md" | "lg";
 }
 
 const ACCENT_GLOW: Record<PathCardProps["accent"], string> = {
-  gold:    "shadow-[0_30px_80px_-30px_rgba(245,185,69,0.65)] group-hover:shadow-[0_40px_120px_-30px_rgba(245,185,69,0.9)]",
-  fuchsia: "shadow-[0_30px_80px_-30px_rgba(219,39,119,0.6)] group-hover:shadow-[0_40px_120px_-30px_rgba(219,39,119,0.9)]",
-  cyan:    "shadow-[0_30px_80px_-30px_rgba(34,211,238,0.6)] group-hover:shadow-[0_40px_120px_-30px_rgba(34,211,238,0.9)]",
-  violet:  "shadow-[0_30px_80px_-30px_rgba(139,92,246,0.6)] group-hover:shadow-[0_40px_120px_-30px_rgba(139,92,246,0.9)]",
-  orange:  "shadow-[0_30px_80px_-30px_rgba(249,115,22,0.6)] group-hover:shadow-[0_40px_120px_-30px_rgba(249,115,22,0.9)]",
+  gold:    "hover:shadow-[0_50px_120px_-30px_rgba(245,185,69,0.85)]",
+  fuchsia: "hover:shadow-[0_50px_120px_-30px_rgba(219,39,119,0.85)]",
+  cyan:    "hover:shadow-[0_50px_120px_-30px_rgba(34,211,238,0.85)]",
+  violet:  "hover:shadow-[0_50px_120px_-30px_rgba(139,92,246,0.85)]",
+  orange:  "hover:shadow-[0_50px_120px_-30px_rgba(249,115,22,0.85)]",
 };
 
 const ACCENT_RING: Record<PathCardProps["accent"], string> = {
-  gold:    "from-amber-300/60 via-amber-400/20 to-transparent",
-  fuchsia: "from-fuchsia-300/60 via-fuchsia-500/20 to-transparent",
-  cyan:    "from-cyan-300/60 via-cyan-500/20 to-transparent",
-  violet:  "from-violet-300/60 via-violet-500/20 to-transparent",
-  orange:  "from-orange-300/60 via-orange-500/20 to-transparent",
+  gold:    "from-amber-300/70 via-amber-400/15 to-transparent",
+  fuchsia: "from-fuchsia-300/70 via-fuchsia-500/15 to-transparent",
+  cyan:    "from-cyan-300/70 via-cyan-500/15 to-transparent",
+  violet:  "from-violet-300/70 via-violet-500/15 to-transparent",
+  orange:  "from-orange-300/70 via-orange-500/15 to-transparent",
+};
+
+const ACCENT_CHIP: Record<PathCardProps["accent"], string> = {
+  gold:    "text-amber-200 bg-amber-300/15 ring-amber-300/30",
+  fuchsia: "text-fuchsia-200 bg-fuchsia-400/15 ring-fuchsia-300/30",
+  cyan:    "text-cyan-200 bg-cyan-300/15 ring-cyan-300/30",
+  violet:  "text-violet-200 bg-violet-300/15 ring-violet-300/30",
+  orange:  "text-orange-200 bg-orange-300/15 ring-orange-300/30",
 };
 
 export default function PathCard({
@@ -36,85 +45,93 @@ export default function PathCard({
   title,
   imageSrc,
   accent,
+  size = "md",
 }: PathCardProps) {
   const Tag: any = external ? "a" : Link;
   const linkProps = external
     ? { href, target: "_blank", rel: "noopener noreferrer" }
     : { href };
 
-  // Stagger floating animation phase per card
   const floatDelay = `${(index * 0.55).toFixed(2)}s`;
   const floatDuration = `${7 + (index % 3) * 0.6}s`;
+  const aspect = size === "lg" ? "aspect-[4/5]" : size === "sm" ? "aspect-[3/4]" : "aspect-[3/4]";
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 40 }}
+      initial={{ opacity: 0, y: 50 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.7, delay: index * 0.08, ease: [0.25, 0.4, 0.25, 1] }}
-      className="group relative"
+      transition={{ duration: 0.8, delay: index * 0.1, ease: [0.25, 0.4, 0.25, 1] }}
+      className="group relative h-full"
+      data-cursor="hover"
+      data-cursor-label={title}
     >
-      {/* Inner wrapper owns the floatSlow CSS animation so framer-motion's
-          y-transform on the parent doesn't fight a competing CSS transform. */}
-      <div style={{ animation: `floatSlow ${floatDuration} ease-in-out ${floatDelay} infinite` }}>
-      <Tilt3D intensity={0.85}>
-        <Tag
-          {...linkProps}
-          className={`relative block h-full overflow-hidden rounded-3xl bg-ink-900/40 backdrop-blur-md transition-all duration-500 ${ACCENT_GLOW[accent]}`}
-        >
-          {/* Animated gradient ring */}
-          <div
-            aria-hidden="true"
-            className={`pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br ${ACCENT_RING[accent]} opacity-50 transition-opacity duration-500 group-hover:opacity-100`}
-            style={{ padding: "1px", WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)", WebkitMaskComposite: "xor", maskComposite: "exclude" }}
-          />
-
-          {/* Image — depth layer with z-translate */}
-          <div
-            className="relative aspect-[3/4] overflow-hidden rounded-3xl"
-            style={{ transform: "translateZ(28px)", transformStyle: "preserve-3d" }}
+      <div style={{ animation: `floatSlow ${floatDuration} ease-in-out ${floatDelay} infinite` }} className="h-full">
+        <Tilt3D intensity={0.85} className="h-full">
+          <Tag
+            {...linkProps}
+            className={`relative block h-full overflow-hidden rounded-[2rem] glass-strong transition-all duration-500 ${ACCENT_GLOW[accent]}`}
           >
-            <Image
-              src={imageSrc}
-              alt={title}
-              fill
-              sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 20vw"
-              className="object-cover transition-transform duration-700 group-hover:scale-110"
-              priority={index < 2}
-            />
-            {/* Gradient veil for label legibility */}
+            {/* Animated gradient ring */}
             <div
               aria-hidden="true"
-              className="absolute inset-0"
-              style={{
-                background:
-                  "linear-gradient(180deg, transparent 30%, rgba(5,6,10,0.5) 65%, rgba(5,6,10,0.95) 100%)",
-              }}
+              className={`pointer-events-none absolute inset-0 rounded-[2rem] bg-gradient-to-br ${ACCENT_RING[accent]} opacity-60 transition-opacity duration-500 group-hover:opacity-100`}
+              style={{ padding: "1px", WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)", WebkitMaskComposite: "xor", maskComposite: "exclude" }}
             />
-            {/* Inner shimmer on hover */}
+
             <div
-              aria-hidden="true"
-              className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 transition-all duration-1000 group-hover:translate-x-full group-hover:opacity-100"
-            />
-            {/* Label, lifted in Z for AR feel */}
-            <div
-              className="absolute inset-x-0 bottom-0 p-5 text-center"
-              style={{ transform: "translateZ(56px)" }}
+              className={`relative ${aspect} overflow-hidden rounded-[2rem]`}
+              style={{ transform: "translateZ(28px)", transformStyle: "preserve-3d" }}
             >
-              <h3 className="heading-display text-lg font-bold uppercase tracking-tight text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.85)] sm:text-xl">
-                {title}
-              </h3>
-              <div className="mt-2 inline-flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.3em] text-white/65 transition-colors group-hover:text-white">
-                Enter
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <path d="M5 12h14" />
-                  <path d="m12 5 7 7-7 7" />
-                </svg>
+              <Image
+                src={imageSrc}
+                alt={title}
+                fill
+                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                className="object-cover transition-transform duration-700 group-hover:scale-110"
+                priority={index < 2}
+              />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "linear-gradient(180deg, transparent 25%, rgba(5,6,10,0.55) 65%, rgba(5,6,10,0.96) 100%)",
+                }}
+              />
+              {/* Inner shimmer on hover */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-0 transition-all duration-1000 group-hover:translate-x-full group-hover:opacity-100"
+              />
+              {/* Index chip */}
+              <div
+                className="absolute left-5 top-5"
+                style={{ transform: "translateZ(40px)" }}
+              >
+                <span className={`heading-display rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] ring-1 backdrop-blur-md ${ACCENT_CHIP[accent]}`}>
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+              </div>
+              {/* Label */}
+              <div
+                className="absolute inset-x-0 bottom-0 p-6"
+                style={{ transform: "translateZ(56px)" }}
+              >
+                <h3 className="heading-display text-balance text-2xl font-bold uppercase leading-tight tracking-tight text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.85)] sm:text-3xl">
+                  {title}
+                </h3>
+                <div className="mt-3 inline-flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.3em] text-white/70 transition-all duration-300 group-hover:gap-3 group-hover:text-white">
+                  Enter
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M5 12h14" />
+                    <path d="m12 5 7 7-7 7" />
+                  </svg>
+                </div>
               </div>
             </div>
-          </div>
-        </Tag>
-      </Tilt3D>
+          </Tag>
+        </Tilt3D>
       </div>
     </motion.div>
   );
