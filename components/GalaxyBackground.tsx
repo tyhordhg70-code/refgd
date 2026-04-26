@@ -99,6 +99,10 @@ export default function GalaxyBackground() {
         size: 0.125,
         transparent: true,
         depthTest: false,
+        // Hardening: never write to the depth buffer either, otherwise
+        // future transparent layers stacked above the cosmos can be
+        // occluded incorrectly. Additive points should be pure overlay.
+        depthWrite: false,
         blending: THREE.AdditiveBlending,
       });
       // `onBeforeCompile` is a method on THREE.Material, not a constructor

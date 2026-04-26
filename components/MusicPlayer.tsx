@@ -58,20 +58,20 @@ export default function MusicPlayer() {
   // value without becoming a dependency that re-runs the effect.
   const mutedRef = useRef(false);
   const [muted, setMuted] = useState<boolean>(false);
-  // Pick the track AND mute preference synchronously on first render so
-  // the <audio> element is created with `src` immediately and `autoPlay`
-  // can fire on the very first paint — eliminates the previous delay.
-  const [track, setTrack] = useState<{ src: string; label: string } | null>(
-    () => (typeof window !== "undefined" ? pickTrack() : null),
-  );
+  // Track starts as `null` on BOTH server + first client render to avoid
+  // any hydration mismatch (the <audio> element is therefore not in the
+  // initial HTML). Immediately after mount we pick the track in an
+  // effect — Next paints the <audio> with `autoPlay` which fires right
+  // away. This still feels instant because the effect runs synchronously
+  // after first commit (no network hop, no delay).
+  const [track, setTrack] = useState<{ src: string; label: string } | null>(null);
 
-  // Hydrate mute preference + (in case of SSR) backfill the track.
+  // Mount-time bootstrap: pick track + read mute preference.
   useEffect(() => {
-    if (!track) setTrack(pickTrack());
+    setTrack(pickTrack());
     const initial = readMutePref();
     setMuted(initial);
     mutedRef.current = initial;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function cancelFade() {

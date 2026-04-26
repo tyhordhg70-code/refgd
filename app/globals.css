@@ -386,11 +386,15 @@ html { scroll-behavior: smooth; }
 /* ─── Mobile typography taming ─────────────────────────────────── */
 @media (max-width: 640px) {
   .editorial-display {
-    line-height: 0.94;
+    /* Keep enough breathing room so wrapped multi-line titles on small
+       screens don't overlap descenders/ascenders. Slightly tighter than
+       desktop's 1.02 but never below 1.0. */
+    line-height: 1.02;
     letter-spacing: -0.035em;
   }
-  /* keep big landing headlines from stealing the whole viewport */
-  h1.editorial-display { line-height: 0.92; }
+  /* H1 hero kicker is one short word ("WELCOME") — safe to compress
+     marginally so it dominates the viewport without overlap. */
+  h1.editorial-display { line-height: 1.0; }
   .container-px { padding-left: 1rem; padding-right: 1rem; }
   .container-wide { padding-left: 1rem; padding-right: 1rem; }
 }
