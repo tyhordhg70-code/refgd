@@ -111,17 +111,28 @@ export default function ChipScroll({
 
   const allReady = !usingFallback && loaded >= frameCount;
 
-  // ── Canvas painter ──────────────────────────────────────────────
+  // ── Canvas painter — event-driven: paints only when scroll progress
+  // changes or the canvas is resized. No 60fps idle loop. ─────────
   useEffect(() => {
     const cnv = canvasRef.current;
     if (!cnv) return;
     const c = cnv.getContext("2d");
     if (!c) return;
 
-    let raf = 0;
     let dpr = Math.min(2, window.devicePixelRatio || 1);
     let w = window.innerWidth;
     let h = window.innerHeight;
+    const lastProgressRef = { current: 0 };
+    let scheduled = false;
+
+    const schedulePaint = () => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        paint(lastProgressRef.current);
+      });
+    };
 
     const resize = () => {
       dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -130,7 +141,7 @@ export default function ChipScroll({
       cnv.width = w * dpr;
       cnv.height = h * dpr;
       c.setTransform(dpr, 0, 0, dpr, 0, 0);
-      paint(lastProgressRef.current);
+      schedulePaint();
     };
 
     const paintFrame = (p: number) => {
@@ -312,28 +323,35 @@ export default function ChipScroll({
       }
     };
 
-    const lastProgressRef = { current: 0 };
-    const tick = () => {
-      paint(lastProgressRef.current);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-
     const ro = new ResizeObserver(resize);
     ro.observe(cnv);
     resize();
 
-    // Subscribe to scroll updates outside of the closure.
+    // Repaint whenever scroll progress changes.
     const unsub = scrollYProgress.on("change", (v) => {
       lastProgressRef.current = v;
+      schedulePaint();
     });
 
+    // Also repaint when frames finish loading (image-mode).
+    const onImgReady = () => schedulePaint();
+    framesRef.current.forEach((im) => {
+      if (im && !im.complete) im.addEventListener("load", onImgReady, { once: true });
+    });
+
+    // Force fallback if frames take too long (covers partial-failure case
+    // where some images never resolve and we'd otherwise spin forever).
+    const fallbackTimer = window.setTimeout(() => {
+      if (!usingFallback && loaded < frameCount) setUsingFallback(true);
+    }, 6000);
+
     return () => {
-      cancelAnimationFrame(raf);
       ro.disconnect();
       unsub();
+      window.clearTimeout(fallbackTimer);
+      framesRef.current.forEach((im) => im && im.removeEventListener("load", onImgReady));
     };
-  }, [usingFallback, background, accent, fallbackKind, scrollYProgress]);
+  }, [usingFallback, background, accent, fallbackKind, scrollYProgress, loaded, frameCount]);
 
   return (
     <section

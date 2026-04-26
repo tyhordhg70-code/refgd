@@ -138,24 +138,35 @@ export default function Hero3D({
               transform: "translateZ(80px)",
             }}
           />
-          {/* Orbiting satellites */}
+          {/* Orbiting satellites — each satellite has its own outer
+              wrapper that performs the rotation animation, and an inner
+              dot offset by a unique radius. This way per-satellite radii
+              are preserved (CSS animation on the wrapper only animates
+              `rotate`, not the whole transform stack). */}
           {[
-            { d: 0,    color: "#ffe28a", angle: 12  },
-            { d: 1.2,  color: "#a78bfa", angle: 92  },
-            { d: 2.4,  color: "#67e8f9", angle: 178 },
-            { d: 3.6,  color: "#f472b6", angle: 252 },
+            { d: 0,    color: "#ffe28a", radiusVh: 30, dur: 18 },
+            { d: -3,   color: "#a78bfa", radiusVh: 34, dur: 22 },
+            { d: -6,   color: "#67e8f9", radiusVh: 26, dur: 16 },
+            { d: -9,   color: "#f472b6", radiusVh: 38, dur: 26 },
           ].map((o, i) => (
             <span
               key={i}
               aria-hidden="true"
-              className="absolute left-1/2 top-1/2 block h-3 w-3 rounded-full"
+              className="orbit-wrap absolute left-1/2 top-1/2 block h-0 w-0"
               style={{
-                background: o.color,
-                boxShadow: `0 0 20px ${o.color}, 0 0 60px ${o.color}`,
-                transform: `translate(-50%,-50%) rotate(${o.angle}deg) translateY(-${30 + i * 4}vh) translateZ(60px)`,
-                animation: `orbit 14s linear ${o.d}s infinite`,
+                animation: `spin ${o.dur}s linear ${o.d}s infinite`,
+                transformOrigin: "center",
               }}
-            />
+            >
+              <span
+                className="absolute block h-3 w-3 rounded-full"
+                style={{
+                  background: o.color,
+                  boxShadow: `0 0 20px ${o.color}, 0 0 60px ${o.color}`,
+                  transform: `translate(-50%, -50%) translateY(-${o.radiusVh}vh) translateZ(60px)`,
+                }}
+              />
+            </span>
           ))}
         </motion.div>
       </motion.div>
