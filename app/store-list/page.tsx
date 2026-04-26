@@ -1,5 +1,10 @@
 import { listStores } from "@/lib/stores";
 import StoreFilters from "@/components/StoreFilters";
+import {
+  getAllCategoriesMerged,
+  getExtraCategories,
+  CANNED_CATEGORIES,
+} from "@/lib/categories-store";
 import ServiceSection from "@/components/ServiceSection";
 import GlassCard from "@/components/GlassCard";
 import KineticText from "@/components/KineticText";
@@ -46,7 +51,11 @@ const RULES_BLOCKS = [
 ];
 
 export default async function StoreListPage() {
-  const stores = await listStores();
+  const [stores, initialCategories, initialExtras] = await Promise.all([
+    listStores(),
+    getAllCategoriesMerged(),
+    getExtraCategories(),
+  ]);
 
   return (
     <div className="relative">
@@ -217,7 +226,12 @@ export default async function StoreListPage() {
               </p>
             </div>
           </div>
-          <StoreFilters stores={stores} />
+          <StoreFilters
+            stores={stores}
+            initialCategories={initialCategories}
+            initialExtras={initialExtras}
+            initialCanned={CANNED_CATEGORIES as unknown as string[]}
+          />
         </div>
       </section>
       </ParallaxChapter>

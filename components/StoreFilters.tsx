@@ -1,14 +1,21 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Store, Region, StoreCategory } from "@/lib/types";
 import RegionFlag from "./RegionFlag";
 import StoreCard from "./StoreCard";
 import StoreEditDialog from "./StoreEditDialog";
+import CategoryFilter from "./CategoryFilter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEditContext } from "@/lib/edit-context";
 
 interface Props {
   stores: Store[];
+  /** Server-rendered initial category lists so the filter dropdown
+   *  isn't empty on first paint. Client refreshes on focus / after
+   *  admin add/remove. */
+  initialCategories?: string[];
+  initialExtras?: string[];
+  initialCanned?: string[];
 }
 
 const REGIONS: { id: Region; label: string }[] = [
@@ -43,7 +50,12 @@ const CATEGORY_LABEL: Record<string, string> = {
   Other:       "✨ Other",
 };
 
-export default function StoreFilters({ stores: initialStores }: Props) {
+export default function StoreFilters({
+  stores: initialStores,
+  initialCategories = [],
+  initialExtras = [],
+  initialCanned = [],
+}: Props) {
   const [region, setRegion] = useState<Region>("USA");
   const [search, setSearch] = useState("");
 
@@ -52,6 +64,32 @@ export default function StoreFilters({ stores: initialStores }: Props) {
   // a full page reload. On non-admin sessions this just equals props.
   const [stores, setStores] = useState<Store[]>(initialStores);
   useEffect(() => { setStores(initialStores); }, [initialStores]);
+
+  // Category-filter state (multi-select). Empty Set = "all categories".
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
+    () => new Set(),
+  );
+  // Available category options for the filter dropdown. Server-seeded
+  // for first paint, then refreshed from /api/categories on mount and
+  // after any admin add/remove from the dropdown's inline manager.
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(initialCategories);
+  const [cannedSet, setCannedSet] = useState<Set<string>>(() => new Set(initialCanned));
+  const [extrasSet, setExtrasSet] = useState<Set<string>>(() => new Set(initialExtras));
+
+  const refreshCategories = useCallback(async () => {
+    try {
+      const res = await fetch("/api/categories", { credentials: "same-origin" });
+      if (!res.ok) return;
+      const j = await res.json();
+      setCategoryOptions(Array.isArray(j.categories) ? j.categories : []);
+      setCannedSet(new Set(Array.isArray(j.canned) ? j.canned : []));
+      setExtrasSet(new Set(Array.isArray(j.extras) ? j.extras : []));
+    } catch (err) {
+      // Best-effort — UI keeps working with the seeded list.
+      console.warn("[store-list] couldn't refresh categories", err);
+    }
+  }, []);
+  useEffect(() => { void refreshCategories(); }, [refreshCategories]);
 
   const { isAdmin, editMode } = useEditContext();
 
@@ -75,8 +113,10 @@ export default function StoreFilters({ stores: initialStores }: Props) {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const catFilterActive = selectedCategories.size > 0;
     return stores.filter((s) => {
       if (s.region !== region) return false;
+      if (catFilterActive && !selectedCategories.has(s.category)) return false;
       if (!q) return true;
       return (
         s.name.toLowerCase().includes(q) ||
@@ -85,12 +125,17 @@ export default function StoreFilters({ stores: initialStores }: Props) {
         (s.domain ?? "").toLowerCase().includes(q)
       );
     });
-  }, [stores, region, search]);
+  }, [stores, region, search, selectedCategories]);
 
   // Group by category in CATEGORY_ORDER. In edit mode, ALWAYS render
   // every CATEGORY_ORDER bucket for the active region, even when empty,
-  // so the admin has a "+ Add" button to seed a new section.
+  // so the admin has a "+ Add" button to seed a new section — UNLESS
+  // a category filter is active, in which case we honour the filter
+  // and only show selected buckets.
   const grouped = useMemo(() => {
+    const catFilterActive = selectedCategories.size > 0;
+    const showEmptyAdminBuckets =
+      isAdmin && editMode && !search.trim() && !catFilterActive;
     const map = new Map<string, Store[]>();
     for (const s of filtered) {
       if (!map.has(s.category)) map.set(s.category, []);
@@ -98,17 +143,22 @@ export default function StoreFilters({ stores: initialStores }: Props) {
     }
     const ordered: { category: StoreCategory; stores: Store[] }[] = [];
     for (const cat of CATEGORY_ORDER) {
+      if (catFilterActive && !selectedCategories.has(cat)) {
+        map.delete(cat);
+        continue;
+      }
       const list = map.get(cat) ?? [];
-      if (list.length > 0 || (isAdmin && editMode && !search.trim())) {
+      if (list.length > 0 || showEmptyAdminBuckets) {
         ordered.push({ category: cat, stores: list });
       }
       map.delete(cat);
     }
     for (const [cat, list] of Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+      if (catFilterActive && !selectedCategories.has(cat)) continue;
       if (list.length > 0) ordered.push({ category: cat as StoreCategory, stores: list });
     }
     return ordered;
-  }, [filtered, isAdmin, editMode, search]);
+  }, [filtered, isAdmin, editMode, search, selectedCategories]);
 
   // ───── inline CRUD handlers ────────────────────────────────────────
 
@@ -178,9 +228,17 @@ export default function StoreFilters({ stores: initialStores }: Props) {
       }
 
       // Build the new ordering for this (region, category) bucket.
+      // Sort by (sortOrder asc, name asc) — same tiebreaker the server
+      // uses — so the reorder lines up with what the admin actually
+      // SEES on the page when sortOrder values collide (e.g. legacy
+      // rows that all default to 0). Without this, a drop to "position
+      // 3" can land somewhere else once persisted.
       const bucket = stores
         .filter((x) => x.region === source.region && x.category === source.category)
-        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        .sort((a, b) => {
+          const so = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+          return so !== 0 ? so : a.name.localeCompare(b.name);
+        });
       const fromIdx = bucket.findIndex((x) => x.id === sourceId);
       const toIdx = bucket.findIndex((x) => x.id === target.id);
       if (fromIdx < 0 || toIdx < 0) return;
@@ -188,7 +246,8 @@ export default function StoreFilters({ stores: initialStores }: Props) {
       bucket.splice(toIdx, 0, moved);
 
       // Reassign sortOrder densely (10, 20, 30…) so future inserts
-      // have wiggle room without renumbering everything.
+      // have wiggle room without renumbering everything. Server route
+      // requires every value to be a finite integer.
       const reordered = bucket.map((s, i) => ({ ...s, sortOrder: (i + 1) * 10 }));
       const idToOrder = new Map(reordered.map((s) => [s.id, s.sortOrder!]));
 
@@ -207,10 +266,23 @@ export default function StoreFilters({ stores: initialStores }: Props) {
             order: reordered.map((s) => ({ id: s.id, sortOrder: s.sortOrder })),
           }),
         });
-        if (!res.ok) throw new Error(`Reorder failed: ${res.status}`);
+        if (!res.ok) {
+          // Surface the server's actual error message so admins can see
+          // WHY the save failed (DB outage, validation, auth) instead
+          // of the generic "Couldn't save the new order".
+          let detail = "";
+          try {
+            const j = await res.clone().json();
+            detail = j?.error || "";
+          } catch {
+            try { detail = (await res.clone().text()).slice(0, 200); } catch {}
+          }
+          throw new Error(detail || `Reorder failed: HTTP ${res.status}`);
+        }
       } catch (err) {
         console.error("[store-list] reorder failed", err);
-        alert("Couldn't save the new order. Reverting.");
+        const msg = err instanceof Error ? err.message : "unknown error";
+        alert(`Couldn't save the new order: ${msg}\nReverting.`);
         setStores(snapshot);
       }
     };
@@ -254,7 +326,7 @@ export default function StoreFilters({ stores: initialStores }: Props) {
       </div>
 
       {/* Search */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <svg
             className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40"
@@ -272,6 +344,41 @@ export default function StoreFilters({ stores: initialStores }: Props) {
             suppressHydrationWarning
           />
         </div>
+      </div>
+
+      {/* Category filter — visible to ALL visitors. Multi-select; admins
+          in edit mode also get inline category management (add new /
+          remove unused). Sits directly below the search per UX spec. */}
+      <div className="mb-6 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <CategoryFilter
+          options={categoryOptions}
+          labels={CATEGORY_LABEL}
+          selected={selectedCategories}
+          onChange={setSelectedCategories}
+          removable={
+            // Removable = admin extras that aren't currently in use.
+            // We pass the full extras set; the panel only renders the
+            // ✕ when isAdmin && editMode AND the server allows the
+            // delete (server enforces the in-use check too).
+            new Set(
+              Array.from(extrasSet).filter((c) => !cannedSet.has(c)),
+            )
+          }
+          onCategoriesUpdated={({ categories, extras, canned }) => {
+            setCategoryOptions(categories);
+            setCannedSet(new Set(canned));
+            setExtrasSet(new Set(extras));
+          }}
+        />
+        {selectedCategories.size > 0 && (
+          <button
+            type="button"
+            onClick={() => setSelectedCategories(new Set())}
+            className="self-start text-xs font-semibold uppercase tracking-wider text-white/55 transition hover:text-amber-200 sm:self-auto"
+          >
+            Clear category filter
+          </button>
+        )}
       </div>
 
       <p className="mb-6 text-sm text-white/55">
@@ -308,6 +415,20 @@ export default function StoreFilters({ stores: initialStores }: Props) {
                 </p>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {/* "+ Add" tile renders FIRST in every category so the
+                    admin's most common action — adding a new store —
+                    sits at the top of each section instead of being
+                    buried after the cards. */}
+                {isAdmin && editMode && (
+                  <button
+                    type="button"
+                    onClick={() => openAdd(category)}
+                    className="flex min-h-[148px] items-center justify-center rounded-2xl border-2 border-dashed border-amber-300/40 bg-amber-400/5 text-sm font-semibold text-amber-200 transition hover:border-amber-300/80 hover:bg-amber-400/10 hover:text-amber-100"
+                  >
+                    + Add store to {CATEGORY_LABEL[category] ?? category}
+                  </button>
+                )}
+
                 {list.map((s, i) => (
                   <StoreCard
                     key={s.id}
@@ -322,16 +443,6 @@ export default function StoreFilters({ stores: initialStores }: Props) {
                     onDragEnd={isAdmin && editMode ? () => { dragId.current = null; } : undefined}
                   />
                 ))}
-
-                {isAdmin && editMode && (
-                  <button
-                    type="button"
-                    onClick={() => openAdd(category)}
-                    className="flex min-h-[148px] items-center justify-center rounded-2xl border-2 border-dashed border-white/15 bg-white/3 text-sm text-white/60 transition hover:border-amber-300/60 hover:bg-amber-400/5 hover:text-amber-200"
-                  >
-                    + Add store to {CATEGORY_LABEL[category] ?? category}
-                  </button>
-                )}
               </div>
             </motion.section>
           ))}
