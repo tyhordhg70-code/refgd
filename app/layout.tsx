@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import CustomCursor from "@/components/CustomCursor";
 import PulsatingOverlay from "@/components/PulsatingOverlay";
+import GalaxyBackground from "@/components/GalaxyBackground";
 import { getContentBlock } from "@/lib/content";
 
 export const metadata: Metadata = {
@@ -68,6 +69,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="min-h-screen bg-ink-950 text-white antialiased">
+        {/* Site-wide continuous WebGL galaxy field — every page scrolls
+            over the same scene so transitions feel like one journey. */}
+        <GalaxyBackground />
         <PulsatingOverlay />
         <AnnouncementBanner text={bannerText} cta={bannerCta} url={bannerUrl} />
         <Nav />

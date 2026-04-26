@@ -2,7 +2,6 @@ import { Reveal } from "@/components/Reveal";
 import ChipScroll from "@/components/ChipScroll";
 import GlassCard from "@/components/GlassCard";
 import KineticText from "@/components/KineticText";
-import HeroBackground from "@/components/HeroBackground";
 import MagneticButton from "@/components/MagneticButton";
 import AnimatedChessBoard from "@/components/AnimatedChessBoard";
 import ParallaxIllustration from "@/components/ParallaxIllustration";
@@ -37,10 +36,7 @@ const EMOTIONS = ["Fear", "Excitement", "Curiosity", "Anger", "Guilt", "Sadness"
 export default function MentorshipsPage() {
   return (
     <div className="relative">
-      {/* Single shared backdrop — no per-section mesh-gradient canvas */}
-      <div className="pointer-events-none fixed inset-0 -z-10">
-        <HeroBackground />
-      </div>
+      {/* Galaxy backdrop is mounted site-wide in layout.tsx */}
 
       {/* Act 1 — Scroll-linked scrollytelling */}
       <ChipScroll
@@ -57,7 +53,7 @@ export default function MentorshipsPage() {
       <section className="relative z-10 pb-12 pt-12 text-center">
         <Reveal>
           <MagneticButton href="https://refundgod.bgng.io/" external variant="primary">
-            Buy Now
+            Shop Methods
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
             </svg>
@@ -69,13 +65,17 @@ export default function MentorshipsPage() {
       <section className="relative py-24">
         <div className="container-wide relative grid items-center gap-10 sm:grid-cols-12">
           <div className="sm:col-span-5">
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-violet-300">
+            <p
+              className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-violet-300"
+              style={{ textShadow: "0 0 24px rgba(167,139,250,0.6)" }}
+            >
               — chapter 01 / refund
             </p>
             <KineticText
               as="h2"
               text="What is this Refunding Mentorship about?"
-              className="editorial-display mt-5 bg-gradient-to-b from-white via-white to-violet-200 bg-clip-text text-transparent text-[clamp(1.8rem,5vw,4rem)] uppercase"
+              className="editorial-display mt-5 text-white text-[clamp(1.8rem,5vw,4rem)] uppercase"
+              style={{ textShadow: "0 4px 30px rgba(0,0,0,0.9), 0 2px 6px rgba(0,0,0,0.95)" }}
             />
             {/* Animated chess composition floats next to the title on lg+ */}
             <div className="chess-float mt-8 hidden h-72 sm:block">
@@ -170,10 +170,16 @@ export default function MentorshipsPage() {
             <ParallaxIllustration kind="chess" accent="violet" size={240} />
           </div>
           <Reveal>
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-violet-300">
+            <p
+              className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-violet-300"
+              style={{ textShadow: "0 0 24px rgba(167,139,250,0.6)" }}
+            >
               — what&apos;s included
             </p>
-            <h3 className="editorial-display mt-5 max-w-4xl text-balance bg-gradient-to-b from-white to-white/50 bg-clip-text text-transparent text-[clamp(1.8rem,5vw,4rem)] uppercase">
+            <h3
+              className="editorial-display mt-5 max-w-4xl text-balance text-white text-[clamp(1.8rem,5vw,4rem)] uppercase"
+              style={{ textShadow: "0 4px 30px rgba(0,0,0,0.9)" }}
+            >
               Refunding Mentorship.
             </h3>
           </Reveal>
@@ -204,13 +210,17 @@ export default function MentorshipsPage() {
       <section className="relative py-24">
         <div className="container-wide relative grid items-start gap-10 sm:grid-cols-12">
           <div className="sm:col-span-5 sm:order-2">
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-cyan-300">
+            <p
+              className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-cyan-300"
+              style={{ textShadow: "0 0 24px rgba(34,211,238,0.55)" }}
+            >
               — chapter 02 / SE
             </p>
             <KineticText
               as="h2"
               text="Social Engineering Mentorship."
-              className="editorial-display mt-5 bg-gradient-to-b from-white via-white to-cyan-200 bg-clip-text text-transparent text-[clamp(1.8rem,5vw,4rem)] uppercase"
+              className="editorial-display mt-5 text-white text-[clamp(1.8rem,5vw,4rem)] uppercase"
+              style={{ textShadow: "0 4px 30px rgba(0,0,0,0.9), 0 2px 6px rgba(0,0,0,0.95)" }}
             />
             <div className="float-card mt-8 hidden h-60 sm:block">
               <ParallaxIllustration kind="encryption" accent="cyan" size={240} />
@@ -254,10 +264,16 @@ export default function MentorshipsPage() {
             <ParallaxIllustration kind="spark" accent="cyan" size={220} />
           </div>
           <Reveal>
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-cyan-300">
+            <p
+              className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-cyan-300"
+              style={{ textShadow: "0 0 24px rgba(34,211,238,0.55)" }}
+            >
               — what&apos;s included
             </p>
-            <h3 className="editorial-display mt-5 max-w-4xl text-balance bg-gradient-to-b from-white to-white/50 bg-clip-text text-transparent text-[clamp(1.8rem,5vw,4rem)] uppercase">
+            <h3
+              className="editorial-display mt-5 max-w-4xl text-balance text-white text-[clamp(1.8rem,5vw,4rem)] uppercase"
+              style={{ textShadow: "0 4px 30px rgba(0,0,0,0.9)" }}
+            >
               SE Mentorship.
             </h3>
           </Reveal>
@@ -313,12 +329,13 @@ export default function MentorshipsPage() {
           <KineticText
             as="h2"
             text="Stop watching. Start earning."
-            className="editorial-display mx-auto bg-gradient-to-b from-white to-amber-200 bg-clip-text text-transparent text-[clamp(2rem,7vw,6rem)] uppercase"
+            className="editorial-display mx-auto text-white text-[clamp(2rem,7vw,6rem)] uppercase"
+            style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)" }}
           />
           <Reveal delay={0.3}>
             <div className="mt-8">
               <MagneticButton href="https://refundgod.bgng.io/" external variant="primary">
-                Buy Now
+                Shop Methods
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                   <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
                 </svg>

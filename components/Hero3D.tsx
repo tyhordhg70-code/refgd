@@ -37,7 +37,6 @@ export default function Hero3D({
 
   const orbY      = useTransform(scrollYProgress, [0, 1], ["0%",   "60%"]);
   const orbScale  = useTransform(scrollYProgress, [0, 1], [1,      1.55]);
-  const orbBlur   = useTransform(scrollYProgress, [0, 1], [0,      14]);
   const ringRot   = useTransform(scrollYProgress, [0, 1], [0,      135]);
   const ringScale = useTransform(scrollYProgress, [0, 1], [1,      0.35]);
   const ringOpac  = useTransform(scrollYProgress, [0, 0.85], [1,   0.15]);
@@ -45,7 +44,6 @@ export default function Hero3D({
   const cardOpac  = useTransform(scrollYProgress, [0, 0.7, 1], [1, 0.6, 0]);
   const titleY    = useTransform(scrollYProgress, [0, 1], ["0%",   "-50%"]);
   const titleOp   = useTransform(scrollYProgress, [0, 0.7, 1], [1, 0.7, 0]);
-  const blurFilter = useTransform(orbBlur, (v) => `blur(${v}px)`);
 
   useEffect(() => {
     if (reduced) return;
@@ -88,7 +86,6 @@ export default function Hero3D({
         style={{
           y: orbY,
           scale: orbScale,
-          filter: blurFilter,
           transformStyle: "preserve-3d",
         }}
         className="pointer-events-none absolute inset-0 grid place-items-center"
@@ -180,23 +177,26 @@ export default function Hero3D({
             className="mx-auto inline-block rounded-[2.5rem] px-6 py-8 sm:px-10 sm:py-10"
             style={{
               background:
-                "linear-gradient(180deg, rgba(10,12,20,0.18), rgba(10,12,20,0.06) 35%, rgba(10,12,20,0.18))",
-              backdropFilter: "blur(3px)",
-              WebkitBackdropFilter: "blur(3px)",
+                "linear-gradient(180deg, rgba(7,6,14,0.65), rgba(7,6,14,0.45) 35%, rgba(7,6,14,0.65))",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              boxShadow: "0 30px 100px -30px rgba(0,0,0,0.7)",
             }}
           >
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.9, ease: [0.25, 0.4, 0.25, 1] }}
-              className="heading-display text-base font-medium lowercase tracking-[0.45em] text-amber-200/95 sm:text-lg"
+              className="heading-display text-base font-medium lowercase tracking-[0.45em] text-amber-200 sm:text-lg"
+              style={{ textShadow: "0 2px 20px rgba(0,0,0,0.95)" }}
             >
               {kicker}
             </motion.p>
             <KineticText
               as="h1"
               text={title}
-              className="editorial-display mx-auto mt-6 max-w-[1400px] text-balance bg-gradient-to-b from-white via-white to-amber-200 bg-clip-text text-transparent text-[clamp(2.5rem,11vw,11rem)] uppercase drop-shadow-[0_8px_60px_rgba(0,0,0,0.85)]"
+              className="editorial-display mx-auto mt-6 max-w-[1400px] text-balance text-white text-[clamp(2.5rem,11vw,11rem)] uppercase"
+              style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)" }}
               stagger={0.08}
               delay={0.15}
             />

@@ -389,8 +389,8 @@ export default function ChipScroll({
             className="container-wide pointer-events-none absolute inset-x-0 bottom-[12%] z-10 text-center"
           >
             <h3
-              className="editorial-display mx-auto max-w-5xl text-balance bg-gradient-to-b from-white via-white to-white/70 bg-clip-text text-transparent text-[clamp(2.2rem,7vw,6rem)] uppercase"
-              style={{ filter: "drop-shadow(0 6px 60px rgba(0,0,0,0.7))" }}
+              className="editorial-display mx-auto max-w-5xl text-balance text-white text-[clamp(2.2rem,7vw,6rem)] uppercase"
+              style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)" }}
             >
               {caption}
             </h3>

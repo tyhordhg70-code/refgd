@@ -1,6 +1,6 @@
 "use client";
 import { motion, useReducedMotion } from "framer-motion";
-import { type ReactNode } from "react";
+import { type CSSProperties } from "react";
 
 /**
  * Word-by-word kinetic reveal. Each word fades + lifts + un-blurs in
@@ -12,25 +12,28 @@ export default function KineticText({
   delay = 0,
   stagger = 0.06,
   as: Tag = "h1",
+  style,
 }: {
   text: string;
   className?: string;
   delay?: number;
   stagger?: number;
   as?: keyof JSX.IntrinsicElements;
+  style?: CSSProperties;
 }) {
   const reduced = useReducedMotion();
   const words = text.split(" ");
 
   if (reduced) {
     const Plain = Tag as any;
-    return <Plain className={className}>{text}</Plain>;
+    return <Plain className={className} style={style}>{text}</Plain>;
   }
 
   const M = motion[Tag as keyof typeof motion] as any;
   return (
     <M
       className={className}
+      style={style}
       initial="hidden"
       whileInView="show"
       viewport={{ once: true, margin: "-50px" }}

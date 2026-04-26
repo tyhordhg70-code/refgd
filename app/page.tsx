@@ -1,4 +1,3 @@
-import HeroBackground from "@/components/HeroBackground";
 import Hero3D from "@/components/Hero3D";
 import PathCard from "@/components/PathCard";
 import Manifesto from "@/components/Manifesto";
@@ -19,7 +18,7 @@ const PATHS = [
   { href: "/store-list",            title: "Refund Store List",     illustration: "store"      as const, accent: "gold"    as const },
   { href: "/evade-cancelations",    title: "Evade Cancelations",    illustration: "shield"     as const, accent: "cyan"    as const },
   { href: "/exclusive-mentorships", title: "Exclusive Mentorships", illustration: "chess"      as const, accent: "violet"  as const },
-  { href: "https://refundgod.bgng.io/", external: true, title: "Buy Now", illustration: "spark" as const, accent: "orange" as const },
+  { href: "https://refundgod.bgng.io/", external: true, title: "Shop Methods", illustration: "spark" as const, accent: "orange" as const },
 ];
 
 const MARQUEE_WORDS = [
@@ -68,37 +67,50 @@ export default async function HomePage() {
         words={["Refunds.", "Replacements.", "Mentorships.", "Mastery."]}
       />
 
-      {/* Act 3 — Trust strip / stats with INTERACTIVE PARTICLES backdrop
-          (no text overlay behind, no heavy mesh-gradient canvas) */}
+      {/* Act 3 — Trust strip / stats. Solid card backdrop so numbers
+          read clean over the galaxy. */}
       <section className="relative isolate overflow-hidden py-28">
-        <div aria-hidden="true" className="absolute inset-0">
-          <div className="orb orb-1 absolute left-[5%] top-[10%] h-[55vh] w-[55vh] rounded-full" />
-          <div className="orb orb-3 absolute right-[8%] bottom-[5%] h-[45vh] w-[45vh] rounded-full" />
-        </div>
         <InteractiveParticles count={70} />
         <div className="container-px relative">
           <div className="mb-12 flex flex-col items-center gap-3 text-center">
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300/85">
+            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300">
               — by the numbers
             </p>
           </div>
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { v: 5,    s: "+",   l: "Years operating",  k: "encryption" as const },
-              { v: 480,  s: "+",   l: "Curated stores",    k: "store"      as const },
-              { v: 100,  s: "k+",  l: "Refunds delivered", k: "spark"      as const },
-              { v: 24,   s: "/7",  l: "Telegram support",  k: "globe"      as const },
+              { v: 5,    s: "+",   l: "Years operating",  k: "encryption" as const, c: "amber"   as const },
+              { v: 480,  s: "+",   l: "Curated stores",    k: "store"      as const, c: "violet"  as const },
+              { v: 100,  s: "k+",  l: "Refunds delivered", k: "spark"      as const, c: "cyan"    as const },
+              { v: 24,   s: "/7",  l: "Telegram support",  k: "globe"      as const, c: "fuchsia" as const },
             ].map((stat, i) => (
               <Reveal key={stat.l} delay={i * 0.1}>
-                <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.03] p-6 backdrop-blur-md transition hover:border-white/15 hover:bg-white/[0.05]">
-                  <div className="absolute -right-6 -top-6 opacity-25 transition group-hover:opacity-60">
-                    <ParallaxIllustration kind={stat.k} accent={["amber","violet","cyan","fuchsia"][i] as any} size={140} />
+                <div
+                  className="group relative overflow-hidden rounded-3xl border border-white/15 p-7 transition hover:border-amber-300/50"
+                  style={{
+                    background:
+                      "linear-gradient(160deg, rgba(15,10,30,0.85), rgba(8,6,18,0.92))",
+                    backdropFilter: "blur(8px)",
+                    WebkitBackdropFilter: "blur(8px)",
+                    boxShadow: "0 30px 80px -30px rgba(0,0,0,0.7)",
+                  }}
+                >
+                  {/* Illustration — clipped to a corner badge with low
+                      opacity so it CANNOT cover the digits. */}
+                  <div
+                    className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 opacity-25 mix-blend-screen transition group-hover:opacity-50"
+                    aria-hidden="true"
+                  >
+                    <ParallaxIllustration kind={stat.k} accent={stat.c} size={140} />
                   </div>
                   <div className="relative">
-                    <div className="heading-display text-aurora text-6xl font-bold leading-none tracking-tight sm:text-7xl">
+                    <div
+                      className="heading-display text-6xl font-bold leading-none tracking-tight text-white sm:text-7xl"
+                      style={{ textShadow: "0 4px 30px rgba(0,0,0,0.95)" }}
+                    >
                       <StatCounter value={stat.v} suffix={stat.s} />
                     </div>
-                    <div className="mt-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/65">
+                    <div className="mt-4 text-xs font-semibold uppercase tracking-[0.3em] text-white/85">
                       {stat.l}
                     </div>
                   </div>
@@ -109,33 +121,40 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Act 4 — Path picker (asymmetric magazine layout) */}
+      {/* Act 4 — Path picker. Solid backdrop card so the headline POPS
+          even over the galaxy. */}
       <section className="relative pb-24 pt-12 sm:pt-20" id="paths">
-        <HeroBackground />
         <div className="container-wide relative">
-          {/* Header — magazine style — wrapped in a backdrop-blur card so
-              the headline is always readable over the cosmos */}
-          <div className="mb-16 grid items-end gap-8 sm:grid-cols-[1fr_auto] sm:mb-20">
-            <div
-              className="rounded-[2rem] px-2 py-2"
-              style={{
-                background:
-                  "linear-gradient(180deg, rgba(10,12,20,0.0), rgba(10,12,20,0.0))",
-              }}
-            >
-              <p className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300 sm:text-sm drop-shadow-[0_0_20px_rgba(245,185,69,0.5)]">
-                — chapter 01 / paths
+          <div
+            className="mb-16 rounded-[2.5rem] border border-white/10 px-6 py-10 sm:mb-20 sm:px-12 sm:py-14"
+            style={{
+              background:
+                "linear-gradient(160deg, rgba(15,10,30,0.85), rgba(8,6,18,0.92))",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              boxShadow: "0 40px 120px -40px rgba(0,0,0,0.8)",
+            }}
+          >
+            <div className="grid items-end gap-8 sm:grid-cols-[1fr_auto]">
+              <div>
+                <p
+                  className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300 sm:text-sm"
+                  style={{ textShadow: "0 0 30px rgba(245,185,69,0.6)" }}
+                >
+                  — chapter 01 / paths
+                </p>
+                <KineticText
+                  as="h2"
+                  text="Choose your path to mastery."
+                  className="editorial-display mt-5 text-balance text-white text-[clamp(2.25rem,7vw,6rem)] uppercase"
+                  style={{ textShadow: "0 4px 40px rgba(0,0,0,0.9), 0 2px 6px rgba(0,0,0,0.95)" }}
+                />
+              </div>
+              <p className="max-w-sm text-base leading-relaxed text-white/90">
+                Four doors. Behind each, a craft refined by years of work
+                under glass — chosen, not assigned.
               </p>
-              <KineticText
-                as="h2"
-                text="Choose your path to mastery."
-                className="editorial-display mt-5 text-balance bg-gradient-to-b from-white via-white to-amber-200 bg-clip-text text-transparent text-[clamp(2.25rem,7vw,6rem)] uppercase drop-shadow-[0_8px_40px_rgba(0,0,0,0.85)]"
-              />
             </div>
-            <p className="max-w-sm text-base leading-relaxed text-white/75">
-              Five doors. Behind each, a craft refined by years of work
-              under glass — chosen, not assigned.
-            </p>
           </div>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
             {PATHS.map((p, i) => (
@@ -154,10 +173,16 @@ export default async function HomePage() {
               <div className="container-px absolute inset-0 grid items-center">
                 <div className="grid items-center gap-10 sm:grid-cols-[1fr_auto]">
                   <div>
-                    <p className="heading-display text-[10px] font-semibold uppercase tracking-[0.45em] text-amber-200/85 sm:text-xs">
+                    <p
+                      className="heading-display text-[10px] font-semibold uppercase tracking-[0.45em] text-amber-200 sm:text-xs"
+                      style={{ textShadow: "0 0 18px rgba(245,185,69,0.55)" }}
+                    >
                       — join the channel
                     </p>
-                    <h2 className="editorial-display mt-3 max-w-2xl text-balance bg-gradient-to-b from-white to-white/70 bg-clip-text text-transparent text-3xl uppercase sm:text-5xl md:text-6xl drop-shadow-[0_8px_40px_rgba(0,0,0,0.85)]">
+                    <h2
+                      className="editorial-display mt-3 max-w-2xl text-balance text-white text-3xl uppercase sm:text-5xl md:text-6xl"
+                      style={{ textShadow: "0 4px 30px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.85)" }}
+                    >
                       {telegramHeadline}
                     </h2>
                   </div>

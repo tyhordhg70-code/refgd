@@ -2,8 +2,8 @@ import { Reveal } from "@/components/Reveal";
 import ChipScroll from "@/components/ChipScroll";
 import GlassCard from "@/components/GlassCard";
 import KineticText from "@/components/KineticText";
-import HeroBackground from "@/components/HeroBackground";
 import MagneticButton from "@/components/MagneticButton";
+import ParallaxIllustration from "@/components/ParallaxIllustration";
 
 export const metadata = {
   title: "Evade Cancelations — RefundGod",
@@ -17,24 +17,28 @@ const FEATURES = [
     body:
       "It doesn't matter what happened to your previous account; be it suspended, blocked, banned, blacklisted, or anything else, you WILL learn how to crank out new accounts without ever getting detected or linked again.",
     tint: "cyan" as const,
+    illo: "encryption" as const,
   },
   {
     title: "Precise, step-by-step procedures",
     body:
       "While creating numerous accounts may seem easy by simply using new information, the real value lies in maintaining their longevity without encountering bans or cancelations due to algorithm detections.",
     tint: "violet" as const,
+    illo: "shield" as const,
   },
   {
     title: "Range of features",
     body:
       "Lifetime updates, anonymity techniques, account management strategies, anonymous credit cards, multi-account safety, automatic customers for selling items, and account-linking prevention.",
     tint: "amber" as const,
+    illo: "globe" as const,
   },
   {
     title: "No filler, no BS",
     body:
       "After investing significant time and resources we offer only the most precise and actionable methods, with a lifetime support guarantee.",
     tint: "fuchsia" as const,
+    illo: "spark" as const,
   },
 ];
 
@@ -63,18 +67,56 @@ const PRICING = [
 ];
 
 const TRUST = [
-  { title: "Who we are", body: "We are an experienced team of cyber security developers, who initially established our presence on the dark web. During summer 2019 we relied on selling on Amazon when a significant setback was encountered — accounts of close friends and family members were suspended." },
-  { title: "The setback",  body: "Undeterred, we persevered through numerous trials and errors, eventually discovering a secure and effective method to regain access to Amazon and PayPal, enabling us to resume selling. Motivated, we shared the knowledge — and the highly sought-after guide was born." },
-  { title: "The aftermath", body: "For the following six months we dedicated extensive time and effort to developing effective strategies for safely creating multiple Amazon accounts without being linked or blocked, which soon led to research of other stores and their algorithms." },
+  { title: "Who we are", body: "We are an experienced team of cyber security developers, who initially established our presence on the dark web. During summer 2019 we relied on selling on Amazon when a significant setback was encountered — accounts of close friends and family members were suspended.", illo: "globe" as const },
+  { title: "The setback",  body: "Undeterred, we persevered through numerous trials and errors, eventually discovering a secure and effective method to regain access to Amazon and PayPal, enabling us to resume selling. Motivated, we shared the knowledge — and the highly sought-after guide was born.", illo: "encryption" as const },
+  { title: "The aftermath", body: "For the following six months we dedicated extensive time and effort to developing effective strategies for safely creating multiple Amazon accounts without being linked or blocked, which soon led to research of other stores and their algorithms.", illo: "shield" as const },
 ];
+
+/** Reusable card for chapter section headers — solid backdrop on top of
+ *  the site-wide galaxy so the title stays legible. */
+function ChapterHeader({
+  chapter,
+  title,
+  accentClass = "text-cyan-300",
+  glowRgb = "34,211,238",
+}: {
+  chapter: string;
+  title: string;
+  accentClass?: string;
+  glowRgb?: string;
+}) {
+  return (
+    <div
+      className="rounded-[2rem] border border-white/10 px-6 py-8 sm:px-12 sm:py-10"
+      style={{
+        background:
+          "linear-gradient(160deg, rgba(15,10,30,0.82), rgba(8,6,18,0.92))",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        boxShadow: "0 30px 90px -30px rgba(0,0,0,0.8)",
+      }}
+    >
+      <p
+        className={`heading-display text-xs font-semibold uppercase tracking-[0.5em] sm:text-sm ${accentClass}`}
+        style={{ textShadow: `0 0 24px rgba(${glowRgb},0.55)` }}
+      >
+        — {chapter}
+      </p>
+      <KineticText
+        as="h2"
+        text={title}
+        className="editorial-display mt-5 max-w-5xl text-balance text-white text-[clamp(2rem,6vw,5rem)] uppercase"
+        style={{ textShadow: "0 4px 30px rgba(0,0,0,0.9), 0 2px 6px rgba(0,0,0,0.95)" }}
+      />
+    </div>
+  );
+}
 
 export default function EvadePage() {
   return (
     <>
-      {/* Act 1 — Scroll-linked image-sequence scrollytelling. The
-          background colour matches the frame edges so the canvas blends
-          seamlessly into the page. Falls back to a procedural shield
-          composition if /public/sequence/evade is empty. */}
+      {/* Act 1 — Scroll-linked image-sequence scrollytelling.
+          Galaxy backdrop is mounted site-wide in layout.tsx. */}
       <ChipScroll
         dir="/sequence/evade"
         frameCount={48}
@@ -85,79 +127,83 @@ export default function EvadePage() {
         subCaption="Say goodbye to order cancelations, bans, rebills, failed refunds due to fraud detections & more. Trusted by clients worldwide."
       />
 
-      {/* Act 2 — Editorial intro */}
-      <section className="relative z-10 py-12">
-        <HeroBackground />
+      {/* Act 2 — Editorial intro with chapter illustration */}
+      <section className="relative z-10 py-16">
         <div className="container-wide relative">
-          <GlassCard tint="cyan">
-            <div className="p-10 sm:p-14">
-              <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-cyan-300/85">
-                — chapter 01 / evade
+          <div aria-hidden="true" className="pointer-events-none absolute -right-4 -top-12 hidden lg:block">
+            <ParallaxIllustration kind="shield" accent="cyan" size={260} />
+          </div>
+          <ChapterHeader chapter="chapter 01 / evade" title="Evade like a PRO." />
+          <div className="mt-10 grid gap-6 md:grid-cols-2">
+            <GlassCard tint="cyan" className="pulse-glow-cyan">
+              <p className="p-8 text-base leading-relaxed text-white/95 sm:text-lg">
+                Dive into a comprehensive overview of each store&apos;s
+                anti-fraud system and their ability to detect suspicious
+                user behaviour. Stores invest hundreds of thousands each
+                year to fight against refunders and are equipped with
+                advanced machine learning algorithms to identify potential
+                fraud — even if you are not banned.
               </p>
-              <KineticText
-                as="h2"
-                text="Evade like a PRO."
-                className="editorial-display mt-5 bg-gradient-to-b from-white via-white to-cyan-200 bg-clip-text text-transparent text-[clamp(2rem,6vw,5rem)] uppercase"
-              />
-              <div className="mt-8 grid gap-6 md:grid-cols-2">
-                <p className="text-base leading-relaxed text-white/80 sm:text-lg">
-                  Dive into a comprehensive overview of each store&apos;s
-                  anti-fraud system and their ability to detect suspicious
-                  user behaviour. Stores invest hundreds of thousands each
-                  year to fight against refunders and are equipped with
-                  advanced machine learning algorithms to identify potential
-                  fraud — even if you are not banned.
-                </p>
-                <p className="text-base leading-relaxed text-white/80 sm:text-lg">
-                  During the checkout process, you are assigned a fraud
-                  score, and if it reaches a certain threshold, your current
-                  and future orders may be cancelled.
-                </p>
-              </div>
-            </div>
-          </GlassCard>
+            </GlassCard>
+            <GlassCard tint="violet" delay={0.1}>
+              <p className="p-8 text-base leading-relaxed text-white/95 sm:text-lg">
+                During the checkout process, you are assigned a fraud
+                score, and if it reaches a certain threshold, your current
+                and future orders may be cancelled. Our methods keep that
+                score invisible.
+              </p>
+            </GlassCard>
+          </div>
         </div>
       </section>
 
-      {/* Act 3 — Solutions, 3-up */}
+      {/* Act 3 — Solutions, 3-up, with floating illustration accent */}
       <section className="relative py-24">
-        <HeroBackground />
         <div className="container-wide relative">
-          <Reveal>
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-cyan-300/80">
-              — chapter 02 / solutions
-            </p>
-            <KineticText
-              as="h2"
-              text="Our comprehensive solutions."
-              className="editorial-display mt-5 max-w-5xl text-balance bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent text-[clamp(2rem,6vw,5rem)] uppercase"
-            />
-          </Reveal>
+          <div aria-hidden="true" className="pointer-events-none absolute left-[2%] top-0 hidden lg:block">
+            <ParallaxIllustration kind="encryption" accent="violet" size={220} />
+          </div>
+          <ChapterHeader
+            chapter="chapter 02 / solutions"
+            title="Our comprehensive solutions."
+            accentClass="text-violet-300"
+            glowRgb="167,139,250"
+          />
           <div className="mt-14 grid gap-5 lg:grid-cols-3">
             {[
-              { body: "Avoid account bans and cancellations by learning how to properly and efficiently place large orders without account aging.", tint: "amber" as const },
-              { body: "Gain insights into avoiding rebills or winning against an existing rebill, plus understanding anti-fraud systems, user behaviour analysis, order fraud scores, and the latest algorithms used by online stores.", tint: "cyan" as const },
-              { body: "Remain completely anonymous while surfing the internet and placing your orders under a forged identity with credit lines up to $10,000.", tint: "violet" as const },
+              { body: "Avoid account bans and cancellations by learning how to properly and efficiently place large orders without account aging.", tint: "amber" as const,  illo: "spark"      as const, glow: "pulse-glow"        },
+              { body: "Gain insights into avoiding rebills or winning against an existing rebill, plus understanding anti-fraud systems, user behaviour analysis, order fraud scores, and the latest algorithms used by online stores.", tint: "cyan"  as const, illo: "encryption" as const, glow: "pulse-glow-cyan"   },
+              { body: "Remain completely anonymous while surfing the internet and placing your orders under a forged identity with credit lines up to $10,000.", tint: "violet" as const, illo: "globe"      as const, glow: "pulse-glow-violet" },
             ].map((c, i) => (
-              <GlassCard key={i} tint={c.tint} delay={i * 0.1}>
-                <p className="p-7 text-base leading-relaxed text-white/85">{c.body}</p>
+              <GlassCard key={i} tint={c.tint} delay={i * 0.1} className={`${c.glow} float-card${i === 1 ? " float-card-2" : ""}`}>
+                <div className="relative overflow-hidden p-7">
+                  <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 opacity-25 mix-blend-screen" aria-hidden="true">
+                    <ParallaxIllustration kind={c.illo} accent={c.tint} size={130} />
+                  </div>
+                  <p className="relative text-base leading-relaxed text-white/95">{c.body}</p>
+                </div>
               </GlassCard>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Act 4 — Features, 2x2 */}
-      <section className="relative py-12">
-        <HeroBackground />
+      {/* Act 4 — Features, 2x2 with chapter illustrations */}
+      <section className="relative py-16">
         <div className="container-wide relative grid gap-5 md:grid-cols-2">
           {FEATURES.map((f, i) => (
-            <GlassCard key={f.title} tint={f.tint} delay={i * 0.08}>
-              <div className="p-8">
-                <h3 className="heading-display text-2xl font-bold uppercase tracking-tight text-white">
+            <GlassCard key={f.title} tint={f.tint} delay={i * 0.08} className={i % 2 === 0 ? "float-card" : "float-card float-card-2"}>
+              <div className="relative overflow-hidden p-8">
+                <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 opacity-25 mix-blend-screen" aria-hidden="true">
+                  <ParallaxIllustration kind={f.illo} accent={f.tint} size={140} />
+                </div>
+                <h3
+                  className="relative heading-display text-2xl font-bold uppercase tracking-tight text-white"
+                  style={{ textShadow: "0 2px 16px rgba(0,0,0,0.8)" }}
+                >
                   {f.title}
                 </h3>
-                <p className="mt-4 text-base leading-relaxed text-white/80">{f.body}</p>
+                <p className="relative mt-4 text-base leading-relaxed text-white/95">{f.body}</p>
               </div>
             </GlassCard>
           ))}
@@ -166,26 +212,30 @@ export default function EvadePage() {
 
       {/* Act 5 — Trust */}
       <section className="relative py-24">
-        <HeroBackground />
         <div className="container-wide relative">
-          <Reveal>
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-cyan-300/80">
-              — chapter 03 / trust
-            </p>
-            <KineticText
-              as="h2"
-              text="Why trust us?"
-              className="editorial-display mt-5 max-w-4xl text-balance bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent text-[clamp(2rem,6vw,5rem)] uppercase"
-            />
-          </Reveal>
+          <div aria-hidden="true" className="pointer-events-none absolute right-[3%] top-0 hidden lg:block">
+            <ParallaxIllustration kind="globe" accent="amber" size={240} />
+          </div>
+          <ChapterHeader
+            chapter="chapter 03 / trust"
+            title="Why trust us?"
+            accentClass="text-amber-300"
+            glowRgb="245,185,69"
+          />
           <div className="mt-14 grid gap-5 lg:grid-cols-3">
             {TRUST.map((c, i) => (
               <GlassCard key={c.title} tint={["cyan","violet","amber"][i] as any} delay={i * 0.1}>
-                <div className="p-7">
-                  <h3 className="heading-display text-xl font-bold uppercase tracking-tight text-white">
+                <div className="relative overflow-hidden p-7">
+                  <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 opacity-25 mix-blend-screen" aria-hidden="true">
+                    <ParallaxIllustration kind={c.illo} accent={["cyan","violet","amber"][i] as any} size={120} />
+                  </div>
+                  <h3
+                    className="relative heading-display text-xl font-bold uppercase tracking-tight text-white"
+                    style={{ textShadow: "0 2px 12px rgba(0,0,0,0.8)" }}
+                  >
                     {c.title}
                   </h3>
-                  <p className="mt-3 text-base leading-relaxed text-white/80">{c.body}</p>
+                  <p className="relative mt-3 text-base leading-relaxed text-white/95">{c.body}</p>
                 </div>
               </GlassCard>
             ))}
@@ -195,30 +245,28 @@ export default function EvadePage() {
 
       {/* Act 6 — Pricing */}
       <section className="relative py-24" id="Learn">
-        <HeroBackground />
         <div className="container-wide relative">
-          <Reveal>
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300/80">
-              — chapter 04 / pricing
-            </p>
-            <KineticText
-              as="h2"
-              text="Get started, today."
-              className="editorial-display mt-5 max-w-4xl text-balance bg-gradient-to-b from-white to-amber-200 bg-clip-text text-transparent text-[clamp(2rem,6vw,5rem)] uppercase"
-            />
-            <p className="mt-6 text-base text-white/65">Our pricing — select your plan:</p>
-          </Reveal>
+          <ChapterHeader
+            chapter="chapter 04 / pricing"
+            title="Get started, today."
+            accentClass="text-amber-300"
+            glowRgb="245,185,69"
+          />
+          <p className="mt-6 text-base text-white/80">Our pricing — select your plan:</p>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {PRICING.map((p, i) => (
-              <GlassCard key={p.title} tint={p.tint} delay={i * 0.1}>
+              <GlassCard key={p.title} tint={p.tint} delay={i * 0.1} className="pulse-glow">
                 <div className="flex h-full flex-col p-8">
-                  <h3 className="heading-display text-2xl font-bold uppercase tracking-tight text-white">
+                  <h3
+                    className="heading-display text-2xl font-bold uppercase tracking-tight text-white"
+                    style={{ textShadow: "0 2px 14px rgba(0,0,0,0.8)" }}
+                  >
                     {p.title}
                   </h3>
-                  <p className="mt-4 flex-1 text-base leading-relaxed text-white/80">{p.body}</p>
+                  <p className="mt-4 flex-1 text-base leading-relaxed text-white/95">{p.body}</p>
                   <div className="mt-7">
                     <MagneticButton href={p.url} external variant="primary" className="w-full">
-                      Buy Now
+                      Shop Methods
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                         <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
                       </svg>

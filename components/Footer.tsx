@@ -38,7 +38,7 @@ export default function Footer() {
             </li>
             <li>
               <a href="https://refundgod.bgng.io/" target="_blank" rel="noopener noreferrer" className="hover:text-white">
-                Buy Now
+                Shop Methods
               </a>
             </li>
           </ul>

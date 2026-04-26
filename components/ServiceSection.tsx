@@ -134,18 +134,20 @@ export default function ServiceSection() {
         >
           <div className="text-center">
             <div
-              className="inline-block rounded-[2.5rem] px-6 py-8 sm:px-10 sm:py-10"
+              className="inline-block rounded-[2.5rem] border border-white/10 px-6 py-8 sm:px-12 sm:py-12"
               style={{
                 background:
-                  "linear-gradient(180deg, rgba(10,12,20,0.18), rgba(10,12,20,0.06) 35%, rgba(10,12,20,0.18))",
-                backdropFilter: "blur(3px)",
-                WebkitBackdropFilter: "blur(3px)",
+                  "linear-gradient(160deg, rgba(7,6,14,0.7), rgba(7,6,14,0.55) 35%, rgba(7,6,14,0.7))",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+                boxShadow: "0 40px 120px -40px rgba(0,0,0,0.85)",
               }}
             >
               <KineticText
                 as="h1"
                 text="Get rewarded for shopping online."
-                className="editorial-display mx-auto max-w-[1500px] text-balance bg-gradient-to-b from-white via-white to-amber-200 bg-clip-text text-transparent text-[clamp(2.25rem,9vw,9rem)] uppercase drop-shadow-[0_8px_60px_rgba(0,0,0,0.7)]"
+                className="editorial-display mx-auto max-w-[1500px] text-balance text-white text-[clamp(2.25rem,9vw,9rem)] uppercase"
+                style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)" }}
                 stagger={0.06}
                 delay={0.1}
               />
@@ -153,7 +155,8 @@ export default function ServiceSection() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 1.2 }}
-                className="mt-8 text-2xl font-light italic text-white/90 sm:text-3xl"
+                className="mt-8 text-2xl font-light italic text-white sm:text-3xl"
+                style={{ textShadow: "0 2px 16px rgba(0,0,0,0.85)" }}
               >
                 Ahh… feel the joy of cashback.
               </motion.p>
@@ -166,18 +169,25 @@ export default function ServiceSection() {
       <section className="relative py-32">
         <div className="container-wide relative grid items-end gap-12 sm:grid-cols-12">
           <div className="sm:col-span-7 sm:col-start-2">
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300/85">
+            <p
+              className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300"
+              style={{ textShadow: "0 0 20px rgba(245,185,69,0.5)" }}
+            >
               — chapter 02 / what
             </p>
             <KineticText
               as="h2"
               text="Stop wasting time and money."
-              className="editorial-display mt-5 text-balance bg-gradient-to-b from-white via-white to-white/40 bg-clip-text text-transparent text-[clamp(2rem,6vw,5rem)] uppercase"
+              className="editorial-display mt-5 text-balance text-white text-[clamp(2rem,6vw,5rem)] uppercase"
+              style={{ textShadow: "0 4px 30px rgba(0,0,0,0.85)" }}
             />
           </div>
           <div className="sm:col-span-4">
             <Reveal delay={0.2}>
-              <p className="text-lg leading-relaxed text-white/85">
+              <p
+                className="text-lg leading-relaxed text-white"
+                style={{ textShadow: "0 1px 10px rgba(0,0,0,0.7)" }}
+              >
                 With our exclusive service, we provide a rewarding shopping
                 experience — over <span className="text-amber-200 font-semibold">100+ participating stores</span> spanning
                 clothes, electronics, food, home, furniture, even travel.
@@ -192,10 +202,16 @@ export default function ServiceSection() {
       <section className="relative py-24">
         <div className="container-wide relative">
           <Reveal>
-            <p className="heading-display text-center text-xs font-semibold uppercase tracking-[0.5em] text-amber-300/85">
+            <p
+              className="heading-display text-center text-xs font-semibold uppercase tracking-[0.5em] text-amber-300"
+              style={{ textShadow: "0 0 20px rgba(245,185,69,0.5)" }}
+            >
               — chapter 03 / how
             </p>
-            <h2 className="editorial-display mt-4 text-center bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent text-[clamp(2rem,6vw,5rem)] uppercase">
+            <h2
+              className="editorial-display mt-4 text-center text-white text-[clamp(2rem,6vw,5rem)] uppercase"
+              style={{ textShadow: "0 4px 30px rgba(0,0,0,0.85)" }}
+            >
               How it works
             </h2>
           </Reveal>
@@ -229,10 +245,16 @@ export default function ServiceSection() {
       <section className="relative py-24">
         <div className="container-wide relative">
           <Reveal>
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300/85">
+            <p
+              className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300"
+              style={{ textShadow: "0 0 20px rgba(245,185,69,0.5)" }}
+            >
               — chapter 04 / why
             </p>
-            <h2 className="editorial-display mt-4 max-w-4xl text-balance bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent text-[clamp(2rem,6vw,5rem)] uppercase">
+            <h2
+              className="editorial-display mt-4 max-w-4xl text-balance text-white text-[clamp(2rem,6vw,5rem)] uppercase"
+              style={{ textShadow: "0 4px 30px rgba(0,0,0,0.85)" }}
+            >
               Why choose us?
             </h2>
           </Reveal>
@@ -257,10 +279,16 @@ export default function ServiceSection() {
         <Reveal>
           <div className="pulse-glow relative overflow-hidden rounded-[2.5rem] border border-amber-400/25 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-amber-500/15 p-10 text-center backdrop-blur-2xl sm:p-16">
             <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/60 to-transparent" />
-            <p className="heading-display text-[10px] font-semibold uppercase tracking-[0.5em] text-amber-200/95 sm:text-xs">
+            <p
+              className="heading-display text-[10px] font-semibold uppercase tracking-[0.5em] text-amber-200 sm:text-xs"
+              style={{ textShadow: "0 0 18px rgba(245,185,69,0.55)" }}
+            >
               — awarded #1 service · @refundgod
             </p>
-            <h2 className="editorial-display mt-4 mx-auto max-w-4xl text-balance bg-gradient-to-b from-white to-amber-100 bg-clip-text text-transparent text-3xl uppercase sm:text-5xl md:text-6xl">
+            <h2
+              className="editorial-display mt-4 mx-auto max-w-4xl text-balance text-white text-3xl uppercase sm:text-5xl md:text-6xl"
+              style={{ textShadow: "0 4px 30px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.85)" }}
+            >
               Innovative, fast and easy to use.
             </h2>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-white/90">

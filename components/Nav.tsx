@@ -44,7 +44,7 @@ export default function Nav() {
         </nav>
         <div className="flex items-center gap-2">
           <a href={BUY_URL} target="_blank" rel="noopener noreferrer" className="btn-primary !px-5 !py-2.5 text-sm">
-            Buy Now
+            Shop Methods
           </a>
           <button
             type="button"

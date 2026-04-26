@@ -3,7 +3,6 @@ import StoreFilters from "@/components/StoreFilters";
 import ServiceSection from "@/components/ServiceSection";
 import GlassCard from "@/components/GlassCard";
 import KineticText from "@/components/KineticText";
-import HeroBackground from "@/components/HeroBackground";
 import ParallaxIllustration from "@/components/ParallaxIllustration";
 import { Reveal } from "@/components/Reveal";
 
@@ -51,11 +50,8 @@ export default async function StoreListPage() {
 
   return (
     <div className="relative">
-      {/* SINGLE shared backdrop for the entire page (no per-section
-          mesh-gradient canvases — that was the lag source). */}
-      <div className="pointer-events-none fixed inset-0 -z-10">
-        <HeroBackground />
-      </div>
+      {/* Galaxy backdrop is mounted site-wide in layout.tsx — no
+          per-page canvases. */}
 
       {/* Multi-act intro */}
       <ServiceSection />
@@ -65,7 +61,7 @@ export default async function StoreListPage() {
         <div className="mx-auto h-px w-full max-w-3xl bg-gradient-to-r from-transparent via-white/15 to-transparent" />
       </div>
 
-      {/* Store list intro */}
+      {/* Store list intro — solid backdrop card so the headline POPS */}
       <section
         id="storelist"
         className="relative scroll-mt-16 py-20 sm:py-28"
@@ -74,17 +70,30 @@ export default async function StoreListPage() {
           <ParallaxIllustration kind="store" accent="amber" size={320} />
         </div>
         <div className="container-wide relative">
-          <div className="mx-auto max-w-5xl text-center">
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300 sm:text-sm">
+          <div
+            className="mx-auto max-w-5xl rounded-[2.5rem] border border-white/10 px-8 py-12 text-center sm:px-14 sm:py-16"
+            style={{
+              background:
+                "linear-gradient(160deg, rgba(15,10,30,0.85), rgba(8,6,18,0.92))",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              boxShadow: "0 40px 120px -40px rgba(0,0,0,0.85)",
+            }}
+          >
+            <p
+              className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300 sm:text-sm"
+              style={{ textShadow: "0 0 24px rgba(245,185,69,0.5)" }}
+            >
               — chapter 05 / curated · 480+ stores
             </p>
             <KineticText
               as="h2"
               text="The Store List"
-              className="editorial-display mt-6 bg-gradient-to-b from-white via-white to-amber-200 bg-clip-text text-transparent text-[clamp(2.5rem,10vw,9rem)] uppercase"
+              className="editorial-display mt-6 text-white text-[clamp(2.5rem,10vw,9rem)] uppercase"
+              style={{ textShadow: "0 4px 40px rgba(0,0,0,0.9), 0 2px 8px rgba(0,0,0,0.95)" }}
             />
             <Reveal delay={0.4}>
-              <p className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-white/85">
+              <p className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-white/95">
                 Filter by region, search by name, and see live limits, fees and
                 timeframes. Join our channels for the latest store drops.
               </p>
@@ -166,20 +175,34 @@ export default async function StoreListPage() {
       {/* Filters + grid */}
       <section className="relative py-20" id="region">
         <div className="container-wide relative">
-          <div className="mb-10 grid items-end gap-6 sm:grid-cols-[1fr_auto]">
-            <div>
-              <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300">
-                — chapter 06 / browse
+          <div
+            className="mb-10 rounded-[2rem] border border-white/10 px-6 py-8 sm:px-10 sm:py-10"
+            style={{
+              background:
+                "linear-gradient(160deg, rgba(15,10,30,0.78), rgba(8,6,18,0.88))",
+              backdropFilter: "blur(10px)",
+              WebkitBackdropFilter: "blur(10px)",
+            }}
+          >
+            <div className="grid items-end gap-6 sm:grid-cols-[1fr_auto]">
+              <div>
+                <p
+                  className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300"
+                  style={{ textShadow: "0 0 24px rgba(245,185,69,0.5)" }}
+                >
+                  — chapter 06 / browse
+                </p>
+                <KineticText
+                  as="h2"
+                  text="Select your region."
+                  className="editorial-display mt-5 text-white text-[clamp(2rem,6vw,5rem)] uppercase"
+                  style={{ textShadow: "0 4px 30px rgba(0,0,0,0.85)" }}
+                />
+              </div>
+              <p className="max-w-xs text-sm text-white/90">
+                One region at a time. Search across name, category and notes.
               </p>
-              <KineticText
-                as="h2"
-                text="Select your region."
-                className="editorial-display mt-5 bg-gradient-to-b from-white to-white/50 bg-clip-text text-transparent text-[clamp(2rem,6vw,5rem)] uppercase"
-              />
             </div>
-            <p className="max-w-xs text-sm text-white/70">
-              One region at a time. Search across name, category and notes.
-            </p>
           </div>
           <StoreFilters stores={stores} />
         </div>
