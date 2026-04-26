@@ -61,6 +61,7 @@ export default function ChipScroll({
   const captionY       = useTransform(scrollYProgress, [0.0, 0.15, 0.85, 1.0], [40, 0, 0, -40]);
   const captionBlur    = useTransform(scrollYProgress, [0.0, 0.1, 0.9, 1.0], [12, 0, 0, 12]);
   const captionFilter  = useTransform(captionBlur, (v) => `blur(${v}px)`);
+  const scrollPromptOpacity = useTransform(scrollYProgress, [0, 0.05, 0.15, 1], [1, 1, 0.4, 0]);
 
   // ── Preload frames ──────────────────────────────────────────────
   useEffect(() => {
@@ -388,18 +389,32 @@ export default function ChipScroll({
             className="container-wide pointer-events-none absolute inset-x-0 bottom-[12%] z-10 text-center"
           >
             <h3
-              className="editorial-display mx-auto max-w-5xl text-balance bg-gradient-to-b from-white via-white to-white/60 bg-clip-text text-transparent text-[clamp(2.2rem,7vw,6rem)] uppercase"
-              style={{ filter: "drop-shadow(0 6px 60px rgba(0,0,0,0.6))" }}
+              className="editorial-display mx-auto max-w-5xl text-balance bg-gradient-to-b from-white via-white to-white/70 bg-clip-text text-transparent text-[clamp(2.2rem,7vw,6rem)] uppercase"
+              style={{ filter: "drop-shadow(0 6px 60px rgba(0,0,0,0.7))" }}
             >
               {caption}
             </h3>
             {subCaption && (
-              <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/75 sm:text-lg">
+              <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/90 sm:text-lg">
                 {subCaption}
               </p>
             )}
           </motion.div>
         )}
+
+        {/* Persistent "scroll to continue" prompt at bottom — fades out
+            once you scroll past the runway, so users always know there's
+            more chess scene below. */}
+        <motion.div
+          aria-hidden="true"
+          style={{ opacity: scrollPromptOpacity }}
+          className="pointer-events-none absolute inset-x-0 bottom-6 z-10 flex flex-col items-center gap-2 text-white/85"
+        >
+          <span className="heading-display text-[10px] font-semibold uppercase tracking-[0.45em]">
+            scroll to continue
+          </span>
+          <span className="block h-10 w-px animate-pulseGlow bg-gradient-to-b from-white/85 to-transparent" />
+        </motion.div>
       </div>
     </section>
   );

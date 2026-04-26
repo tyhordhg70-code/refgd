@@ -1,20 +1,22 @@
 "use client";
-import Image from "next/image";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 import { Reveal } from "./Reveal";
 import KineticText from "./KineticText";
 import GlassCard from "./GlassCard";
 import MagneticButton from "./MagneticButton";
-import HeroBackground from "./HeroBackground";
+import InteractiveParticles from "./InteractiveParticles";
+import ParallaxIllustration from "./ParallaxIllustration";
 
 /**
- * Multi-act "Our Service" intro section, embedded at the top of /store-list.
- * Act 1: full-bleed hero with cinematic image + edge-to-edge headline.
- * Act 2: editorial subheading + supporting copy.
- * Act 3: 3-step glass timeline.
- * Act 4: "Why us" three-up.
- * Act 5: Awarded glass CTA banner.
+ * Multi-act intro section, embedded at the top of /store-list.
+ *   Act 1: animated cosmic hero (no static photo — the entire scene is
+ *          rendered with WebGL-free SVG + canvas particles, removing the
+ *          previous lag and the visible image edge).
+ *   Act 2: editorial subheading + supporting copy.
+ *   Act 3: 3-step glass timeline with chapter illustrations.
+ *   Act 4: "Why us" three-up.
+ *   Act 5: Awarded glass CTA banner.
  */
 
 const STEPS = [
@@ -24,6 +26,7 @@ const STEPS = [
     body:
       "Choose a participating store from our list and follow any instructions to place your order. Questions? We're available on Telegram around the clock.",
     tint: "amber" as const,
+    illust: "store" as const,
   },
   {
     n: "02",
@@ -31,6 +34,7 @@ const STEPS = [
     body:
       "Once your order is in, fill our service form so we can work our magic. Stores have different timeframes — every form is end-to-end encrypted to protect your privacy.",
     tint: "violet" as const,
+    illust: "encryption" as const,
   },
   {
     n: "03",
@@ -38,6 +42,7 @@ const STEPS = [
     body:
       "Once you receive a confirmation or your funds back, simply pay our service fee. After that, all data related to you is permanently deleted.",
     tint: "emerald" as const,
+    illust: "spark" as const,
   },
 ];
 
@@ -45,14 +50,20 @@ const WHY = [
   {
     h: "Five years deep",
     body: "Our advanced systems and insiders are always up-to-date, sorting individual data points to ensure maximum success on your order.",
+    illust: "globe" as const,
+    tint: "amber" as const,
   },
   {
     h: "End-to-end encrypted",
     body: "Isolated environments — your data never gets mixed with others, eliminating bans, fails or data leaks.",
+    illust: "encryption" as const,
+    tint: "violet" as const,
   },
   {
     h: "Stores nobody else has",
     body: "We act with urgency to begin working on your order almost immediately after submission.",
+    illust: "store" as const,
+    tint: "cyan" as const,
   },
 ];
 
@@ -62,88 +73,100 @@ export default function ServiceSection() {
     target: heroRef,
     offset: ["start start", "end start"],
   });
-  const imgY = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
-  const imgScale = useTransform(scrollYProgress, [0, 1], [1.05, 1.18]);
   const titleY = useTransform(scrollYProgress, [0, 1], ["0%", "-50%"]);
   const titleOp = useTransform(scrollYProgress, [0, 0.7, 1], [1, 0.4, 0]);
+  const ringRot = useTransform(scrollYProgress, [0, 1], [0, 90]);
+  const ringScale = useTransform(scrollYProgress, [0, 1], [1, 0.55]);
 
   return (
     <div id="service" className="relative isolate scroll-mt-16">
-      {/* Act 1 — Full-bleed cinematic hero (no crop, no low-res) */}
+      {/* Act 1 — Animated cosmic hero (no static image) */}
       <section
         ref={heroRef}
-        className="relative isolate min-h-[100svh] w-full overflow-hidden"
+        className="relative isolate min-h-[100svh] w-full overflow-hidden bg-ink-950"
         data-cursor="big"
       >
+        {/* mesh orbs + gradient ambience */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+          <div className="orb orb-1 absolute left-[10%] top-[15%] h-[60vh] w-[60vh] rounded-full" />
+          <div className="orb orb-2 absolute right-[8%] top-[28%] h-[55vh] w-[55vh] rounded-full" />
+          <div className="orb orb-3 absolute left-[40%] bottom-[10%] h-[50vh] w-[50vh] rounded-full" />
+        </div>
+
+        {/* concentric rotating rings — gives the same "iris" sci-fi
+            feel as the planet on the home hero */}
         <motion.div
           aria-hidden="true"
-          style={{ y: imgY, scale: imgScale }}
-          className="absolute inset-0"
+          style={{ rotate: ringRot, scale: ringScale }}
+          className="pointer-events-none absolute left-1/2 top-1/2 h-[72vh] w-[72vh] max-h-[760px] max-w-[760px] -translate-x-1/2 -translate-y-1/2"
         >
-          <Image
-            src="/images/path-store-list.png"
-            alt=""
-            fill
-            priority
-            sizes="100vw"
-            className="object-cover object-center"
-          />
-          {/* Atmospheric overlay so the image never feels cut off — gradient
-              blend into background everywhere */}
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              aria-hidden="true"
+              className="absolute inset-0 rounded-full"
+              style={{
+                border: "1px solid rgba(255,225,140,0.16)",
+                boxShadow: "inset 0 0 80px rgba(245,185,69,0.06)",
+                margin: `${i * 28}px`,
+              }}
+            />
+          ))}
+          {/* core sphere */}
           <div
-            className="absolute inset-0"
+            className="absolute left-1/2 top-1/2 h-[40%] w-[40%] -translate-x-1/2 -translate-y-1/2 rounded-full"
             style={{
               background:
-                "radial-gradient(ellipse at 50% 40%, transparent 25%, rgba(5,6,10,0.6) 70%, rgba(5,6,10,0.98) 100%), linear-gradient(180deg, rgba(5,6,10,0.55) 0%, transparent 25%, transparent 60%, rgba(5,6,10,0.98) 100%)",
+                "radial-gradient(circle at 30% 28%, rgba(255,237,180,0.95) 0%, rgba(245,185,69,0.55) 30%, rgba(167,139,250,0.42) 60%, rgba(34,211,238,0.18) 88%, transparent 100%)",
+              boxShadow:
+                "0 0 120px 40px rgba(245,185,69,0.30), 0 0 220px 80px rgba(167,139,250,0.22), inset 0 0 60px rgba(255,255,255,0.4)",
             }}
           />
         </motion.div>
 
-        {/* Glow blobs */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          <div className="absolute left-[15%] top-[20%] h-[55vh] w-[55vh] animate-pulseGlow rounded-full bg-amber-400/22 blur-[140px]" />
-          <div className="absolute right-[10%] top-[35%] h-[45vh] w-[45vh] animate-pulseGlow rounded-full bg-fuchsia-500/20 blur-[140px]" style={{ animationDelay: "1.6s" }} />
-        </div>
+        {/* interactive particles */}
+        <InteractiveParticles count={70} />
 
         {/* Headline */}
         <motion.div
           style={{ y: titleY, opacity: titleOp }}
-          className="container-wide relative z-10 grid min-h-[100svh] place-items-center"
+          className="container-wide pointer-events-none relative z-10 grid min-h-[100svh] place-items-center"
         >
           <div className="text-center">
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-              className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-200/95 sm:text-sm"
+            <div
+              className="inline-block rounded-[2.5rem] px-6 py-8 sm:px-10 sm:py-10"
+              style={{
+                background:
+                  "linear-gradient(180deg, rgba(10,12,20,0.18), rgba(10,12,20,0.06) 35%, rgba(10,12,20,0.18))",
+                backdropFilter: "blur(3px)",
+                WebkitBackdropFilter: "blur(3px)",
+              }}
             >
-              — our service
-            </motion.p>
-            <KineticText
-              as="h1"
-              text="Get rewarded for shopping online."
-              className="editorial-display mx-auto mt-6 max-w-[1500px] text-balance bg-gradient-to-b from-white via-white to-amber-200 bg-clip-text text-transparent text-[clamp(2.5rem,9vw,10rem)] uppercase drop-shadow-[0_8px_60px_rgba(0,0,0,0.6)]"
-              stagger={0.06}
-              delay={0.15}
-            />
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 1.4 }}
-              className="mt-8 text-2xl font-light italic text-white/85 sm:text-3xl"
-            >
-              Ahh… feel the joy of cashback.
-            </motion.p>
+              <KineticText
+                as="h1"
+                text="Get rewarded for shopping online."
+                className="editorial-display mx-auto max-w-[1500px] text-balance bg-gradient-to-b from-white via-white to-amber-200 bg-clip-text text-transparent text-[clamp(2.25rem,9vw,9rem)] uppercase drop-shadow-[0_8px_60px_rgba(0,0,0,0.7)]"
+                stagger={0.06}
+                delay={0.1}
+              />
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 1.2 }}
+                className="mt-8 text-2xl font-light italic text-white/90 sm:text-3xl"
+              >
+                Ahh… feel the joy of cashback.
+              </motion.p>
+            </div>
           </div>
         </motion.div>
       </section>
 
       {/* Act 2 — Editorial sub-statement */}
       <section className="relative py-32">
-        <HeroBackground />
         <div className="container-wide relative grid items-end gap-12 sm:grid-cols-12">
           <div className="sm:col-span-7 sm:col-start-2">
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300/80">
+            <p className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300/85">
               — chapter 02 / what
             </p>
             <KineticText
@@ -154,7 +177,7 @@ export default function ServiceSection() {
           </div>
           <div className="sm:col-span-4">
             <Reveal delay={0.2}>
-              <p className="text-lg leading-relaxed text-white/70">
+              <p className="text-lg leading-relaxed text-white/85">
                 With our exclusive service, we provide a rewarding shopping
                 experience — over <span className="text-amber-200 font-semibold">100+ participating stores</span> spanning
                 clothes, electronics, food, home, furniture, even travel.
@@ -165,12 +188,11 @@ export default function ServiceSection() {
         </div>
       </section>
 
-      {/* Act 3 — How it works (glass timeline) */}
+      {/* Act 3 — How it works (glass timeline w/ chapter illustrations) */}
       <section className="relative py-24">
-        <HeroBackground />
         <div className="container-wide relative">
           <Reveal>
-            <p className="heading-display text-center text-xs font-semibold uppercase tracking-[0.5em] text-amber-300/80">
+            <p className="heading-display text-center text-xs font-semibold uppercase tracking-[0.5em] text-amber-300/85">
               — chapter 03 / how
             </p>
             <h2 className="editorial-display mt-4 text-center bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent text-[clamp(2rem,6vw,5rem)] uppercase">
@@ -180,17 +202,22 @@ export default function ServiceSection() {
           <div className="mt-16 grid gap-6 md:grid-cols-3">
             {STEPS.map((s, i) => (
               <GlassCard key={s.n} tint={s.tint} delay={i * 0.12}>
-                <div className="relative p-8 sm:p-10">
-                  <div className="heading-display text-aurora text-[7rem] font-bold leading-none tracking-tighter opacity-30">
-                    {s.n}
+                <div className="relative overflow-hidden p-8 sm:p-10">
+                  <div className="pointer-events-none absolute -right-8 -top-8 opacity-30">
+                    <ParallaxIllustration kind={s.illust} accent={s.tint as any} size={180} />
                   </div>
-                  <h3 className="heading-display -mt-12 text-2xl font-bold text-white">
-                    Step {Number(s.n)}<br/>
-                    <span className="text-amber-200">{s.title}</span>
-                  </h3>
-                  <p className="mt-5 text-base leading-relaxed text-white/75">
-                    {s.body}
-                  </p>
+                  <div className="relative">
+                    <div className="heading-display text-aurora text-[7rem] font-bold leading-none tracking-tighter opacity-30">
+                      {s.n}
+                    </div>
+                    <h3 className="heading-display -mt-12 text-2xl font-bold text-white">
+                      Step {Number(s.n)}<br/>
+                      <span className="text-amber-200">{s.title}</span>
+                    </h3>
+                    <p className="mt-5 text-base leading-relaxed text-white/85">
+                      {s.body}
+                    </p>
+                  </div>
                 </div>
               </GlassCard>
             ))}
@@ -198,12 +225,11 @@ export default function ServiceSection() {
         </div>
       </section>
 
-      {/* Act 4 — Why us */}
+      {/* Act 4 — Why us with chapter illustrations */}
       <section className="relative py-24">
-        <HeroBackground />
         <div className="container-wide relative">
           <Reveal>
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300/80">
+            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300/85">
               — chapter 04 / why
             </p>
             <h2 className="editorial-display mt-4 max-w-4xl text-balance bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent text-[clamp(2rem,6vw,5rem)] uppercase">
@@ -212,10 +238,13 @@ export default function ServiceSection() {
           </Reveal>
           <div className="mt-14 grid gap-5 lg:grid-cols-3">
             {WHY.map((w, i) => (
-              <GlassCard key={w.h} tint={["amber","violet","cyan"][i] as any} delay={i * 0.1}>
-                <div className="p-8">
-                  <h3 className="heading-display text-xl font-bold uppercase tracking-tight text-white">{w.h}</h3>
-                  <p className="mt-4 text-base leading-relaxed text-white/75">{w.body}</p>
+              <GlassCard key={w.h} tint={w.tint} delay={i * 0.1}>
+                <div className="relative overflow-hidden p-8">
+                  <div className="pointer-events-none absolute -right-6 -top-6 opacity-25">
+                    <ParallaxIllustration kind={w.illust} accent={w.tint as any} size={150} />
+                  </div>
+                  <h3 className="relative heading-display text-xl font-bold uppercase tracking-tight text-white">{w.h}</h3>
+                  <p className="relative mt-4 text-base leading-relaxed text-white/85">{w.body}</p>
                 </div>
               </GlassCard>
             ))}
@@ -223,18 +252,18 @@ export default function ServiceSection() {
         </div>
       </section>
 
-      {/* Act 5 — Awarded CTA banner */}
+      {/* Act 5 — Awarded CTA banner with pulsating glow */}
       <section className="container-wide pb-16 pt-12">
         <Reveal>
-          <div className="relative overflow-hidden rounded-[2.5rem] border border-amber-400/25 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-amber-500/15 p-10 text-center backdrop-blur-2xl sm:p-16">
+          <div className="pulse-glow relative overflow-hidden rounded-[2.5rem] border border-amber-400/25 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-amber-500/15 p-10 text-center backdrop-blur-2xl sm:p-16">
             <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/60 to-transparent" />
-            <p className="heading-display text-[10px] font-semibold uppercase tracking-[0.5em] text-amber-200/80 sm:text-xs">
+            <p className="heading-display text-[10px] font-semibold uppercase tracking-[0.5em] text-amber-200/95 sm:text-xs">
               — awarded #1 service · @refundgod
             </p>
             <h2 className="editorial-display mt-4 mx-auto max-w-4xl text-balance bg-gradient-to-b from-white to-amber-100 bg-clip-text text-transparent text-3xl uppercase sm:text-5xl md:text-6xl">
               Innovative, fast and easy to use.
             </h2>
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-white/80">
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-white/90">
               Choose wisely and let us handle your order with utmost care and
               quality. We are certain you will be returning back to us in no time.
             </p>

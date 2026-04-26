@@ -6,7 +6,6 @@ import Logo from "./Logo";
 const NAV_ITEMS = [
   { href: "/", label: "Home" },
   { href: "/store-list", label: "Store List" },
-  { href: "/our-service", label: "Our Service" },
   { href: "/exclusive-mentorships", label: "Exclusive Mentorships" },
   { href: "/evade-cancelations", label: "Evade Cancelations" },
   { href: "/top-tier-methods", label: "Top-tier Methods" },

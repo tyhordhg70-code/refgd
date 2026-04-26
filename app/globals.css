@@ -246,4 +246,152 @@ html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .marquee, .marquee-reverse { animation: none; }
+  .pulse-glow, .float-card, .pulsating-overlay-a, .pulsating-overlay-b,
+  .chess-float, .prismatic-glow::before, .prismatic-glow::after { animation: none !important; }
+}
+
+/* ─── Site-wide pulsating gradient overlay ──────────────────────── */
+.pulsating-overlay-a {
+  background: radial-gradient(ellipse at 18% 22%, rgba(245,185,69,0.10) 0%, transparent 45%),
+              radial-gradient(ellipse at 82% 78%, rgba(167,139,250,0.10) 0%, transparent 45%);
+  filter: blur(40px);
+  animation: pulsateA 14s ease-in-out infinite;
+}
+.pulsating-overlay-b {
+  background: radial-gradient(ellipse at 80% 20%, rgba(34,211,238,0.07) 0%, transparent 45%),
+              radial-gradient(ellipse at 20% 78%, rgba(244,114,182,0.07) 0%, transparent 45%);
+  filter: blur(60px);
+  animation: pulsateB 18s ease-in-out infinite;
+}
+@keyframes pulsateA {
+  0%, 100% { opacity: 0.5; transform: scale(1)    rotate(0deg); }
+  50%      { opacity: 1;   transform: scale(1.06) rotate(8deg); }
+}
+@keyframes pulsateB {
+  0%, 100% { opacity: 0.4; transform: scale(1.05) rotate(2deg); }
+  50%      { opacity: 0.85;transform: scale(0.98) rotate(-6deg); }
+}
+
+/* ─── Pulsating box-shadow for glass cards ──────────────────────── */
+.pulse-glow {
+  animation: pulseGlowShadow 4.5s ease-in-out infinite;
+}
+@keyframes pulseGlowShadow {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.10),
+                0 30px 80px -30px rgba(245,185,69,0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.45),
+                0 30px 100px -25px rgba(245,185,69,0.55),
+                0 0 60px 10px rgba(167,139,250,0.20);
+  }
+}
+.pulse-glow-violet { animation: pulseGlowViolet 5s ease-in-out infinite; }
+@keyframes pulseGlowViolet {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(167,139,250,0.10),
+                0 30px 80px -30px rgba(167,139,250,0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(167,139,250,0.55),
+                0 30px 100px -25px rgba(167,139,250,0.55),
+                0 0 60px 10px rgba(34,211,238,0.20);
+  }
+}
+.pulse-glow-cyan { animation: pulseGlowCyan 5s ease-in-out infinite; }
+@keyframes pulseGlowCyan {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(34,211,238,0.10),
+                0 30px 80px -30px rgba(34,211,238,0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(34,211,238,0.55),
+                0 30px 100px -25px rgba(34,211,238,0.50),
+                0 0 60px 10px rgba(167,139,250,0.20);
+  }
+}
+
+/* ─── Floating card utility ────────────────────────────────────── */
+.float-card {
+  animation: floatCard 8s ease-in-out infinite;
+  will-change: transform;
+}
+.float-card-2 { animation-delay: -2s; }
+.float-card-3 { animation-delay: -4s; }
+@keyframes floatCard {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0); }
+  50%      { transform: translate3d(0, -10px, 0) rotate(0.4deg); }
+}
+
+/* ─── Chess piece float ────────────────────────────────────────── */
+.chess-float {
+  animation: chessFloat 6s ease-in-out infinite;
+  will-change: transform, filter;
+  filter: drop-shadow(0 14px 30px rgba(167,139,250,0.45));
+}
+@keyframes chessFloat {
+  0%, 100% {
+    transform: translateY(0) rotate(0);
+    filter: drop-shadow(0 14px 30px rgba(167,139,250,0.45));
+  }
+  50% {
+    transform: translateY(-12px) rotate(0.4deg);
+    filter: drop-shadow(0 22px 50px rgba(167,139,250,0.85));
+  }
+}
+
+/* ─── Prismatic glow border (registered properties + fallback) ─── */
+@property --pg-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.prismatic-glow {
+  position: relative;
+  isolation: isolate;
+  padding: var(--pg-thickness, 1.5px);
+  border-radius: var(--pg-radius, 1.5rem);
+  background:
+    conic-gradient(from var(--pg-angle, 0deg),
+      #ff6ad5, #c779d0, #4bc0c8, #feac5e, #ffe28a, #ff6ad5);
+  animation: prismaticSpin 6s linear infinite;
+  box-shadow:
+    0 0 30px calc(8px * var(--pg-intensity, 1)) rgba(199,121,208,0.45),
+    0 0 60px calc(16px * var(--pg-intensity, 1)) rgba(75,192,200,0.3);
+}
+.prismatic-glow-inner {
+  border-radius: calc(var(--pg-radius, 1.5rem) - 1px);
+  background: rgb(var(--bg));
+  height: 100%;
+}
+@keyframes prismaticSpin {
+  to { --pg-angle: 360deg; }
+}
+@supports not (background: conic-gradient(from 0deg, red, blue)) {
+  .prismatic-glow {
+    background: linear-gradient(135deg, #ff6ad5, #c779d0, #4bc0c8, #feac5e, #ff6ad5);
+    background-size: 300% 300%;
+    animation: prism 8s ease infinite;
+  }
+}
+@keyframes prism {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* ─── Mobile typography taming ─────────────────────────────────── */
+@media (max-width: 640px) {
+  .editorial-display {
+    line-height: 0.94;
+    letter-spacing: -0.035em;
+  }
+  /* keep big landing headlines from stealing the whole viewport */
+  h1.editorial-display { line-height: 0.92; }
+  .container-px { padding-left: 1rem; padding-right: 1rem; }
+  .container-wide { padding-left: 1rem; padding-right: 1rem; }
+}
+@media (max-width: 480px) {
+  /* foldable / tiny phones */
+  .editorial-display { letter-spacing: -0.03em; }
 }

@@ -4,6 +4,8 @@ import GlassCard from "@/components/GlassCard";
 import KineticText from "@/components/KineticText";
 import HeroBackground from "@/components/HeroBackground";
 import MagneticButton from "@/components/MagneticButton";
+import AnimatedChessBoard from "@/components/AnimatedChessBoard";
+import ParallaxIllustration from "@/components/ParallaxIllustration";
 
 export const metadata = {
   title: "Exclusive Mentorships — RefundGod",
@@ -34,11 +36,13 @@ const EMOTIONS = ["Fear", "Excitement", "Curiosity", "Anger", "Guilt", "Sadness"
 
 export default function MentorshipsPage() {
   return (
-    <>
-      {/* Act 1 — Scroll-linked scrollytelling. Background matches the
-          frame edges exactly so the canvas blends seamlessly into the
-          page. Falls back to a procedural chess composition if
-          /public/sequence/mentor is empty. */}
+    <div className="relative">
+      {/* Single shared backdrop — no per-section mesh-gradient canvas */}
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <HeroBackground />
+      </div>
+
+      {/* Act 1 — Scroll-linked scrollytelling */}
       <ChipScroll
         dir="/sequence/mentor"
         frameCount={48}
@@ -61,12 +65,11 @@ export default function MentorshipsPage() {
         </Reveal>
       </section>
 
-      {/* Act 2 — Refunding intro */}
+      {/* Act 2 — Refunding intro with animated chess illustration */}
       <section className="relative py-24">
-        <HeroBackground />
-        <div className="container-wide relative grid items-start gap-10 sm:grid-cols-12">
+        <div className="container-wide relative grid items-center gap-10 sm:grid-cols-12">
           <div className="sm:col-span-5">
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-violet-300/85">
+            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-violet-300">
               — chapter 01 / refund
             </p>
             <KineticText
@@ -74,10 +77,14 @@ export default function MentorshipsPage() {
               text="What is this Refunding Mentorship about?"
               className="editorial-display mt-5 bg-gradient-to-b from-white via-white to-violet-200 bg-clip-text text-transparent text-[clamp(1.8rem,5vw,4rem)] uppercase"
             />
+            {/* Animated chess composition floats next to the title on lg+ */}
+            <div className="chess-float mt-8 hidden h-72 sm:block">
+              <AnimatedChessBoard className="h-full w-full" />
+            </div>
           </div>
           <div className="sm:col-span-7">
-            <GlassCard tint="violet">
-              <div className="space-y-4 p-8 text-base leading-relaxed text-white/80 sm:text-lg">
+            <GlassCard tint="violet" className="pulse-glow-violet">
+              <div className="space-y-4 p-8 text-base leading-relaxed text-white/90 sm:text-lg">
                 <p>
                   Refunding is a manipulation technique that exploits human
                   error and finding loopholes in company policies, deceiving
@@ -100,7 +107,7 @@ export default function MentorshipsPage() {
                   {EMOTIONS.map((e) => (
                     <span
                       key={e}
-                      className="rounded-full border border-violet-400/30 bg-violet-400/10 px-4 py-1.5 text-sm font-medium text-violet-100 backdrop-blur-sm"
+                      className="rounded-full border border-violet-400/40 bg-violet-400/15 px-4 py-1.5 text-sm font-semibold text-violet-50 backdrop-blur-sm"
                     >
                       {e}
                     </span>
@@ -112,16 +119,18 @@ export default function MentorshipsPage() {
         </div>
       </section>
 
-      {/* Act 3 — Tailgating + Insider */}
+      {/* Act 3 — Tailgating + Insider — floating cards with chapter art */}
       <section className="relative py-12">
-        <HeroBackground />
         <div className="container-wide relative grid gap-5 lg:grid-cols-[1.2fr_1fr]">
-          <GlassCard tint="cyan">
-            <div className="p-8">
-              <h3 className="heading-display text-2xl font-bold uppercase tracking-tight text-white">
+          <GlassCard tint="cyan" className="float-card pulse-glow-cyan">
+            <div className="relative overflow-hidden p-8">
+              <div className="pointer-events-none absolute -right-6 -top-6 opacity-30">
+                <ParallaxIllustration kind="shield" accent="cyan" size={160} />
+              </div>
+              <h3 className="relative heading-display text-2xl font-bold uppercase tracking-tight text-white">
                 Access Tailgating Attacks
               </h3>
-              <p className="mt-4 text-base leading-relaxed text-white/80">
+              <p className="relative mt-4 text-base leading-relaxed text-white/90">
                 Tailgating, or piggybacking, is the act of trailing an
                 authorised staff member into a restricted-access area.
                 Attackers may play on social courtesy to get you to hold the
@@ -131,18 +140,21 @@ export default function MentorshipsPage() {
               </p>
             </div>
           </GlassCard>
-          <GlassCard tint="amber">
-            <div className="p-8">
-              <h3 className="heading-display text-2xl font-bold uppercase tracking-tight text-amber-100">
+          <GlassCard tint="amber" className="float-card float-card-2 pulse-glow">
+            <div className="relative overflow-hidden p-8">
+              <div className="pointer-events-none absolute -right-6 -top-6 opacity-30">
+                <ParallaxIllustration kind="globe" accent="amber" size={160} />
+              </div>
+              <h3 className="relative heading-display text-2xl font-bold uppercase tracking-tight text-amber-100">
                 Become your own private insider
               </h3>
-              <p className="mt-4 text-base leading-relaxed text-white/80">
+              <p className="relative mt-4 text-base leading-relaxed text-white/90">
                 Be fully anonymous, apply with stealth overseas information,
                 pass through job interviews, learn each customer service
                 tier&apos;s refunding limits & abilities, and how to get
                 promoted to higher status to push your own orders through.
               </p>
-              <p className="mt-3 text-xs italic text-white/55">
+              <p className="relative mt-3 text-xs italic text-white/70">
                 This is not included in the regular mentorship — it&apos;s a
                 separate add-on.
               </p>
@@ -153,13 +165,15 @@ export default function MentorshipsPage() {
 
       {/* Act 4 — What's included (Refund) */}
       <section className="relative py-20">
-        <HeroBackground />
         <div className="container-wide relative">
+          <div aria-hidden="true" className="pointer-events-none absolute right-[3%] top-0 hidden lg:block">
+            <ParallaxIllustration kind="chess" accent="violet" size={240} />
+          </div>
           <Reveal>
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-violet-300/80">
+            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-violet-300">
               — what&apos;s included
             </p>
-            <h3 className="editorial-display mt-5 max-w-4xl text-balance bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent text-[clamp(1.8rem,5vw,4rem)] uppercase">
+            <h3 className="editorial-display mt-5 max-w-4xl text-balance bg-gradient-to-b from-white to-white/50 bg-clip-text text-transparent text-[clamp(1.8rem,5vw,4rem)] uppercase">
               Refunding Mentorship.
             </h3>
           </Reveal>
@@ -167,16 +181,16 @@ export default function MentorshipsPage() {
             {REFUND_FEATURES.map((f, i) => (
               <GlassCard key={f} tint={i % 2 ? "violet" : "neutral"} delay={i * 0.05}>
                 <div className="flex items-start gap-4 p-5">
-                  <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-400/20 text-sm font-bold text-emerald-200 ring-1 ring-emerald-300/30">
+                  <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-400/25 text-sm font-bold text-emerald-100 ring-1 ring-emerald-300/40">
                     ✓
                   </span>
-                  <p className="text-base font-medium text-white/85">{f}</p>
+                  <p className="text-base font-medium text-white/95">{f}</p>
                 </div>
               </GlassCard>
             ))}
           </div>
           <Reveal delay={0.4}>
-            <p className="mt-8 text-base text-white/65">
+            <p className="mt-8 text-base text-white/85">
               We can guarantee that you&apos;ll be making AT LEAST $2,000/week
               within 2 weeks of starting if you follow everything correctly.
               By refunding one order alone you already profit. You also get
@@ -188,10 +202,9 @@ export default function MentorshipsPage() {
 
       {/* Act 5 — SE intro */}
       <section className="relative py-24">
-        <HeroBackground />
         <div className="container-wide relative grid items-start gap-10 sm:grid-cols-12">
           <div className="sm:col-span-5 sm:order-2">
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-cyan-300/85">
+            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-cyan-300">
               — chapter 02 / SE
             </p>
             <KineticText
@@ -199,10 +212,13 @@ export default function MentorshipsPage() {
               text="Social Engineering Mentorship."
               className="editorial-display mt-5 bg-gradient-to-b from-white via-white to-cyan-200 bg-clip-text text-transparent text-[clamp(1.8rem,5vw,4rem)] uppercase"
             />
+            <div className="float-card mt-8 hidden h-60 sm:block">
+              <ParallaxIllustration kind="encryption" accent="cyan" size={240} />
+            </div>
           </div>
           <div className="sm:col-span-7 sm:order-1">
-            <GlassCard tint="cyan">
-              <div className="space-y-4 p-8 text-base leading-relaxed text-white/80 sm:text-lg">
+            <GlassCard tint="cyan" className="pulse-glow-cyan">
+              <div className="space-y-4 p-8 text-base leading-relaxed text-white/90 sm:text-lg">
                 <p>
                   Our focus is a more modern approach which takes advantage of
                   companies&apos; warranty policy, allowing you to obtain
@@ -233,13 +249,15 @@ export default function MentorshipsPage() {
 
       {/* Act 6 — What's included (SE) */}
       <section className="relative py-20">
-        <HeroBackground />
         <div className="container-wide relative">
+          <div aria-hidden="true" className="pointer-events-none absolute left-[2%] top-0 hidden lg:block">
+            <ParallaxIllustration kind="spark" accent="cyan" size={220} />
+          </div>
           <Reveal>
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-cyan-300/80">
+            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-cyan-300">
               — what&apos;s included
             </p>
-            <h3 className="editorial-display mt-5 max-w-4xl text-balance bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent text-[clamp(1.8rem,5vw,4rem)] uppercase">
+            <h3 className="editorial-display mt-5 max-w-4xl text-balance bg-gradient-to-b from-white to-white/50 bg-clip-text text-transparent text-[clamp(1.8rem,5vw,4rem)] uppercase">
               SE Mentorship.
             </h3>
           </Reveal>
@@ -247,10 +265,10 @@ export default function MentorshipsPage() {
             {SE_FEATURES.map((f, i) => (
               <GlassCard key={f} tint={i % 2 ? "cyan" : "neutral"} delay={i * 0.05}>
                 <div className="flex items-start gap-4 p-5">
-                  <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-cyan-400/20 text-sm font-bold text-cyan-200 ring-1 ring-cyan-300/30">
+                  <span className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-cyan-400/25 text-sm font-bold text-cyan-100 ring-1 ring-cyan-300/40">
                     ✓
                   </span>
-                  <p className="text-base font-medium text-white/85">{f}</p>
+                  <p className="text-base font-medium text-white/95">{f}</p>
                 </div>
               </GlassCard>
             ))}
@@ -260,14 +278,16 @@ export default function MentorshipsPage() {
 
       {/* Act 7 — Add-ons */}
       <section className="relative py-12">
-        <HeroBackground />
         <div className="container-wide relative">
-          <GlassCard tint="amber">
-            <div className="p-8">
-              <h3 className="heading-display text-2xl font-bold uppercase tracking-tight text-white">
+          <GlassCard tint="amber" className="pulse-glow">
+            <div className="relative overflow-hidden p-8">
+              <div className="pointer-events-none absolute -right-6 -top-6 opacity-25">
+                <ParallaxIllustration kind="store" accent="amber" size={150} />
+              </div>
+              <h3 className="relative heading-display text-2xl font-bold uppercase tracking-tight text-white">
                 Additional add-ons
               </h3>
-              <ul className="mt-5 space-y-3 text-base text-white/80">
+              <ul className="relative mt-5 space-y-3 text-base text-white/90">
                 <li className="flex items-start gap-3">
                   <span className="mt-2 h-1 w-3 shrink-0 bg-amber-300" />
                   Live SE&apos;ing on call / TeamViewer / screenshare. Personal
@@ -289,7 +309,6 @@ export default function MentorshipsPage() {
       </section>
 
       <section className="relative py-24 text-center">
-        <HeroBackground />
         <div className="container-wide relative">
           <KineticText
             as="h2"
@@ -308,6 +327,6 @@ export default function MentorshipsPage() {
           </Reveal>
         </div>
       </section>
-    </>
+    </div>
   );
 }

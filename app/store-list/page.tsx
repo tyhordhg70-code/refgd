@@ -4,6 +4,7 @@ import ServiceSection from "@/components/ServiceSection";
 import GlassCard from "@/components/GlassCard";
 import KineticText from "@/components/KineticText";
 import HeroBackground from "@/components/HeroBackground";
+import ParallaxIllustration from "@/components/ParallaxIllustration";
 import { Reveal } from "@/components/Reveal";
 
 export const dynamic = "force-dynamic";
@@ -49,8 +50,14 @@ export default async function StoreListPage() {
   const stores = await listStores();
 
   return (
-    <>
-      {/* Section 1 — Our Service (multi-act) */}
+    <div className="relative">
+      {/* SINGLE shared backdrop for the entire page (no per-section
+          mesh-gradient canvases — that was the lag source). */}
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <HeroBackground />
+      </div>
+
+      {/* Multi-act intro */}
       <ServiceSection />
 
       {/* Divider with editorial chapter mark */}
@@ -63,19 +70,21 @@ export default async function StoreListPage() {
         id="storelist"
         className="relative scroll-mt-16 py-20 sm:py-28"
       >
-        <HeroBackground />
+        <div aria-hidden="true" className="pointer-events-none absolute right-[6%] top-1/2 -translate-y-1/2 hidden lg:block">
+          <ParallaxIllustration kind="store" accent="amber" size={320} />
+        </div>
         <div className="container-wide relative">
           <div className="mx-auto max-w-5xl text-center">
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300/80 sm:text-sm">
+            <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300 sm:text-sm">
               — chapter 05 / curated · 480+ stores
             </p>
             <KineticText
               as="h2"
               text="The Store List"
-              className="editorial-display mt-6 bg-gradient-to-b from-white via-white to-amber-200 bg-clip-text text-transparent text-[clamp(3rem,10vw,9rem)] uppercase"
+              className="editorial-display mt-6 bg-gradient-to-b from-white via-white to-amber-200 bg-clip-text text-transparent text-[clamp(2.5rem,10vw,9rem)] uppercase"
             />
             <Reveal delay={0.4}>
-              <p className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-white/70">
+              <p className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-white/85">
                 Filter by region, search by name, and see live limits, fees and
                 timeframes. Join our channels for the latest store drops.
               </p>
@@ -86,10 +95,9 @@ export default async function StoreListPage() {
 
       {/* Rules — glass cards in 4-up grid */}
       <section className="relative py-12">
-        <HeroBackground />
         <div className="container-wide relative">
           <Reveal>
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300/75">
+            <p className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300/85">
               — the rules
             </p>
           </Reveal>
@@ -103,7 +111,7 @@ export default async function StoreListPage() {
                   <h3 className="heading-display mt-3 text-lg font-bold uppercase tracking-tight text-white">
                     {b.h}
                   </h3>
-                  <p className="mt-3 text-sm font-medium leading-relaxed text-white/75">
+                  <p className="mt-3 text-sm font-medium leading-relaxed text-white/85">
                     {b.body}
                   </p>
                 </div>
@@ -115,14 +123,16 @@ export default async function StoreListPage() {
 
       {/* Non-payment + payment — magazine 2/3 + 1/3 */}
       <section className="relative py-12">
-        <HeroBackground />
         <div className="container-wide relative grid gap-5 lg:grid-cols-3">
           <GlassCard tint="rose" className="lg:col-span-2">
-            <div className="p-8 sm:p-10">
-              <h3 className="heading-display text-2xl font-bold uppercase tracking-tight text-rose-100">
+            <div className="relative overflow-hidden p-8 sm:p-10">
+              <div className="pointer-events-none absolute -right-6 -top-6 opacity-25">
+                <ParallaxIllustration kind="shield" accent="rose" size={160} />
+              </div>
+              <h3 className="relative heading-display text-2xl font-bold uppercase tracking-tight text-rose-100">
                 Non-payment disclaimer
               </h3>
-              <p className="mt-4 text-base leading-relaxed text-white/80">
+              <p className="relative mt-4 text-base leading-relaxed text-white/85">
                 Failure to pay our service fee within the agreed timeframe will
                 result in a rebill and pursuit of legal action by the company
                 and local authorities, with all documentation and evidence
@@ -134,14 +144,17 @@ export default async function StoreListPage() {
             </div>
           </GlassCard>
           <GlassCard tint="emerald">
-            <div className="p-8 sm:p-10">
-              <h3 className="heading-display text-2xl font-bold uppercase tracking-tight text-emerald-100">
+            <div className="relative overflow-hidden p-8 sm:p-10">
+              <div className="pointer-events-none absolute -right-6 -top-6 opacity-25">
+                <ParallaxIllustration kind="encryption" accent="emerald" size={140} />
+              </div>
+              <h3 className="relative heading-display text-2xl font-bold uppercase tracking-tight text-emerald-100">
                 Payment
               </h3>
-              <p className="mt-4 text-base leading-relaxed text-white/80">
+              <p className="relative mt-4 text-base leading-relaxed text-white/85">
                 We accept ALL cryptocurrencies as payment.
               </p>
-              <p className="mt-3 text-base leading-relaxed text-white/80">
+              <p className="relative mt-3 text-base leading-relaxed text-white/85">
                 Don&apos;t see a store you&apos;re interested in below? We&apos;d be more than
                 happy to try it out for you, for a discounted rate!
               </p>
@@ -152,26 +165,25 @@ export default async function StoreListPage() {
 
       {/* Filters + grid */}
       <section className="relative py-20" id="region">
-        <HeroBackground />
         <div className="container-wide relative">
           <div className="mb-10 grid items-end gap-6 sm:grid-cols-[1fr_auto]">
             <div>
-              <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300/80">
+              <p className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300">
                 — chapter 06 / browse
               </p>
               <KineticText
                 as="h2"
                 text="Select your region."
-                className="editorial-display mt-5 bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent text-[clamp(2rem,6vw,5rem)] uppercase"
+                className="editorial-display mt-5 bg-gradient-to-b from-white to-white/50 bg-clip-text text-transparent text-[clamp(2rem,6vw,5rem)] uppercase"
               />
             </div>
-            <p className="max-w-xs text-sm text-white/55">
+            <p className="max-w-xs text-sm text-white/70">
               One region at a time. Search across name, category and notes.
             </p>
           </div>
           <StoreFilters stores={stores} />
         </div>
       </section>
-    </>
+    </div>
   );
 }

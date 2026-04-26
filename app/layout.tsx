@@ -4,6 +4,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import CustomCursor from "@/components/CustomCursor";
+import PulsatingOverlay from "@/components/PulsatingOverlay";
 import { getContentBlock } from "@/lib/content";
 
 export const metadata: Metadata = {
@@ -67,9 +68,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="min-h-screen bg-ink-950 text-white antialiased">
+        <PulsatingOverlay />
         <AnnouncementBanner text={bannerText} cta={bannerCta} url={bannerUrl} />
         <Nav />
-        <main>{children}</main>
+        <main className="relative z-[2]">{children}</main>
         <Footer />
         <CustomCursor />
       </body>

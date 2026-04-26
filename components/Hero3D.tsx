@@ -2,13 +2,16 @@
 import { motion, useScroll, useTransform, useReducedMotion, useMotionValue, useSpring } from "framer-motion";
 import { useEffect, useRef } from "react";
 import KineticText from "./KineticText";
+import InteractiveParticles from "./InteractiveParticles";
 
 /**
- * Immersive 3D hero. No pasted image — the whole composition is part of
- * the page structure: layered orbs that orbit, refract, and re-shape as
- * you scroll. Mouse parallax, scroll-linked depth, floating refractive
- * particles. Background colour is the same ink-950 as the rest of the
- * page so there is no visible image edge — the scene IS the page.
+ * Immersive 3D hero. The whole composition is part of the page
+ * structure — layered orbs that orbit, refract, and re-shape as you
+ * scroll. Mouse parallax + scroll-linked depth + interactive particles
+ * that flee the cursor. The text overlay sits inside a backdrop-blur
+ * card so it stays readable, but pointer-events are scoped only to
+ * actually interactive elements so the planet/particles can be poked
+ * with the cursor anywhere on the canvas — even where text appears.
  */
 export default function Hero3D({
   kicker,
@@ -32,8 +35,6 @@ export default function Hero3D({
     offset: ["start start", "end start"],
   });
 
-  // Each layer of the scene transforms differently across the scroll —
-  // they peel apart and recombine instead of fading out as a single image.
   const orbY      = useTransform(scrollYProgress, [0, 1], ["0%",   "60%"]);
   const orbScale  = useTransform(scrollYProgress, [0, 1], [1,      1.55]);
   const orbBlur   = useTransform(scrollYProgress, [0, 1], [0,      14]);
@@ -56,10 +57,12 @@ export default function Hero3D({
       my.set((e.clientY - r.top) / r.height - 0.5);
     };
     const onLeave = () => { mx.set(0); my.set(0); };
-    el.addEventListener("mousemove", onMove);
+    // Listen on the window so cursor over the centered text/card still
+    // moves the planet (the section spans the full viewport).
+    window.addEventListener("mousemove", onMove);
     el.addEventListener("mouseleave", onLeave);
     return () => {
-      el.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mousemove", onMove);
       el.removeEventListener("mouseleave", onLeave);
     };
   }, [reduced, mx, my]);
@@ -73,7 +76,7 @@ export default function Hero3D({
       data-cursor-label="explore"
     >
       {/* ── PULSATING MESH GRADIENT BACKDROP ───────────────────────── */}
-      <div aria-hidden="true" className="absolute inset-0">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div className="orb orb-1 absolute left-[6%] top-[10%] h-[60vh] w-[60vh] rounded-full" />
         <div className="orb orb-2 absolute right-[4%] top-[22%] h-[55vh] w-[55vh] rounded-full" />
         <div className="orb orb-3 absolute left-[35%] bottom-[2%] h-[50vh] w-[50vh] rounded-full" />
@@ -101,8 +104,6 @@ export default function Hero3D({
           }}
           className="relative h-[78vh] w-[78vh] max-h-[820px] max-w-[820px]"
         >
-          {/* Concentric rings — rotate + shrink with scroll, like an
-              optical instrument iris closing. */}
           {[0, 1, 2, 3].map((i) => (
             <motion.div
               key={i}
@@ -126,7 +127,6 @@ export default function Hero3D({
               />
             </motion.div>
           ))}
-          {/* Core sphere — soft glassy orb */}
           <div
             className="absolute left-1/2 top-1/2 h-[44%] w-[44%] -translate-x-1/2 -translate-y-1/2 rounded-full"
             style={{
@@ -138,11 +138,6 @@ export default function Hero3D({
               transform: "translateZ(80px)",
             }}
           />
-          {/* Orbiting satellites — each satellite has its own outer
-              wrapper that performs the rotation animation, and an inner
-              dot offset by a unique radius. This way per-satellite radii
-              are preserved (CSS animation on the wrapper only animates
-              `rotate`, not the whole transform stack). */}
           {[
             { d: 0,    color: "#ffe28a", radiusVh: 30, dur: 18 },
             { d: -3,   color: "#a78bfa", radiusVh: 34, dur: 22 },
@@ -171,64 +166,41 @@ export default function Hero3D({
         </motion.div>
       </motion.div>
 
-      {/* ── FLOATING ABSTRACT PARTICLES (always on) ────────────────── */}
-      {!reduced && (
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-          {Array.from({ length: 60 }).map((_, i) => {
-            const left = (i * 53) % 100;
-            const top  = (i * 31) % 100;
-            const size = 1 + (i % 4);
-            const dur  = 9 + (i % 9);
-            const delay = (i % 7) * 0.9;
-            const palette = [
-              "rgba(245,185,69,0.95)",
-              "rgba(167,139,250,0.95)",
-              "rgba(103,232,249,0.95)",
-              "rgba(244,114,182,0.85)",
-              "rgba(255,255,255,0.85)",
-            ];
-            const hue = palette[i % palette.length];
-            return (
-              <span
-                key={i}
-                className="absolute rounded-full"
-                style={{
-                  left: `${left}%`,
-                  top:  `${top}%`,
-                  width:  `${size}px`,
-                  height: `${size}px`,
-                  background: hue,
-                  boxShadow: `0 0 ${4 + size * 5}px ${hue}`,
-                  animation: `floatSlow ${dur}s ease-in-out ${delay}s infinite`,
-                  opacity: 0.85,
-                }}
-              />
-            );
-          })}
-        </div>
-      )}
+      {/* ── INTERACTIVE PARTICLES — flee the cursor ───────────────── */}
+      <InteractiveParticles count={80} />
 
-      {/* ── HEADLINE — DeSo edge-to-edge type, scroll-tied ─────────── */}
+      {/* ── HEADLINE — pointer-events scoped so the canvas stays
+            interactive under the text. ──────────────────────────── */}
       <motion.div
         style={{ y: titleY, opacity: titleOp }}
-        className="container-wide relative z-10 flex min-h-[100svh] flex-col justify-center"
+        className="pointer-events-none container-wide relative z-10 flex min-h-[100svh] flex-col justify-center"
       >
         <motion.div style={{ y: cardY, opacity: cardOpac }} className="mx-auto w-full text-center">
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.9, ease: [0.25, 0.4, 0.25, 1] }}
-            className="heading-display text-base font-medium lowercase tracking-[0.45em] text-amber-200/95 sm:text-lg"
+          <div
+            className="mx-auto inline-block rounded-[2.5rem] px-6 py-8 sm:px-10 sm:py-10"
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(10,12,20,0.18), rgba(10,12,20,0.06) 35%, rgba(10,12,20,0.18))",
+              backdropFilter: "blur(3px)",
+              WebkitBackdropFilter: "blur(3px)",
+            }}
           >
-            {kicker}
-          </motion.p>
-          <KineticText
-            as="h1"
-            text={title}
-            className="editorial-display mx-auto mt-6 max-w-[1400px] text-balance bg-gradient-to-b from-white via-white to-amber-200 bg-clip-text text-transparent text-[clamp(3rem,11vw,12rem)] uppercase drop-shadow-[0_8px_60px_rgba(0,0,0,0.85)]"
-            stagger={0.08}
-            delay={0.15}
-          />
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.9, ease: [0.25, 0.4, 0.25, 1] }}
+              className="heading-display text-base font-medium lowercase tracking-[0.45em] text-amber-200/95 sm:text-lg"
+            >
+              {kicker}
+            </motion.p>
+            <KineticText
+              as="h1"
+              text={title}
+              className="editorial-display mx-auto mt-6 max-w-[1400px] text-balance bg-gradient-to-b from-white via-white to-amber-200 bg-clip-text text-transparent text-[clamp(2.5rem,11vw,11rem)] uppercase drop-shadow-[0_8px_60px_rgba(0,0,0,0.85)]"
+              stagger={0.08}
+              delay={0.15}
+            />
+          </div>
           <motion.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}

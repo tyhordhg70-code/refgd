@@ -121,6 +121,9 @@ export default function MusicPlayer() {
       window.removeEventListener("keydown", unmuteOnInteraction);
       window.removeEventListener("scroll", unmuteOnInteraction);
       window.removeEventListener("touchstart", unmuteOnInteraction);
+      window.removeEventListener("wheel", unmuteOnInteraction);
+      window.removeEventListener("mousemove", unmuteOnInteraction);
+      window.removeEventListener("click", unmuteOnInteraction);
       unmuteListenersAttached = false;
     };
 
@@ -128,12 +131,26 @@ export default function MusicPlayer() {
     window.addEventListener("keydown", unmuteOnInteraction);
     window.addEventListener("scroll", unmuteOnInteraction, { passive: true });
     window.addEventListener("touchstart", unmuteOnInteraction, { passive: true });
+    window.addEventListener("wheel", unmuteOnInteraction, { passive: true });
+    window.addEventListener("mousemove", unmuteOnInteraction, { passive: true });
+    window.addEventListener("click", unmuteOnInteraction);
     unmuteListenersAttached = true;
+
+    // Re-attempt muted autoplay if the tab regains focus.
+    const onVisible = () => {
+      if (cancelled) return;
+      if (a.paused) {
+        const p = a.play();
+        if (p) p.catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       cancelled = true;
       cancelFade();
       detach();
+      document.removeEventListener("visibilitychange", onVisible);
       // Stop playback on unmount (route change away from home).
       try { a.pause(); a.currentTime = 0; } catch {}
     };
