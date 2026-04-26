@@ -85,7 +85,11 @@ export default function PathIllustration({
       {kind === "spark"   && <SparkScene   c={c} kind={kind} />}
       {kind === "mastery" && <MasteryScene c={c} kind={kind} />}
 
-      {/* Floating accent dots (always present) */}
+      {/* Floating accent dots (always present). We animate the wrapping
+          <motion.g> via CSS transforms (y) instead of the SVG `cy`
+          attribute — framer-motion can briefly emit `undefined` for raw
+          SVG attributes during the first frame, producing console
+          errors like "<circle> attribute cy: Expected length, 'undefined'". */}
       <g>
         {[
           { x: 60,  y: 80,  r: 2.5 },
@@ -95,16 +99,20 @@ export default function PathIllustration({
           { x: 200, y: 60,  r: 1.4 },
           { x: 280, y: 460, r: 1.6 },
         ].map((p, i) => (
-          <motion.circle
+          <motion.g
             key={i}
-            cx={p.x}
-            cy={p.y}
-            r={p.r}
-            fill={c.secondary}
-            filter={`url(#pi-glow-${kind})`}
-            animate={{ opacity: [0.4, 1, 0.4], cy: [p.y, p.y - 4, p.y] }}
+            initial={{ y: 0, opacity: 0.4 }}
+            animate={{ opacity: [0.4, 1, 0.4], y: [0, -4, 0] }}
             transition={{ duration: 3 + (i % 4), repeat: Infinity, delay: i * 0.4, ease: "easeInOut" }}
-          />
+          >
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r={p.r}
+              fill={c.secondary}
+              filter={`url(#pi-glow-${kind})`}
+            />
+          </motion.g>
         ))}
       </g>
     </motion.svg>
