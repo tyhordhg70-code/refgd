@@ -290,10 +290,13 @@ function SparkScene({ c, kind }: { c: any; kind: string }) {
         {Array.from({ length: 8 }).map((_, i) => {
           const angle = i * 45;
           const r1 = 130, r2 = 170;
-          const x1 = 200 + Math.cos((angle * Math.PI) / 180) * r1;
-          const y1 = 250 + Math.sin((angle * Math.PI) / 180) * r1;
-          const x2 = 200 + Math.cos((angle * Math.PI) / 180) * r2;
-          const y2 = 250 + Math.sin((angle * Math.PI) / 180) * r2;
+          // Round floats so SSR/CSR strings match exactly (avoids
+          // React hydration warnings on trig-derived attributes).
+          const round = (n: number) => Number(n.toFixed(3));
+          const x1 = round(200 + Math.cos((angle * Math.PI) / 180) * r1);
+          const y1 = round(250 + Math.sin((angle * Math.PI) / 180) * r1);
+          const x2 = round(200 + Math.cos((angle * Math.PI) / 180) * r2);
+          const y2 = round(250 + Math.sin((angle * Math.PI) / 180) * r2);
           return (
             <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
                   stroke={c.secondary} strokeWidth="3" strokeLinecap="round" opacity="0.8" />
@@ -396,7 +399,7 @@ function MasteryScene({ c, kind }: { c: any; kind: string }) {
           transition={{ duration: 14 + i * 4, repeat: Infinity, ease: "linear" }}
           style={{ transformOrigin: "200px 200px", transformBox: "fill-box" }}
         >
-          <g transform={`translate(${200 + Math.cos((a * Math.PI) / 180) * 110}, ${200 + Math.sin((a * Math.PI) / 180) * 60})`}>
+          <g transform={`translate(${(200 + Math.cos((a * Math.PI) / 180) * 110).toFixed(3)}, ${(200 + Math.sin((a * Math.PI) / 180) * 60).toFixed(3)})`}>
             <path d="M0,-10 L2.5,-2.5 L10,0 L2.5,2.5 L0,10 L-2.5,2.5 L-10,0 L-2.5,-2.5 Z"
                   fill={c.secondary} />
           </g>

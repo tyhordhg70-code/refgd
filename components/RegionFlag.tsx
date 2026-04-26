@@ -44,8 +44,12 @@ export default function RegionFlag({ region, className = "h-6 w-9" }: Props) {
           {Array.from({ length: 12 }).map((_, i) => {
             const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
             const r = 12;
-            const cx = 30 + Math.cos(a) * r;
-            const cy = 20 + Math.sin(a) * r;
+            // Round to fixed precision so SSR and CSR strings match
+            // exactly — Node and the browser disagree at the last
+            // float digit otherwise, which trips React hydration.
+            const round = (n: number) => Number(n.toFixed(3));
+            const cx = round(30 + Math.cos(a) * r);
+            const cy = round(20 + Math.sin(a) * r);
             return (
               <polygon
                 key={i}
