@@ -65,6 +65,13 @@ export default function ChipScroll({
 
   // ── Preload frames ──────────────────────────────────────────────
   useEffect(() => {
+    // Frame sequence intentionally disabled — go straight to the
+    // procedural fallback scene. Avoids spamming the console with
+    // 404s when the /sequence directory hasn't been generated.
+    if (frameCount <= 0) {
+      setUsingFallback(true);
+      return;
+    }
     let cancelled = false;
     let resolved = 0;
     let failed = 0;

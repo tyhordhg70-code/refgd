@@ -56,13 +56,16 @@ export default function MoneyTimeScene({
             </linearGradient>
           </defs>
           <circle cx="100" cy="100" r="90" fill="url(#mt-clock)" stroke="url(#mt-rim)" strokeWidth="3" />
-          {/* hour ticks */}
+          {/* hour ticks — round to fixed precision so SSR/CSR strings
+              match exactly (was triggering hydration mismatches like
+              y1 "32.4500185048138" vs "32.45001850481381"). */}
           {Array.from({ length: 12 }).map((_, i) => {
             const a = (i / 12) * Math.PI * 2;
-            const x1 = 100 + Math.cos(a) * 78;
-            const y1 = 100 + Math.sin(a) * 78;
-            const x2 = 100 + Math.cos(a) * 88;
-            const y2 = 100 + Math.sin(a) * 88;
+            const r = (n: number) => Number(n.toFixed(3));
+            const x1 = r(100 + Math.cos(a) * 78);
+            const y1 = r(100 + Math.sin(a) * 78);
+            const x2 = r(100 + Math.cos(a) * 88);
+            const y2 = r(100 + Math.sin(a) * 88);
             return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#ffe28a" strokeWidth={i % 3 === 0 ? 3 : 1.5} />;
           })}
           <circle cx="100" cy="100" r="6" fill="#ffe28a" />

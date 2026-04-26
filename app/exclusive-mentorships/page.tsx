@@ -45,7 +45,9 @@ export default function MentorshipsPage() {
       {/* Act 1 — Scroll-linked scrollytelling */}
       <ChipScroll
         dir="/sequence/mentor"
-        frameCount={48}
+        /* frameCount={0} → use the procedural chess fallback scene
+           directly (no 404 spam from missing frame_*.webp assets). */
+        frameCount={0}
         background="#05060a"
         accent="#a78bfa"
         fallbackKind="chess"
