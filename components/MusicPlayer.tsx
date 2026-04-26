@@ -97,22 +97,65 @@ export default function MusicPlayer() {
   }
 
   // ── Bootstrap effect: only depends on the chosen track. ──────────
+  //
+  // Playback strategy (in order):
+  //   1. If the user has NOT explicitly muted before, try UNMUTED autoplay
+  //      first (a.muted=false, volume ramped to TARGET_VOLUME). Browsers
+  //      with autoplay engagement (Chrome MEI, Safari with prior visit,
+  //      sites added to autoplay allowlist) accept this and the visitor
+  //      hears music immediately — which is what the product wants.
+  //   2. If the unmuted attempt is rejected (the returned promise rejects
+  //      with NotAllowedError), fall back to MUTED autoplay and attach
+  //      one-shot interaction listeners that unmute on the visitor's
+  //      first pointer/scroll/key event. This is the legacy path that
+  //      always succeeds.
+  // The mute toggle (top-right button) still controls the user's
+  // persistent preference; if they have explicitly muted on a previous
+  // visit we skip the unmuted attempt entirely and start muted to honor
+  // their choice.
   useEffect(() => {
     const a = audioRef.current;
     if (!a || !track) return;
 
-    a.volume = 0;
-    a.muted = true; // browsers always allow muted autoplay
-
     let unmuteListenersAttached = false;
     let cancelled = false;
 
-    const tryPlay = () => {
+    const startMutedFallback = () => {
+      if (cancelled) return;
+      a.volume = 0;
+      a.muted = true;
       const p = a.play();
-      if (p) p.catch(() => {/* iOS may block; pointerdown will retry */});
+      if (p) p.catch(() => {/* iOS may still block; pointerdown will retry */});
+      attachUnmuteListeners();
     };
 
-    tryPlay();
+    const userPrefersMuted = mutedRef.current;
+    if (userPrefersMuted) {
+      // Honor explicit mute pref → start muted, no unmute listeners.
+      a.volume = 0;
+      a.muted = true;
+      const p = a.play();
+      if (p) p.catch(() => {});
+    } else {
+      // Try unmuted first.
+      a.muted = false;
+      a.volume = 0;
+      const p = a.play();
+      if (p) {
+        p.then(() => {
+          if (cancelled) return;
+          fadeVolumeTo(TARGET_VOLUME, FADE_MS);
+        }).catch(() => {
+          // Browser blocked unmuted autoplay → fall back to muted.
+          startMutedFallback();
+        });
+      } else {
+        // Older browsers without a play() promise → assume it worked and
+        // ramp volume; if it didn't, the user can always click the mute
+        // button to toggle.
+        fadeVolumeTo(TARGET_VOLUME, FADE_MS);
+      }
+    }
 
     const unmuteOnInteraction = () => {
       if (cancelled) return;
@@ -128,6 +171,18 @@ export default function MusicPlayer() {
       detach();
     };
 
+    function attachUnmuteListeners() {
+      if (unmuteListenersAttached) return;
+      window.addEventListener("pointerdown", unmuteOnInteraction, { passive: true });
+      window.addEventListener("keydown", unmuteOnInteraction);
+      window.addEventListener("scroll", unmuteOnInteraction, { passive: true });
+      window.addEventListener("touchstart", unmuteOnInteraction, { passive: true });
+      window.addEventListener("wheel", unmuteOnInteraction, { passive: true });
+      window.addEventListener("mousemove", unmuteOnInteraction, { passive: true });
+      window.addEventListener("click", unmuteOnInteraction);
+      unmuteListenersAttached = true;
+    }
+
     const detach = () => {
       if (!unmuteListenersAttached) return;
       window.removeEventListener("pointerdown", unmuteOnInteraction);
@@ -140,14 +195,10 @@ export default function MusicPlayer() {
       unmuteListenersAttached = false;
     };
 
-    window.addEventListener("pointerdown", unmuteOnInteraction, { passive: true });
-    window.addEventListener("keydown", unmuteOnInteraction);
-    window.addEventListener("scroll", unmuteOnInteraction, { passive: true });
-    window.addEventListener("touchstart", unmuteOnInteraction, { passive: true });
-    window.addEventListener("wheel", unmuteOnInteraction, { passive: true });
-    window.addEventListener("mousemove", unmuteOnInteraction, { passive: true });
-    window.addEventListener("click", unmuteOnInteraction);
-    unmuteListenersAttached = true;
+    // Note: unmute interaction listeners are NOT attached unconditionally.
+    // They are only registered by `startMutedFallback()` when the unmuted
+    // autoplay attempt is rejected by the browser. If the unmuted attempt
+    // succeeds (or the user explicitly prefers muted), we don't need them.
 
     // Re-attempt muted autoplay if the tab regains focus.
     const onVisible = () => {

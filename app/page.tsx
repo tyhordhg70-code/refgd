@@ -42,14 +42,13 @@ export default async function HomePage() {
       {/* Act 1 — Immersive 3D hero (kicker only — large, centered) */}
       <Hero3D kicker={kicker} />
 
-      {/* Act 2 — Chapter 01 / Path picker, wrapped in PARALLAX so the
-          background illustration drifts slower than the cards as you
-          scroll past — adds the depth promised after the welcome. */}
+      {/* Act 2 — Chapter 01 / Path picker. Background illustration removed
+          per request — the chapter now relies on the cosmos backdrop and
+          the parallax wrapper still provides the slower-than-foreground
+          depth motion when chapters below scroll into view. */}
       <ParallaxChapter
         intensity={0.5}
         className="pb-24 pt-20 sm:pt-28"
-        bgClassName="absolute inset-0 grid place-items-center opacity-30"
-        bg={<ParallaxIllustration kind="store" accent="amber" size={760} />}
       >
         <section id="paths" className="relative">
           <div className="container-wide relative">

@@ -54,6 +54,13 @@ export default function StoreCard({
   const { isAdmin, editMode } = useEditContext();
   const showOverlay = isAdmin && editMode && (onEdit || onDelete);
 
+  // NOTE: HTML5 drag-and-drop handlers are intentionally placed on the
+  // inner plain <div> rather than the outer <motion.article>. framer-motion
+  // overloads the `onDragStart` / `onDragEnd` props on its `motion.*`
+  // components with its own pan-gesture signature `(e, info: PanInfo)`,
+  // which is type-incompatible with React's `DragEvent<HTMLElement>`.
+  // Putting the HTML drag handlers on the inner div sidesteps the conflict
+  // entirely and keeps both layout animation AND native drag working.
   return (
     <motion.article
       layout
@@ -64,18 +71,20 @@ export default function StoreCard({
       data-cursor="hover"
       data-cursor-label={store.name}
       whileHover={{ y: -4 }}
-      draggable={draggable}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      onDragEnd={onDragEnd}
       className={`group relative ${store.prismaticGlow ? "p-[1.5px]" : "p-px"} rounded-2xl ${
         store.prismaticGlow ? "prismatic-border" : "bg-white/10"
       } transition-shadow duration-300 hover:shadow-[0_30px_70px_-25px_rgba(245,185,69,0.5)] ${
         showOverlay ? "ring-2 ring-amber-300/0 hover:ring-amber-300/70" : ""
       }`}
     >
-      <div className="relative h-full rounded-2xl bg-ink-900/70 p-5 backdrop-blur-xl transition group-hover:bg-ink-800/85">
+      <div
+        className="relative h-full rounded-2xl bg-ink-900/70 p-5 backdrop-blur-xl transition group-hover:bg-ink-800/85"
+        draggable={draggable}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        onDragEnd={onDragEnd}
+      >
         {showOverlay && (
           <div className="absolute right-2 top-2 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <span
