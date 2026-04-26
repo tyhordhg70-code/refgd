@@ -3,7 +3,6 @@ import StoreFilters from "@/components/StoreFilters";
 import ServiceSection from "@/components/ServiceSection";
 import GlassCard from "@/components/GlassCard";
 import KineticText from "@/components/KineticText";
-import ParallaxIllustration from "@/components/ParallaxIllustration";
 import ParallaxChapter from "@/components/ParallaxChapter";
 import { Reveal } from "@/components/Reveal";
 
@@ -63,12 +62,12 @@ export default async function StoreListPage() {
       </div>
 
       {/* Store list intro — solid backdrop card so the headline POPS,
-          wrapped in a parallax chapter for layered scroll depth. */}
+          wrapped in a parallax chapter for scroll-depth on the headline
+          itself (no decorative illustration on this page anymore — the
+          galaxy backdrop is enough). */}
       <ParallaxChapter
         intensity={0.5}
         className="scroll-mt-16 py-20 sm:py-28"
-        bgClassName="absolute right-[6%] top-1/2 -translate-y-1/2 hidden lg:block"
-        bg={<ParallaxIllustration kind="store" accent="amber" size={420} />}
       >
       <section id="storelist" className="relative">
         <div className="container-wide relative">
@@ -108,9 +107,7 @@ export default async function StoreListPage() {
       {/* Rules — glass cards in 4-up grid, parallax 3D scroll depth */}
       <ParallaxChapter
         intensity={0.35}
-        className="py-12"
-        bgClassName="absolute left-[2%] top-[10%] hidden lg:block opacity-25"
-        bg={<ParallaxIllustration kind="shield" accent="cyan" size={260} />}
+        className="py-8"
       >
       <section className="relative">
         <div className="container-wide relative">
@@ -143,17 +140,12 @@ export default async function StoreListPage() {
       {/* Non-payment + payment — magazine 2/3 + 1/3, parallax depth */}
       <ParallaxChapter
         intensity={0.4}
-        className="py-12"
-        bgClassName="absolute right-[3%] top-[15%] hidden lg:block opacity-20"
-        bg={<ParallaxIllustration kind="encryption" accent="emerald" size={300} />}
+        className="py-8"
       >
       <section className="relative">
         <div className="container-wide relative grid gap-5 lg:grid-cols-3">
           <GlassCard tint="rose" className="lg:col-span-2">
             <div className="relative overflow-hidden p-8 sm:p-10">
-              <div className="pointer-events-none absolute -right-6 -top-6 opacity-25">
-                <ParallaxIllustration kind="shield" accent="rose" size={160} />
-              </div>
               <h3 className="relative heading-display text-2xl font-bold uppercase tracking-tight text-rose-100">
                 Non-payment disclaimer
               </h3>
@@ -170,9 +162,6 @@ export default async function StoreListPage() {
           </GlassCard>
           <GlassCard tint="emerald">
             <div className="relative overflow-hidden p-8 sm:p-10">
-              <div className="pointer-events-none absolute -right-6 -top-6 opacity-25">
-                <ParallaxIllustration kind="encryption" accent="emerald" size={140} />
-              </div>
               <h3 className="relative heading-display text-2xl font-bold uppercase tracking-tight text-emerald-100">
                 Payment
               </h3>
@@ -189,12 +178,13 @@ export default async function StoreListPage() {
       </section>
       </ParallaxChapter>
 
-      {/* Filters + grid — final chapter, parallax */}
+      {/* Filters + grid — final chapter, parallax. Reduced top padding
+          so it sits closer to the rules section above (the previous
+          py-20 left a visible empty band between "the rules" and
+          "Select your region"). */}
       <ParallaxChapter
         intensity={0.45}
-        className="py-20"
-        bgClassName="absolute left-[4%] top-[8%] hidden lg:block opacity-20"
-        bg={<ParallaxIllustration kind="store" accent="violet" size={360} />}
+        className="pt-6 pb-20"
       >
       <section className="relative" id="region">
         <div className="container-wide relative">

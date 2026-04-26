@@ -6,6 +6,26 @@ import {
 } from "./cache";
 import type { Region, Store } from "./types";
 
+/**
+ * pg returns TIMESTAMPTZ columns as native JS Date objects. Calling
+ * String() on a Date yields the JS toString format
+ *   "Sat Apr 25 2026 23:55:44 GMT+0000 (Coordinated Universal Time)"
+ * which Postgres CANNOT parse back when we feed the same value into a
+ * later UPDATE — the upsert fails with `invalid input syntax for type
+ * timestamp with time zone`. We must always serialise as ISO 8601.
+ */
+function toIso(v: unknown): string {
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === "string" && v) {
+    // Already a string — try to round-trip it through Date so we
+    // normalise legacy values too. If parsing fails, keep the raw
+    // string (the DB will reject it but at least we won't crash here).
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? v : d.toISOString();
+  }
+  return new Date().toISOString();
+}
+
 function rowToStore(row: Record<string, unknown>): Store {
   return {
     id: row.id as string,
@@ -23,8 +43,8 @@ function rowToStore(row: Record<string, unknown>): Store {
     logoUrl: (row.logo_url as string | null) ?? null,
     rawText: (row.raw_text as string | null) ?? null,
     sortOrder: Number(row.sort_order ?? 0),
-    createdAt: row.created_at ? String(row.created_at) : new Date().toISOString(),
-    updatedAt: row.updated_at ? String(row.updated_at) : new Date().toISOString(),
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
   };
 }
 
