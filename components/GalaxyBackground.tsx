@@ -100,7 +100,10 @@ export default function GalaxyBackground() {
         transparent: true,
         depthTest: false,
         blending: THREE.AdditiveBlending,
-        onBeforeCompile: (shader) => {
+      });
+      // `onBeforeCompile` is a method on THREE.Material, not a constructor
+      // option in newer @types/three — assign it after construction.
+      material.onBeforeCompile = (shader) => {
           (shader.uniforms as any).time = uniforms.time;
           shader.vertexShader = `
             uniform float time;
@@ -141,8 +144,7 @@ export default function GalaxyBackground() {
               `vec4 diffuseColor = vec4( diffuse, opacity );`,
               `vec4 diffuseColor = vec4( vColor, smoothstep(0.5, 0.1, d) );`,
             );
-        },
-      });
+      };
 
       const points = new THREE.Points(geometry, material);
       points.rotation.order = "ZYX";
