@@ -4,6 +4,7 @@ import GlassCard from "@/components/GlassCard";
 import KineticText from "@/components/KineticText";
 import MagneticButton from "@/components/MagneticButton";
 import ParallaxIllustration from "@/components/ParallaxIllustration";
+import ParallaxChapter from "@/components/ParallaxChapter";
 
 export const metadata = {
   title: "Evade Cancelations — RefundGod",
@@ -112,11 +113,15 @@ function ChapterHeader({
   );
 }
 
+/**
+ * NOTE: Each major chapter section is wrapped in <ParallaxChapter> — the
+ * background illustration drifts slower than the foreground content,
+ * producing a layered 3D depth effect as the user scrolls.
+ */
 export default function EvadePage() {
   return (
     <>
-      {/* Act 1 — Scroll-linked image-sequence scrollytelling.
-          Galaxy backdrop is mounted site-wide in layout.tsx. */}
+      {/* Act 1 — Scroll-linked image-sequence scrollytelling. */}
       <ChipScroll
         dir="/sequence/evade"
         frameCount={48}
@@ -127,12 +132,14 @@ export default function EvadePage() {
         subCaption="Say goodbye to order cancelations, bans, rebills, failed refunds due to fraud detections & more. Trusted by clients worldwide."
       />
 
-      {/* Act 2 — Editorial intro with chapter illustration */}
-      <section className="relative z-10 py-16">
+      {/* Act 2 — Editorial intro / chapter 01 — parallax depth */}
+      <ParallaxChapter
+        intensity={0.5}
+        className="z-10 py-16"
+        bgClassName="absolute -right-[6%] top-1/2 hidden -translate-y-1/2 lg:block"
+        bg={<ParallaxIllustration kind="shield" accent="cyan" size={420} />}
+      >
         <div className="container-wide relative">
-          <div aria-hidden="true" className="pointer-events-none absolute -right-4 -top-12 hidden lg:block">
-            <ParallaxIllustration kind="shield" accent="cyan" size={260} />
-          </div>
           <ChapterHeader chapter="chapter 01 / evade" title="Evade like a PRO." />
           <div className="mt-10 grid gap-6 md:grid-cols-2">
             <GlassCard tint="cyan" className="pulse-glow-cyan">
@@ -155,14 +162,16 @@ export default function EvadePage() {
             </GlassCard>
           </div>
         </div>
-      </section>
+      </ParallaxChapter>
 
-      {/* Act 3 — Solutions, 3-up, with floating illustration accent */}
-      <section className="relative py-24">
+      {/* Act 3 — Solutions / chapter 02 — parallax depth */}
+      <ParallaxChapter
+        intensity={0.55}
+        className="py-24"
+        bgClassName="absolute left-[2%] top-[10%] hidden lg:block"
+        bg={<ParallaxIllustration kind="encryption" accent="violet" size={360} />}
+      >
         <div className="container-wide relative">
-          <div aria-hidden="true" className="pointer-events-none absolute left-[2%] top-0 hidden lg:block">
-            <ParallaxIllustration kind="encryption" accent="violet" size={220} />
-          </div>
           <ChapterHeader
             chapter="chapter 02 / solutions"
             title="Our comprehensive solutions."
@@ -186,10 +195,15 @@ export default function EvadePage() {
             ))}
           </div>
         </div>
-      </section>
+      </ParallaxChapter>
 
-      {/* Act 4 — Features, 2x2 with chapter illustrations */}
-      <section className="relative py-16">
+      {/* Act 4 — Features 2x2 — parallax depth */}
+      <ParallaxChapter
+        intensity={0.4}
+        className="py-16"
+        bgClassName="absolute inset-0 grid place-items-center opacity-25"
+        bg={<ParallaxIllustration kind="globe" accent="amber" size={620} />}
+      >
         <div className="container-wide relative grid gap-5 md:grid-cols-2">
           {FEATURES.map((f, i) => (
             <GlassCard key={f.title} tint={f.tint} delay={i * 0.08} className={i % 2 === 0 ? "float-card" : "float-card float-card-2"}>
@@ -208,14 +222,16 @@ export default function EvadePage() {
             </GlassCard>
           ))}
         </div>
-      </section>
+      </ParallaxChapter>
 
-      {/* Act 5 — Trust */}
-      <section className="relative py-24">
+      {/* Act 5 — Trust / chapter 03 — parallax depth */}
+      <ParallaxChapter
+        intensity={0.5}
+        className="py-24"
+        bgClassName="absolute right-[2%] top-[8%] hidden lg:block"
+        bg={<ParallaxIllustration kind="globe" accent="amber" size={380} />}
+      >
         <div className="container-wide relative">
-          <div aria-hidden="true" className="pointer-events-none absolute right-[3%] top-0 hidden lg:block">
-            <ParallaxIllustration kind="globe" accent="amber" size={240} />
-          </div>
           <ChapterHeader
             chapter="chapter 03 / trust"
             title="Why trust us?"
@@ -224,7 +240,7 @@ export default function EvadePage() {
           />
           <div className="mt-14 grid gap-5 lg:grid-cols-3">
             {TRUST.map((c, i) => (
-              <GlassCard key={c.title} tint={["cyan","violet","amber"][i] as any} delay={i * 0.1}>
+              <GlassCard key={c.title} tint={["cyan","violet","amber"][i] as any} delay={i * 0.1} className="float-card">
                 <div className="relative overflow-hidden p-7">
                   <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 opacity-25 mix-blend-screen" aria-hidden="true">
                     <ParallaxIllustration kind={c.illo} accent={["cyan","violet","amber"][i] as any} size={120} />
@@ -241,11 +257,16 @@ export default function EvadePage() {
             ))}
           </div>
         </div>
-      </section>
+      </ParallaxChapter>
 
-      {/* Act 6 — Pricing */}
-      <section className="relative py-24" id="Learn">
-        <div className="container-wide relative">
+      {/* Act 6 — Pricing / chapter 04 — parallax depth */}
+      <ParallaxChapter
+        intensity={0.45}
+        className="py-24"
+        bgClassName="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 lg:block"
+        bg={<ParallaxIllustration kind="spark" accent="amber" size={520} />}
+      >
+        <div className="container-wide relative" id="Learn">
           <ChapterHeader
             chapter="chapter 04 / pricing"
             title="Get started, today."
@@ -255,7 +276,7 @@ export default function EvadePage() {
           <p className="mt-6 text-base text-white/80">Our pricing — select your plan:</p>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {PRICING.map((p, i) => (
-              <GlassCard key={p.title} tint={p.tint} delay={i * 0.1} className="pulse-glow">
+              <GlassCard key={p.title} tint={p.tint} delay={i * 0.1} className="pulse-glow float-card">
                 <div className="flex h-full flex-col p-8">
                   <h3
                     className="heading-display text-2xl font-bold uppercase tracking-tight text-white"
@@ -277,7 +298,7 @@ export default function EvadePage() {
             ))}
           </div>
         </div>
-      </section>
+      </ParallaxChapter>
     </>
   );
 }

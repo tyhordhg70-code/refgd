@@ -1,16 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Hidden admin: the admin pages live at /admin internally, but the public URL
- * is configurable via ADMIN_PATH. If ADMIN_PATH is not "admin", direct access
- * to /admin returns 404 — the admin is only reachable via the hidden slug.
+ * Admin routing.
  *
- * Examples:
- *   ADMIN_PATH=admin               → /admin works (default, no hiding)
- *   ADMIN_PATH=secret-control      → /secret-control works, /admin → 404
+ * /admin is ALWAYS publicly addressable (the login page itself is gated
+ * by the JWT cookie auth in lib/auth.ts — there is no benefit to also
+ * 404-ing the URL, and several user reports said "/admin returns 404"
+ * because ADMIN_PATH was set on the host without them realising it).
  *
- * The /api/admin/* endpoints stay at their canonical path because they are
- * called from the rewritten admin UI; they are protected by JWT cookie auth.
+ * In addition, if ADMIN_PATH is configured to something other than
+ * "admin", that custom slug is rewritten to /admin under the hood, so
+ * BOTH /admin and /<adminPath> work. ADMIN_PATH stays as an
+ * obscurity convenience, never as a security barrier.
  */
 export function middleware(req: NextRequest) {
   const adminPath = (process.env.ADMIN_PATH || "admin").trim().replace(/^\/+|\/+$/g, "");
@@ -19,17 +20,14 @@ export function middleware(req: NextRequest) {
 
   if (adminPath === "admin") return NextResponse.next();
 
-  // Block direct /admin access when admin is hidden behind a custom slug.
-  if (p === "/admin" || p.startsWith("/admin/")) {
-    return new NextResponse("Not Found", { status: 404 });
-  }
-
-  // Rewrite /<adminPath>(/...) → /admin(/...)
+  // Rewrite /<adminPath>(/...) → /admin(/...) — keeps the obscure URL
+  // working for users who set ADMIN_PATH.
   if (p === `/${adminPath}` || p.startsWith(`/${adminPath}/`)) {
     const rewritten = p.replace(`/${adminPath}`, "/admin") || "/admin";
     return NextResponse.rewrite(new URL(rewritten + url.search, url));
   }
 
+  // /admin remains accessible — auth is enforced by the page itself.
   return NextResponse.next();
 }
 

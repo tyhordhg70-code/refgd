@@ -5,6 +5,7 @@ import KineticText from "@/components/KineticText";
 import MagneticButton from "@/components/MagneticButton";
 import AnimatedChessBoard from "@/components/AnimatedChessBoard";
 import ParallaxIllustration from "@/components/ParallaxIllustration";
+import ParallaxChapter from "@/components/ParallaxChapter";
 
 export const metadata = {
   title: "Exclusive Mentorships — RefundGod",
@@ -33,11 +34,14 @@ const SE_FEATURES = [
 
 const EMOTIONS = ["Fear", "Excitement", "Curiosity", "Anger", "Guilt", "Sadness"];
 
+/**
+ * NOTE: Each major chapter section is wrapped in <ParallaxChapter> — the
+ * background illustration drifts slower than the foreground content,
+ * producing a layered 3D depth effect on scroll.
+ */
 export default function MentorshipsPage() {
   return (
     <div className="relative">
-      {/* Galaxy backdrop is mounted site-wide in layout.tsx */}
-
       {/* Act 1 — Scroll-linked scrollytelling */}
       <ChipScroll
         dir="/sequence/mentor"
@@ -61,8 +65,13 @@ export default function MentorshipsPage() {
         </Reveal>
       </section>
 
-      {/* Act 2 — Refunding intro with animated chess illustration */}
-      <section className="relative py-24">
+      {/* Act 2 — Refunding intro / chapter 01 — parallax depth */}
+      <ParallaxChapter
+        intensity={0.5}
+        className="py-24"
+        bgClassName="absolute inset-0 grid place-items-center opacity-25"
+        bg={<ParallaxIllustration kind="chess" accent="violet" size={680} />}
+      >
         <div className="container-wide relative grid items-center gap-10 sm:grid-cols-12">
           <div className="sm:col-span-5">
             <p
@@ -117,10 +126,15 @@ export default function MentorshipsPage() {
             </GlassCard>
           </div>
         </div>
-      </section>
+      </ParallaxChapter>
 
-      {/* Act 3 — Tailgating + Insider — floating cards with chapter art */}
-      <section className="relative py-12">
+      {/* Act 3 — Tailgating + Insider — parallax depth + floating cards */}
+      <ParallaxChapter
+        intensity={0.45}
+        className="py-12"
+        bgClassName="absolute left-[6%] top-[10%] hidden lg:block"
+        bg={<ParallaxIllustration kind="shield" accent="cyan" size={300} />}
+      >
         <div className="container-wide relative grid gap-5 lg:grid-cols-[1.2fr_1fr]">
           <GlassCard tint="cyan" className="float-card pulse-glow-cyan">
             <div className="relative overflow-hidden p-8">
@@ -161,14 +175,16 @@ export default function MentorshipsPage() {
             </div>
           </GlassCard>
         </div>
-      </section>
+      </ParallaxChapter>
 
-      {/* Act 4 — What's included (Refund) */}
-      <section className="relative py-20">
+      {/* Act 4 — What's included (Refund) — parallax depth */}
+      <ParallaxChapter
+        intensity={0.55}
+        className="py-20"
+        bgClassName="absolute right-[3%] top-0 hidden lg:block"
+        bg={<ParallaxIllustration kind="chess" accent="violet" size={380} />}
+      >
         <div className="container-wide relative">
-          <div aria-hidden="true" className="pointer-events-none absolute right-[3%] top-0 hidden lg:block">
-            <ParallaxIllustration kind="chess" accent="violet" size={240} />
-          </div>
           <Reveal>
             <p
               className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-violet-300"
@@ -204,10 +220,15 @@ export default function MentorshipsPage() {
             </p>
           </Reveal>
         </div>
-      </section>
+      </ParallaxChapter>
 
-      {/* Act 5 — SE intro */}
-      <section className="relative py-24">
+      {/* Act 5 — SE intro / chapter 02 — parallax depth */}
+      <ParallaxChapter
+        intensity={0.5}
+        className="py-24"
+        bgClassName="absolute inset-0 grid place-items-center opacity-25"
+        bg={<ParallaxIllustration kind="encryption" accent="cyan" size={620} />}
+      >
         <div className="container-wide relative grid items-start gap-10 sm:grid-cols-12">
           <div className="sm:col-span-5 sm:order-2">
             <p
@@ -255,14 +276,16 @@ export default function MentorshipsPage() {
             </GlassCard>
           </div>
         </div>
-      </section>
+      </ParallaxChapter>
 
-      {/* Act 6 — What's included (SE) */}
-      <section className="relative py-20">
+      {/* Act 6 — What's included (SE) — parallax depth */}
+      <ParallaxChapter
+        intensity={0.5}
+        className="py-20"
+        bgClassName="absolute left-[3%] top-0 hidden lg:block"
+        bg={<ParallaxIllustration kind="spark" accent="cyan" size={360} />}
+      >
         <div className="container-wide relative">
-          <div aria-hidden="true" className="pointer-events-none absolute left-[2%] top-0 hidden lg:block">
-            <ParallaxIllustration kind="spark" accent="cyan" size={220} />
-          </div>
           <Reveal>
             <p
               className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-cyan-300"
@@ -290,12 +313,12 @@ export default function MentorshipsPage() {
             ))}
           </div>
         </div>
-      </section>
+      </ParallaxChapter>
 
       {/* Act 7 — Add-ons */}
       <section className="relative py-12">
         <div className="container-wide relative">
-          <GlassCard tint="amber" className="pulse-glow">
+          <GlassCard tint="amber" className="pulse-glow float-card">
             <div className="relative overflow-hidden p-8">
               <div className="pointer-events-none absolute -right-6 -top-6 opacity-25">
                 <ParallaxIllustration kind="store" accent="amber" size={150} />

@@ -7,16 +7,18 @@ import GlassCard from "./GlassCard";
 import MagneticButton from "./MagneticButton";
 import InteractiveParticles from "./InteractiveParticles";
 import ParallaxIllustration from "./ParallaxIllustration";
+import CashbackScene from "./CashbackScene";
+import MoneyTimeScene from "./MoneyTimeScene";
+import ParallaxChapter from "./ParallaxChapter";
 
 /**
  * Multi-act intro section, embedded at the top of /store-list.
- *   Act 1: animated cosmic hero (no static photo — the entire scene is
- *          rendered with WebGL-free SVG + canvas particles, removing the
- *          previous lag and the visible image edge).
- *   Act 2: editorial subheading + supporting copy.
- *   Act 3: 3-step glass timeline with chapter illustrations.
- *   Act 4: "Why us" three-up.
- *   Act 5: Awarded glass CTA banner.
+ *   Act 1: animated CASHBACK hero (replaces the central planet/orb with
+ *          a 3D-feel cashback scene — coins, shopping bag, sparkling joy).
+ *   Act 2: editorial subheading + supporting copy + 3D money-time scene.
+ *   Act 3: 3-step glass timeline with floating cards (parallax depth).
+ *   Act 4: "Why us" three-up — parallax chapter (bg slower than fg).
+ *   Act 5: Awarded glass CTA banner with pulsating glow.
  */
 
 const STEPS = [
@@ -73,14 +75,14 @@ export default function ServiceSection() {
     target: heroRef,
     offset: ["start start", "end start"],
   });
-  const titleY = useTransform(scrollYProgress, [0, 1], ["0%", "-50%"]);
+  const titleY  = useTransform(scrollYProgress, [0, 1], ["0%", "-50%"]);
   const titleOp = useTransform(scrollYProgress, [0, 0.7, 1], [1, 0.4, 0]);
-  const ringRot = useTransform(scrollYProgress, [0, 1], [0, 90]);
-  const ringScale = useTransform(scrollYProgress, [0, 1], [1, 0.55]);
+  const sceneY  = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
+  const sceneOp = useTransform(scrollYProgress, [0, 0.7, 1], [1, 0.5, 0]);
 
   return (
     <div id="service" className="relative isolate scroll-mt-16">
-      {/* Act 1 — Animated cosmic hero (no static image) */}
+      {/* Act 1 — Animated CASHBACK hero (no static image, no orb planet) */}
       <section
         ref={heroRef}
         className="relative isolate min-h-[100svh] w-full overflow-hidden bg-ink-950"
@@ -93,46 +95,29 @@ export default function ServiceSection() {
           <div className="orb orb-3 absolute left-[40%] bottom-[10%] h-[50vh] w-[50vh] rounded-full" />
         </div>
 
-        {/* concentric rotating rings — gives the same "iris" sci-fi
-            feel as the planet on the home hero */}
+        {/* CASHBACK 3D scene replaces the previous orb/planet — sits to
+            the right on desktop, stacks behind text on mobile.          */}
         <motion.div
           aria-hidden="true"
-          style={{ rotate: ringRot, scale: ringScale }}
-          className="pointer-events-none absolute left-1/2 top-1/2 h-[72vh] w-[72vh] max-h-[760px] max-w-[760px] -translate-x-1/2 -translate-y-1/2"
+          style={{ y: sceneY, opacity: sceneOp }}
+          className="pointer-events-none absolute inset-y-0 right-[2%] z-0 hidden items-center md:flex"
         >
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              aria-hidden="true"
-              className="absolute inset-0 rounded-full"
-              style={{
-                border: "1px solid rgba(255,225,140,0.16)",
-                boxShadow: "inset 0 0 80px rgba(245,185,69,0.06)",
-                margin: `${i * 28}px`,
-              }}
-            />
-          ))}
-          {/* core sphere */}
-          <div
-            className="absolute left-1/2 top-1/2 h-[40%] w-[40%] -translate-x-1/2 -translate-y-1/2 rounded-full"
-            style={{
-              background:
-                "radial-gradient(circle at 30% 28%, rgba(255,237,180,0.95) 0%, rgba(245,185,69,0.55) 30%, rgba(167,139,250,0.42) 60%, rgba(34,211,238,0.18) 88%, transparent 100%)",
-              boxShadow:
-                "0 0 120px 40px rgba(245,185,69,0.30), 0 0 220px 80px rgba(167,139,250,0.22), inset 0 0 60px rgba(255,255,255,0.4)",
-            }}
-          />
+          <CashbackScene size={560} />
         </motion.div>
+        {/* Mobile: smaller scene above the headline */}
+        <div className="pointer-events-none absolute left-1/2 top-[6%] z-0 -translate-x-1/2 md:hidden">
+          <CashbackScene size={300} />
+        </div>
 
         {/* interactive particles */}
         <InteractiveParticles count={70} />
 
-        {/* Headline */}
+        {/* Headline — left-aligned on desktop so it sits beside the scene */}
         <motion.div
           style={{ y: titleY, opacity: titleOp }}
-          className="container-wide pointer-events-none relative z-10 grid min-h-[100svh] place-items-center"
+          className="container-wide pointer-events-none relative z-10 grid min-h-[100svh] place-items-center md:place-items-start md:pt-[12vh]"
         >
-          <div className="text-center">
+          <div className="text-center md:max-w-[58%] md:text-left">
             <div
               className="inline-block rounded-[2.5rem] border border-white/10 px-6 py-8 sm:px-12 sm:py-12"
               style={{
@@ -146,7 +131,7 @@ export default function ServiceSection() {
               <KineticText
                 as="h1"
                 text="Get rewarded for shopping online."
-                className="editorial-display mx-auto max-w-[1500px] text-balance text-white text-[clamp(2.25rem,9vw,9rem)] uppercase"
+                className="editorial-display max-w-[1500px] text-balance text-white text-[clamp(2.25rem,7vw,7rem)] uppercase"
                 style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)" }}
                 stagger={0.06}
                 delay={0.1}
@@ -165,9 +150,9 @@ export default function ServiceSection() {
         </motion.div>
       </section>
 
-      {/* Act 2 — Editorial sub-statement */}
+      {/* Act 2 — Editorial sub-statement + 3D money-time scene */}
       <section className="relative py-32">
-        <div className="container-wide relative grid items-end gap-12 sm:grid-cols-12">
+        <div className="container-wide relative grid items-center gap-12 sm:grid-cols-12">
           <div className="sm:col-span-7 sm:col-start-2">
             <p
               className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300"
@@ -181,11 +166,9 @@ export default function ServiceSection() {
               className="editorial-display mt-5 text-balance text-white text-[clamp(2rem,6vw,5rem)] uppercase"
               style={{ textShadow: "0 4px 30px rgba(0,0,0,0.85)" }}
             />
-          </div>
-          <div className="sm:col-span-4">
             <Reveal delay={0.2}>
               <p
-                className="text-lg leading-relaxed text-white"
+                className="mt-8 max-w-2xl text-lg leading-relaxed text-white"
                 style={{ textShadow: "0 1px 10px rgba(0,0,0,0.7)" }}
               >
                 With our exclusive service, we provide a rewarding shopping
@@ -194,85 +177,120 @@ export default function ServiceSection() {
                 Enjoy it all at a fraction of the price.
               </p>
             </Reveal>
+
+            {/* 3D vector below the text on mobile/tablet — corresponds to
+                the "stop wasting time and money" statement.            */}
+            <div className="mt-10 grid place-items-center md:hidden">
+              <MoneyTimeScene size={280} />
+            </div>
+          </div>
+          {/* Sticky-feeling 3D money-time scene on desktop */}
+          <div className="hidden sm:col-span-4 md:grid md:place-items-center">
+            <Reveal delay={0.3}>
+              <MoneyTimeScene size={360} />
+            </Reveal>
           </div>
         </div>
       </section>
 
-      {/* Act 3 — How it works (glass timeline w/ chapter illustrations) */}
-      <section className="relative py-24">
-        <div className="container-wide relative">
-          <Reveal>
-            <p
-              className="heading-display text-center text-xs font-semibold uppercase tracking-[0.5em] text-amber-300"
-              style={{ textShadow: "0 0 20px rgba(245,185,69,0.5)" }}
-            >
-              — chapter 03 / how
-            </p>
-            <h2
-              className="editorial-display mt-4 text-center text-white text-[clamp(2rem,6vw,5rem)] uppercase"
-              style={{ textShadow: "0 4px 30px rgba(0,0,0,0.85)" }}
-            >
-              How it works
-            </h2>
-          </Reveal>
-          <div className="mt-16 grid gap-6 md:grid-cols-3">
-            {STEPS.map((s, i) => (
-              <GlassCard key={s.n} tint={s.tint} delay={i * 0.12}>
-                <div className="relative overflow-hidden p-8 sm:p-10">
-                  <div className="pointer-events-none absolute -right-8 -top-8 opacity-30">
-                    <ParallaxIllustration kind={s.illust} accent={s.tint as any} size={180} />
-                  </div>
-                  <div className="relative">
-                    <div className="heading-display text-aurora text-[7rem] font-bold leading-none tracking-tighter opacity-30">
-                      {s.n}
+      {/* ────────── Acts 3 + 4 with PARALLAX (bg slower than fg) ────────── */}
+      <ParallaxChapter
+        bg={
+          <div className="absolute inset-0 grid place-items-center">
+            <div className="opacity-30 blur-[1px] sm:opacity-40">
+              <ParallaxIllustration kind="store" accent="amber" size={680} />
+            </div>
+          </div>
+        }
+        bgClassName="absolute inset-0"
+        intensity={0.35}
+      >
+        {/* Act 3 — How it works (glass timeline, FLOATING animated cards) */}
+        <section className="relative py-24">
+          <div className="container-wide relative">
+            <Reveal>
+              <p
+                className="heading-display text-center text-xs font-semibold uppercase tracking-[0.5em] text-amber-300"
+                style={{ textShadow: "0 0 20px rgba(245,185,69,0.5)" }}
+              >
+                — chapter 03 / how
+              </p>
+              <h2
+                className="editorial-display mt-4 text-center text-white text-[clamp(2rem,6vw,5rem)] uppercase"
+                style={{ textShadow: "0 4px 30px rgba(0,0,0,0.85)" }}
+              >
+                How it works
+              </h2>
+            </Reveal>
+            <div className="mt-16 grid gap-6 md:grid-cols-3">
+              {STEPS.map((s, i) => (
+                <GlassCard
+                  key={s.n}
+                  tint={s.tint}
+                  delay={i * 0.12}
+                  className={`pulse-glow float-card ${i === 1 ? "float-card-2" : ""}`}
+                >
+                  <div className="relative overflow-hidden p-8 sm:p-10">
+                    <div className="pointer-events-none absolute -right-8 -top-8 opacity-30">
+                      <ParallaxIllustration kind={s.illust} accent={s.tint as any} size={180} />
                     </div>
-                    <h3 className="heading-display -mt-12 text-2xl font-bold text-white">
-                      Step {Number(s.n)}<br/>
-                      <span className="text-amber-200">{s.title}</span>
-                    </h3>
-                    <p className="mt-5 text-base leading-relaxed text-white/85">
-                      {s.body}
-                    </p>
+                    <div className="relative">
+                      <div className="heading-display text-aurora text-[7rem] font-bold leading-none tracking-tighter opacity-30">
+                        {s.n}
+                      </div>
+                      <h3 className="heading-display -mt-12 text-2xl font-bold text-white">
+                        Step {Number(s.n)}<br/>
+                        <span className="text-amber-200">{s.title}</span>
+                      </h3>
+                      <p className="mt-5 text-base leading-relaxed text-white/85">
+                        {s.body}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </GlassCard>
-            ))}
+                </GlassCard>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Act 4 — Why us with chapter illustrations */}
-      <section className="relative py-24">
-        <div className="container-wide relative">
-          <Reveal>
-            <p
-              className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300"
-              style={{ textShadow: "0 0 20px rgba(245,185,69,0.5)" }}
-            >
-              — chapter 04 / why
-            </p>
-            <h2
-              className="editorial-display mt-4 max-w-4xl text-balance text-white text-[clamp(2rem,6vw,5rem)] uppercase"
-              style={{ textShadow: "0 4px 30px rgba(0,0,0,0.85)" }}
-            >
-              Why choose us?
-            </h2>
-          </Reveal>
-          <div className="mt-14 grid gap-5 lg:grid-cols-3">
-            {WHY.map((w, i) => (
-              <GlassCard key={w.h} tint={w.tint} delay={i * 0.1}>
-                <div className="relative overflow-hidden p-8">
-                  <div className="pointer-events-none absolute -right-6 -top-6 opacity-25">
-                    <ParallaxIllustration kind={w.illust} accent={w.tint as any} size={150} />
+        {/* Act 4 — Why us with chapter illustrations (also floats) */}
+        <section className="relative py-24">
+          <div className="container-wide relative">
+            <Reveal>
+              <p
+                className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300"
+                style={{ textShadow: "0 0 20px rgba(245,185,69,0.5)" }}
+              >
+                — chapter 04 / why
+              </p>
+              <h2
+                className="editorial-display mt-4 max-w-4xl text-balance text-white text-[clamp(2rem,6vw,5rem)] uppercase"
+                style={{ textShadow: "0 4px 30px rgba(0,0,0,0.85)" }}
+              >
+                Why choose us?
+              </h2>
+            </Reveal>
+            <div className="mt-14 grid gap-5 lg:grid-cols-3">
+              {WHY.map((w, i) => (
+                <GlassCard
+                  key={w.h}
+                  tint={w.tint}
+                  delay={i * 0.1}
+                  className={`pulse-glow float-card ${i % 2 === 1 ? "float-card-2" : ""}`}
+                >
+                  <div className="relative overflow-hidden p-8">
+                    <div className="pointer-events-none absolute -right-6 -top-6 opacity-25">
+                      <ParallaxIllustration kind={w.illust} accent={w.tint as any} size={150} />
+                    </div>
+                    <h3 className="relative heading-display text-xl font-bold uppercase tracking-tight text-white">{w.h}</h3>
+                    <p className="relative mt-4 text-base leading-relaxed text-white/85">{w.body}</p>
                   </div>
-                  <h3 className="relative heading-display text-xl font-bold uppercase tracking-tight text-white">{w.h}</h3>
-                  <p className="relative mt-4 text-base leading-relaxed text-white/85">{w.body}</p>
-                </div>
-              </GlassCard>
-            ))}
+                </GlassCard>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </ParallaxChapter>
 
       {/* Act 5 — Awarded CTA banner with pulsating glow */}
       <section className="container-wide pb-16 pt-12">

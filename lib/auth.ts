@@ -33,18 +33,32 @@ export async function verifyCredentials(
   username: string,
   password: string
 ): Promise<boolean> {
-  const expectedUser = (process.env.ADMIN_USERNAME || "admin").trim();
+  const expectedUser = (process.env.ADMIN_USERNAME || "admin").trim().toLowerCase();
   const hash = (process.env.ADMIN_PASSWORD_HASH || "").trim();
 
   if (!hash) {
     console.error("[auth] ADMIN_PASSWORD_HASH is not set — login disabled.");
     return false;
   }
-  if (username.trim() !== expectedUser) return false;
+  // Case-insensitive comparison so the user does not get locked out by
+  // a stray capital letter (the password itself remains case-sensitive).
+  if (username.trim().toLowerCase() !== expectedUser) {
+    console.warn(
+      `[auth] login attempt rejected: username mismatch (got "${username.trim()}", expected case-insensitive "${expectedUser}")`
+    );
+    return false;
+  }
 
   // bcrypt.compare only returns true if the hash matches; false otherwise.
   // The plaintext 'password' arg is local-scope only.
-  const ok = await bcrypt.compare(password, hash);
+  let ok = false;
+  try {
+    ok = await bcrypt.compare(password, hash);
+  } catch (err) {
+    console.error("[auth] bcrypt.compare threw — likely a malformed ADMIN_PASSWORD_HASH:", err);
+    return false;
+  }
+  if (!ok) console.warn("[auth] login attempt rejected: password did not match hash.");
   return ok;
 }
 

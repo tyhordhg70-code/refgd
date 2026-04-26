@@ -38,7 +38,11 @@ export default function AdminLogin() {
       className="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900/80 p-8 backdrop-blur"
     >
       <h1 className="heading-display text-2xl font-bold text-white">Admin sign-in</h1>
-      <p className="mt-1 text-sm text-white/55">Use your bootstrapped credentials.</p>
+      <p className="mt-1 text-sm text-white/55">
+        Use your bootstrapped credentials. Default username is{" "}
+        <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-amber-200">admin</code>{" "}
+        (unless overridden via <code className="font-mono text-white/70">ADMIN_USERNAME</code>).
+      </p>
       <div className="mt-6 space-y-3">
         <div>
           <label className="text-xs font-semibold uppercase tracking-wider text-white/55">Username</label>
@@ -47,7 +51,8 @@ export default function AdminLogin() {
             onChange={(e) => setUsername(e.target.value)}
             autoComplete="username"
             required
-            className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+            placeholder="admin"
+            className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-amber-400/60 focus:outline-none"
           />
         </div>
         <div>
