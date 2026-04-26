@@ -13,6 +13,7 @@
  */
 import { getContentBlock, setContentBlock } from "./content";
 import { listStores } from "./stores";
+import { getPool, initDb } from "./db";
 
 const STORAGE_KEY = "_extra_categories";
 
@@ -81,6 +82,12 @@ export async function addExtraCategory(name: string): Promise<string[]> {
  * Remove an admin-curated category. Refuses if any store still uses it
  * (caller should reassign / delete those stores first). Canned
  * categories cannot be removed.
+ *
+ * NOTE: the "still in use" check intentionally hits the DB directly
+ * rather than going through `listStores()`, which is process-cached.
+ * Without this we could accept a delete for a category that another
+ * request just attached to a new store — the cache would still report
+ * it as unused.
  */
 export async function removeExtraCategory(name: string): Promise<string[]> {
   const c = clean(name);
@@ -88,9 +95,12 @@ export async function removeExtraCategory(name: string): Promise<string[]> {
   if ((CANNED_CATEGORIES as readonly string[]).includes(c)) {
     throw new Error("Built-in categories cannot be removed.");
   }
-  const stores = await listStores();
-  const inUse = stores.some((s) => s.category === c);
-  if (inUse) {
+  await initDb();
+  const { rowCount } = await getPool().query(
+    "SELECT 1 FROM stores WHERE category = $1 LIMIT 1",
+    [c],
+  );
+  if ((rowCount ?? 0) > 0) {
     throw new Error(
       `Cannot remove "${c}" — it is still used by one or more stores. Move or delete those stores first.`,
     );

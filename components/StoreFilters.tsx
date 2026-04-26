@@ -127,11 +127,16 @@ export default function StoreFilters({
     });
   }, [stores, region, search, selectedCategories]);
 
-  // Group by category in CATEGORY_ORDER. In edit mode, ALWAYS render
-  // every CATEGORY_ORDER bucket for the active region, even when empty,
-  // so the admin has a "+ Add" button to seed a new section — UNLESS
-  // a category filter is active, in which case we honour the filter
-  // and only show selected buckets.
+  // Group by category. Three rendering rules layered together:
+  //  1. Categories with stores ALWAYS render.
+  //  2. Empty CATEGORY_ORDER buckets render in admin edit mode (so the
+  //     admin sees a "+ Add" tile under each canned section) — UNLESS
+  //     a category filter or search is active, which would muddy the
+  //     filter result.
+  //  3. When a category filter IS active, every selected category
+  //     renders even if it has zero stores in the current region —
+  //     this gives the visitor explicit feedback ("0 stores in Toys
+  //     for EU") instead of silently dropping the section.
   const grouped = useMemo(() => {
     const catFilterActive = selectedCategories.size > 0;
     const showEmptyAdminBuckets =
@@ -142,21 +147,43 @@ export default function StoreFilters({
       map.get(s.category)!.push(s);
     }
     const ordered: { category: StoreCategory; stores: Store[] }[] = [];
+    const emit = (cat: string, list: Store[]) =>
+      ordered.push({ category: cat as StoreCategory, stores: list });
+
+    // Pass 1: canned order.
     for (const cat of CATEGORY_ORDER) {
-      if (catFilterActive && !selectedCategories.has(cat)) {
-        map.delete(cat);
-        continue;
-      }
       const list = map.get(cat) ?? [];
-      if (list.length > 0 || showEmptyAdminBuckets) {
-        ordered.push({ category: cat, stores: list });
+      if (catFilterActive) {
+        if (selectedCategories.has(cat)) emit(cat, list); // always render selected
+      } else if (list.length > 0 || showEmptyAdminBuckets) {
+        emit(cat, list);
       }
       map.delete(cat);
     }
-    for (const [cat, list] of Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
-      if (catFilterActive && !selectedCategories.has(cat)) continue;
-      if (list.length > 0) ordered.push({ category: cat as StoreCategory, stores: list });
+
+    // Pass 2: leftover categories (admin extras / legacy / typos) in
+    // alpha order. Same selection rules.
+    const leftover = Array.from(map.entries()).sort((a, b) =>
+      a[0].localeCompare(b[0]),
+    );
+    for (const [cat, list] of leftover) {
+      if (catFilterActive) {
+        if (selectedCategories.has(cat)) emit(cat, list);
+      } else if (list.length > 0) {
+        emit(cat, list);
+      }
     }
+
+    // Pass 3: any selected category that wasn't seen at all (e.g. an
+    // admin extra with no stores anywhere) still gets rendered as an
+    // empty section so the filter chip's selection is reflected.
+    if (catFilterActive) {
+      const seen = new Set(ordered.map((o) => o.category));
+      for (const cat of selectedCategories) {
+        if (!seen.has(cat as StoreCategory)) emit(cat, []);
+      }
+    }
+
     return ordered;
   }, [filtered, isAdmin, editMode, search, selectedCategories]);
 
