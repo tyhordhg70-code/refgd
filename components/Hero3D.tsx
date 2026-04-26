@@ -109,7 +109,7 @@ export default function Hero3D({
                 rotate: ringRot,
                 scale: ringScale,
                 opacity: ringOpac,
-                transform: `translateZ(${i * 14}px)`,
+                z: i * 14,
               }}
               className="absolute inset-0 rounded-full"
             >
@@ -126,33 +126,43 @@ export default function Hero3D({
           ))}
 
           {/* CRISP LIVING PLANET — slow auto-rotation, full clarity, no
-              static blur. Layered radial gradients give a sphere look.   */}
-          <motion.div
-            className="absolute left-1/2 top-1/2 h-[44%] w-[44%] -translate-x-1/2 -translate-y-1/2 rounded-full"
-            animate={reduced ? {} : { rotate: 360 }}
-            transition={reduced ? {} : { duration: 80, repeat: Infinity, ease: "linear" }}
-            style={{
-              background:
-                "radial-gradient(circle at 30% 28%, rgba(255,237,180,1) 0%, rgba(245,185,69,0.85) 22%, rgba(167,139,250,0.62) 55%, rgba(34,211,238,0.32) 85%, transparent 100%)," +
-                "radial-gradient(circle at 70% 78%, rgba(167,139,250,0.55), transparent 60%)," +
-                "radial-gradient(circle at 22% 80%, rgba(34,211,238,0.45), transparent 55%)",
-              boxShadow:
-                "0 0 140px 50px rgba(245,185,69,0.40), 0 0 260px 90px rgba(167,139,250,0.28), inset 0 0 80px rgba(255,255,255,0.5)",
-              transform: "translateZ(80px)",
-            }}
-          />
+              static blur. The static wrapper handles centering + Z-depth
+              so the inner motion element is free to use rotate/scale
+              without colliding with translate(-50%,-50%).                */}
+          <div
+            className="absolute left-1/2 top-1/2 h-[44%] w-[44%]"
+            style={{ transform: "translate(-50%, -50%) translateZ(80px)" }}
+          >
+            <motion.div
+              className="h-full w-full rounded-full"
+              animate={reduced ? {} : { rotate: 360 }}
+              transition={reduced ? {} : { duration: 80, repeat: Infinity, ease: "linear" }}
+              style={{
+                background:
+                  "radial-gradient(circle at 30% 28%, rgba(255,237,180,1) 0%, rgba(245,185,69,0.85) 22%, rgba(167,139,250,0.62) 55%, rgba(34,211,238,0.32) 85%, transparent 100%)," +
+                  "radial-gradient(circle at 70% 78%, rgba(167,139,250,0.55), transparent 60%)," +
+                  "radial-gradient(circle at 22% 80%, rgba(34,211,238,0.45), transparent 55%)",
+                boxShadow:
+                  "0 0 140px 50px rgba(245,185,69,0.40), 0 0 260px 90px rgba(167,139,250,0.28), inset 0 0 80px rgba(255,255,255,0.5)",
+              }}
+            />
+          </div>
           {/* surface highlight — pulses gently like solar flare */}
-          <motion.div
-            className="absolute left-1/2 top-1/2 h-[44%] w-[44%] -translate-x-1/2 -translate-y-1/2 rounded-full"
-            animate={reduced ? {} : { opacity: [0.55, 0.95, 0.55], scale: [1, 1.06, 1] }}
-            transition={reduced ? {} : { duration: 6, repeat: Infinity, ease: "easeInOut" }}
-            style={{
-              background:
-                "radial-gradient(circle at 32% 26%, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.0) 28%)",
-              transform: "translateZ(82px)",
-              mixBlendMode: "screen",
-            }}
-          />
+          <div
+            className="absolute left-1/2 top-1/2 h-[44%] w-[44%]"
+            style={{ transform: "translate(-50%, -50%) translateZ(82px)" }}
+          >
+            <motion.div
+              className="h-full w-full rounded-full"
+              animate={reduced ? {} : { opacity: [0.55, 0.95, 0.55], scale: [1, 1.06, 1] }}
+              transition={reduced ? {} : { duration: 6, repeat: Infinity, ease: "easeInOut" }}
+              style={{
+                background:
+                  "radial-gradient(circle at 32% 26%, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.0) 28%)",
+                mixBlendMode: "screen",
+              }}
+            />
+          </div>
 
           {[
             { d: 0,    color: "#ffe28a", radiusVh: 30, dur: 18 },
