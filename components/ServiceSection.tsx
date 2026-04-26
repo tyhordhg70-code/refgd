@@ -1,6 +1,8 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Reveal, Orb } from "./Reveal";
 import ScrollReveal3D from "./ScrollReveal3D";
+import Tilt3D from "./Tilt3D";
 
 /**
  * "Our Service" content, embedded at the top of the store list page.
@@ -32,23 +34,35 @@ export default function ServiceSection() {
   return (
     <div id="service" className="relative isolate scroll-mt-16">
       <section className="relative overflow-hidden">
-        <Orb className="left-1/2 top-10 h-96 w-96 -translate-x-1/2" color="rgba(245,185,69,0.22)" />
-        <Orb className="right-0 top-40 h-72 w-72" color="rgba(199,121,208,0.22)" />
-        <div className="container-px relative pt-16 pb-10 text-center">
-          <Reveal>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-300/85">
-              Our Service
-            </p>
-            <h1 className="heading-display mx-auto mt-3 max-w-3xl text-4xl font-bold tracking-tight text-white sm:text-5xl">
-              Get rewarded for shopping online
-            </h1>
-            <p className="mt-3 text-xl italic text-white/70">Ahh.. feel the joy of cashback.</p>
-            <p className="mx-auto mt-5 max-w-2xl text-base text-white/65">
-              With our exclusive service, we provide a rewarding shopping
-              experience, so that you can enjoy the world at a fraction of
-              the price.
-            </p>
-          </Reveal>
+        {/* Hero image bar with parallax */}
+        <div className="relative aspect-[16/8] sm:aspect-[16/6] overflow-hidden">
+          <Image
+            src="/images/storelist-hero.png"
+            alt="RefundGod store list"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover scale-110"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-ink-950/40 via-ink-950/55 to-ink-950" />
+          <Orb className="left-1/2 top-10 h-96 w-96 -translate-x-1/2" color="rgba(245,185,69,0.22)" />
+          <Orb className="right-0 top-40 h-72 w-72" color="rgba(199,121,208,0.22)" />
+          <div className="container-px absolute inset-0 grid place-items-center text-center">
+            <Reveal>
+              <p className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300/90 sm:text-sm">
+                Our Service
+              </p>
+              <h1 className="heading-display mx-auto mt-3 max-w-3xl bg-gradient-to-r from-amber-200 via-white to-amber-200 bg-clip-text text-4xl font-bold uppercase tracking-tight text-transparent sm:text-6xl md:text-7xl">
+                Get rewarded for shopping online
+              </h1>
+              <p className="mt-4 text-xl italic text-white/80">Ahh.. feel the joy of cashback.</p>
+              <p className="mx-auto mt-5 max-w-2xl text-base text-white/75">
+                With our exclusive service, we provide a rewarding shopping
+                experience, so that you can enjoy the world at a fraction of
+                the price.
+              </p>
+            </Reveal>
+          </div>
         </div>
       </section>
 
@@ -72,8 +86,8 @@ export default function ServiceSection() {
           <h2 className="heading-display mb-6 text-3xl font-bold tracking-tight text-white">How it works</h2>
         </Reveal>
         <div className="grid gap-5 md:grid-cols-3">
-          {STEPS.map((s, i) => (
-            <ScrollReveal3D key={s.n} intensity={0.6}>
+          {STEPS.map((s) => (
+            <Tilt3D key={s.n} intensity={0.5}>
               <div className="relative h-full overflow-hidden rounded-2xl border border-white/10 bg-ink-900/60 p-6 transition-shadow hover:shadow-[0_25px_60px_-25px_rgba(245,185,69,0.45)]">
                 <div className="heading-display text-6xl font-bold text-amber-300/15">{s.n}</div>
                 <h3 className="heading-display -mt-6 text-xl font-bold text-white">
@@ -81,7 +95,7 @@ export default function ServiceSection() {
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-white/75">{s.body}</p>
               </div>
-            </ScrollReveal3D>
+            </Tilt3D>
           ))}
         </div>
       </section>
@@ -98,11 +112,11 @@ export default function ServiceSection() {
             "End-to-end encryption and isolated environments — your data never gets mixed with others, eliminating bans, fails or data leaks.",
             "We offer stores nobody else does, and we act with urgency to begin working on your order almost immediately after submission.",
           ].map((body, i) => (
-            <ScrollReveal3D key={i} intensity={0.5}>
+            <Tilt3D key={i} intensity={0.4}>
               <p className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm leading-relaxed text-white/75">
                 {body}
               </p>
-            </ScrollReveal3D>
+            </Tilt3D>
           ))}
         </div>
       </section>

@@ -1,6 +1,7 @@
-import Image from "next/image";
-import { Reveal, Orb } from "@/components/Reveal";
-import ScrollReveal3D, { ScrollFloatImage } from "@/components/ScrollReveal3D";
+import { Reveal } from "@/components/Reveal";
+import ScrollReveal3D from "@/components/ScrollReveal3D";
+import PinSection from "@/components/PinSection";
+import Tilt3D from "@/components/Tilt3D";
 
 export const metadata = {
   title: "Evade Cancelations — RefundGod",
@@ -55,47 +56,19 @@ const PRICING = [
 export default function EvadePage() {
   return (
     <>
-      <section className="relative isolate overflow-hidden">
-        <Orb className="left-1/3 top-10 h-96 w-96 animate-pulseGlow" color="rgba(34,211,238,0.3)" />
-        <Orb className="right-0 top-40 h-80 w-80 animate-pulseGlow" color="rgba(245,185,69,0.25)" />
+      {/* Cinematic pinned hero */}
+      <PinSection
+        imageSrc="/images/evade-hero.png"
+        alt="Evade Cancelations"
+        eyebrow="Evade Cancelations"
+        title="Experience Online Freedom"
+        body="Say goodbye to order cancelations, bans, rebills, failed refunds due to fraud detections & more. Trusted by clients worldwide."
+        accent="cyan"
+      />
 
-        <div className="container-px relative grid items-center gap-10 pt-20 pb-12 md:grid-cols-[1.1fr_0.9fr]">
-          <Reveal>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300/85">
-              Evade Cancelations
-            </p>
-            <h1 className="heading-display mt-3 text-4xl font-bold tracking-tight text-white sm:text-6xl">
-              <span className="bg-gradient-to-r from-cyan-200 via-white to-amber-200 bg-clip-text text-transparent">
-                Experience Online Freedom
-              </span>
-            </h1>
-            <p className="mt-4 max-w-xl text-lg text-white/75">
-              Say goodbye to order cancelations, bans, rebills, failed refunds
-              due to fraud detections &amp; more.
-            </p>
-            <p className="mt-3 text-sm uppercase tracking-widest text-white/45">
-              Trusted by clients worldwide
-            </p>
-          </Reveal>
-
-          <ScrollFloatImage amount={70}>
-            <div className="relative mx-auto aspect-square w-full max-w-md animate-floatSlow rounded-3xl border border-white/10 bg-gradient-to-br from-cyan-500/15 to-amber-500/10 p-3 shadow-[0_30px_120px_-30px_rgba(34,211,238,0.55)]">
-              <Image
-                src="/images/splash-2.png"
-                alt="Evade Cancelations"
-                fill
-                priority
-                sizes="(max-width: 768px) 80vw, 32rem"
-                className="rounded-2xl object-contain p-6 drop-shadow-[0_0_60px_rgba(103,232,249,0.5)]"
-              />
-            </div>
-          </ScrollFloatImage>
-        </div>
-      </section>
-
-      <section className="container-px pb-12">
+      <section className="container-px pb-12 -mt-24 relative z-10">
         <ScrollReveal3D>
-          <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-cyan-500/10 to-transparent p-8 sm:p-12">
+          <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-cyan-500/10 to-transparent p-8 sm:p-12 backdrop-blur-md">
             <h2 className="heading-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
               Evade like a PRO
             </h2>
@@ -128,24 +101,24 @@ export default function EvadePage() {
             "Gain insights into avoiding rebills or winning against an existing rebill, plus understanding anti-fraud systems, user behaviour analysis, order fraud scores, and the latest algorithms used by online stores.",
             "Remain completely anonymous while surfing the internet and placing your orders under a forged identity with credit lines up to $10,000.",
           ].map((body, i) => (
-            <ScrollReveal3D key={i} intensity={0.5}>
+            <Tilt3D key={i} intensity={0.4}>
               <p className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm leading-relaxed text-white/75">
                 {body}
               </p>
-            </ScrollReveal3D>
+            </Tilt3D>
           ))}
         </div>
       </section>
 
       <section className="container-px pb-12">
         <div className="grid gap-4 md:grid-cols-2">
-          {FEATURES.map((f, i) => (
-            <ScrollReveal3D key={f.title} intensity={0.6}>
+          {FEATURES.map((f) => (
+            <Tilt3D key={f.title} intensity={0.45}>
               <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-transparent p-6">
                 <h3 className="heading-display text-xl font-bold text-white">{f.title}</h3>
                 <p className="mt-3 text-sm leading-relaxed text-white/75">{f.body}</p>
               </div>
-            </ScrollReveal3D>
+            </Tilt3D>
           ))}
         </div>
       </section>
@@ -161,13 +134,13 @@ export default function EvadePage() {
             { title: "Who we are?", body: "We are an experienced team of cyber security developers, who initially established our presence on the dark web. During summer 2019 we relied on selling on Amazon when a significant setback was encountered — accounts of close friends and family members were suspended." },
             { title: "The setback", body: "Undeterred, we persevered through numerous trials and errors, eventually discovering a secure and effective method to regain access to Amazon and PayPal, enabling us to resume selling. Motivated, we shared the knowledge — and the highly sought-after guide was born." },
             { title: "The aftermath", body: "For the following six months we dedicated extensive time and effort to developing effective strategies for safely creating multiple Amazon accounts without being linked or blocked, which soon led to research of other stores and their algorithms." },
-          ].map((c, i) => (
-            <ScrollReveal3D key={c.title} intensity={0.5}>
+          ].map((c) => (
+            <Tilt3D key={c.title} intensity={0.4}>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
                 <h3 className="heading-display text-lg font-bold text-white">{c.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-white/75">{c.body}</p>
               </div>
-            </ScrollReveal3D>
+            </Tilt3D>
           ))}
         </div>
       </section>
@@ -180,8 +153,8 @@ export default function EvadePage() {
           <p className="mb-8 text-white/65">Our pricing — select your plan:</p>
         </Reveal>
         <div className="grid gap-5 md:grid-cols-3">
-          {PRICING.map((p, i) => (
-            <ScrollReveal3D key={p.title} intensity={0.6}>
+          {PRICING.map((p) => (
+            <Tilt3D key={p.title} intensity={0.5}>
               <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-transparent p-6">
                 <h3 className="heading-display text-xl font-bold text-white">{p.title}</h3>
                 <p className="mt-3 flex-1 text-sm leading-relaxed text-white/75">{p.body}</p>
@@ -193,7 +166,7 @@ export default function EvadePage() {
                   Buy Now
                 </a>
               </div>
-            </ScrollReveal3D>
+            </Tilt3D>
           ))}
         </div>
       </section>

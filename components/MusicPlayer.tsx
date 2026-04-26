@@ -1,15 +1,15 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
 
 /**
- * Background music player.
- *  - Active only on the landing page ("/").
- *  - Picks a random track per visit (sessionStorage so it stays consistent
- *    while you navigate, but a re-visit gets a new pick).
- *  - Fades in to half volume on page load.
- *  - Mute button fixed top-right.
- *  - Stops on navigation away from "/" or on mute.
+ * Site-wide background music.
+ *  - Plays on every route (one persistent audio element via the root layout).
+ *  - Picks a random track per visit (sessionStorage) so it stays consistent
+ *    while you navigate, but a fresh visit gets a new pick.
+ *  - Fades in to half volume on mount.
+ *  - Mute button fixed top-right; preference persists across visits.
+ *  - Browser autoplay policy: if blocked, surfaces a tiny "tap to play"
+ *    affordance and resumes on first user interaction.
  */
 
 const TRACKS = [
@@ -22,7 +22,7 @@ const TRACKS = [
   { src: "/audio/07-snowfall.mp3",    label: "øneheart x reidenshi — snowfall" },
 ];
 
-const TARGET_VOLUME = 0.5; // half youtube volume per spec
+const TARGET_VOLUME = 0.5;
 const FADE_MS = 2400;
 const VISIT_KEY = "rg:music-track";
 const MUTE_KEY = "rg:music-muted";
@@ -40,14 +40,12 @@ function pickTrack(): { src: string; label: string } {
 }
 
 export default function MusicPlayer() {
-  const pathname = usePathname();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fadeRafRef = useRef<number | null>(null);
   const [muted, setMuted] = useState<boolean>(false);
   const [track, setTrack] = useState<{ src: string; label: string } | null>(null);
   const [needsTap, setNeedsTap] = useState(false);
 
-  // pick the track + load mute pref on first mount
   useEffect(() => {
     setTrack(pickTrack());
     if (typeof window !== "undefined") {
@@ -55,15 +53,12 @@ export default function MusicPlayer() {
     }
   }, []);
 
-  const isLanding = pathname === "/";
-
-  // Manage playback whenever route or mute state changes
+  // Manage playback whenever mute state changes.
   useEffect(() => {
     const a = audioRef.current;
     if (!a || !track) return;
 
-    if (!isLanding || muted) {
-      // fade-out then pause so leaving the page is smooth
+    if (muted) {
       cancelFade();
       const start = a.volume;
       const t0 = performance.now();
@@ -75,37 +70,47 @@ export default function MusicPlayer() {
         } else {
           a.pause();
           a.volume = 0;
-          a.currentTime = 0;
         }
       };
       fadeRafRef.current = requestAnimationFrame(step);
       return;
     }
 
-    // Landing + un-muted: start playing with fade-in
     a.volume = 0;
     a.muted = false;
+
+    let onAny: ((e: Event) => void) | null = null;
+    const removeFallback = () => {
+      if (onAny) {
+        window.removeEventListener("pointerdown", onAny);
+        window.removeEventListener("keydown", onAny);
+        window.removeEventListener("touchstart", onAny);
+        onAny = null;
+      }
+    };
+
     const playPromise = a.play();
     if (playPromise) {
       playPromise
         .then(() => fadeIn(a))
         .catch(() => {
-          // Most browsers block autoplay until user interacts. We surface a
-          // tiny "tap to play" affordance, and try again on first interaction.
           setNeedsTap(true);
-          const onAny = () => {
+          onAny = () => {
             setNeedsTap(false);
             a.play().then(() => fadeIn(a)).catch(() => {});
-            window.removeEventListener("pointerdown", onAny);
-            window.removeEventListener("keydown", onAny);
+            removeFallback();
           };
           window.addEventListener("pointerdown", onAny, { once: true });
           window.addEventListener("keydown", onAny, { once: true });
+          window.addEventListener("touchstart", onAny, { once: true });
         });
     }
 
-    return () => cancelFade();
-  }, [isLanding, muted, track]);
+    return () => {
+      cancelFade();
+      removeFallback();
+    };
+  }, [muted, track]);
 
   function cancelFade() {
     if (fadeRafRef.current != null) {
@@ -133,12 +138,9 @@ export default function MusicPlayer() {
     });
   }
 
-  // Don't render the audio element on non-landing pages so it never starts
-  // there — but keep the mute button visible so the user can pre-set their
-  // preference from anywhere.
   return (
     <>
-      {isLanding && track && (
+      {track && (
         <audio
           ref={audioRef}
           src={track.src}
@@ -169,7 +171,7 @@ export default function MusicPlayer() {
             </svg>
           )}
         </button>
-        {needsTap && isLanding && !muted && (
+        {needsTap && !muted && (
           <span className="rounded-full bg-ink-950/80 px-2.5 py-1 text-[10px] font-medium text-white/75 backdrop-blur ring-1 ring-white/10">
             tap anywhere to play music
           </span>

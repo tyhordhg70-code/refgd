@@ -1,6 +1,8 @@
 import Image from "next/image";
-import { Reveal, Orb } from "@/components/Reveal";
-import ScrollReveal3D, { ScrollFloatImage } from "@/components/ScrollReveal3D";
+import { Reveal } from "@/components/Reveal";
+import ScrollReveal3D from "@/components/ScrollReveal3D";
+import PinSection from "@/components/PinSection";
+import Tilt3D from "@/components/Tilt3D";
 
 export const metadata = {
   title: "Exclusive Mentorships — RefundGod",
@@ -32,51 +34,28 @@ const EMOTIONS = ["Fear", "Excitement", "Curiosity", "Anger", "Guilt", "Sadness"
 export default function MentorshipsPage() {
   return (
     <>
-      <section className="relative isolate overflow-hidden">
-        <Orb className="left-10 top-0 h-96 w-96 animate-pulseGlow" color="rgba(139,92,246,0.3)" />
-        <Orb className="right-0 top-40 h-80 w-80 animate-pulseGlow" color="rgba(245,185,69,0.25)" />
-        <Orb className="left-1/3 bottom-0 h-72 w-72 animate-pulseGlow" color="rgba(75,192,200,0.2)" />
+      {/* Cinematic pinned hero */}
+      <PinSection
+        imageSrc="/images/mentorship-hero.png"
+        alt="Refund & SE Mentorship"
+        eyebrow="Exclusive Mentorships"
+        title="Refund & SE Mentorship"
+        body="Stop paying for other BS mentorships that have 0 value and ghost you after purchasing. Be your own refunder."
+        accent="violet"
+      />
 
-        <div className="container-px relative grid items-center gap-10 pt-20 pb-12 md:grid-cols-[1.1fr_0.9fr]">
-          <Reveal>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-300/85">
-              Exclusive Mentorships
-            </p>
-            <h1 className="heading-display mt-3 text-4xl font-bold tracking-tight text-white sm:text-6xl">
-              <span className="bg-gradient-to-r from-violet-200 via-white to-amber-200 bg-clip-text text-transparent">
-                Refund &amp; SE Mentorship
-              </span>
-            </h1>
-            <p className="mt-4 max-w-xl text-lg text-white/75">
-              Stop paying for other BS mentorships that have 0 value and ghost
-              you after purchasing. Be your own refunder.
-            </p>
-            <a
-              href="https://refundgod.bgng.io/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-primary mt-7"
-            >
-              Buy Now
-            </a>
-          </Reveal>
-
-          {/* Floating hero image with scroll parallax */}
-          <ScrollFloatImage amount={70} className="relative">
-            <div
-              className="relative mx-auto aspect-square w-full max-w-md animate-floatSlow rounded-3xl border border-white/10 bg-gradient-to-br from-violet-500/15 to-amber-500/10 p-3 shadow-[0_30px_120px_-30px_rgba(139,92,246,0.55)]"
-            >
-              <Image
-                src="/images/splash-3.png"
-                alt="Exclusive Mentorships"
-                fill
-                priority
-                sizes="(max-width: 768px) 80vw, 32rem"
-                className="rounded-2xl object-contain p-6 drop-shadow-[0_0_60px_rgba(167,139,250,0.5)]"
-              />
-            </div>
-          </ScrollFloatImage>
-        </div>
+      {/* CTA below hero */}
+      <section className="container-px -mt-32 relative z-10 pb-12 text-center">
+        <Reveal>
+          <a
+            href="https://refundgod.bgng.io/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-primary"
+          >
+            Buy Now
+          </a>
+        </Reveal>
       </section>
 
       {/* Refunding intro */}
@@ -122,7 +101,7 @@ export default function MentorshipsPage() {
       {/* Tailgating */}
       <section className="container-px pb-12">
         <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-          <ScrollReveal3D intensity={0.6}>
+          <Tilt3D intensity={0.5}>
             <div className="h-full rounded-2xl border border-white/10 bg-white/5 p-6">
               <h3 className="heading-display text-xl font-bold text-white">Access Tailgating Attacks</h3>
               <p className="mt-3 text-sm leading-relaxed text-white/75">
@@ -134,8 +113,8 @@ export default function MentorshipsPage() {
                 psychology to manipulate people into specific actions.
               </p>
             </div>
-          </ScrollReveal3D>
-          <ScrollReveal3D intensity={0.6}>
+          </Tilt3D>
+          <Tilt3D intensity={0.5}>
             <div className="h-full rounded-2xl border border-amber-400/20 bg-gradient-to-br from-amber-500/15 to-transparent p-6">
               <h3 className="heading-display text-xl font-bold text-amber-100">Become your own private insider</h3>
               <p className="mt-3 text-sm leading-relaxed text-white/75">
@@ -149,11 +128,11 @@ export default function MentorshipsPage() {
                 separate add-on.
               </p>
             </div>
-          </ScrollReveal3D>
+          </Tilt3D>
         </div>
       </section>
 
-      {/* Refund features list */}
+      {/* Refund features */}
       <section className="container-px pb-12">
         <Reveal>
           <h3 className="heading-display mb-6 text-2xl font-bold tracking-tight text-white">
@@ -161,15 +140,13 @@ export default function MentorshipsPage() {
           </h3>
         </Reveal>
         <div className="grid gap-3 md:grid-cols-2">
-          {REFUND_FEATURES.map((f, i) => (
-            <ScrollReveal3D key={f} intensity={0.4}>
+          {REFUND_FEATURES.map((f) => (
+            <Tilt3D key={f} intensity={0.3}>
               <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
-                <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-400/20 text-emerald-200">
-                  ✓
-                </span>
+                <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-400/20 text-emerald-200">✓</span>
                 <p className="text-sm font-medium text-white/85">{f}</p>
               </div>
-            </ScrollReveal3D>
+            </Tilt3D>
           ))}
         </div>
         <Reveal>
@@ -182,7 +159,7 @@ export default function MentorshipsPage() {
         </Reveal>
       </section>
 
-      {/* SE section */}
+      {/* SE intro */}
       <section className="container-px pb-12">
         <ScrollReveal3D>
           <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-cyan-500/10 via-white/5 to-transparent p-8 sm:p-12">
@@ -226,15 +203,13 @@ export default function MentorshipsPage() {
           </h3>
         </Reveal>
         <div className="grid gap-3 md:grid-cols-2">
-          {SE_FEATURES.map((f, i) => (
-            <ScrollReveal3D key={f} intensity={0.4}>
+          {SE_FEATURES.map((f) => (
+            <Tilt3D key={f} intensity={0.3}>
               <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
-                <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-cyan-400/20 text-cyan-200">
-                  ✓
-                </span>
+                <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-cyan-400/20 text-cyan-200">✓</span>
                 <p className="text-sm font-medium text-white/85">{f}</p>
               </div>
-            </ScrollReveal3D>
+            </Tilt3D>
           ))}
         </div>
       </section>
