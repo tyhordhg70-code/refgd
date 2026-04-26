@@ -29,8 +29,10 @@ export default function ScrollReveal3D({
   const scale   = useTransform(scrollYProgress, [0, 0.5, 1], [0.96, 1, 0.98]);
 
   if (reduced) {
+    // `position: relative` so framer-motion's useScroll target check
+    // doesn't warn — the ref'd element must be non-static.
     return (
-      <div ref={ref} className={className}>
+      <div ref={ref} className={className} style={{ position: "relative" }}>
         {children}
       </div>
     );
@@ -47,6 +49,7 @@ export default function ScrollReveal3D({
         transformPerspective: 1400,
         transformStyle: "preserve-3d",
         willChange: "transform, opacity",
+        position: "relative",
       }}
       className={className}
     >
@@ -73,7 +76,7 @@ export function ScrollFloatImage({
   const y = useTransform(scrollYProgress, [0, 1], [amount, -amount]);
   const rotate = useTransform(scrollYProgress, [0, 1], [-3, 3]);
   return (
-    <motion.div ref={ref} style={{ y, rotate }} className={className}>
+    <motion.div ref={ref} style={{ y, rotate, position: "relative" }} className={className}>
       {children}
     </motion.div>
   );

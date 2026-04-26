@@ -17,6 +17,12 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
+  /* framer-motion's `useScroll({ target })` warns when the target's
+     offsetParent has `position: static`. Promoting the body/main to
+     `position: relative` gives every section a sane positioned
+     ancestor and silences the warning project-wide. */
+  body { position: relative; }
+  main { position: relative; }
   ::selection {
     background: rgba(245, 185, 69, 0.35);
     color: white;

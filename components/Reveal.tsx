@@ -34,7 +34,7 @@ export function ParallaxBlock({
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
   const y = useTransform(scrollYProgress, [0, 1], [amount, -amount]);
   return (
-    <motion.div ref={ref} style={{ y }} className={className}>
+    <motion.div ref={ref} style={{ y, position: "relative" }} className={className}>
       {children}
     </motion.div>
   );
