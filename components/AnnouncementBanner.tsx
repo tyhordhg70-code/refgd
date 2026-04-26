@@ -5,26 +5,44 @@ interface Props {
   text: string;
   cta: string;
   url: string;
-  /** Auto-fade after this many ms (default 5 minutes). */
+  /** Auto-fade after this many ms (default 3 minutes total browsing time). */
   autoFadeMs?: number;
 }
 
-const STORAGE_KEY = "rg:banner-dismissed";
+const DISMISS_KEY = "rg:banner-dismissed";
+const FIRST_SEEN_KEY = "rg:banner-first-seen";
 
-export default function AnnouncementBanner({ text, cta, url, autoFadeMs = 5 * 60 * 1000 }: Props) {
+export default function AnnouncementBanner({
+  text,
+  cta,
+  url,
+  autoFadeMs = 3 * 60 * 1000,
+}: Props) {
   const [hidden, setHidden] = useState(true);
   const [fading, setFading] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const dismissedAt = sessionStorage.getItem(STORAGE_KEY);
-    if (dismissedAt) return;
+
+    // User-dismissed in this browser? Keep hidden permanently for this device.
+    if (localStorage.getItem(DISMISS_KEY)) return;
+
+    // Track first-seen timestamp across page navigations so the 3-minute
+    // timer is "browsing time on the site", not "time on this page".
+    const now = Date.now();
+    const firstSeenStr = localStorage.getItem(FIRST_SEEN_KEY);
+    const firstSeen = firstSeenStr ? Number(firstSeenStr) : now;
+    if (!firstSeenStr) localStorage.setItem(FIRST_SEEN_KEY, String(firstSeen));
+
+    const elapsed = now - firstSeen;
+    if (elapsed >= autoFadeMs) return; // already past the fade window
+
     setHidden(false);
+    const remaining = autoFadeMs - elapsed;
     const t = setTimeout(() => {
       setFading(true);
-      // remove from layout after fade transition
       setTimeout(() => setHidden(true), 800);
-    }, autoFadeMs);
+    }, remaining);
     return () => clearTimeout(t);
   }, [autoFadeMs]);
 
@@ -32,7 +50,7 @@ export default function AnnouncementBanner({ text, cta, url, autoFadeMs = 5 * 60
 
   function dismiss() {
     setFading(true);
-    sessionStorage.setItem(STORAGE_KEY, String(Date.now()));
+    try { localStorage.setItem(DISMISS_KEY, String(Date.now())); } catch {}
     setTimeout(() => setHidden(true), 400);
   }
 
@@ -45,7 +63,6 @@ export default function AnnouncementBanner({ text, cta, url, autoFadeMs = 5 * 60
       }`}
     >
       <div className="relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky-500">
-        {/* shimmer */}
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 -z-0"
@@ -56,15 +73,15 @@ export default function AnnouncementBanner({ text, cta, url, autoFadeMs = 5 * 60
             animation: "shimmer 3s linear infinite",
           }}
         />
-        <div className="container-px relative flex items-center justify-between gap-3 py-2.5 text-sm">
-          <div className="flex items-center gap-2 text-white">
-            <span aria-hidden="true" className="inline-block h-2 w-2 animate-pulse rounded-full bg-white" />
-            <span className="font-medium">{text}</span>
+        <div className="container-px relative flex items-center justify-between gap-3 py-2 text-xs sm:text-sm">
+          <div className="flex min-w-0 items-center gap-2 text-white">
+            <span aria-hidden="true" className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+            <span className="truncate font-medium">{text}</span>
             <a
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white backdrop-blur transition hover:bg-white/25"
+              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold text-white backdrop-blur transition hover:bg-white/25 sm:text-xs"
             >
               {cta} →
             </a>
@@ -73,9 +90,9 @@ export default function AnnouncementBanner({ text, cta, url, autoFadeMs = 5 * 60
             type="button"
             aria-label="Dismiss announcement"
             onClick={dismiss}
-            className="grid h-7 w-7 place-items-center rounded-full text-white/80 transition hover:bg-white/15 hover:text-white"
+            className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="M6 6l12 12M18 6L6 18" />
             </svg>
           </button>

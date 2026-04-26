@@ -33,13 +33,8 @@ export default function Footer() {
           <h3 className="text-xs font-semibold uppercase tracking-widest text-white/40">Connect</h3>
           <ul className="mt-3 space-y-1.5 text-sm text-white/75">
             <li>
-              <a href="https://t.me/+nwkW2Mw3959mZDc0" target="_blank" rel="noopener noreferrer" className="hover:text-white">
-                Group Chat (Telegram)
-              </a>
-            </li>
-            <li>
               <a href="https://t.me/refundlawfirm" target="_blank" rel="noopener noreferrer" className="hover:text-white">
-                Refund Law Firm
+                Group Chat (Telegram)
               </a>
             </li>
             <li>

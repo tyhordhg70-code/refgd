@@ -7,15 +7,14 @@ import {
 import type { ContentBlock } from "./types";
 
 export const DEFAULT_CONTENT: Record<string, string> = {
-  "banner.text": "Need a refund right now? Talk to us on Telegram",
-  "banner.cta": "Open Telegram",
+  "banner.text": "Stay up to speed — join our Telegram channel for the latest store drops",
+  "banner.cta": "Join Telegram",
   "banner.url": "https://t.me/refundlawfirm",
   "hero.kicker": "welcome!",
   "hero.title": "CHOOSE YOUR PATH TO MASTERY:",
-  "hero.subtitle":
-    "Five paths. One outcome — total command over your refund game. Pick yours and step into the next level.",
+  "hero.subtitle": "",
   "hero.cta.label": "Join Group Chat",
-  "hero.cta.url": "https://t.me/+nwkW2Mw3959mZDc0",
+  "hero.cta.url": "https://t.me/refundlawfirm",
   "telegram.headline":
     "Stay up to speed with the latest on our telegram Group",
   "service.title": "Get rewarded for shopping online",

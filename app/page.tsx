@@ -1,54 +1,59 @@
-import Link from "next/link";
 import HeroBackground from "@/components/HeroBackground";
 import PathCard from "@/components/PathCard";
+import SplashArt from "@/components/SplashArt";
 import { getContentBlock } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Original 5 path boxes from refundgod.io (preserved order, original wording).
+ * - Refund Store List   → /store-list
+ * - Our Service         → /our-service
+ * - Evade Cancelations  → /evade-cancelations
+ * - Exclusive Mentorships → /exclusive-mentorships
+ * - Buy Now             → external bgng.io
+ *
+ * No "Browse Store List"/"Buy Now" sub-buttons (removed per spec); the
+ * card itself is the link.
+ */
 const PATHS = [
   {
     href: "/store-list",
     title: "Refund Store List",
-    subtitle: "200+ stores across USA, Canada, EU and UK with full limits & timeframes.",
+    imageSrc: "/images/box-art.png",
     accent: "gold" as const,
-    iconPath: "M3 9l1-5h16l1 5M3 9v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9M3 9h18M9 14h6",
   },
   {
     href: "/our-service",
     title: "Our Service",
-    subtitle: "How the refund pipeline works — encrypted, isolated, and fast.",
+    imageSrc: "/images/splash-1.png",
     accent: "fuchsia" as const,
-    iconPath: "M12 2v6m0 8v6m-9-9h6m4 0h6M5 5l4 4m6 6 4 4M5 19l4-4m6-6 4-4",
   },
   {
     href: "/evade-cancelations",
     title: "Evade Cancelations",
-    subtitle: "Stop bans, rebills, fraud-score flags. Place big orders without aging.",
+    imageSrc: "/images/splash-2.png",
     accent: "cyan" as const,
-    iconPath: "M12 22s8-4 8-12V5l-8-3-8 3v5c0 8 8 12 8 12z M9 12l2 2 4-4",
   },
   {
     href: "/exclusive-mentorships",
     title: "Exclusive Mentorships",
-    subtitle: "1:1 refund & social engineering training. Build your own empire.",
+    imageSrc: "/images/splash-3.png",
     accent: "violet" as const,
-    iconPath: "M3 7l9-4 9 4-9 4-9-4z M3 7v6l9 4 9-4V7 M12 21v-8",
   },
   {
     href: "https://refundgod.bgng.io/",
     external: true,
     title: "Buy Now",
-    subtitle: "Stealth/OpSec guides, evasion books, methods & more.",
+    imageSrc: "/images/box-art.png",
     accent: "orange" as const,
-    iconPath: "M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z M3 6h18 M16 10a4 4 0 0 1-8 0",
   },
 ];
 
 export default async function HomePage() {
-  const [kicker, title, subtitle, ctaLabel, ctaUrl, telegramHeadline] = await Promise.all([
+  const [kicker, title, ctaLabel, ctaUrl, telegramHeadline] = await Promise.all([
     getContentBlock("hero.kicker"),
     getContentBlock("hero.title"),
-    getContentBlock("hero.subtitle"),
     getContentBlock("hero.cta.label"),
     getContentBlock("hero.cta.url"),
     getContentBlock("telegram.headline"),
@@ -56,36 +61,27 @@ export default async function HomePage() {
 
   return (
     <>
+      {/* Hero — splash art + welcome text only. NO subtitle, NO CTA buttons. */}
       <section className="relative isolate overflow-hidden">
         <HeroBackground />
-        <div className="container-px relative z-10 grid min-h-[78vh] place-items-center py-16 md:py-24">
+        <SplashArt src="/images/splash-1.png" alt="RefundGod" />
+        <div className="container-px relative z-10 grid min-h-[68vh] place-items-end pb-8 pt-[42vh] sm:pt-[44vh]">
           <div className="text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-300/85 sm:text-sm">
+            <p className="heading-display text-base font-medium lowercase tracking-[0.4em] text-amber-200/85 sm:text-lg">
               {kicker}
             </p>
-            <h1 className="heading-display mx-auto mt-4 max-w-4xl text-balance text-4xl font-bold leading-tight tracking-tight text-white sm:text-6xl md:text-7xl">
+            <h1 className="heading-display mx-auto mt-3 max-w-4xl text-balance text-3xl font-bold uppercase leading-tight tracking-tight text-white sm:text-5xl md:text-6xl">
               <span className="bg-gradient-to-r from-amber-200 via-white to-amber-200 bg-clip-text text-transparent">
                 {title}
               </span>
             </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-balance text-base text-white/65 sm:text-lg">
-              {subtitle}
-            </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Link href="/store-list" className="btn-primary">
-                Browse Store List
-              </Link>
-              <a href="https://refundgod.bgng.io/" target="_blank" rel="noopener noreferrer" className="btn-ghost">
-                Buy Now →
-              </a>
-            </div>
           </div>
         </div>
       </section>
 
-      {/* 5 path cards */}
-      <section className="container-px relative -mt-16 pb-24" id="paths">
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Original 5 path cards — full bleed on mobile, 5-up on wide */}
+      <section className="container-px relative pb-20" id="paths">
+        <div className="grid grid-cols-2 gap-4 sm:gap-5 md:grid-cols-3 lg:grid-cols-5">
           {PATHS.map((p, i) => (
             <PathCard key={p.href} index={i} {...p} />
           ))}
@@ -97,7 +93,7 @@ export default async function HomePage() {
         <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-sky-600/30 via-violet-600/25 to-fuchsia-600/30 p-8 sm:p-12">
           <div
             aria-hidden="true"
-            className="absolute -right-16 -top-16 h-72 w-72 rounded-full bg-sky-400/30 blur-3xl"
+            className="absolute -right-16 -top-16 h-72 w-72 animate-pulseGlow rounded-full bg-sky-400/30 blur-3xl"
           />
           <div className="relative grid items-center gap-6 sm:grid-cols-[1fr_auto]">
             <h2 className="heading-display max-w-xl text-2xl font-bold tracking-tight text-white sm:text-3xl">

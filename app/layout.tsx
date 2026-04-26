@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
+import MusicPlayer from "@/components/MusicPlayer";
 import { getContentBlock } from "@/lib/content";
 
 export const metadata: Metadata = {
@@ -40,9 +41,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link rel="preconnect" href="https://api.fontshare.com" />
+        {/* Geist (body) + Space Grotesk fallback (display) — replaces the
+            generic Inter look with a more crafted, professional pairing. */}
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+        />
+        {/* Clash Display for show-stopper headlines (free from Fontshare) */}
+        <link
+          rel="stylesheet"
+          href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap"
         />
         <script
           type="application/ld+json"
@@ -52,7 +61,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               "@type": "Organization",
               name: "RefundGod",
               url: process.env.NEXT_PUBLIC_SITE_URL,
-              sameAs: ["https://t.me/+nwkW2Mw3959mZDc0"],
+              sameAs: ["https://t.me/refundlawfirm"],
             }),
           }}
         />
@@ -62,6 +71,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Nav />
         <main>{children}</main>
         <Footer />
+        <MusicPlayer />
       </body>
     </html>
   );

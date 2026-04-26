@@ -10,7 +10,7 @@ const NAV_ITEMS = [
   { href: "/exclusive-mentorships", label: "Exclusive Mentorships" },
   { href: "/evade-cancelations", label: "Evade Cancelations" },
   { href: "/top-tier-methods", label: "Top-tier Methods" },
-  { href: "https://t.me/+nwkW2Mw3959mZDc0", label: "Group Chat", external: true },
+  { href: "https://t.me/refundlawfirm", label: "Group Chat", external: true },
   { href: "/vouches", label: "Vouches" },
 ];
 

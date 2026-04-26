@@ -89,7 +89,7 @@ export default function StoreCard({ store, idx }: { store: Store; idx: number })
         </div>
 
         {store.notes && (
-          <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-white/55">
+          <p className="mt-3 whitespace-pre-wrap break-words text-sm font-bold leading-relaxed text-white/85">
             {store.notes}
           </p>
         )}

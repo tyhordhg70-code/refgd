@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import type { Region, Store, StoreCategory, StoreTag } from "../lib/types";
+import { getLogoOverride } from "../lib/logo-overrides";
 
 interface ParseSource {
   region: Region;
@@ -76,9 +77,12 @@ function stripMarkdown(s: string): string {
 function splitIntoCategorySections(text: string): { category: StoreCategory; body: string }[] {
   // Split on markdown headings that look like category dividers
   // Example: "### **🎮 ELECTRONICS & HIGH RESELL STORES 💸:**"
+  // Pre-header stores (TIKTOP, GOOGLESTORE etc. that appear above the first
+  // category heading) are bucketed as "Electronics" — they sit at the top of
+  // the original list, which is the high-resell/electronics section.
   const lines = text.split("\n");
   const sections: { category: StoreCategory; body: string[] }[] = [];
-  let currentCat: StoreCategory = "Other";
+  let currentCat: StoreCategory = "Electronics"; // pre-header default = top section
   let currentBody: string[] = [];
 
   for (const line of lines) {
@@ -158,7 +162,10 @@ function extractStoreEntries(body: string): string[] {
     if (/^—+$/.test(line) || /^[-]{2,}$/.test(line)) {
       flush();
     } else if (line.length === 0) {
-      // ignore
+      // Blank lines also act as entry separators — many wayback entries are
+      // separated only by blank lines (no em-dash), and merging them across
+      // boundaries causes the wrong domain/logo to be picked up.
+      flush();
     } else {
       buf.push(line);
     }
@@ -331,7 +338,10 @@ function parseFile(src: ParseSource): Store[] {
       const fee = extractFee(cleaned);
       const timeframe = extractTimeframe(cleaned);
       const notes = extractNotes(cleaned, { name, priceLimit, itemLimit, fee, timeframe });
-      const domain = extractDomain(cleaned, name);
+      // Manual override (klarna.com etc.) takes priority over auto-extracted
+      // domain to avoid the wrong logo when the entry text is messy.
+      const override = getLogoOverride(name);
+      const domain = override ?? extractDomain(cleaned, name);
 
       const now = new Date().toISOString();
       const store: Store = {

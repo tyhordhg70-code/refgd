@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { useState } from "react";
 
@@ -8,10 +9,9 @@ interface PathCardProps {
   href: string;
   external?: boolean;
   title: string;
-  subtitle: string;
+  /** Image src (e.g. /images/box-art.png). */
+  imageSrc: string;
   accent: "gold" | "fuchsia" | "cyan" | "violet" | "orange";
-  /** Big stylized icon path / svg children. */
-  iconPath: string;
 }
 
 const ACCENT_GRADIENTS: Record<PathCardProps["accent"], string> = {
@@ -30,11 +30,29 @@ const ACCENT_GLOW: Record<PathCardProps["accent"], string> = {
   orange:  "shadow-[0_0_60px_-10px_rgba(249,115,22,0.5)]",
 };
 
-export default function PathCard({ index, href, external, title, subtitle, accent, iconPath }: PathCardProps) {
-  const [exploded, setExploded] = useState(false);
+const ACCENT_PARTICLE: Record<PathCardProps["accent"], string> = {
+  gold:    "radial-gradient(circle,#ffd86b,transparent)",
+  fuchsia: "radial-gradient(circle,#f472b6,transparent)",
+  cyan:    "radial-gradient(circle,#67e8f9,transparent)",
+  violet:  "radial-gradient(circle,#a78bfa,transparent)",
+  orange:  "radial-gradient(circle,#fdba74,transparent)",
+};
 
+export default function PathCard({
+  index,
+  href,
+  external,
+  title,
+  imageSrc,
+  accent,
+}: PathCardProps) {
+  const [exploded, setExploded] = useState(false);
   const onEnter = () => setExploded(true);
   const onLeave = () => setExploded(false);
+
+  // Stagger floating animation phase per card
+  const floatDelay = `${(index * 0.6).toFixed(2)}s`;
+  const floatDuration = `${5 + (index % 3) * 0.5}s`;
 
   const Tag: any = external ? "a" : Link;
   const linkProps = external
@@ -48,6 +66,9 @@ export default function PathCard({ index, href, external, title, subtitle, accen
       viewport={{ once: true, margin: "-80px" }}
       transition={{ duration: 0.5, delay: index * 0.08, ease: [0.25, 0.4, 0.25, 1] }}
       className="group relative"
+      style={{
+        animation: `float ${floatDuration} ease-in-out ${floatDelay} infinite`,
+      }}
     >
       <Tag
         {...linkProps}
@@ -55,9 +76,9 @@ export default function PathCard({ index, href, external, title, subtitle, accen
         onMouseLeave={onLeave}
         onFocus={onEnter}
         onBlur={onLeave}
-        className={`relative block h-full overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br ${ACCENT_GRADIENTS[accent]} bg-ink-900/60 p-6 backdrop-blur-md transition-all duration-500 hover:border-white/30 hover:bg-ink-800/70 ${ACCENT_GLOW[accent]}`}
+        className={`relative block h-full overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br ${ACCENT_GRADIENTS[accent]} bg-ink-900/60 p-5 backdrop-blur-md transition-all duration-500 hover:border-white/30 hover:bg-ink-800/70 ${ACCENT_GLOW[accent]}`}
       >
-        {/* Explosion overlay (12 particles burst on hover) */}
+        {/* Explosion overlay (14 particles burst on hover) */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
           {Array.from({ length: 14 }).map((_, i) => {
             const angle = (i / 14) * Math.PI * 2;
@@ -74,36 +95,41 @@ export default function PathCard({ index, href, external, title, subtitle, accen
                 }}
                 transition={{ duration: 0.9, ease: "easeOut" }}
                 className="absolute left-1/2 top-1/2 -ml-1 -mt-1 h-2 w-2 rounded-full"
-                style={{
-                  background:
-                    accent === "gold"
-                      ? "radial-gradient(circle,#ffd86b,transparent)"
-                      : accent === "fuchsia"
-                      ? "radial-gradient(circle,#f472b6,transparent)"
-                      : accent === "cyan"
-                      ? "radial-gradient(circle,#67e8f9,transparent)"
-                      : accent === "violet"
-                      ? "radial-gradient(circle,#a78bfa,transparent)"
-                      : "radial-gradient(circle,#fdba74,transparent)",
-                }}
+                style={{ background: ACCENT_PARTICLE[accent] }}
               />
             );
           })}
         </div>
 
-        {/* Icon */}
-        <div className="relative mb-6 grid h-16 w-16 place-items-center rounded-2xl bg-white/5 ring-1 ring-white/10">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-9 w-9 text-white">
-            <path d={iconPath} />
-          </svg>
+        {/* Box image — full-width hero, the original site shows these as the
+            primary visual and the card title appears below. */}
+        <div className="relative aspect-square overflow-hidden rounded-2xl bg-ink-950/40 ring-1 ring-white/10">
+          <Image
+            src={imageSrc}
+            alt={title}
+            fill
+            sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 18vw"
+            className="object-cover transition-transform duration-700 group-hover:scale-105"
+            priority={index < 2}
+          />
+          {/* Inner glow */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(circle at 50% 100%, rgba(0,0,0,0.55), transparent 70%)",
+            }}
+          />
         </div>
 
-        <h3 className="heading-display text-2xl font-bold tracking-tight text-white">{title}</h3>
-        <p className="mt-2 text-sm leading-relaxed text-white/65">{subtitle}</p>
+        <h3 className="heading-display mt-4 text-center text-lg font-bold tracking-tight text-white sm:text-xl">
+          {title}
+        </h3>
 
-        <div className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-white/85 transition-transform duration-300 group-hover:translate-x-1">
+        <div className="mt-3 flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-white/70 transition-colors group-hover:text-white">
           Learn More
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
             <path d="M5 12h14" />
             <path d="m12 5 7 7-7 7" />
           </svg>

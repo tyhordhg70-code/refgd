@@ -11,8 +11,11 @@
   html, body {
     background: rgb(var(--bg));
     color: rgb(var(--fg));
-    font-family: Inter, system-ui, sans-serif;
+    font-family: "Geist", "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-feature-settings: "ss01", "ss02", "cv01", "cv11";
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   ::selection {
     background: rgba(245, 185, 69, 0.35);
@@ -42,12 +45,24 @@
     @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-white/85 transition hover:border-white/20 hover:bg-white/10;
   }
   .heading-display {
-    font-family: "Space Grotesk", Inter, system-ui, sans-serif;
-    letter-spacing: -0.02em;
+    font-family: "Clash Display", "Space Grotesk", "Geist", system-ui, sans-serif;
+    letter-spacing: -0.025em;
+    font-weight: 600;
   }
   .prismatic-border {
     background: linear-gradient(135deg,#ff6ad5,#c779d0,#4bc0c8,#feac5e,#ff6ad5);
     background-size: 200% 200%;
+    animation: prism 8s ease infinite;
+  }
+  /* Prismatic glow text used for category headers */
+  .prismatic-text {
+    background: linear-gradient(120deg,#ff6ad5,#c779d0,#4bc0c8,#feac5e,#ff6ad5);
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    text-shadow: 0 0 36px rgba(199,121,208,0.35);
     animation: prism 8s ease infinite;
   }
 }

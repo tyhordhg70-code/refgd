@@ -9,8 +9,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        display: ["Space Grotesk", "Inter", "system-ui", "sans-serif"],
+        sans: ["Geist", "Inter Tight", "system-ui", "sans-serif"],
+        display: ["Clash Display", "Space Grotesk", "system-ui", "sans-serif"],
       },
       colors: {
         ink: {
@@ -39,23 +39,33 @@ const config: Config = {
         },
         float: {
           "0%,100%": { transform: "translateY(0px)" },
-          "50%": { transform: "translateY(-8px)" },
+          "50%": { transform: "translateY(-10px)" },
+        },
+        floatSlow: {
+          "0%,100%": { transform: "translateY(0px) rotate(0deg)" },
+          "50%":     { transform: "translateY(-14px) rotate(0.5deg)" },
         },
         prism: {
-          "0%": { backgroundPosition: "0% 50%" },
-          "50%": { backgroundPosition: "100% 50%" },
+          "0%":   { backgroundPosition: "0% 50%" },
+          "50%":  { backgroundPosition: "100% 50%" },
           "100%": { backgroundPosition: "0% 50%" },
         },
         shimmer: {
-          "0%": { backgroundPosition: "-200% 0" },
+          "0%":   { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
+        },
+        gradientShift: {
+          "0%,100%": { backgroundPosition: "0% 50%" },
+          "50%":     { backgroundPosition: "100% 50%" },
         },
       },
       animation: {
-        pulseGlow: "pulseGlow 6s ease-in-out infinite",
-        float: "float 5s ease-in-out infinite",
-        prism: "prism 8s ease infinite",
-        shimmer: "shimmer 3s linear infinite",
+        pulseGlow:     "pulseGlow 6s ease-in-out infinite",
+        float:         "float 5s ease-in-out infinite",
+        floatSlow:     "floatSlow 8s ease-in-out infinite",
+        prism:         "prism 8s ease infinite",
+        shimmer:       "shimmer 3s linear infinite",
+        gradientShift: "gradientShift 16s ease-in-out infinite",
       },
     },
   },

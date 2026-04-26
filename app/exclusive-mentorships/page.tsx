@@ -1,5 +1,6 @@
-import Link from "next/link";
+import Image from "next/image";
 import { Reveal, Orb } from "@/components/Reveal";
+import ScrollReveal3D, { ScrollFloatImage } from "@/components/ScrollReveal3D";
 
 export const metadata = {
   title: "Exclusive Mentorships — RefundGod",
@@ -32,10 +33,11 @@ export default function MentorshipsPage() {
   return (
     <>
       <section className="relative isolate overflow-hidden">
-        <Orb className="left-10 top-0 h-96 w-96" color="rgba(139,92,246,0.3)" />
-        <Orb className="right-0 top-40 h-80 w-80" color="rgba(245,185,69,0.25)" />
-        <Orb className="left-1/3 bottom-0 h-72 w-72" color="rgba(75,192,200,0.2)" />
-        <div className="container-px relative pt-20 pb-12 text-center">
+        <Orb className="left-10 top-0 h-96 w-96 animate-pulseGlow" color="rgba(139,92,246,0.3)" />
+        <Orb className="right-0 top-40 h-80 w-80 animate-pulseGlow" color="rgba(245,185,69,0.25)" />
+        <Orb className="left-1/3 bottom-0 h-72 w-72 animate-pulseGlow" color="rgba(75,192,200,0.2)" />
+
+        <div className="container-px relative grid items-center gap-10 pt-20 pb-12 md:grid-cols-[1.1fr_0.9fr]">
           <Reveal>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-300/85">
               Exclusive Mentorships
@@ -45,25 +47,46 @@ export default function MentorshipsPage() {
                 Refund &amp; SE Mentorship
               </span>
             </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-white/65">
+            <p className="mt-4 max-w-xl text-lg text-white/75">
               Stop paying for other BS mentorships that have 0 value and ghost
               you after purchasing. Be your own refunder.
             </p>
-            <a href="https://refundgod.bgng.io/" target="_blank" rel="noopener noreferrer" className="btn-primary mt-7">
+            <a
+              href="https://refundgod.bgng.io/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary mt-7"
+            >
               Buy Now
             </a>
           </Reveal>
+
+          {/* Floating hero image with scroll parallax */}
+          <ScrollFloatImage amount={70} className="relative">
+            <div
+              className="relative mx-auto aspect-square w-full max-w-md animate-floatSlow rounded-3xl border border-white/10 bg-gradient-to-br from-violet-500/15 to-amber-500/10 p-3 shadow-[0_30px_120px_-30px_rgba(139,92,246,0.55)]"
+            >
+              <Image
+                src="/images/splash-3.png"
+                alt="Exclusive Mentorships"
+                fill
+                priority
+                sizes="(max-width: 768px) 80vw, 32rem"
+                className="rounded-2xl object-contain p-6 drop-shadow-[0_0_60px_rgba(167,139,250,0.5)]"
+              />
+            </div>
+          </ScrollFloatImage>
         </div>
       </section>
 
       {/* Refunding intro */}
       <section className="container-px pb-12">
-        <Reveal>
+        <ScrollReveal3D>
           <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-violet-500/10 via-white/5 to-transparent p-8 sm:p-12">
             <h2 className="heading-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
               What is this Refunding Mentorship about?
             </h2>
-            <div className="mt-4 space-y-4 text-base leading-relaxed text-white/70">
+            <div className="mt-4 space-y-4 text-base leading-relaxed text-white/75">
               <p>
                 Refunding is a manipulation technique that exploits human error
                 and finding loopholes in company policies, deceiving the
@@ -93,16 +116,16 @@ export default function MentorshipsPage() {
               ))}
             </div>
           </div>
-        </Reveal>
+        </ScrollReveal3D>
       </section>
 
       {/* Tailgating */}
       <section className="container-px pb-12">
-        <Reveal>
-          <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+          <ScrollReveal3D intensity={0.6}>
+            <div className="h-full rounded-2xl border border-white/10 bg-white/5 p-6">
               <h3 className="heading-display text-xl font-bold text-white">Access Tailgating Attacks</h3>
-              <p className="mt-3 text-sm leading-relaxed text-white/70">
+              <p className="mt-3 text-sm leading-relaxed text-white/75">
                 Tailgating, or piggybacking, is the act of trailing an
                 authorised staff member into a restricted-access area.
                 Attackers may play on social courtesy to get you to hold the
@@ -111,21 +134,23 @@ export default function MentorshipsPage() {
                 psychology to manipulate people into specific actions.
               </p>
             </div>
-            <div className="rounded-2xl border border-amber-400/20 bg-gradient-to-br from-amber-500/15 to-transparent p-6">
+          </ScrollReveal3D>
+          <ScrollReveal3D intensity={0.6}>
+            <div className="h-full rounded-2xl border border-amber-400/20 bg-gradient-to-br from-amber-500/15 to-transparent p-6">
               <h3 className="heading-display text-xl font-bold text-amber-100">Become your own private insider</h3>
-              <p className="mt-3 text-sm leading-relaxed text-white/70">
+              <p className="mt-3 text-sm leading-relaxed text-white/75">
                 Be fully anonymous, apply with stealth overseas information,
                 pass through job interviews, learn each customer service
                 tier&apos;s refunding limits & abilities, and how to get promoted
                 to higher status to push your own orders through.
               </p>
-              <p className="mt-2 text-xs italic text-white/50">
+              <p className="mt-2 text-xs italic text-white/55">
                 This is not included in the regular mentorship — it&apos;s a
                 separate add-on.
               </p>
             </div>
-          </div>
-        </Reveal>
+          </ScrollReveal3D>
+        </div>
       </section>
 
       {/* Refund features list */}
@@ -137,18 +162,18 @@ export default function MentorshipsPage() {
         </Reveal>
         <div className="grid gap-3 md:grid-cols-2">
           {REFUND_FEATURES.map((f, i) => (
-            <Reveal key={f} delay={i * 0.04}>
+            <ScrollReveal3D key={f} intensity={0.4}>
               <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
                 <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-400/20 text-emerald-200">
                   ✓
                 </span>
-                <p className="text-sm text-white/75">{f}</p>
+                <p className="text-sm font-medium text-white/85">{f}</p>
               </div>
-            </Reveal>
+            </ScrollReveal3D>
           ))}
         </div>
         <Reveal>
-          <p className="mt-6 text-sm text-white/55">
+          <p className="mt-6 text-sm text-white/65">
             We can guarantee that you&apos;ll be making AT LEAST $2,000/week within
             2 weeks of starting if you follow everything correctly. By
             refunding one order alone you already profit. You also get access
@@ -159,12 +184,12 @@ export default function MentorshipsPage() {
 
       {/* SE section */}
       <section className="container-px pb-12">
-        <Reveal>
+        <ScrollReveal3D>
           <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-cyan-500/10 via-white/5 to-transparent p-8 sm:p-12">
             <h2 className="heading-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
               Social Engineering (SE) Mentorship
             </h2>
-            <div className="mt-4 space-y-4 text-base leading-relaxed text-white/70">
+            <div className="mt-4 space-y-4 text-base leading-relaxed text-white/75">
               <p>
                 Our focus is a more modern approach which takes advantage of
                 companies&apos; warranty policy, allowing you to obtain warranty
@@ -191,7 +216,7 @@ export default function MentorshipsPage() {
               </p>
             </div>
           </div>
-        </Reveal>
+        </ScrollReveal3D>
       </section>
 
       <section className="container-px pb-12">
@@ -202,29 +227,29 @@ export default function MentorshipsPage() {
         </Reveal>
         <div className="grid gap-3 md:grid-cols-2">
           {SE_FEATURES.map((f, i) => (
-            <Reveal key={f} delay={i * 0.04}>
+            <ScrollReveal3D key={f} intensity={0.4}>
               <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
                 <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-cyan-400/20 text-cyan-200">
                   ✓
                 </span>
-                <p className="text-sm text-white/75">{f}</p>
+                <p className="text-sm font-medium text-white/85">{f}</p>
               </div>
-            </Reveal>
+            </ScrollReveal3D>
           ))}
         </div>
       </section>
 
       <section className="container-px pb-12">
-        <Reveal>
+        <ScrollReveal3D>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
             <h3 className="heading-display text-xl font-bold text-white">Additional add-ons</h3>
-            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-white/70">
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-white/75">
               <li>Live SE&apos;ing on call / TeamViewer / screenshare. Personal mentorship through your SE.</li>
               <li>International reshipping to any country with customs prepaid.</li>
               <li>VERY detailed document of how every single SE method works, all SE terms explained, with private-company application notes.</li>
             </ul>
           </div>
-        </Reveal>
+        </ScrollReveal3D>
       </section>
 
       <section className="container-px pb-24 text-center">
