@@ -4,9 +4,9 @@ import PathCard from "@/components/PathCard";
 import Manifesto from "@/components/Manifesto";
 import Marquee from "@/components/Marquee";
 import StatCounter from "@/components/StatCounter";
-import GlassCard from "@/components/GlassCard";
 import MagneticButton from "@/components/MagneticButton";
 import KineticText from "@/components/KineticText";
+import MusicPlayer from "@/components/MusicPlayer";
 import { Reveal } from "@/components/Reveal";
 import Image from "next/image";
 import { getContentBlock } from "@/lib/content";
@@ -14,11 +14,10 @@ import { getContentBlock } from "@/lib/content";
 export const dynamic = "force-dynamic";
 
 const PATHS = [
-  { href: "/store-list",            title: "Refund Store List",  imageSrc: "/images/path-store-list.png", accent: "gold"    as const },
-  { href: "/store-list#service",    title: "Our Service",        imageSrc: "/images/path-service.png",    accent: "fuchsia" as const },
-  { href: "/evade-cancelations",    title: "Evade Cancelations", imageSrc: "/images/path-evade.png",      accent: "cyan"    as const },
-  { href: "/exclusive-mentorships", title: "Exclusive Mentorships", imageSrc: "/images/path-mentorship.png", accent: "violet" as const },
-  { href: "https://refundgod.bgng.io/", external: true, title: "Buy Now", imageSrc: "/images/path-buy.png", accent: "orange" as const },
+  { href: "/store-list",            title: "Refund Store List",     illustration: "store"      as const, accent: "gold"    as const },
+  { href: "/evade-cancelations",    title: "Evade Cancelations",    illustration: "shield"     as const, accent: "cyan"    as const },
+  { href: "/exclusive-mentorships", title: "Exclusive Mentorships", illustration: "chess"      as const, accent: "violet"  as const },
+  { href: "https://refundgod.bgng.io/", external: true, title: "Buy Now", illustration: "spark" as const, accent: "orange" as const },
 ];
 
 const MARQUEE_WORDS = [
@@ -37,13 +36,13 @@ export default async function HomePage() {
 
   return (
     <>
-      {/* Act 1 — Cinematic 3D hero with kinetic edge-to-edge typography. */}
-      <Hero3D
-        src="/images/hero-main.png"
-        alt="RefundGod"
-        kicker={kicker}
-        title={title}
-      />
+      {/* Music — only on the home page, scoped to this route. */}
+      <MusicPlayer />
+
+      {/* Act 1 — Immersive scroll-driven 3D hero (no pasted image; the
+          composition is part of the page structure and transforms as you
+          scroll). */}
+      <Hero3D kicker={kicker} title={title} />
 
       {/* Marquee ribbon — DeSo editorial */}
       <section className="relative -mt-24 border-y border-white/[0.06] bg-ink-950/80 py-8 backdrop-blur-xl sm:py-10">
@@ -116,7 +115,7 @@ export default async function HomePage() {
               under glass — chosen, not assigned.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-5 sm:gap-6 md:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
             {PATHS.map((p, i) => (
               <PathCard key={p.href} index={i} {...p} />
             ))}

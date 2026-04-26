@@ -109,25 +109,26 @@
 .custom-cursor-dot {
   position: fixed;
   top: 0; left: 0;
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
   background: #ffe28a;
   border-radius: 999px;
   pointer-events: none;
   z-index: 9999;
-  mix-blend-mode: difference;
+  box-shadow: 0 0 14px rgba(255,225,140,0.95), 0 0 28px rgba(245,185,69,0.55);
   transition: opacity 0.2s;
   will-change: transform;
 }
 .custom-cursor-ring {
   position: fixed;
   top: 0; left: 0;
-  width: 38px;
-  height: 38px;
-  border: 1px solid rgba(255,225,140,0.7);
+  width: 42px;
+  height: 42px;
+  border: 1.5px solid rgba(255,225,140,0.85);
   border-radius: 999px;
   pointer-events: none;
   z-index: 9998;
+  box-shadow: 0 0 24px rgba(255,225,140,0.18);
   transition: width 0.25s cubic-bezier(0.25,0.4,0.25,1),
               height 0.25s cubic-bezier(0.25,0.4,0.25,1),
               border-color 0.2s,
@@ -191,6 +192,45 @@
   height: 100%;
   pointer-events: none;
 }
+
+/* ─── Pulsating gradient orbs (used in Hero3D + page backdrops) ─── */
+.orb {
+  filter: blur(120px);
+  pointer-events: none;
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+}
+.orb-1 { background: radial-gradient(circle, rgba(245,185,69,0.55), transparent 65%);
+         animation: orbPulse 8s ease-in-out infinite; }
+.orb-2 { background: radial-gradient(circle, rgba(167,139,250,0.55), transparent 65%);
+         animation: orbPulse 10s ease-in-out -2s infinite; }
+.orb-3 { background: radial-gradient(circle, rgba(34,211,238,0.45), transparent 65%);
+         animation: orbPulse 12s ease-in-out -4s infinite; }
+.orb-4 { background: radial-gradient(circle, rgba(244,114,182,0.40), transparent 65%);
+         animation: orbPulse 9s ease-in-out -6s infinite; }
+
+@keyframes orbPulse {
+  0%, 100% { transform: scale(1)   translate(0, 0);    opacity: 0.55; }
+  50%      { transform: scale(1.18) translate(3%, -3%); opacity: 1;    }
+}
+
+/* ─── Floating particle / orbit keyframes (for inline animation styles) ─── */
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0)    rotate(0deg);  }
+  50%      { transform: translateY(-14px) rotate(0.5deg); }
+}
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.55; transform: scale(1);    }
+  50%      { opacity: 1;    transform: scale(1.04); }
+}
+@keyframes orbit {
+  from { transform: translate(-50%, -50%) rotate(0deg)   translateY(var(--orbit-r, -30vh)) translateZ(60px); }
+  to   { transform: translate(-50%, -50%) rotate(360deg) translateY(var(--orbit-r, -30vh)) translateZ(60px); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.animate-spin { animation: spin 1s linear infinite; }
 
 /* scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }

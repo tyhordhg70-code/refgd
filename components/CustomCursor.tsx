@@ -2,10 +2,10 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Silly-Bunny-style custom cursor: a tiny dot that tracks the mouse,
- * trailed by a soft circular halo. Halo expands on hover over anything
- * interactive (links, buttons, [data-cursor]). Native cursor is hidden
- * via a body class only after we confirm we're on a fine-pointer device.
+ * Custom cursor — silly-bunny inspired. A bright halo + dot tracks the
+ * pointer. The halo expands and tints when over interactive content.
+ * Only enabled on fine-pointer (mouse) devices; on touch we leave the
+ * native cursor behaviour alone.
  */
 export default function CustomCursor() {
   const dotRef = useRef<HTMLDivElement | null>(null);
@@ -15,10 +15,15 @@ export default function CustomCursor() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    // Only on fine-pointer (mouse) devices, not touch.
     const mq = window.matchMedia("(pointer: fine)");
     if (!mq.matches) return;
     setEnabled(true);
+  }, []);
+
+  // Set up tracking + listeners only after the divs have mounted (so refs
+  // are available). This effect runs after `enabled` flips true.
+  useEffect(() => {
+    if (!enabled) return;
     document.body.classList.add("cursor-none");
 
     let mx = window.innerWidth / 2;
@@ -27,23 +32,30 @@ export default function CustomCursor() {
     let ry = my;
     let raf = 0;
 
+    // Initial position so it's visible before the first mouse move.
+    if (dotRef.current) {
+      dotRef.current.style.transform = `translate3d(${mx}px, ${my}px, 0) translate(-50%, -50%)`;
+      dotRef.current.style.opacity = "1";
+    }
+    if (ringRef.current) {
+      ringRef.current.style.transform = `translate3d(${mx}px, ${my}px, 0) translate(-50%, -50%)`;
+      ringRef.current.style.opacity = "1";
+    }
+
     const onMove = (e: MouseEvent) => {
       mx = e.clientX;
       my = e.clientY;
-      if (dotRef.current) {
-        dotRef.current.style.transform = `translate3d(${mx}px, ${my}px, 0) translate(-50%, -50%)`;
-      }
-      if (labelRef.current) {
-        labelRef.current.style.transform = `translate3d(${mx + 18}px, ${my + 18}px, 0)`;
-      }
+      const d = dotRef.current;
+      if (d) d.style.transform = `translate3d(${mx}px, ${my}px, 0) translate(-50%, -50%)`;
+      const lbl = labelRef.current;
+      if (lbl) lbl.style.transform = `translate3d(${mx + 18}px, ${my + 18}px, 0)`;
     };
 
     const tick = () => {
       rx += (mx - rx) * 0.18;
       ry += (my - ry) * 0.18;
-      if (ringRef.current) {
-        ringRef.current.style.transform = `translate3d(${rx}px, ${ry}px, 0) translate(-50%, -50%)`;
-      }
+      const r = ringRef.current;
+      if (r) r.style.transform = `translate3d(${rx}px, ${ry}px, 0) translate(-50%, -50%)`;
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -98,7 +110,7 @@ export default function CustomCursor() {
       document.removeEventListener("mouseenter", onEnter);
       document.body.classList.remove("cursor-none");
     };
-  }, []);
+  }, [enabled]);
 
   if (!enabled) return null;
   return (

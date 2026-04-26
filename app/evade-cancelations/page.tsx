@@ -1,5 +1,5 @@
 import { Reveal } from "@/components/Reveal";
-import PinSection from "@/components/PinSection";
+import ChipScroll from "@/components/ChipScroll";
 import GlassCard from "@/components/GlassCard";
 import KineticText from "@/components/KineticText";
 import HeroBackground from "@/components/HeroBackground";
@@ -71,18 +71,22 @@ const TRUST = [
 export default function EvadePage() {
   return (
     <>
-      {/* Act 1 — Cinematic pinned hero */}
-      <PinSection
-        imageSrc="/images/evade-hero.png"
-        alt="Evade Cancelations"
-        eyebrow="evade cancelations"
-        title="Experience Online Freedom."
-        body="Say goodbye to order cancelations, bans, rebills, failed refunds due to fraud detections & more. Trusted by clients worldwide."
-        accent="cyan"
+      {/* Act 1 — Scroll-linked image-sequence scrollytelling. The
+          background colour matches the frame edges so the canvas blends
+          seamlessly into the page. Falls back to a procedural shield
+          composition if /public/sequence/evade is empty. */}
+      <ChipScroll
+        dir="/sequence/evade"
+        frameCount={48}
+        background="#05060a"
+        accent="#22d3ee"
+        fallbackKind="shield"
+        caption="Experience Online Freedom."
+        subCaption="Say goodbye to order cancelations, bans, rebills, failed refunds due to fraud detections & more. Trusted by clients worldwide."
       />
 
       {/* Act 2 — Editorial intro */}
-      <section className="relative -mt-32 z-10 py-12">
+      <section className="relative z-10 py-12">
         <HeroBackground />
         <div className="container-wide relative">
           <GlassCard tint="cyan">

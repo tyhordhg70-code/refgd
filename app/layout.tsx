@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
-import MusicPlayer from "@/components/MusicPlayer";
 import CustomCursor from "@/components/CustomCursor";
 import { getContentBlock } from "@/lib/content";
 
@@ -72,7 +71,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Nav />
         <main>{children}</main>
         <Footer />
-        <MusicPlayer />
         <CustomCursor />
       </body>
     </html>

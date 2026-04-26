@@ -1,5 +1,5 @@
 import { Reveal } from "@/components/Reveal";
-import PinSection from "@/components/PinSection";
+import ChipScroll from "@/components/ChipScroll";
 import GlassCard from "@/components/GlassCard";
 import KineticText from "@/components/KineticText";
 import HeroBackground from "@/components/HeroBackground";
@@ -35,18 +35,22 @@ const EMOTIONS = ["Fear", "Excitement", "Curiosity", "Anger", "Guilt", "Sadness"
 export default function MentorshipsPage() {
   return (
     <>
-      {/* Act 1 — Cinematic pinned hero */}
-      <PinSection
-        imageSrc="/images/mentorship-hero.png"
-        alt="Refund & SE Mentorship"
-        eyebrow="exclusive mentorships"
-        title="Refund & SE Mentorship."
-        body="Stop paying for other BS mentorships that have 0 value and ghost you after purchasing. Be your own refunder."
-        accent="violet"
+      {/* Act 1 — Scroll-linked scrollytelling. Background matches the
+          frame edges exactly so the canvas blends seamlessly into the
+          page. Falls back to a procedural chess composition if
+          /public/sequence/mentor is empty. */}
+      <ChipScroll
+        dir="/sequence/mentor"
+        frameCount={48}
+        background="#05060a"
+        accent="#a78bfa"
+        fallbackKind="chess"
+        caption="Refund & SE Mentorship."
+        subCaption="Stop paying for other BS mentorships that have 0 value and ghost you after purchasing. Be your own refunder."
       />
 
       {/* Inline CTA */}
-      <section className="relative -mt-40 z-10 pb-12 text-center">
+      <section className="relative z-10 pb-12 pt-12 text-center">
         <Reveal>
           <MagneticButton href="https://refundgod.bgng.io/" external variant="primary">
             Buy Now

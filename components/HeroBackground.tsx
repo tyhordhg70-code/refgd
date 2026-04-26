@@ -2,13 +2,19 @@
 import MeshGradient from "./MeshGradient";
 
 /**
- * Atmospheric backdrop — animated mesh-gradient canvas + grain overlay.
- * Sits behind page sections to give them living depth.
+ * Atmospheric backdrop — pulsating gradient orbs + animated mesh-gradient
+ * canvas + grain overlay + fine grid. Persists behind every section so
+ * the page feels alive at every scroll depth (not just the first one).
  */
 export default function HeroBackground() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      <MeshGradient intensity={0.9} />
+      <MeshGradient intensity={0.95} />
+      {/* Pulsating gradient orbs — persist on every section */}
+      <div className="orb orb-1 absolute left-[8%] top-[6%]   h-[55vh] w-[55vh] rounded-full" />
+      <div className="orb orb-2 absolute right-[6%] top-[18%] h-[50vh] w-[50vh] rounded-full" />
+      <div className="orb orb-3 absolute left-[40%] bottom-[5%] h-[45vh] w-[45vh] rounded-full" />
+      <div className="orb orb-4 absolute right-[30%] bottom-[18%] h-[35vh] w-[35vh] rounded-full" />
       {/* Fine grid */}
       <div
         className="absolute inset-0 opacity-[0.06]"

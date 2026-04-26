@@ -2,14 +2,11 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Site-wide background music.
- *  - Plays on every route (one persistent audio element via the root layout).
- *  - Picks a random track per visit (sessionStorage) so it stays consistent
- *    while you navigate, but a fresh visit gets a new pick.
- *  - Fades in to half volume on mount.
- *  - Mute button fixed top-right; preference persists across visits.
- *  - Browser autoplay policy: if blocked, surfaces a tiny "tap to play"
- *    affordance and resumes on first user interaction.
+ * Background music — only mounted on the home page (so it stops when you
+ * navigate away). To bypass browser autoplay restrictions we start the
+ * audio MUTED (which all major browsers permit), and then unmute as soon
+ * as the user makes any interaction (pointer / scroll / key). Volume
+ * fades in to 50%. Mute button fixed top-right; preference persists.
  */
 
 const TRACKS = [
@@ -27,7 +24,7 @@ const FADE_MS = 2400;
 const VISIT_KEY = "rg:music-track";
 const MUTE_KEY = "rg:music-muted";
 
-function pickTrack(): { src: string; label: string } {
+function pickTrack() {
   if (typeof window === "undefined") return TRACKS[0];
   const stored = sessionStorage.getItem(VISIT_KEY);
   if (stored) {
@@ -44,8 +41,8 @@ export default function MusicPlayer() {
   const fadeRafRef = useRef<number | null>(null);
   const [muted, setMuted] = useState<boolean>(false);
   const [track, setTrack] = useState<{ src: string; label: string } | null>(null);
-  const [needsTap, setNeedsTap] = useState(false);
 
+  // Pick the track + read prior mute preference once mounted.
   useEffect(() => {
     setTrack(pickTrack());
     if (typeof window !== "undefined") {
@@ -53,64 +50,71 @@ export default function MusicPlayer() {
     }
   }, []);
 
-  // Manage playback whenever mute state changes.
+  // Start the audio — muted-then-unmute trick so it really autoplays.
   useEffect(() => {
     const a = audioRef.current;
     if (!a || !track) return;
 
-    if (muted) {
-      cancelFade();
-      const start = a.volume;
-      const t0 = performance.now();
-      const step = (now: number) => {
-        const k = Math.min(1, (now - t0) / 600);
-        a.volume = start * (1 - k);
-        if (k < 1) {
-          fadeRafRef.current = requestAnimationFrame(step);
-        } else {
-          a.pause();
-          a.volume = 0;
-        }
-      };
-      fadeRafRef.current = requestAnimationFrame(step);
-      return;
-    }
-
     a.volume = 0;
-    a.muted = false;
+    a.muted = true; // browsers always allow muted autoplay
 
-    let onAny: ((e: Event) => void) | null = null;
-    const removeFallback = () => {
-      if (onAny) {
-        window.removeEventListener("pointerdown", onAny);
-        window.removeEventListener("keydown", onAny);
-        window.removeEventListener("touchstart", onAny);
-        onAny = null;
-      }
+    let unmuteListenersAttached = false;
+    let cancelled = false;
+
+    const tryPlay = () => {
+      const p = a.play();
+      if (!p) return;
+      p.catch(() => {/* iOS may still block; pointerdown will retry below */});
     };
 
-    const playPromise = a.play();
-    if (playPromise) {
-      playPromise
-        .then(() => fadeIn(a))
-        .catch(() => {
-          setNeedsTap(true);
-          onAny = () => {
-            setNeedsTap(false);
-            a.play().then(() => fadeIn(a)).catch(() => {});
-            removeFallback();
-          };
-          window.addEventListener("pointerdown", onAny, { once: true });
-          window.addEventListener("keydown", onAny, { once: true });
-          window.addEventListener("touchstart", onAny, { once: true });
-        });
+    tryPlay();
+
+    const fadeIn = () => {
+      cancelFade();
+      const t0 = performance.now();
+      const step = (now: number) => {
+        const k = Math.min(1, (now - t0) / FADE_MS);
+        a.volume = TARGET_VOLUME * k;
+        if (k < 1) fadeRafRef.current = requestAnimationFrame(step);
+      };
+      fadeRafRef.current = requestAnimationFrame(step);
+    };
+
+    const unmuteOnInteraction = () => {
+      if (cancelled || muted) return;
+      a.muted = false;
+      // Some browsers pause when un-muting in the same tick; ensure play.
+      const p = a.play();
+      if (p) p.catch(() => {});
+      fadeIn();
+      detach();
+    };
+
+    const detach = () => {
+      if (!unmuteListenersAttached) return;
+      window.removeEventListener("pointerdown", unmuteOnInteraction);
+      window.removeEventListener("keydown", unmuteOnInteraction);
+      window.removeEventListener("scroll", unmuteOnInteraction);
+      window.removeEventListener("touchstart", unmuteOnInteraction);
+      unmuteListenersAttached = false;
+    };
+
+    if (!muted) {
+      window.addEventListener("pointerdown", unmuteOnInteraction, { passive: true });
+      window.addEventListener("keydown", unmuteOnInteraction);
+      window.addEventListener("scroll", unmuteOnInteraction, { passive: true });
+      window.addEventListener("touchstart", unmuteOnInteraction, { passive: true });
+      unmuteListenersAttached = true;
     }
 
     return () => {
+      cancelled = true;
       cancelFade();
-      removeFallback();
+      detach();
+      // Stop playback on unmount (route change away from home).
+      try { a.pause(); a.currentTime = 0; } catch {}
     };
-  }, [muted, track]);
+  }, [track, muted]);
 
   function cancelFade() {
     if (fadeRafRef.current != null) {
@@ -119,21 +123,43 @@ export default function MusicPlayer() {
     }
   }
 
-  function fadeIn(a: HTMLAudioElement) {
-    cancelFade();
-    const t0 = performance.now();
-    const step = (now: number) => {
-      const k = Math.min(1, (now - t0) / FADE_MS);
-      a.volume = TARGET_VOLUME * k;
-      if (k < 1) fadeRafRef.current = requestAnimationFrame(step);
-    };
-    fadeRafRef.current = requestAnimationFrame(step);
-  }
-
   function toggleMute() {
     setMuted((m) => {
       const next = !m;
       try { localStorage.setItem(MUTE_KEY, next ? "1" : "0"); } catch {}
+      const a = audioRef.current;
+      if (a) {
+        if (next) {
+          // Fade out then pause.
+          cancelFade();
+          const start = a.volume;
+          const t0 = performance.now();
+          const step = (now: number) => {
+            const k = Math.min(1, (now - t0) / 600);
+            a.volume = start * (1 - k);
+            if (k < 1) {
+              fadeRafRef.current = requestAnimationFrame(step);
+            } else {
+              a.pause();
+              a.volume = 0;
+            }
+          };
+          fadeRafRef.current = requestAnimationFrame(step);
+        } else {
+          a.muted = false;
+          const p = a.play();
+          if (p) p.catch(() => {});
+          // fade back in
+          cancelFade();
+          const t0 = performance.now();
+          const step = (now: number) => {
+            const k = Math.min(1, (now - t0) / FADE_MS);
+            a.volume = TARGET_VOLUME * k;
+            if (k < 1) fadeRafRef.current = requestAnimationFrame(step);
+          };
+          fadeRafRef.current = requestAnimationFrame(step);
+        }
+      }
       return next;
     });
   }
@@ -145,11 +171,12 @@ export default function MusicPlayer() {
           ref={audioRef}
           src={track.src}
           loop
+          autoPlay
           preload="auto"
           aria-label={`Background music — ${track.label}`}
         />
       )}
-      <div className="fixed right-3 top-3 z-50 flex flex-col items-end gap-1.5">
+      <div className="fixed right-3 top-3 z-50">
         <button
           type="button"
           onClick={toggleMute}
@@ -171,11 +198,6 @@ export default function MusicPlayer() {
             </svg>
           )}
         </button>
-        {needsTap && !muted && (
-          <span className="rounded-full bg-ink-950/80 px-2.5 py-1 text-[10px] font-medium text-white/75 backdrop-blur ring-1 ring-white/10">
-            tap anywhere to play music
-          </span>
-        )}
       </div>
     </>
   );

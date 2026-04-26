@@ -1,15 +1,15 @@
 "use client";
 import Link from "next/link";
-import Image from "next/image";
 import { motion } from "framer-motion";
 import Tilt3D from "./Tilt3D";
+import PathIllustration, { type PathIllustrationKind } from "./PathIllustration";
 
 interface PathCardProps {
   index: number;
   href: string;
   external?: boolean;
   title: string;
-  imageSrc: string;
+  illustration: PathIllustrationKind;
   accent: "gold" | "fuchsia" | "cyan" | "violet" | "orange";
   size?: "sm" | "md" | "lg";
 }
@@ -38,12 +38,20 @@ const ACCENT_CHIP: Record<PathCardProps["accent"], string> = {
   orange:  "text-orange-200 bg-orange-300/15 ring-orange-300/30",
 };
 
+const BG_TINT: Record<PathCardProps["accent"], string> = {
+  gold:    "from-amber-500/20 via-amber-500/5 to-transparent",
+  fuchsia: "from-fuchsia-500/22 via-fuchsia-600/5 to-transparent",
+  cyan:    "from-cyan-500/22 via-cyan-600/5 to-transparent",
+  violet:  "from-violet-500/22 via-violet-600/5 to-transparent",
+  orange:  "from-orange-500/22 via-orange-600/5 to-transparent",
+};
+
 export default function PathCard({
   index,
   href,
   external,
   title,
-  imageSrc,
+  illustration,
   accent,
   size = "md",
 }: PathCardProps) {
@@ -83,20 +91,17 @@ export default function PathCard({
               className={`relative ${aspect} overflow-hidden rounded-[2rem]`}
               style={{ transform: "translateZ(28px)", transformStyle: "preserve-3d" }}
             >
-              <Image
-                src={imageSrc}
-                alt={title}
-                fill
-                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                className="object-cover transition-transform duration-700 group-hover:scale-110"
-                priority={index < 2}
-              />
+              {/* Vector illustration backdrop — renders inline SVG with
+                  scene-specific shapes, gradients and floating accents. No
+                  raster image (so no visible photo borders / pixel edges). */}
+              <div className={`absolute inset-0 bg-gradient-to-br ${BG_TINT[accent]}`} />
+              <PathIllustration kind={illustration} accent={accent} />
               <div
                 aria-hidden="true"
                 className="absolute inset-0"
                 style={{
                   background:
-                    "linear-gradient(180deg, transparent 25%, rgba(5,6,10,0.55) 65%, rgba(5,6,10,0.96) 100%)",
+                    "linear-gradient(180deg, transparent 30%, rgba(5,6,10,0.55) 70%, rgba(5,6,10,0.92) 100%)",
                 }}
               />
               {/* Inner shimmer on hover */}

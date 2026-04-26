@@ -1,22 +1,19 @@
 "use client";
-import Image from "next/image";
 import { motion, useScroll, useTransform, useReducedMotion, useMotionValue, useSpring } from "framer-motion";
 import { useEffect, useRef } from "react";
 import KineticText from "./KineticText";
 
 /**
- * Cinematic 3D hero — DeSo-style oversized edge-to-edge typography over
- * a layered atmospheric image. Mouse tracks tilt, scroll drives parallax,
- * floating refractive specks add ambient life.
+ * Immersive 3D hero. No pasted image — the whole composition is part of
+ * the page structure: layered orbs that orbit, refract, and re-shape as
+ * you scroll. Mouse parallax, scroll-linked depth, floating refractive
+ * particles. Background colour is the same ink-950 as the rest of the
+ * page so there is no visible image edge — the scene IS the page.
  */
 export default function Hero3D({
-  src,
-  alt = "RefundGod",
   kicker,
   title,
 }: {
-  src: string;
-  alt?: string;
   kicker: string;
   title: string;
 }) {
@@ -25,20 +22,29 @@ export default function Hero3D({
 
   const mx = useMotionValue(0);
   const my = useMotionValue(0);
-  const rotX = useSpring(useTransform(my, [-0.5, 0.5], [6, -6]), { stiffness: 120, damping: 18 });
-  const rotY = useSpring(useTransform(mx, [-0.5, 0.5], [-9, 9]), { stiffness: 120, damping: 18 });
-  const transX = useSpring(useTransform(mx, [-0.5, 0.5], [-22, 22]), { stiffness: 80, damping: 20 });
-  const transY = useSpring(useTransform(my, [-0.5, 0.5], [-14, 14]), { stiffness: 80, damping: 20 });
+  const rotX = useSpring(useTransform(my, [-0.5, 0.5], [8, -8]), { stiffness: 120, damping: 18 });
+  const rotY = useSpring(useTransform(mx, [-0.5, 0.5], [-12, 12]), { stiffness: 120, damping: 18 });
+  const transX = useSpring(useTransform(mx, [-0.5, 0.5], [-26, 26]), { stiffness: 80, damping: 20 });
+  const transY = useSpring(useTransform(my, [-0.5, 0.5], [-18, 18]), { stiffness: 80, damping: 20 });
 
   const { scrollYProgress } = useScroll({
     target: wrapRef,
     offset: ["start start", "end start"],
   });
-  const heroY = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
-  const heroScale = useTransform(scrollYProgress, [0, 1], [1, 1.18]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.7, 1], [1, 0.5, 0]);
-  const titleY = useTransform(scrollYProgress, [0, 1], ["0%", "-60%"]);
-  const titleOpacity = useTransform(scrollYProgress, [0, 0.6, 1], [1, 0.6, 0]);
+
+  // Each layer of the scene transforms differently across the scroll —
+  // they peel apart and recombine instead of fading out as a single image.
+  const orbY      = useTransform(scrollYProgress, [0, 1], ["0%",   "60%"]);
+  const orbScale  = useTransform(scrollYProgress, [0, 1], [1,      1.55]);
+  const orbBlur   = useTransform(scrollYProgress, [0, 1], [0,      14]);
+  const ringRot   = useTransform(scrollYProgress, [0, 1], [0,      135]);
+  const ringScale = useTransform(scrollYProgress, [0, 1], [1,      0.35]);
+  const ringOpac  = useTransform(scrollYProgress, [0, 0.85], [1,   0.15]);
+  const cardY     = useTransform(scrollYProgress, [0, 1], ["0%",   "-30%"]);
+  const cardOpac  = useTransform(scrollYProgress, [0, 0.7, 1], [1, 0.6, 0]);
+  const titleY    = useTransform(scrollYProgress, [0, 1], ["0%",   "-50%"]);
+  const titleOp   = useTransform(scrollYProgress, [0, 0.7, 1], [1, 0.7, 0]);
+  const blurFilter = useTransform(orbBlur, (v) => `blur(${v}px)`);
 
   useEffect(() => {
     if (reduced) return;
@@ -46,10 +52,8 @@ export default function Hero3D({
     if (!el) return;
     const onMove = (e: MouseEvent) => {
       const r = el.getBoundingClientRect();
-      const cx = e.clientX - r.left;
-      const cy = e.clientY - r.top;
-      mx.set(cx / r.width - 0.5);
-      my.set(cy / r.height - 0.5);
+      mx.set((e.clientX - r.left) / r.width - 0.5);
+      my.set((e.clientY - r.top) / r.height - 0.5);
     };
     const onLeave = () => { mx.set(0); my.set(0); };
     el.addEventListener("mousemove", onMove);
@@ -63,22 +67,28 @@ export default function Hero3D({
   return (
     <section
       ref={wrapRef}
-      className="relative isolate min-h-[100svh] w-full overflow-hidden"
-      style={{ perspective: "1600px" }}
+      className="relative isolate min-h-[100svh] w-full overflow-hidden bg-ink-950"
+      style={{ perspective: "1800px" }}
       data-cursor="big"
       data-cursor-label="explore"
     >
-      {/* Glow blobs */}
-      <div aria-hidden="true" className="absolute inset-0 -z-10">
-        <div className="absolute left-[8%] top-[12%] h-[60vh] w-[60vh] animate-pulseGlow rounded-full bg-amber-400/20 blur-[140px]" />
-        <div className="absolute right-[5%] top-[28%] h-[55vh] w-[55vh] animate-pulseGlow rounded-full bg-violet-500/22 blur-[140px]" style={{ animationDelay: "1.5s" }} />
-        <div className="absolute left-[35%] bottom-[5%] h-[45vh] w-[45vh] animate-pulseGlow rounded-full bg-cyan-400/18 blur-[140px]" style={{ animationDelay: "3s" }} />
+      {/* ── PULSATING MESH GRADIENT BACKDROP ───────────────────────── */}
+      <div aria-hidden="true" className="absolute inset-0">
+        <div className="orb orb-1 absolute left-[6%] top-[10%] h-[60vh] w-[60vh] rounded-full" />
+        <div className="orb orb-2 absolute right-[4%] top-[22%] h-[55vh] w-[55vh] rounded-full" />
+        <div className="orb orb-3 absolute left-[35%] bottom-[2%] h-[50vh] w-[50vh] rounded-full" />
+        <div className="orb orb-4 absolute right-[28%] bottom-[12%] h-[40vh] w-[40vh] rounded-full" />
       </div>
 
-      {/* Hero image with tilt + parallax */}
+      {/* ── INTEGRATED 3D SCENE: orbs + rings, scroll-driven ───────── */}
       <motion.div
-        style={{ y: heroY, scale: heroScale, opacity: heroOpacity, transformStyle: "preserve-3d" }}
-        className="absolute inset-0"
+        style={{
+          y: orbY,
+          scale: orbScale,
+          filter: blurFilter,
+          transformStyle: "preserve-3d",
+        }}
+        className="pointer-events-none absolute inset-0 grid place-items-center"
       >
         <motion.div
           style={{
@@ -87,45 +97,99 @@ export default function Hero3D({
             x: reduced ? 0 : transX,
             y: reduced ? 0 : transY,
             transformStyle: "preserve-3d",
-            transformPerspective: 1600,
             willChange: "transform",
           }}
-          className="absolute inset-0"
+          className="relative h-[78vh] w-[78vh] max-h-[820px] max-w-[820px]"
         >
-          <Image src={src} alt={alt} fill priority sizes="100vw" className="object-cover" />
+          {/* Concentric rings — rotate + shrink with scroll, like an
+              optical instrument iris closing. */}
+          {[0, 1, 2, 3].map((i) => (
+            <motion.div
+              key={i}
+              style={{
+                rotate: ringRot,
+                scale: ringScale,
+                opacity: ringOpac,
+                transform: `translateZ(${i * 14}px)`,
+              }}
+              className="absolute inset-0 rounded-full border"
+              {...({} as any)}
+            >
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 rounded-full"
+                style={{
+                  border: "1px solid rgba(255,225,140,0.18)",
+                  boxShadow: "inset 0 0 60px rgba(245,185,69,0.07)",
+                  margin: `${i * 26}px`,
+                }}
+              />
+            </motion.div>
+          ))}
+          {/* Core sphere — soft glassy orb */}
           <div
-            aria-hidden="true"
-            className="absolute inset-0"
+            className="absolute left-1/2 top-1/2 h-[44%] w-[44%] -translate-x-1/2 -translate-y-1/2 rounded-full"
             style={{
               background:
-                "radial-gradient(ellipse at 50% 45%, transparent 30%, rgba(5,6,10,0.55) 68%, rgba(5,6,10,0.94) 100%), linear-gradient(180deg, rgba(5,6,10,0.45) 0%, transparent 25%, transparent 65%, rgba(5,6,10,0.96) 100%)",
+                "radial-gradient(circle at 30% 28%, rgba(255,237,180,0.95) 0%, rgba(245,185,69,0.55) 30%, rgba(167,139,250,0.42) 60%, rgba(34,211,238,0.18) 88%, transparent 100%)",
+              boxShadow:
+                "0 0 120px 40px rgba(245,185,69,0.30), 0 0 220px 80px rgba(167,139,250,0.22), inset 0 0 60px rgba(255,255,255,0.4)",
+              filter: "blur(0.5px)",
+              transform: "translateZ(80px)",
             }}
           />
+          {/* Orbiting satellites */}
+          {[
+            { d: 0,    color: "#ffe28a", angle: 12  },
+            { d: 1.2,  color: "#a78bfa", angle: 92  },
+            { d: 2.4,  color: "#67e8f9", angle: 178 },
+            { d: 3.6,  color: "#f472b6", angle: 252 },
+          ].map((o, i) => (
+            <span
+              key={i}
+              aria-hidden="true"
+              className="absolute left-1/2 top-1/2 block h-3 w-3 rounded-full"
+              style={{
+                background: o.color,
+                boxShadow: `0 0 20px ${o.color}, 0 0 60px ${o.color}`,
+                transform: `translate(-50%,-50%) rotate(${o.angle}deg) translateY(-${30 + i * 4}vh) translateZ(60px)`,
+                animation: `orbit 14s linear ${o.d}s infinite`,
+              }}
+            />
+          ))}
         </motion.div>
       </motion.div>
 
-      {/* Floating specks */}
+      {/* ── FLOATING ABSTRACT PARTICLES (always on) ────────────────── */}
       {!reduced && (
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-          {Array.from({ length: 32 }).map((_, i) => {
-            const left = (i * 37) % 100;
-            const top = (i * 53) % 100;
-            const dur = 12 + (i % 7) * 2;
-            const delay = (i % 5) * 1.4;
+          {Array.from({ length: 60 }).map((_, i) => {
+            const left = (i * 53) % 100;
+            const top  = (i * 31) % 100;
             const size = 1 + (i % 4);
-            const hue = i % 3 === 0 ? "rgba(245,185,69,0.85)" : i % 3 === 1 ? "rgba(167,139,250,0.85)" : "rgba(103,232,249,0.85)";
+            const dur  = 9 + (i % 9);
+            const delay = (i % 7) * 0.9;
+            const palette = [
+              "rgba(245,185,69,0.95)",
+              "rgba(167,139,250,0.95)",
+              "rgba(103,232,249,0.95)",
+              "rgba(244,114,182,0.85)",
+              "rgba(255,255,255,0.85)",
+            ];
+            const hue = palette[i % palette.length];
             return (
               <span
                 key={i}
                 className="absolute rounded-full"
                 style={{
                   left: `${left}%`,
-                  top: `${top}%`,
-                  width: `${size}px`,
+                  top:  `${top}%`,
+                  width:  `${size}px`,
                   height: `${size}px`,
                   background: hue,
-                  boxShadow: `0 0 ${4 + size * 4}px ${hue}`,
+                  boxShadow: `0 0 ${4 + size * 5}px ${hue}`,
                   animation: `floatSlow ${dur}s ease-in-out ${delay}s infinite`,
+                  opacity: 0.85,
                 }}
               />
             );
@@ -133,12 +197,12 @@ export default function Hero3D({
         </div>
       )}
 
-      {/* Headline overlay — DeSo edge-to-edge type */}
+      {/* ── HEADLINE — DeSo edge-to-edge type, scroll-tied ─────────── */}
       <motion.div
-        style={{ y: titleY, opacity: titleOpacity }}
+        style={{ y: titleY, opacity: titleOp }}
         className="container-wide relative z-10 flex min-h-[100svh] flex-col justify-center"
       >
-        <div className="mx-auto w-full text-center">
+        <motion.div style={{ y: cardY, opacity: cardOpac }} className="mx-auto w-full text-center">
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -150,7 +214,7 @@ export default function Hero3D({
           <KineticText
             as="h1"
             text={title}
-            className="editorial-display mx-auto mt-6 max-w-[1400px] text-balance bg-gradient-to-b from-white via-white to-amber-200 bg-clip-text text-transparent text-[clamp(3rem,11vw,12rem)] uppercase drop-shadow-[0_8px_60px_rgba(0,0,0,0.65)]"
+            className="editorial-display mx-auto mt-6 max-w-[1400px] text-balance bg-gradient-to-b from-white via-white to-amber-200 bg-clip-text text-transparent text-[clamp(3rem,11vw,12rem)] uppercase drop-shadow-[0_8px_60px_rgba(0,0,0,0.85)]"
             stagger={0.08}
             delay={0.15}
           />
@@ -158,12 +222,12 @@ export default function Hero3D({
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 1.4 }}
-            className="mt-12 flex flex-col items-center gap-2 text-white/55"
+            className="mt-12 flex flex-col items-center gap-2 text-white/65"
           >
             <span className="text-[10px] font-semibold uppercase tracking-[0.4em]">scroll</span>
-            <span className="block h-12 w-px animate-pulseGlow bg-gradient-to-b from-white/60 to-transparent" />
+            <span className="block h-12 w-px animate-pulseGlow bg-gradient-to-b from-white/70 to-transparent" />
           </motion.div>
-        </div>
+        </motion.div>
       </motion.div>
     </section>
   );
