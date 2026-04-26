@@ -6,6 +6,7 @@ import MagneticButton from "@/components/MagneticButton";
 import AnimatedChessBoard from "@/components/AnimatedChessBoard";
 import ParallaxIllustration from "@/components/ParallaxIllustration";
 import ParallaxChapter from "@/components/ParallaxChapter";
+import SplineScene from "@/components/SplineScene";
 
 export const metadata = {
   title: "Exclusive Mentorships — RefundGod",
@@ -65,6 +66,15 @@ export default function MentorshipsPage() {
             </svg>
           </MagneticButton>
         </Reveal>
+      </section>
+
+      {/* 3D hero showcase — Spline scene */}
+      <section className="relative z-10 pb-16">
+        <div className="container-wide">
+          <Reveal>
+            <SplineScene height="h-[560px]" glow="violet" />
+          </Reveal>
+        </div>
       </section>
 
       {/* Act 2 — Refunding intro / chapter 01 — parallax depth */}
@@ -224,6 +234,38 @@ export default function MentorshipsPage() {
         </div>
       </ParallaxChapter>
 
+      {/* Interlude — 3D side-by-side Spline showcase */}
+      <section className="relative z-10 py-16">
+        <div className="container-wide">
+          <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+            <Reveal>
+              <SplineScene height="h-[440px]" glow="cyan" />
+            </Reveal>
+            <Reveal delay={0.15}>
+              <div className="flex h-full flex-col justify-center">
+                <p
+                  className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-cyan-300"
+                  style={{ textShadow: "0 0 24px rgba(34,211,238,0.55)" }}
+                >
+                  — interactive
+                </p>
+                <h3
+                  className="editorial-display mt-4 text-white text-[clamp(1.6rem,4vw,3rem)] uppercase"
+                  style={{ textShadow: "0 4px 30px rgba(0,0,0,0.9)" }}
+                >
+                  Drag, spin, explore.
+                </h3>
+                <p className="mt-4 text-base leading-relaxed text-white/85 sm:text-lg">
+                  Real-time 3D — click and drag the scene to interact.
+                  Same hands-on energy you&apos;ll get inside the
+                  mentorship: live, responsive, and built around you.
+                </p>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
       {/* Act 5 — SE intro / chapter 02 — parallax depth */}
       <ParallaxChapter
         intensity={0.5}
@@ -346,6 +388,15 @@ export default function MentorshipsPage() {
               </ul>
             </div>
           </GlassCard>
+        </div>
+      </section>
+
+      {/* 3D finale — Spline scene before the closing CTA */}
+      <section className="relative z-10 py-16">
+        <div className="container-wide">
+          <Reveal>
+            <SplineScene height="h-[480px]" glow="amber" />
+          </Reveal>
         </div>
       </section>
 
