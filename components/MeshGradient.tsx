@@ -17,6 +17,8 @@ export default function MeshGradient({
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const cnv: HTMLCanvasElement = canvas;
+    const c: CanvasRenderingContext2D = ctx;
 
     let raf = 0;
     let w = 0;
@@ -30,32 +32,32 @@ export default function MeshGradient({
       { x: 0.05, y: 0.85, r: 0.4, color: "rgba(244,114,182,0.22)" }, // pink
     ];
 
-    function resize() {
-      const rect = canvas.parentElement?.getBoundingClientRect();
+    const resize = () => {
+      const rect = cnv.parentElement?.getBoundingClientRect();
       const parentW = rect?.width ?? window.innerWidth;
       const parentH = rect?.height ?? window.innerHeight;
       w = parentW;
       h = parentH;
       dpr = Math.min(2, window.devicePixelRatio || 1);
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      canvas.style.width = w + "px";
-      canvas.style.height = h + "px";
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
+      cnv.width = w * dpr;
+      cnv.height = h * dpr;
+      cnv.style.width = w + "px";
+      cnv.style.height = h + "px";
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
     resize();
     window.addEventListener("resize", resize);
 
-    function draw(t: number) {
-      ctx.clearRect(0, 0, w, h);
+    const draw = (t: number) => {
+      c.clearRect(0, 0, w, h);
       // base dark wash
-      const bg = ctx.createLinearGradient(0, 0, 0, h);
+      const bg = c.createLinearGradient(0, 0, 0, h);
       bg.addColorStop(0, "#06070d");
       bg.addColorStop(1, "#0a0c14");
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, w, h);
+      c.fillStyle = bg;
+      c.fillRect(0, 0, w, h);
 
-      ctx.globalCompositeOperation = "lighter";
+      c.globalCompositeOperation = "lighter";
       blobs.forEach((b, i) => {
         const phase = t * 0.00012 * (1 + i * 0.18);
         const dx = Math.sin(phase + i * 1.7) * 0.12;
@@ -63,15 +65,15 @@ export default function MeshGradient({
         const cx = (b.x + dx) * w;
         const cy = (b.y + dy) * h;
         const radius = b.r * Math.max(w, h) * intensity;
-        const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        const grd = c.createRadialGradient(cx, cy, 0, cx, cy, radius);
         grd.addColorStop(0, b.color);
         grd.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.fillStyle = grd;
-        ctx.fillRect(0, 0, w, h);
+        c.fillStyle = grd;
+        c.fillRect(0, 0, w, h);
       });
-      ctx.globalCompositeOperation = "source-over";
+      c.globalCompositeOperation = "source-over";
       raf = requestAnimationFrame(draw);
-    }
+    };
     raf = requestAnimationFrame(draw);
 
     return () => {
