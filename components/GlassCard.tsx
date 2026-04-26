@@ -56,11 +56,25 @@ export default function GlassCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 30 }}
-      whileInView={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 30, rotateX: 15 }}
+      whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+      whileHover={{
+        y: -8,
+        rotateX: 5,
+        scale: 1.02,
+      }}
       viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.7, delay, ease: [0.25, 0.4, 0.25, 1] }}
+      transition={{
+        duration: 0.7,
+        delay,
+        ease: [0.25, 0.4, 0.25, 1],
+        hover: { duration: 0.3 },
+      }}
       suppressHydrationWarning
+      style={{
+        perspective: "1200px",
+        transformStyle: "preserve-3d",
+      }}
     >
       {inner}
     </motion.div>

@@ -171,14 +171,21 @@ export default function ChipScroll({
     // Procedural fallback — a cinematic 3D iris/shield/chess scene that
     // disassembles as you scroll. No external assets needed.
     const paintFallback = (p: number) => {
-      c.fillStyle = background;
+      // Dynamic gradient background
+      const grad = c.createLinearGradient(0, 0, w, h);
+      const colorStop1 = withAlpha(background, 1);
+      const colorStop2 = withAlpha(accent, 0.08 * (1 - p));
+      grad.addColorStop(0, colorStop1);
+      grad.addColorStop(1, colorStop2);
+      c.fillStyle = grad;
       c.fillRect(0, 0, w, h);
+
       const cx = w / 2;
       const cy = h / 2;
       const minDim = Math.min(w, h);
 
-      // Drift particles always
-      const particleCount = 90;
+      // Enhanced particle system with glow effect
+      const particleCount = 120 + Math.floor(p * 60);
       for (let i = 0; i < particleCount; i++) {
         const seed = i * 12.9898;
         const baseX = ((Math.sin(seed) * 43758.5453) % 1 + 1) % 1;
@@ -187,9 +194,20 @@ export default function ChipScroll({
         const dy = (i % 2 === 0 ? 1 : -1) * p * 60 * (0.5 + (i % 4) * 0.22);
         const x = baseX * w + dx;
         const y = baseY * h + dy;
-        const size = 0.6 + (i % 4) * 0.7;
-        const alpha = 0.28 + 0.7 * (1 - Math.abs(p - 0.5) * 2);
-        c.fillStyle = `rgba(255,225,140,${alpha.toFixed(3)})`;
+        const size = 0.8 + (i % 4) * 1.2;
+        const alpha = 0.35 + 0.65 * (1 - Math.abs(p - 0.5) * 2);
+
+        // Glow effect
+        const glowGrad = c.createRadialGradient(x, y, 0, x, y, size * 3);
+        glowGrad.addColorStop(0, withAlpha(accent, alpha * 0.4));
+        glowGrad.addColorStop(1, withAlpha(accent, 0));
+        c.fillStyle = glowGrad;
+        c.beginPath();
+        c.arc(x, y, size * 3, 0, Math.PI * 2);
+        c.fill();
+
+        // Core particle
+        c.fillStyle = `rgba(255,225,140,${(alpha * 0.9).toFixed(3)})`;
         c.beginPath();
         c.arc(x, y, size, 0, Math.PI * 2);
         c.fill();
@@ -197,15 +215,23 @@ export default function ChipScroll({
 
       if (fallbackKind === "iris") {
         // Concentric rings rotate + collapse with progress
-        const layers = 7;
+        const layers = 9;
         for (let i = 0; i < layers; i++) {
           const k = i / (layers - 1);
           const rot = p * Math.PI * (0.6 + i * 0.18) * (i % 2 === 0 ? 1 : -1);
           const baseR = minDim * 0.18 + minDim * 0.05 * i;
           const r = baseR * (1 - p * 0.7 * (1 - k * 0.6));
+
           c.save();
           c.translate(cx, cy);
           c.rotate(rot);
+
+          // Draw ring with gradient
+          const ringGrad = c.createLinearGradient(-r, 0, r, 0);
+          ringGrad.addColorStop(0, withAlpha(accent, 0));
+          ringGrad.addColorStop(0.5, withAlpha(accent, 0.6 - i * 0.045));
+          ringGrad.addColorStop(1, withAlpha(accent, 0));
+
           c.beginPath();
           for (let s = 0; s < 16; s++) {
             const a = (s / 16) * Math.PI * 2;
@@ -216,17 +242,34 @@ export default function ChipScroll({
             else c.lineTo(x, y);
           }
           c.closePath();
-          c.lineWidth = 1.4;
-          c.strokeStyle = withAlpha(accent, 0.55 - i * 0.045);
+          c.lineWidth = 2.5;
+          c.strokeStyle = withAlpha(accent, 0.65 - i * 0.05);
+          c.stroke();
+
+          // Add glow
+          c.lineWidth = 5;
+          c.strokeStyle = withAlpha(accent, (0.3 - i * 0.025) * (1 - p));
           c.stroke();
           c.restore();
         }
-        // Core orb
+
+        // Core orb with enhanced glow
         const orbR = minDim * 0.13 * (1 - p * 0.4);
+
+        // Outer glow
+        const glowGrad = c.createRadialGradient(cx, cy, 0, cx, cy, orbR * 2);
+        glowGrad.addColorStop(0, withAlpha(accent, 0.3 * (1 - p)));
+        glowGrad.addColorStop(1, withAlpha(accent, 0));
+        c.fillStyle = glowGrad;
+        c.beginPath();
+        c.arc(cx, cy, orbR * 2, 0, Math.PI * 2);
+        c.fill();
+
+        // Core with radial gradient
         const grad = c.createRadialGradient(cx - orbR * 0.3, cy - orbR * 0.3, 0, cx, cy, orbR);
         grad.addColorStop(0, "rgba(255,255,255,0.95)");
-        grad.addColorStop(0.4, withAlpha(accent, 0.85));
-        grad.addColorStop(1, withAlpha(accent, 0));
+        grad.addColorStop(0.4, withAlpha(accent, 0.88));
+        grad.addColorStop(1, withAlpha(accent, 0.1));
         c.fillStyle = grad;
         c.beginPath();
         c.arc(cx, cy, orbR, 0, Math.PI * 2);
@@ -235,6 +278,25 @@ export default function ChipScroll({
         // Hex shield that rotates & breaks apart into shards as you scroll
         const r = minDim * 0.28;
         const shards = 6;
+
+        // Rotating backdrop ring
+        c.save();
+        c.translate(cx, cy);
+        c.rotate(p * Math.PI * 0.3);
+        for (let ring = 1; ring <= 3; ring++) {
+          const ringR = r * (0.3 + ring * 0.25);
+          const ringGrad = c.createRadialGradient(0, 0, ringR - 20, 0, 0, ringR + 20);
+          ringGrad.addColorStop(0, withAlpha(accent, 0.15 * (1 - p)));
+          ringGrad.addColorStop(1, withAlpha(accent, 0));
+          c.strokeStyle = ringGrad;
+          c.lineWidth = 30;
+          c.beginPath();
+          c.arc(0, 0, ringR, 0, Math.PI * 2);
+          c.stroke();
+        }
+        c.restore();
+
+        // Shards with enhanced glow
         for (let i = 0; i < shards; i++) {
           const a0 = (i / shards) * Math.PI * 2 - Math.PI / 2;
           const a1 = ((i + 1) / shards) * Math.PI * 2 - Math.PI / 2;
@@ -242,31 +304,58 @@ export default function ChipScroll({
           const mid = (a0 + a1) / 2;
           const ox = Math.cos(mid) * dist;
           const oy = Math.sin(mid) * dist;
+
           c.save();
           c.translate(cx + ox, cy + oy);
           c.rotate(p * Math.PI * 0.5 * (i % 2 === 0 ? 1 : -1));
+
+          // Shard glow
+          const shardGrad = c.createLinearGradient(0, 0, r * 0.5, r * 0.5);
+          shardGrad.addColorStop(0, withAlpha(accent, 0.25 * (1 - p)));
+          shardGrad.addColorStop(1, withAlpha(accent, 0));
+          c.fillStyle = shardGrad;
+          c.beginPath();
+          c.moveTo(0, 0);
+          c.lineTo(Math.cos(a0) * r * 1.1, Math.sin(a0) * r * 1.1);
+          c.lineTo(Math.cos(a1) * r * 1.1, Math.sin(a1) * r * 1.1);
+          c.closePath();
+          c.fill();
+
+          // Shard body
+          c.fillStyle = withAlpha(accent, 0.22 - i * 0.015);
           c.beginPath();
           c.moveTo(0, 0);
           c.lineTo(Math.cos(a0) * r, Math.sin(a0) * r);
           c.lineTo(Math.cos(a1) * r, Math.sin(a1) * r);
           c.closePath();
-          c.fillStyle = withAlpha(accent, 0.18 - i * 0.012);
           c.fill();
-          c.lineWidth = 1.5;
-          c.strokeStyle = withAlpha(accent, 0.7);
+
+          c.lineWidth = 2.2;
+          c.strokeStyle = withAlpha(accent, 0.8);
           c.stroke();
           c.restore();
         }
-        // Center check mark / lock
+
+        // Center check mark / lock with glow
         c.save();
         c.translate(cx, cy);
+
+        // Glow effect
+        const lockGlowGrad = c.createRadialGradient(0, 0, 0, 0, 0, r * 0.4);
+        lockGlowGrad.addColorStop(0, withAlpha(accent, 0.2 * (1 - p)));
+        lockGlowGrad.addColorStop(1, withAlpha(accent, 0));
+        c.fillStyle = lockGlowGrad;
+        c.beginPath();
+        c.arc(0, 0, r * 0.4, 0, Math.PI * 2);
+        c.fill();
+
         c.scale(1 - p * 0.4, 1 - p * 0.4);
         c.beginPath();
         c.moveTo(-r * 0.18, 0);
         c.lineTo(-r * 0.04, r * 0.16);
         c.lineTo(r * 0.22, -r * 0.18);
-        c.strokeStyle = "white";
-        c.lineWidth = 5;
+        c.strokeStyle = "rgba(255,255,255,0.95)";
+        c.lineWidth = 6;
         c.lineCap = "round";
         c.lineJoin = "round";
         c.stroke();
@@ -396,17 +485,32 @@ export default function ChipScroll({
             suppressHydrationWarning
             className="container-wide pointer-events-none absolute inset-x-0 bottom-[12%] z-10 text-center"
           >
-            <h3
-              className="editorial-display mx-auto max-w-5xl text-balance text-white text-[clamp(2.2rem,7vw,6rem)] uppercase"
-              style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)" }}
+            <div
+              className="mx-auto max-w-5xl rounded-xl px-8 py-6"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(15,10,30,0.4), rgba(34,211,238,0.08))",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                border: "1px solid rgba(34,211,238,0.2)",
+                boxShadow: "0 8px 32px rgba(34,211,238,0.15), inset 0 1px 1px rgba(255,255,255,0.1)",
+              }}
             >
-              {caption}
-            </h3>
-            {subCaption && (
-              <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/90 sm:text-lg">
-                {subCaption}
-              </p>
-            )}
+              <h3
+                className="editorial-display text-balance text-white text-[clamp(2.2rem,7vw,6rem)] uppercase"
+                style={{
+                  textShadow:
+                    "0 0 30px rgba(34,211,238,0.6), 0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)",
+                }}
+              >
+                {caption}
+              </h3>
+              {subCaption && (
+                <p className="mt-6 text-base leading-relaxed text-white/90 sm:text-lg">
+                  {subCaption}
+                </p>
+              )}
+            </div>
           </motion.div>
         )}
 

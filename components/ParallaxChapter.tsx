@@ -44,10 +44,13 @@ export default function ParallaxChapter({
   const bgY = useTransform(scrollYProgress, [0, 1], reduced ? ["0%", "0%"] : [`${intensity * 50}%`, `-${intensity * 50}%`]);
   const bgScale = useTransform(scrollYProgress, [0, 0.5, 1], reduced ? [1, 1, 1] : [0.92, 1.04, 0.98]);
   const bgOpacity = useTransform(scrollYProgress, [0, 0.18, 0.82, 1], [0, 1, 1, 0.35]);
+  const bgRotateX = useTransform(scrollYProgress, [0, 0.5, 1], reduced ? [0, 0, 0] : [8, 0, -8]);
+  const bgRotateY = useTransform(scrollYProgress, [0, 0.5, 1], reduced ? [0, 0, 0] : [-5, 0, 5]);
 
   // Foreground: slight lift on entry then no movement (so users still
   // read it normally) — gives the depth sensation without making text move
   const fgY = useTransform(scrollYProgress, [0, 0.25, 1], reduced ? ["0%", "0%", "0%"] : ["6%", "0%", "-4%"]);
+  const fgRotateX = useTransform(scrollYProgress, [0, 0.5, 1], reduced ? [0, 0, 0] : [-4, 0, 4]);
 
   // Hydration-safe motion-value styles. Framer-motion serialises a
   // `style="..."` attribute on the SSR pass for any motion-value-driven
@@ -58,11 +61,22 @@ export default function ParallaxChapter({
   useEffect(() => setMounted(true), []);
 
   return (
-    <section ref={ref} className={`relative isolate ${className}`}>
+    <section
+      ref={ref}
+      className={`relative isolate ${className}`}
+      style={{ perspective: "1200px" }}
+    >
       {bg && (
         <motion.div
           aria-hidden="true"
-          style={mounted ? { y: bgY, scale: bgScale, opacity: bgOpacity } : undefined}
+          style={mounted ? {
+            y: bgY,
+            scale: bgScale,
+            opacity: bgOpacity,
+            rotateX: bgRotateX,
+            rotateY: bgRotateY,
+            transformStyle: "preserve-3d",
+          } : undefined}
           suppressHydrationWarning
           className={`pointer-events-none z-0 ${bgClassName}`}
         >
@@ -70,7 +84,11 @@ export default function ParallaxChapter({
         </motion.div>
       )}
       <motion.div
-        style={mounted ? { y: fgY } : undefined}
+        style={mounted ? {
+          y: fgY,
+          rotateX: fgRotateX,
+          transformStyle: "preserve-3d",
+        } : undefined}
         suppressHydrationWarning
         className="relative z-10"
       >

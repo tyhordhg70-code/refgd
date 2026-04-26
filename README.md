@@ -68,7 +68,6 @@ refgd/
 ├─ app/                  Next.js App Router pages
 │  ├─ page.tsx           Landing
 │  ├─ store-list/        Merged store list (all regions, filterable)
-│  ├─ our-service/       Service explainer
 │  ├─ exclusive-mentorships/
 │  ├─ evade-cancelations/
 │  ├─ admin/             Hidden admin

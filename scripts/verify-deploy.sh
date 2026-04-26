@@ -44,7 +44,6 @@ check_status "/"                      "200"
 check_status "/store-list"            "200"
 check_status "/exclusive-mentorships" "200"
 check_status "/evade-cancelations"    "200"
-check_status "/our-service"           "307"
 
 echo
 echo "2. Redesign content markers"
