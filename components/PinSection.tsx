@@ -79,7 +79,7 @@ export default function PinSection({
     <section ref={ref} style={{ height }} className="relative" data-cursor="big">
       <div className="sticky top-0 h-[100svh] w-full overflow-hidden">
         {/* Image plate with parallax + tilt */}
-        <motion.div style={{ scale, rotate, y }} className="absolute inset-0">
+        <motion.div style={{ scale, rotate, y }} suppressHydrationWarning className="absolute inset-0">
           <Image src={imageSrc} alt={alt} fill sizes="100vw" priority className="object-cover" />
         </motion.div>
 
@@ -87,6 +87,7 @@ export default function PinSection({
         <motion.div
           aria-hidden="true"
           style={{ opacity: veil }}
+          suppressHydrationWarning
           className="absolute inset-0"
         >
           <div
@@ -124,6 +125,7 @@ export default function PinSection({
         {/* Headline */}
         <motion.div
           style={{ y: titleY, opacity: titleOpacity }}
+          suppressHydrationWarning
           className="container-wide relative z-10 grid h-full place-items-center"
         >
           <div className="text-center">
@@ -139,6 +141,7 @@ export default function PinSection({
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.8, delay: 1.3 }}
+                suppressHydrationWarning
                 className="mx-auto mt-8 max-w-3xl text-balance text-lg leading-relaxed text-white/85 sm:text-xl"
               >
                 {body}
@@ -152,6 +155,7 @@ export default function PinSection({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.6 }}
+          suppressHydrationWarning
           className="absolute bottom-10 left-1/2 z-10 -translate-x-1/2 text-center"
         >
           <span className="block text-[10px] font-semibold uppercase tracking-[0.45em] text-white/55">scroll</span>

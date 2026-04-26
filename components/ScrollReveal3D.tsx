@@ -51,6 +51,7 @@ export default function ScrollReveal3D({
         willChange: "transform, opacity",
         position: "relative",
       }}
+      suppressHydrationWarning
       className={className}
     >
       {children}
@@ -76,7 +77,12 @@ export function ScrollFloatImage({
   const y = useTransform(scrollYProgress, [0, 1], [amount, -amount]);
   const rotate = useTransform(scrollYProgress, [0, 1], [-3, 3]);
   return (
-    <motion.div ref={ref} style={{ y, rotate, position: "relative" }} className={className}>
+    <motion.div
+      ref={ref}
+      style={{ y, rotate, position: "relative" }}
+      suppressHydrationWarning
+      className={className}
+    >
       {children}
     </motion.div>
   );

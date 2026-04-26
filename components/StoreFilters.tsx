@@ -1,9 +1,11 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Store, Region, StoreCategory } from "@/lib/types";
 import RegionFlag from "./RegionFlag";
 import StoreCard from "./StoreCard";
+import StoreEditDialog from "./StoreEditDialog";
 import { motion, AnimatePresence } from "framer-motion";
+import { useEditContext } from "@/lib/edit-context";
 
 interface Props {
   stores: Store[];
@@ -41,11 +43,29 @@ const CATEGORY_LABEL: Record<string, string> = {
   Other:       "✨ Other",
 };
 
-export default function StoreFilters({ stores }: Props) {
-  // Single-region selector (the previous multi-select toggle was the bug:
-  // when all four were active it was equivalent to "no filter").
+export default function StoreFilters({ stores: initialStores }: Props) {
   const [region, setRegion] = useState<Region>("USA");
   const [search, setSearch] = useState("");
+
+  // Local mirror of the store list. Inline edit/add/delete/reorder
+  // mutate this in place so the admin sees changes immediately without
+  // a full page reload. On non-admin sessions this just equals props.
+  const [stores, setStores] = useState<Store[]>(initialStores);
+  useEffect(() => { setStores(initialStores); }, [initialStores]);
+
+  const { isAdmin, editMode } = useEditContext();
+
+  // Edit-dialog state. `null` store + a defaultRegion/Category means
+  // "create a new store seeded into that section".
+  const [dialog, setDialog] = useState<
+    | { open: false }
+    | { open: true; store: Store | null; region: Region; category: StoreCategory }
+  >({ open: false });
+
+  // Drag-reorder bookkeeping. We only allow reordering inside the
+  // currently-rendered category to keep semantics simple — moving a
+  // card across categories should use Edit.
+  const dragId = useRef<string | null>(null);
 
   const counts = useMemo(() => {
     const c: Record<Region, number> = { USA: 0, CAD: 0, EU: 0, UK: 0 };
@@ -67,25 +87,134 @@ export default function StoreFilters({ stores }: Props) {
     });
   }, [stores, region, search]);
 
-  // Group by category in CATEGORY_ORDER, then any extras
+  // Group by category in CATEGORY_ORDER. In edit mode, ALWAYS render
+  // every CATEGORY_ORDER bucket for the active region, even when empty,
+  // so the admin has a "+ Add" button to seed a new section.
   const grouped = useMemo(() => {
     const map = new Map<string, Store[]>();
     for (const s of filtered) {
       if (!map.has(s.category)) map.set(s.category, []);
       map.get(s.category)!.push(s);
     }
-    const ordered: { category: string; stores: Store[] }[] = [];
+    const ordered: { category: StoreCategory; stores: Store[] }[] = [];
     for (const cat of CATEGORY_ORDER) {
-      if (map.has(cat) && map.get(cat)!.length > 0) {
-        ordered.push({ category: cat, stores: map.get(cat)! });
-        map.delete(cat);
+      const list = map.get(cat) ?? [];
+      if (list.length > 0 || (isAdmin && editMode && !search.trim())) {
+        ordered.push({ category: cat, stores: list });
       }
+      map.delete(cat);
     }
     for (const [cat, list] of Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
-      if (list.length > 0) ordered.push({ category: cat, stores: list });
+      if (list.length > 0) ordered.push({ category: cat as StoreCategory, stores: list });
     }
     return ordered;
-  }, [filtered]);
+  }, [filtered, isAdmin, editMode, search]);
+
+  // ───── inline CRUD handlers ────────────────────────────────────────
+
+  function openAdd(category: StoreCategory) {
+    setDialog({ open: true, store: null, region, category });
+  }
+  function openEdit(s: Store) {
+    setDialog({ open: true, store: s, region: s.region, category: s.category });
+  }
+
+  async function handleDelete(s: Store) {
+    // Optimistic remove; rollback on failure.
+    const snapshot = stores;
+    setStores((cur) => cur.filter((x) => x.id !== s.id));
+    try {
+      const res = await fetch(`/api/admin/stores/${s.id}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+      if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+    } catch (err) {
+      console.error("[store-list] delete failed", err);
+      alert("Couldn't delete that store. Restoring it.");
+      setStores(snapshot);
+    }
+  }
+
+  function handleSaved(saved: Store) {
+    setStores((cur) => {
+      const i = cur.findIndex((x) => x.id === saved.id);
+      if (i >= 0) {
+        const next = cur.slice();
+        next[i] = saved;
+        return next;
+      }
+      return [...cur, saved];
+    });
+  }
+
+  // ───── drag reorder within a category ─────────────────────────────
+
+  function onDragStart(s: Store) {
+    return (e: React.DragEvent<HTMLElement>) => {
+      dragId.current = s.id;
+      e.dataTransfer.effectAllowed = "move";
+      // Setting data is required for Firefox to actually start a drag.
+      try { e.dataTransfer.setData("text/plain", s.id); } catch {}
+    };
+  }
+  function onDragOver(e: React.DragEvent<HTMLElement>) {
+    if (!dragId.current) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }
+  function onDrop(target: Store) {
+    return async (e: React.DragEvent<HTMLElement>) => {
+      e.preventDefault();
+      const sourceId = dragId.current;
+      dragId.current = null;
+      if (!sourceId || sourceId === target.id) return;
+
+      const source = stores.find((x) => x.id === sourceId);
+      if (!source || source.category !== target.category || source.region !== target.region) {
+        // Cross-section drag is intentionally a no-op — admins should
+        // use Edit to change category/region explicitly.
+        return;
+      }
+
+      // Build the new ordering for this (region, category) bucket.
+      const bucket = stores
+        .filter((x) => x.region === source.region && x.category === source.category)
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      const fromIdx = bucket.findIndex((x) => x.id === sourceId);
+      const toIdx = bucket.findIndex((x) => x.id === target.id);
+      if (fromIdx < 0 || toIdx < 0) return;
+      const [moved] = bucket.splice(fromIdx, 1);
+      bucket.splice(toIdx, 0, moved);
+
+      // Reassign sortOrder densely (10, 20, 30…) so future inserts
+      // have wiggle room without renumbering everything.
+      const reordered = bucket.map((s, i) => ({ ...s, sortOrder: (i + 1) * 10 }));
+      const idToOrder = new Map(reordered.map((s) => [s.id, s.sortOrder!]));
+
+      // Optimistic local update.
+      const snapshot = stores;
+      setStores((cur) =>
+        cur.map((s) => (idToOrder.has(s.id) ? { ...s, sortOrder: idToOrder.get(s.id)! } : s)),
+      );
+
+      try {
+        const res = await fetch("/api/admin/stores/reorder", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            order: reordered.map((s) => ({ id: s.id, sortOrder: s.sortOrder })),
+          }),
+        });
+        if (!res.ok) throw new Error(`Reorder failed: ${res.status}`);
+      } catch (err) {
+        console.error("[store-list] reorder failed", err);
+        alert("Couldn't save the new order. Reverting.");
+        setStores(snapshot);
+      }
+    };
+  }
 
   return (
     <div>
@@ -140,6 +269,7 @@ export default function StoreFilters({ stores }: Props) {
             onChange={(e) => setSearch(e.target.value)}
             placeholder={`Search ${region} stores, categories or notes…`}
             className="w-full rounded-full border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white placeholder:text-white/35 focus:border-amber-400/60 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+            suppressHydrationWarning
           />
         </div>
       </div>
@@ -147,6 +277,11 @@ export default function StoreFilters({ stores }: Props) {
       <p className="mb-6 text-sm text-white/55">
         Showing <span className="font-semibold text-white">{filtered.length}</span>{" "}
         {region} {filtered.length === 1 ? "store" : "stores"}
+        {isAdmin && editMode && (
+          <span className="ml-3 inline-flex items-center gap-1 rounded-full border border-amber-300/40 bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-amber-200">
+            edit mode — hover a card
+          </span>
+        )}
       </p>
 
       {/* Categorized grid.
@@ -162,6 +297,7 @@ export default function StoreFilters({ stores }: Props) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: Math.min(secIdx * 0.05, 0.2) }}
+              suppressHydrationWarning
             >
               <div className="mb-5 text-center">
                 <h3 className="prismatic-text heading-display inline-block text-3xl font-bold uppercase tracking-tight sm:text-4xl">
@@ -173,15 +309,36 @@ export default function StoreFilters({ stores }: Props) {
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {list.map((s, i) => (
-                  <StoreCard key={s.id} store={s} idx={i} />
+                  <StoreCard
+                    key={s.id}
+                    store={s}
+                    idx={i}
+                    onEdit={isAdmin && editMode ? openEdit : undefined}
+                    onDelete={isAdmin && editMode ? handleDelete : undefined}
+                    draggable={isAdmin && editMode}
+                    onDragStart={isAdmin && editMode ? onDragStart(s) : undefined}
+                    onDragOver={isAdmin && editMode ? onDragOver : undefined}
+                    onDrop={isAdmin && editMode ? onDrop(s) : undefined}
+                    onDragEnd={isAdmin && editMode ? () => { dragId.current = null; } : undefined}
+                  />
                 ))}
+
+                {isAdmin && editMode && (
+                  <button
+                    type="button"
+                    onClick={() => openAdd(category)}
+                    className="flex min-h-[148px] items-center justify-center rounded-2xl border-2 border-dashed border-white/15 bg-white/3 text-sm text-white/60 transition hover:border-amber-300/60 hover:bg-amber-400/5 hover:text-amber-200"
+                  >
+                    + Add store to {CATEGORY_LABEL[category] ?? category}
+                  </button>
+                )}
               </div>
             </motion.section>
           ))}
         </div>
       </AnimatePresence>
 
-      {filtered.length === 0 && (
+      {filtered.length === 0 && !(isAdmin && editMode) && (
         <div className="mt-12 rounded-2xl border border-white/10 bg-white/5 p-10 text-center">
           <p className="text-white/65">No stores match your filters.</p>
           <button
@@ -193,6 +350,15 @@ export default function StoreFilters({ stores }: Props) {
           </button>
         </div>
       )}
+
+      <StoreEditDialog
+        open={dialog.open}
+        store={dialog.open ? dialog.store : null}
+        defaultRegion={dialog.open ? dialog.region : region}
+        defaultCategory={dialog.open ? dialog.category : "Other"}
+        onClose={() => setDialog({ open: false })}
+        onSaved={handleSaved}
+      />
     </div>
   );
 }

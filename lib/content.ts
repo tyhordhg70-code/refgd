@@ -17,6 +17,11 @@ export const DEFAULT_CONTENT: Record<string, string> = {
   "hero.cta.url": "https://t.me/refundlawfirm",
   "telegram.headline":
     "Stay up to speed with the latest on our telegram Group",
+  "telegram.kicker": "— join the channel",
+  "home.paths.kicker": "— chapter 01 / paths",
+  "home.paths.title": "Choose your path to mastery.",
+  "home.paths.lead":
+    "Four doors. Behind each, a craft refined by years of work under glass — chosen, not assigned.",
   "service.title": "Get rewarded for shopping online",
   "service.subtitle": "Ahh.. feel the joy of cashback.",
   "buy.url": "https://refundgod.bgng.io/",

@@ -5,23 +5,14 @@ import MusicPlayer from "@/components/MusicPlayer";
 import AnimatedTelegramBox from "@/components/AnimatedTelegramBox";
 import ParallaxChapter from "@/components/ParallaxChapter";
 import ParallaxIllustration from "@/components/ParallaxIllustration";
+import EditableText from "@/components/EditableText";
+import EditableLink from "@/components/EditableLink";
+import HomeCTAButton from "@/components/HomeCTAButton";
 import { Reveal } from "@/components/Reveal";
 import { getContentBlock } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Home page composition (post-redesign):
- *   1. Immersive 3D hero — only the kicker ("WELCOME") is displayed,
- *      huge and centered. The "Choose your path" headline lives in
- *      the path-picker section just below, so it appears exactly once.
- *   2. Chapter 01 — Path picker (4 animated cards).
- *   3. Telegram CTA box (animated background).
- *
- * The Marquee, Manifesto and Stats sections were intentionally removed
- * per the design brief — the home page now flows directly from hero
- * into the path picker.
- */
 const PATHS = [
   { href: "/store-list",            title: "Refund Store List",     illustration: "store"   as const, accent: "gold"    as const },
   { href: "/evade-cancelations",    title: "Evade Cancelations",    illustration: "shield"  as const, accent: "cyan"    as const },
@@ -30,12 +21,18 @@ const PATHS = [
 ];
 
 export default async function HomePage() {
-  const [kicker, ctaLabel, ctaUrl, telegramHeadline] = await Promise.all([
-    getContentBlock("hero.kicker"),
-    getContentBlock("hero.cta.label"),
-    getContentBlock("hero.cta.url"),
-    getContentBlock("telegram.headline"),
-  ]);
+  // Server-render the resolved values once so the page looks correct
+  // even before React hydrates and the EditContext takes over.
+  const [kicker, ctaLabel, ctaUrl, telegramHeadline, pathsKicker, pathsTitle, pathsLead] =
+    await Promise.all([
+      getContentBlock("hero.kicker"),
+      getContentBlock("hero.cta.label"),
+      getContentBlock("hero.cta.url"),
+      getContentBlock("telegram.headline"),
+      getContentBlock("home.paths.kicker"),
+      getContentBlock("home.paths.title"),
+      getContentBlock("home.paths.lead"),
+    ]);
 
   return (
     <>
@@ -68,23 +65,29 @@ export default async function HomePage() {
             >
               <div className="grid items-end gap-8 sm:grid-cols-[1fr_auto]">
                 <div>
-                  <p
+                  <EditableText
+                    id="home.paths.kicker"
+                    defaultValue={pathsKicker || "— chapter 01 / paths"}
+                    as="p"
                     className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300 sm:text-sm"
-                    style={{ textShadow: "0 0 30px rgba(245,185,69,0.6)" }}
-                  >
-                    — chapter 01 / paths
-                  </p>
-                  <h2
+                  />
+                  <EditableText
+                    id="home.paths.title"
+                    defaultValue={pathsTitle || "Choose your path to mastery."}
+                    as="h2"
                     className="editorial-display mt-5 text-balance text-white text-[clamp(2.25rem,7vw,6rem)] uppercase"
-                    style={{ textShadow: "0 4px 40px rgba(0,0,0,0.9), 0 2px 6px rgba(0,0,0,0.95)", lineHeight: 1.02 }}
-                  >
-                    Choose your path to mastery.
-                  </h2>
+                  />
                 </div>
-                <p className="max-w-sm text-base leading-relaxed text-white/90">
-                  Four doors. Behind each, a craft refined by years of work
-                  under glass — chosen, not assigned.
-                </p>
+                <EditableText
+                  id="home.paths.lead"
+                  defaultValue={
+                    pathsLead ||
+                    "Four doors. Behind each, a craft refined by years of work under glass — chosen, not assigned."
+                  }
+                  as="p"
+                  multiline
+                  className="max-w-sm text-base leading-relaxed text-white/90"
+                />
               </div>
             </div>
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
@@ -112,25 +115,24 @@ export default async function HomePage() {
                 <div className="container-px absolute inset-0 grid items-center">
                   <div className="grid items-center gap-10 sm:grid-cols-[1fr_auto]">
                     <div>
-                      <p
+                      <EditableText
+                        id="telegram.kicker"
+                        defaultValue="— join the channel"
+                        as="p"
                         className="heading-display text-[10px] font-semibold uppercase tracking-[0.45em] text-amber-200 sm:text-xs"
-                        style={{ textShadow: "0 0 18px rgba(245,185,69,0.55)" }}
-                      >
-                        — join the channel
-                      </p>
-                      <h2
+                      />
+                      <EditableText
+                        id="telegram.headline"
+                        defaultValue={telegramHeadline}
+                        as="h2"
+                        multiline
                         className="editorial-display mt-3 max-w-2xl text-balance text-white text-3xl uppercase sm:text-5xl md:text-6xl"
-                        style={{ textShadow: "0 4px 30px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.85)", lineHeight: 1.02 }}
-                      >
-                        {telegramHeadline}
-                      </h2>
+                      />
                     </div>
-                    <MagneticButton href={ctaUrl} external variant="primary" pull={0.5}>
-                      {ctaLabel}
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                        <path d="m12 19 7-7-7-7" /><path d="M5 12h14" />
-                      </svg>
-                    </MagneticButton>
+                    {/* CTA URL + label flow through the EditContext too so an
+                        admin can edit them inline; the magnetic hover
+                        effect is preserved by HomeCTAButton. */}
+                    <HomeCTAButton defaultUrl={ctaUrl} defaultLabel={ctaLabel} />
                   </div>
                 </div>
               </div>

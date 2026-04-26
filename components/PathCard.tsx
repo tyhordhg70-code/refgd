@@ -70,6 +70,7 @@ export default function PathCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.8, delay: index * 0.1, ease: [0.25, 0.4, 0.25, 1] }}
+      suppressHydrationWarning
       className="group relative h-full"
       data-cursor="hover"
       data-cursor-label={title}

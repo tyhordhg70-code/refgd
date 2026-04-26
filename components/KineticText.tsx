@@ -56,6 +56,11 @@ export default function KineticText({
               hidden: { y: "110%", opacity: 0, filter: "blur(8px)" },
               show: { y: "0%", opacity: 1, filter: "blur(0px)", transition: { duration: 0.85, ease: [0.25, 0.4, 0.25, 1] } },
             }}
+            // SSR emits the `hidden` variant as a `style="opacity:0;…"`
+            // attribute. The client immediately re-formats the same values
+            // when framer-motion mounts, producing a benign string diff
+            // that React's reconciler reports as a hydration warning.
+            suppressHydrationWarning
           >
             {w}
             {i < words.length - 1 ? "\u00A0" : ""}

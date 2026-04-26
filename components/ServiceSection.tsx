@@ -100,6 +100,7 @@ export default function ServiceSection() {
         <motion.div
           aria-hidden="true"
           style={{ y: sceneY, opacity: sceneOp }}
+          suppressHydrationWarning
           className="pointer-events-none absolute inset-y-0 right-[2%] z-0 hidden items-center md:flex"
         >
           <CashbackScene size={560} />
@@ -115,6 +116,7 @@ export default function ServiceSection() {
         {/* Headline — left-aligned on desktop so it sits beside the scene */}
         <motion.div
           style={{ y: titleY, opacity: titleOp }}
+          suppressHydrationWarning
           className="container-wide pointer-events-none relative z-10 grid min-h-[100svh] place-items-center md:place-items-start md:pt-[12vh]"
         >
           <div className="text-center md:max-w-[58%] md:text-left">
@@ -140,6 +142,7 @@ export default function ServiceSection() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 1.2 }}
+                suppressHydrationWarning
                 className="mt-8 text-2xl font-light italic text-white sm:text-3xl"
                 style={{ textShadow: "0 2px 16px rgba(0,0,0,0.85)" }}
               >

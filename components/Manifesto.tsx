@@ -77,6 +77,7 @@ function ManifestoLine({
     <motion.span
       className="block bg-gradient-to-b from-white via-white to-amber-200 bg-clip-text text-transparent"
       style={{ opacity, y }}
+      suppressHydrationWarning
     >
       {word}
     </motion.span>

@@ -89,6 +89,7 @@ export default function Hero3D({
           opacity: orbOpac,
           transformStyle: "preserve-3d",
         }}
+        suppressHydrationWarning
         className="pointer-events-none absolute inset-0 grid place-items-center"
       >
         <motion.div
@@ -100,6 +101,7 @@ export default function Hero3D({
             transformStyle: "preserve-3d",
             willChange: "transform",
           }}
+          suppressHydrationWarning
           className="relative h-[78vh] w-[78vh] max-h-[820px] max-w-[820px]"
         >
           {[0, 1, 2, 3].map((i) => (
@@ -111,6 +113,7 @@ export default function Hero3D({
                 opacity: ringOpac,
                 z: i * 14,
               }}
+              suppressHydrationWarning
               className="absolute inset-0 rounded-full"
             >
               <div
@@ -198,6 +201,7 @@ export default function Hero3D({
       {/* ── HEADLINE ─────────────────────────────────────────────── */}
       <motion.div
         style={{ y: cardY, opacity: cardOpac }}
+        suppressHydrationWarning
         className="pointer-events-none container-wide relative z-10 flex min-h-[100svh] flex-col items-center justify-center text-center"
       >
         {/* No backdrop card — the kicker sits directly on the cosmos.
@@ -206,6 +210,7 @@ export default function Hero3D({
           initial={{ opacity: 0, y: 24, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 1.1, ease: [0.25, 0.4, 0.25, 1] }}
+          suppressHydrationWarning
           className="mx-auto inline-block px-2"
         >
           <KineticText
@@ -234,6 +239,7 @@ export default function Hero3D({
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 1.4 }}
+          suppressHydrationWarning
           className="mt-14 flex flex-col items-center gap-2 text-white/65"
         >
           <span className="text-[10px] font-semibold uppercase tracking-[0.4em]">scroll</span>

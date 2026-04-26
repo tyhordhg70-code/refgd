@@ -1,5 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useEditContext } from "@/lib/edit-context";
+import EditableText from "./EditableText";
+import EditableLink from "./EditableLink";
 
 interface Props {
   text: string;
@@ -20,6 +23,10 @@ export default function AnnouncementBanner({
 }: Props) {
   const [hidden, setHidden] = useState(true);
   const [fading, setFading] = useState(false);
+  // When the admin is editing, force the banner visible so it can be edited
+  // even if it has been auto-faded or dismissed for this device.
+  const { isAdmin, editMode } = useEditContext();
+  const forceVisible = isAdmin && editMode;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -46,7 +53,7 @@ export default function AnnouncementBanner({
     return () => clearTimeout(t);
   }, [autoFadeMs]);
 
-  if (hidden) return null;
+  if (hidden && !forceVisible) return null;
 
   function dismiss() {
     setFading(true);
@@ -76,15 +83,20 @@ export default function AnnouncementBanner({
         <div className="container-px relative flex items-center justify-between gap-3 py-2 text-xs sm:text-sm">
           <div className="flex min-w-0 items-center gap-2 text-white">
             <span aria-hidden="true" className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-            <span className="truncate font-medium">{text}</span>
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
+            <EditableText
+              id="banner.text"
+              defaultValue={text}
+              as="span"
+              className="truncate font-medium"
+            />
+            <EditableLink
+              idHref="banner.url"
+              defaultHref={url}
+              idLabel="banner.cta"
+              defaultLabel={cta}
+              external
               className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold text-white backdrop-blur transition hover:bg-white/25 sm:text-xs"
-            >
-              {cta} →
-            </a>
+            />
           </div>
           <button
             type="button"

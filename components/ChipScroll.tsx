@@ -393,6 +393,7 @@ export default function ChipScroll({
         {caption && (
           <motion.div
             style={{ opacity: captionOpacity, y: captionY, filter: captionFilter }}
+            suppressHydrationWarning
             className="container-wide pointer-events-none absolute inset-x-0 bottom-[12%] z-10 text-center"
           >
             <h3
@@ -415,6 +416,7 @@ export default function ChipScroll({
         <motion.div
           aria-hidden="true"
           style={{ opacity: scrollPromptOpacity }}
+          suppressHydrationWarning
           className="pointer-events-none absolute inset-x-0 bottom-6 z-10 flex flex-col items-center gap-2 text-white/85"
         >
           <span className="heading-display text-[10px] font-semibold uppercase tracking-[0.45em]">

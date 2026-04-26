@@ -1,6 +1,6 @@
 "use client";
 import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
  * Wraps a "chapter" section so that any background element you place
@@ -49,18 +49,31 @@ export default function ParallaxChapter({
   // read it normally) — gives the depth sensation without making text move
   const fgY = useTransform(scrollYProgress, [0, 0.25, 1], reduced ? ["0%", "0%", "0%"] : ["6%", "0%", "-4%"]);
 
+  // Hydration-safe motion-value styles. Framer-motion serialises a
+  // `style="..."` attribute on the SSR pass for any motion-value-driven
+  // style, but on the first client render rewrites it as a `transform`
+  // string. React flags that as "Extra attributes from the server: style".
+  // We dodge it by emitting the styles only after mount.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   return (
     <section ref={ref} className={`relative isolate ${className}`}>
       {bg && (
         <motion.div
           aria-hidden="true"
-          style={{ y: bgY, scale: bgScale, opacity: bgOpacity }}
+          style={mounted ? { y: bgY, scale: bgScale, opacity: bgOpacity } : undefined}
+          suppressHydrationWarning
           className={`pointer-events-none z-0 ${bgClassName}`}
         >
           {bg}
         </motion.div>
       )}
-      <motion.div style={{ y: fgY }} className="relative z-10">
+      <motion.div
+        style={mounted ? { y: fgY } : undefined}
+        suppressHydrationWarning
+        className="relative z-10"
+      >
         {children}
       </motion.div>
     </section>

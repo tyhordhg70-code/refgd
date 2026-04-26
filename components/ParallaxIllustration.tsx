@@ -50,6 +50,7 @@ export default function ParallaxIllustration({
     <motion.div
       ref={ref}
       style={{ y, rotate: rot, scale, opacity, position: "relative" }}
+      suppressHydrationWarning
       className={`pointer-events-none ${className}`}
     >
       <svg viewBox="0 0 240 240" width={size} height={size} aria-hidden="true">

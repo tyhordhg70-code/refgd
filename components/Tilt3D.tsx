@@ -46,6 +46,7 @@ export default function Tilt3D({
         perspective: "1200px",
         transformStyle: "preserve-3d",
       }}
+      suppressHydrationWarning
       className={className}
     >
       <motion.div
@@ -56,6 +57,7 @@ export default function Tilt3D({
           transformStyle: "preserve-3d",
           willChange: "transform",
         }}
+        suppressHydrationWarning
       >
         {children}
       </motion.div>

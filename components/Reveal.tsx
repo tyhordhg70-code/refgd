@@ -18,6 +18,10 @@ export function Reveal({
       viewport={{ once: true, margin: "-100px" }}
       transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
       style={{ perspective: 1200 }}
+      // framer-motion `initial` styles serialise to a `style="…"` attribute
+      // on SSR and the client formats the same values slightly differently
+      // on first paint — visually identical, just a different string.
+      suppressHydrationWarning
       className={className}
     >
       {children}
@@ -34,7 +38,7 @@ export function ParallaxBlock({
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
   const y = useTransform(scrollYProgress, [0, 1], [amount, -amount]);
   return (
-    <motion.div ref={ref} style={{ y, position: "relative" }} className={className}>
+    <motion.div ref={ref} style={{ y, position: "relative" }} suppressHydrationWarning className={className}>
       {children}
     </motion.div>
   );

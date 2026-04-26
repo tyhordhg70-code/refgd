@@ -53,6 +53,11 @@ export default function MagneticButton({
       onMouseMove={onMove}
       onMouseLeave={onLeave}
       style={{ x: xs, y: ys }}
+      // framer-motion serialises spring-driven `x`/`y` MotionValues as a
+      // `transform` string on SSR but the client formats it slightly
+      // differently on first paint; the values are equivalent so we
+      // silence React's hydration diff here.
+      suppressHydrationWarning
       className={`inline-block ${className}`}
       data-cursor="link"
     >

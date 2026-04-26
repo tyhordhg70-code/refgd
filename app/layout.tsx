@@ -6,7 +6,10 @@ import AnnouncementBanner from "@/components/AnnouncementBanner";
 import CustomCursor from "@/components/CustomCursor";
 import PulsatingOverlay from "@/components/PulsatingOverlay";
 import GalaxyBackground from "@/components/GalaxyBackground";
-import { getContentBlock } from "@/lib/content";
+import EditProvider from "@/lib/edit-context";
+import EditorToolbar from "@/components/EditorToolbar";
+import { DEFAULT_CONTENT, getContentBlock } from "@/lib/content";
+import { readSession } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "RefundGod — Refunds, Replacements, Mentorships",
@@ -32,11 +35,22 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [bannerText, bannerCta, bannerUrl] = await Promise.all([
-    getContentBlock("banner.text"),
-    getContentBlock("banner.cta"),
-    getContentBlock("banner.url"),
-  ]);
+  // Resolve every known content block server-side so the inline editor
+  // already has the correct starting values when the React tree mounts.
+  // (Cheap — they all come from a single in-memory cache after the first
+  // call to getContentBlock.)
+  const ids = Object.keys(DEFAULT_CONTENT);
+  const values = await Promise.all(ids.map((id) => getContentBlock(id)));
+  const initialContent: Record<string, string> = {};
+  ids.forEach((id, i) => {
+    initialContent[id] = values[i];
+  });
+
+  // Server-side admin check — the toolbar only renders if this is true.
+  // We re-check from the client on visibilitychange to handle the
+  // "logged out in another tab" case.
+  const session = await readSession();
+  const initialAdmin = Boolean(session);
 
   return (
     <html lang="en" className="bg-ink-950">
@@ -69,15 +83,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="min-h-screen bg-ink-950 text-white antialiased">
-        {/* Site-wide continuous WebGL galaxy field — every page scrolls
-            over the same scene so transitions feel like one journey. */}
-        <GalaxyBackground />
-        <PulsatingOverlay />
-        <AnnouncementBanner text={bannerText} cta={bannerCta} url={bannerUrl} />
-        <Nav />
-        <main className="relative z-[2]">{children}</main>
-        <Footer />
-        <CustomCursor />
+        <EditProvider initialAdmin={initialAdmin} initialContent={initialContent}>
+          {/* Site-wide continuous WebGL galaxy field — every page scrolls
+              over the same scene so transitions feel like one journey. */}
+          <GalaxyBackground />
+          <PulsatingOverlay />
+          <AnnouncementBanner
+            text={initialContent["banner.text"]}
+            cta={initialContent["banner.cta"]}
+            url={initialContent["banner.url"]}
+          />
+          <Nav />
+          <main className="relative z-[2]">{children}</main>
+          <Footer />
+          <CustomCursor />
+          {/* Floating inline-editor toolbar (only renders for admins). */}
+          <EditorToolbar />
+        </EditProvider>
       </body>
     </html>
   );
