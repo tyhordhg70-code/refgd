@@ -41,7 +41,15 @@ export default function KineticText({
       aria-label={text}
     >
       {words.map((w, i) => (
-        <span key={i} className="inline-block overflow-hidden align-bottom" aria-hidden="true">
+        <span
+          key={i}
+          // pb/pt give descenders + ascenders breathing room so they
+          // don't get clipped by overflow-hidden — fixes "spacing"
+          // looking cramped on tightly-leaded headings.
+          className="inline-block overflow-hidden align-bottom"
+          style={{ paddingBottom: "0.12em", paddingTop: "0.04em" }}
+          aria-hidden="true"
+        >
           <motion.span
             className="inline-block"
             variants={{

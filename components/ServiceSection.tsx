@@ -292,48 +292,55 @@ export default function ServiceSection() {
         </section>
       </ParallaxChapter>
 
-      {/* Act 5 — Awarded CTA banner with pulsating glow */}
-      <section className="container-wide pb-16 pt-12">
-        <Reveal>
-          <div className="pulse-glow relative overflow-hidden rounded-[2.5rem] border border-amber-400/25 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-amber-500/15 p-10 text-center backdrop-blur-2xl sm:p-16">
-            <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/60 to-transparent" />
-            <p
-              className="heading-display text-[10px] font-semibold uppercase tracking-[0.5em] text-amber-200 sm:text-xs"
-              style={{ textShadow: "0 0 18px rgba(245,185,69,0.55)" }}
-            >
-              — awarded #1 service · @refundgod
-            </p>
-            <h2
-              className="editorial-display mt-4 mx-auto max-w-4xl text-balance text-white text-3xl uppercase sm:text-5xl md:text-6xl"
-              style={{ textShadow: "0 4px 30px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.85)" }}
-            >
-              Innovative, fast and easy to use.
-            </h2>
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-white/90">
-              Choose wisely and let us handle your order with utmost care and
-              quality. We are certain you will be returning back to us in no time.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-              <MagneticButton href="#region" variant="primary">
-                Browse the store list
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <path d="M12 5v14M19 12l-7 7-7-7" />
-                </svg>
-              </MagneticButton>
-              <MagneticButton
-                href="https://cryptpad.fr/form/#/2/form/view/8G2YtzZK21kTYT4Hib0yja1VVoh2Q+3dPhBMKQtH37w/"
-                external
-                variant="ghost"
+      {/* Act 5 — Awarded CTA banner with pulsating glow + parallax depth */}
+      <ParallaxChapter
+        intensity={0.4}
+        className="pb-16 pt-12"
+        bgClassName="absolute inset-0 grid place-items-center opacity-25"
+        bg={<ParallaxIllustration kind="spark" accent="amber" size={580} />}
+      >
+        <section className="container-wide">
+          <Reveal>
+            <div className="pulse-glow relative overflow-hidden rounded-[2.5rem] border border-amber-400/25 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-amber-500/15 p-10 text-center backdrop-blur-2xl sm:p-16">
+              <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/60 to-transparent" />
+              <p
+                className="heading-display text-[10px] font-semibold uppercase tracking-[0.5em] text-amber-200 sm:text-xs"
+                style={{ textShadow: "0 0 18px rgba(245,185,69,0.55)" }}
               >
-                Submit your order
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
-                </svg>
-              </MagneticButton>
+                — awarded #1 service · @refundgod
+              </p>
+              <h2
+                className="editorial-display mt-4 mx-auto max-w-4xl text-balance text-white text-3xl uppercase sm:text-5xl md:text-6xl"
+                style={{ textShadow: "0 4px 30px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.85)", lineHeight: 1.02 }}
+              >
+                Innovative, fast and easy to use.
+              </h2>
+              <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-white/90">
+                Choose wisely and let us handle your order with utmost care and
+                quality. We are certain you will be returning back to us in no time.
+              </p>
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+                <MagneticButton href="#region" variant="primary">
+                  Browse the store list
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M12 5v14M19 12l-7 7-7-7" />
+                  </svg>
+                </MagneticButton>
+                <MagneticButton
+                  href="https://cryptpad.fr/form/#/2/form/view/8G2YtzZK21kTYT4Hib0yja1VVoh2Q+3dPhBMKQtH37w/"
+                  external
+                  variant="ghost"
+                >
+                  Submit your order
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
+                  </svg>
+                </MagneticButton>
+              </div>
             </div>
-          </div>
-        </Reveal>
-      </section>
+          </Reveal>
+        </section>
+      </ParallaxChapter>
     </div>
   );
 }

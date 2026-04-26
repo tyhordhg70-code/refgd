@@ -200,36 +200,30 @@ export default function Hero3D({
         style={{ y: cardY, opacity: cardOpac }}
         className="pointer-events-none container-wide relative z-10 flex min-h-[100svh] flex-col items-center justify-center text-center"
       >
+        {/* No backdrop card — the kicker sits directly on the cosmos.
+            Smaller, refined scale that lets the galaxy breathe behind. */}
         <motion.div
-          initial={{ opacity: 0, y: 30, scale: 0.96 }}
+          initial={{ opacity: 0, y: 24, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 1.1, ease: [0.25, 0.4, 0.25, 1] }}
-          className="mx-auto inline-block rounded-[3rem] px-10 py-12 sm:px-16 sm:py-16"
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(7,6,14,0.55), rgba(7,6,14,0.32) 40%, rgba(7,6,14,0.55))",
-            backdropFilter: "blur(10px)",
-            WebkitBackdropFilter: "blur(10px)",
-            boxShadow: "0 40px 140px -40px rgba(0,0,0,0.85)",
-          }}
+          className="mx-auto inline-block px-2"
         >
-          {/* Massive, centered "WELCOME" — owns the screen. */}
           <KineticText
             as="h1"
             text={kicker}
-            className="editorial-display text-balance uppercase text-white text-[clamp(4.5rem,18vw,18rem)] leading-[0.85] tracking-[-0.02em]"
+            className="editorial-display text-balance uppercase text-white text-[clamp(2.5rem,9vw,7rem)] leading-[0.95] tracking-[-0.015em]"
             style={{
               textShadow:
-                "0 4px 50px rgba(0,0,0,0.95), 0 0 60px rgba(245,185,69,0.35), 0 2px 10px rgba(0,0,0,0.9)",
+                "0 4px 50px rgba(0,0,0,0.95), 0 0 60px rgba(245,185,69,0.45), 0 2px 14px rgba(0,0,0,0.95)",
             }}
-            stagger={0.12}
+            stagger={0.1}
             delay={0.1}
           />
           {showTitle && (
             <KineticText
               as="p"
               text={title!}
-              className="heading-display mx-auto mt-8 max-w-3xl text-balance text-white/85 text-[clamp(1rem,2.2vw,1.6rem)] uppercase tracking-[0.3em]"
+              className="heading-display mx-auto mt-6 max-w-3xl text-balance text-white/85 text-[clamp(0.85rem,1.6vw,1.15rem)] uppercase tracking-[0.32em]"
               style={{ textShadow: "0 2px 18px rgba(0,0,0,0.9)" }}
               stagger={0.04}
               delay={0.6}

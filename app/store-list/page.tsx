@@ -4,6 +4,7 @@ import ServiceSection from "@/components/ServiceSection";
 import GlassCard from "@/components/GlassCard";
 import KineticText from "@/components/KineticText";
 import ParallaxIllustration from "@/components/ParallaxIllustration";
+import ParallaxChapter from "@/components/ParallaxChapter";
 import { Reveal } from "@/components/Reveal";
 
 export const dynamic = "force-dynamic";
@@ -61,14 +62,15 @@ export default async function StoreListPage() {
         <div className="mx-auto h-px w-full max-w-3xl bg-gradient-to-r from-transparent via-white/15 to-transparent" />
       </div>
 
-      {/* Store list intro — solid backdrop card so the headline POPS */}
-      <section
-        id="storelist"
-        className="relative scroll-mt-16 py-20 sm:py-28"
+      {/* Store list intro — solid backdrop card so the headline POPS,
+          wrapped in a parallax chapter for layered scroll depth. */}
+      <ParallaxChapter
+        intensity={0.5}
+        className="scroll-mt-16 py-20 sm:py-28"
+        bgClassName="absolute right-[6%] top-1/2 -translate-y-1/2 hidden lg:block"
+        bg={<ParallaxIllustration kind="store" accent="amber" size={420} />}
       >
-        <div aria-hidden="true" className="pointer-events-none absolute right-[6%] top-1/2 -translate-y-1/2 hidden lg:block">
-          <ParallaxIllustration kind="store" accent="amber" size={320} />
-        </div>
+      <section id="storelist" className="relative">
         <div className="container-wide relative">
           <div
             className="mx-auto max-w-5xl rounded-[2.5rem] border border-white/10 px-8 py-12 text-center sm:px-14 sm:py-16"
@@ -101,9 +103,16 @@ export default async function StoreListPage() {
           </div>
         </div>
       </section>
+      </ParallaxChapter>
 
-      {/* Rules — glass cards in 4-up grid */}
-      <section className="relative py-12">
+      {/* Rules — glass cards in 4-up grid, parallax 3D scroll depth */}
+      <ParallaxChapter
+        intensity={0.35}
+        className="py-12"
+        bgClassName="absolute left-[2%] top-[10%] hidden lg:block opacity-25"
+        bg={<ParallaxIllustration kind="shield" accent="cyan" size={260} />}
+      >
+      <section className="relative">
         <div className="container-wide relative">
           <Reveal>
             <p className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300/85">
@@ -129,9 +138,16 @@ export default async function StoreListPage() {
           </div>
         </div>
       </section>
+      </ParallaxChapter>
 
-      {/* Non-payment + payment — magazine 2/3 + 1/3 */}
-      <section className="relative py-12">
+      {/* Non-payment + payment — magazine 2/3 + 1/3, parallax depth */}
+      <ParallaxChapter
+        intensity={0.4}
+        className="py-12"
+        bgClassName="absolute right-[3%] top-[15%] hidden lg:block opacity-20"
+        bg={<ParallaxIllustration kind="encryption" accent="emerald" size={300} />}
+      >
+      <section className="relative">
         <div className="container-wide relative grid gap-5 lg:grid-cols-3">
           <GlassCard tint="rose" className="lg:col-span-2">
             <div className="relative overflow-hidden p-8 sm:p-10">
@@ -171,9 +187,16 @@ export default async function StoreListPage() {
           </GlassCard>
         </div>
       </section>
+      </ParallaxChapter>
 
-      {/* Filters + grid */}
-      <section className="relative py-20" id="region">
+      {/* Filters + grid — final chapter, parallax */}
+      <ParallaxChapter
+        intensity={0.45}
+        className="py-20"
+        bgClassName="absolute left-[4%] top-[8%] hidden lg:block opacity-20"
+        bg={<ParallaxIllustration kind="store" accent="violet" size={360} />}
+      >
+      <section className="relative" id="region">
         <div className="container-wide relative">
           <div
             className="mb-10 rounded-[2rem] border border-white/10 px-6 py-8 sm:px-10 sm:py-10"
@@ -207,6 +230,7 @@ export default async function StoreListPage() {
           <StoreFilters stores={stores} />
         </div>
       </section>
+      </ParallaxChapter>
     </div>
   );
 }

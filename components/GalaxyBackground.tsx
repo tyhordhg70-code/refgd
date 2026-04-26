@@ -110,9 +110,18 @@ export default function GalaxyBackground() {
             attribute float sizes;
             attribute vec4 shift;
             varying vec3 vColor;
+            varying float vTwinkle;
             ${shader.vertexShader}
           `
-            .replace(`gl_PointSize = size;`, `gl_PointSize = size * sizes;`)
+            // Per-star twinkle: each particle pulses on its own phase from
+            // shift.y. Range 0.55..1.45 keeps the field clearly alive
+            // without clipping the brightest ones.
+            .replace(
+              `gl_PointSize = size;`,
+              `float twk = 0.55 + 0.9 * pow(0.5 + 0.5 * sin(time * 1.6 + shift.y * 7.0 + shift.x * 3.0), 2.0);
+               vTwinkle = twk;
+               gl_PointSize = size * sizes * twk;`,
+            )
             .replace(
               `#include <color_vertex>`,
               `#include <color_vertex>
@@ -132,6 +141,7 @@ export default function GalaxyBackground() {
             );
           shader.fragmentShader = `
             varying vec3 vColor;
+            varying float vTwinkle;
             ${shader.fragmentShader}
           `
             .replace(
@@ -142,7 +152,9 @@ export default function GalaxyBackground() {
             )
             .replace(
               `vec4 diffuseColor = vec4( diffuse, opacity );`,
-              `vec4 diffuseColor = vec4( vColor, smoothstep(0.5, 0.1, d) );`,
+              // Twinkle modulates final alpha so brightness pulses too.
+              `float aTw = smoothstep(0.55, 1.4, vTwinkle);
+               vec4 diffuseColor = vec4( vColor * (0.85 + 0.4 * aTw), smoothstep(0.5, 0.1, d) * (0.65 + 0.45 * aTw) );`,
             );
       };
 

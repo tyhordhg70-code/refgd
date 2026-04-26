@@ -66,7 +66,10 @@
     font-family: "Clash Display", "Space Grotesk", "Geist", system-ui, sans-serif;
     font-weight: 700;
     letter-spacing: -0.045em;
-    line-height: 0.88;
+    /* line-height was 0.88 — too tight, caused descenders/ascenders to
+       overlap when titles wrapped (visible on /exclusive-mentorships).
+       1.02 keeps the chiseled editorial feel without collisions. */
+    line-height: 1.02;
   }
   .prismatic-border {
     background: linear-gradient(135deg,#ff6ad5,#c779d0,#4bc0c8,#feac5e,#ff6ad5);
