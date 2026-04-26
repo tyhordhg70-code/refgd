@@ -149,13 +149,16 @@ export default function StoreFilters({ stores }: Props) {
         {region} {filtered.length === 1 ? "store" : "stores"}
       </p>
 
-      {/* Categorized grid */}
-      <AnimatePresence mode="popLayout">
-        <motion.div layout className="space-y-12">
+      {/* Categorized grid.
+          NOTE: framer-motion's `layout` prop emits a server-side
+          transform that the client re-measures, which trips React's
+          "Extra attributes from the server: style" hydration warning.
+          We drop `layout` and rely on initial/animate for entrance. */}
+      <AnimatePresence>
+        <div className="space-y-12">
           {grouped.map(({ category, stores: list }, secIdx) => (
             <motion.section
               key={category}
-              layout
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: Math.min(secIdx * 0.05, 0.2) }}
@@ -175,7 +178,7 @@ export default function StoreFilters({ stores }: Props) {
               </div>
             </motion.section>
           ))}
-        </motion.div>
+        </div>
       </AnimatePresence>
 
       {filtered.length === 0 && (
