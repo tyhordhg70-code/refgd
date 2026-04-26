@@ -17,10 +17,13 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
-  /* framer-motion's `useScroll({ target })` warns when the target's
-     offsetParent has `position: static`. Promoting the body/main to
-     `position: relative` gives every section a sane positioned
-     ancestor and silences the warning project-wide. */
+  /* framer-motion's `useScroll({ target })` checks
+     `getComputedStyle(container).position !== "static"` where
+     `container` defaults to `document.documentElement`. Promoting
+     <html> (and <body>/<main> for ancestor chains) to relative
+     silences the project-wide "container has a non-static position"
+     warning without affecting layout. */
+  html { position: relative; }
   body { position: relative; }
   main { position: relative; }
   ::selection {
