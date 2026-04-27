@@ -54,16 +54,25 @@ export default function AnimatedParticleBackground() {
 
     let animationFrameId: number;
     let time = 0;
+    let scrollVelocity = 0;
+    let lastScrollY = 0;
+
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
     const animate = () => {
       time += 1;
+
+      // Calculate scroll velocity for particle speedup
+      const deltaScroll = scrollY - lastScrollY;
+      scrollVelocity = lerp(scrollVelocity, Math.abs(deltaScroll) * 2, 0.15);
+      lastScrollY = scrollY;
+
       const pulse = Math.sin(time * 0.005) * 0.3 + 0.7; // Pulsating effect
 
       // Background gradient (pulsating blue)
       const gradient = ctx.createLinearGradient(0, 0, w, h);
       const baseColor1 = `rgba(5, 6, 10, ${pulse * 0.95})`;
       const baseColor2 = `rgba(15, 25, 50, ${pulse * 0.9})`;
-      const accentColor = `rgba(34, 211, 238, ${pulse * 0.15})`;
 
       gradient.addColorStop(0, baseColor1);
       gradient.addColorStop(0.5, baseColor2);
@@ -84,33 +93,37 @@ export default function AnimatedParticleBackground() {
 
       // Update and draw particles
       particles.forEach((p) => {
-        // Update position with scroll offset
-        p.x += p.vx;
-        p.y += p.vy + scrollY * 0.1; // Scroll drift effect
-        p.phase += 0.02;
+        // Always moving even without scroll + accelerate on scroll
+        const baseSpeed = 1 + scrollVelocity * 0.5;
+        p.x += p.vx * baseSpeed;
+        p.y += p.vy * baseSpeed + (scrollY * 0.15 + scrollVelocity * 0.3); // Scroll drift + acceleration
+        p.phase += 0.02 + scrollVelocity * 0.01;
 
-        // Wrap around
-        if (p.x < -10) p.x = w + 10;
-        if (p.x > w + 10) p.x = -10;
-        if (p.y < -10) p.y = h + 10;
-        if (p.y > h + 10) p.y = -10;
+        // Wrap around with padding
+        if (p.x < -20) p.x = w + 20;
+        if (p.x > w + 20) p.x = -20;
+        if (p.y < -20) p.y = h + 20;
+        if (p.y > h + 20) p.y = -20;
 
-        // Pulsate opacity
-        const pulseOpacity = p.opacity * (Math.sin(p.phase) * 0.5 + 1);
+        // Pulsate opacity and size with scroll
+        const basePulseOpacity = p.opacity * (Math.sin(p.phase) * 0.5 + 1);
+        const scrollBoost = 1 + scrollVelocity * 0.1;
+        const pulseOpacity = Math.min(1, basePulseOpacity * scrollBoost);
+        const sizeBoost = 1 + scrollVelocity * 0.05;
 
         // Draw particle with glow
-        const glowGrad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 3);
+        const glowGrad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 3 * sizeBoost);
         glowGrad.addColorStop(0, `rgba(34, 211, 238, ${pulseOpacity * 0.6})`);
         glowGrad.addColorStop(1, `rgba(34, 211, 238, 0)`);
         ctx.fillStyle = glowGrad;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size * 3, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, p.size * 3 * sizeBoost, 0, Math.PI * 2);
         ctx.fill();
 
         // Core particle
         ctx.fillStyle = `rgba(255, 255, 255, ${pulseOpacity})`;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, p.size * sizeBoost, 0, Math.PI * 2);
         ctx.fill();
       });
 
