@@ -49,7 +49,11 @@ export default function GlassCard({
     emerald: "shadow-[0_30px_80px_-30px_rgba(52,211,153,0.55)]",
   }[tint];
 
-  const elasticClass = elastic && !reduced ? "liquid-glass-3d" : "";
+  // Mobile devices never trigger :hover, so the elastic mesh effect
+  // would be invisible to most visitors. We add `liquid-glass-mobile`
+  // (continuous breathing keyframe) on top of `liquid-glass-3d` so
+  // touch users see a visible deformation loop without lifting a finger.
+  const elasticClass = elastic && !reduced ? "liquid-glass-3d liquid-glass-mobile" : "";
 
   const inner = (
     <div
@@ -94,33 +98,36 @@ export default function GlassCard({
       <motion.div
         initial={{
           opacity: 0,
-          y: 30,
-          scale: 0.92,
-          skewX: -6,
-          rotateX: 8,
-          borderRadius: "60px 18px 60px 18px",
+          y: 40,
+          scale: 0.82,
+          skewX: -10,
+          rotateX: 14,
+          rotateY: -6,
+          borderRadius: "70px 12px 70px 12px",
         }}
         whileInView={{
           opacity: 1,
-          y: [30, -8, 0],
-          scale: [0.92, 1.04, 1],
-          skewX: [-6, 2, 0],
-          rotateX: [8, -3, 0],
+          y: [40, -14, 0],
+          scale: [0.82, 1.06, 1],
+          skewX: [-10, 4, 0],
+          rotateX: [14, -5, 0],
+          rotateY: [-6, 3, 0],
           // border-radius wobble: stretches into asymmetric shapes
           // and snaps back to a near-rounded square — visually reads
-          // as the card's mesh deforming and settling.
+          // as the card's mesh deforming and settling. More dramatic
+          // (was 60px max → now 80px) so it's obvious on mobile too.
           borderRadius: [
-            "60px 18px 60px 18px",
-            "20px 48px 22px 46px",
+            "70px 12px 70px 12px",
+            "16px 60px 18px 58px",
             "30px 26px 28px 32px",
           ],
         }}
         viewport={{ once: false, margin: "-60px" }}
         transition={{
-          duration: 1.1,
+          duration: 1.35,
           delay,
           times: [0, 0.55, 1],
-          ease: [0.22, 1.4, 0.36, 1],
+          ease: [0.22, 1.6, 0.36, 1],
         }}
         style={{ perspective: 1100, transformStyle: "preserve-3d" }}
         suppressHydrationWarning

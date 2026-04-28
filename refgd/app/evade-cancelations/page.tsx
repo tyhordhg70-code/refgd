@@ -9,6 +9,7 @@ import EditableLinkButton from "@/components/EditableLinkButton";
 import YouTubeTheater from "@/components/YouTubeTheater";
 import PixelRainCosmic from "@/components/PixelRainCosmic";
 import EvadeIllustrationDivider from "@/components/EvadeIllustrationDivider";
+import TrailerTitle3D from "@/components/TrailerTitle3D";
 
 export const metadata = {
   title: "Evade Cancelations — RefundGod",
@@ -80,8 +81,16 @@ const TRUST = [
   { title: "The aftermath", body: "For the following six months — after getting our seller account up and running — we dedicated extensive time and effort to developing effective strategies for safely and easily creating multiple Amazon accounts without the risk of being linked and blocked, which soon led to research of other stores and how their algorithms work as well.", illo: "shield" as const },
 ];
 
-/** Reusable card for chapter section headers — solid backdrop on top of
- *  the site-wide galaxy so the title stays legible. */
+/** Reusable card for chapter section headers — redesigned (2026-04):
+ *  – Animated gradient ring around the panel so it reads as a
+ *    premium, elevated card instead of a flat box.
+ *  – Inherits the same liquid-glass-3d / mobile mesh-breathe
+ *    deformation as the GlassCard family, so it visibly deforms on
+ *    touch devices without requiring a hover state.
+ *  – Pulsing chapter pill (rounded badge with the accent colour
+ *    glow) instead of plain text.
+ *  – Larger / heavier title typography with a stronger drop-shadow
+ *    so it punches over the page galaxy. */
 function ChapterHeader({
   chapter,
   title,
@@ -95,26 +104,62 @@ function ChapterHeader({
 }) {
   return (
     <div
-      className="rounded-[2rem] border border-white/10 px-6 py-8 sm:px-12 sm:py-10"
+      className="liquid-glass-3d liquid-glass-mobile group relative overflow-hidden rounded-[2.25rem] border border-white/15 px-6 py-9 sm:px-14 sm:py-12"
       style={{
         background:
-          "linear-gradient(160deg, rgba(15,10,30,0.82), rgba(8,6,18,0.92))",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-        boxShadow: "0 30px 90px -30px rgba(0,0,0,0.8)",
+          "linear-gradient(160deg, rgba(20,14,42,0.86), rgba(10,8,22,0.94))",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        boxShadow: `0 40px 120px -30px rgba(0,0,0,0.85), 0 0 90px -30px rgba(${glowRgb},0.45), inset 0 1px 0 rgba(255,255,255,0.07)`,
       }}
     >
-      <p
-        className={`heading-display text-xs font-semibold uppercase tracking-[0.5em] sm:text-sm ${accentClass}`}
-        style={{ textShadow: `0 0 24px rgba(${glowRgb},0.55)` }}
+      {/* Animated gradient ring — sits inside the border, slowly
+          rotates its hue stops so the chapter card always feels alive. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 rounded-[2.25rem] opacity-70"
+        style={{
+          padding: "1px",
+          background: `conic-gradient(from 180deg at 50% 50%, rgba(${glowRgb},0.0), rgba(${glowRgb},0.65), rgba(255,255,255,0.18), rgba(${glowRgb},0.0))`,
+          WebkitMask:
+            "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+          WebkitMaskComposite: "xor",
+          maskComposite: "exclude",
+        }}
+      />
+      {/* Top inner highlight — gel-cap "liquid glass" gloss. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent"
+      />
+
+      {/* Chapter pill — rounded badge instead of plain dash text. */}
+      <span
+        className={`heading-display relative inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.45em] sm:text-xs ${accentClass}`}
+        style={{
+          textShadow: `0 0 18px rgba(${glowRgb},0.65)`,
+          boxShadow: `inset 0 0 0 1px rgba(${glowRgb},0.25), 0 0 30px -10px rgba(${glowRgb},0.55)`,
+        }}
       >
-        — {chapter}
-      </p>
+        <span
+          className="h-1.5 w-1.5 rounded-full"
+          style={{
+            background: `rgba(${glowRgb},1)`,
+            boxShadow: `0 0 14px rgba(${glowRgb},0.9)`,
+          }}
+        />
+        {chapter}
+      </span>
+
       <KineticText
         as="h2"
         text={title}
-        className="editorial-display mt-5 max-w-5xl text-balance text-white text-[clamp(2rem,6vw,5rem)] uppercase"
-        style={{ textShadow: "0 4px 30px rgba(0,0,0,0.9), 0 2px 6px rgba(0,0,0,0.95)" }}
+        className="editorial-display relative mt-6 max-w-5xl text-balance text-white text-[clamp(2.1rem,6.4vw,5.2rem)] uppercase"
+        style={{
+          textShadow:
+            "0 6px 36px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.95)",
+          letterSpacing: "-0.025em",
+        }}
       />
     </div>
   );
@@ -162,27 +207,22 @@ export default function EvadePage() {
       <ReorderableSection sectionId="trailer">
         {/* Trailer — auto-plays with sound when scrolled into view; the
             page lights dim around the player but the visitor can still
-            scroll freely at any time (no scroll-lock). */}
-        <section className="relative py-10">
+            scroll freely at any time (no scroll-lock).
+
+            Layout v3 (2026-04): the old plain text eyebrow + the long
+            "Lights dim automatically …" caption are replaced with a
+            single 3D animated title (TrailerTitle3D) so the section
+            feels cinematic instead of administrative. Bottom padding
+            tightened so the player flows directly into the pixel-rain
+            transition below — no awkward dead space. */}
+        <section className="relative pt-6 pb-2">
           <div className="container-wide">
             <div className="mx-auto max-w-4xl">
-              <EditableText
-                id="evade.trailer.eyebrow"
-                defaultValue="— view trailer · auto-plays on scroll"
-                as="p"
-                className="heading-display mb-4 text-xs font-semibold uppercase tracking-[0.4em] text-cyan-300"
-              />
+              <TrailerTitle3D text="VIEW TRAILER VIDEO" />
               <YouTubeTheater
                 editId="evade.theater.videoId"
                 videoId="9ga4vZFpB6E"
                 title="RefundGod — Evade Cancelations Trailer"
-              />
-              <EditableText
-                id="evade.trailer.caption"
-                defaultValue="Lights dim automatically as you reach the player; sound starts on its own. Keep scrolling whenever you like — the page never locks."
-                as="p"
-                multiline
-                className="mt-4 text-center text-sm text-white/70"
               />
             </div>
           </div>
@@ -240,7 +280,10 @@ export default function EvadePage() {
 
         {/* Between-section illustration band — the "vault" hero artwork
             that previously washed out behind the cards now lives here
-            as its own visible divider. */}
+            as its own visible divider. The lock PNG has had its
+            background removed (see /uploads/evade-vault.png) and the
+            divider is rendered with `transparent` so no halo wash sits
+            behind it — the lock floats cleanly over the page galaxy. */}
         <EvadeIllustrationDivider
           src="/uploads/evade-vault.png"
           alt="Stealth-vault illustration — the gateway between the public web and your anonymous setup."
@@ -248,6 +291,7 @@ export default function EvadePage() {
           glow="cyan"
           height={320}
           caption="— the gateway · stealth in motion"
+          transparent
         />
 
         {/* Act 3 — Solutions / chapter 02 — parallax depth */}
@@ -290,16 +334,19 @@ export default function EvadePage() {
             {/* The new money-phone illustration — sits centred directly
                 below the "credit lines up to $10,000" boxcard so it's
                 clearly tied to that specific solution. Transparent +
-                animated (parallax drift handled inside the divider). */}
-            <div className="mt-12 flex justify-center">
+                animated (parallax drift handled inside the divider).
+                Spacing tightened (no mt-12 wrapper, compact divider)
+                so there's no large empty band above and below. */}
+            <div className="mt-4 flex justify-center">
               <div className="w-full max-w-2xl">
                 <EvadeIllustrationDivider
                   src="/uploads/money-phone.png"
                   alt="Anonymous credit lines up to $10,000 powering checkout on a phone."
                   align="center"
                   glow="violet"
-                  height={340}
+                  height={260}
                   caption="— credit lines, fully anonymous"
+                  compact
                 />
               </div>
             </div>
@@ -351,15 +398,23 @@ export default function EvadePage() {
 
       {/* Between-section illustration band — credit-cash hero now lives
           as its own divider rather than washing out behind the
-          features cards. */}
-      <EvadeIllustrationDivider
-        src="/uploads/credit-cash.png"
-        alt="Credit and cash flow — what's at stake when accounts get banned."
-        align="center"
-        glow="amber"
-        height={300}
-        caption="— what's at stake · what we protect"
-      />
+          features cards.
+
+          Wrapped in <ReorderableSection> so the ReorderableContainer
+          places it BETWEEN features and trust in the rendered output.
+          Without the wrapper it would be appended after every
+          ReorderableSection (i.e. after pricing) — that's why the
+          band was previously appearing in the wrong place. */}
+      <ReorderableSection sectionId="stake-divider">
+        <EvadeIllustrationDivider
+          src="/uploads/credit-cash.png"
+          alt="Credit and cash flow — what's at stake when accounts get banned."
+          align="center"
+          glow="amber"
+          height={300}
+          caption="— what's at stake · what we protect"
+        />
+      </ReorderableSection>
 
       <ReorderableSection sectionId="trust">
         {/* Act 5 — Trust / chapter 03 — parallax depth */}

@@ -19,6 +19,13 @@ export default function EvadeIllustrationDivider({
   glow = "violet",
   caption,
   height = 360,
+  /** When true, no halo backdrop is rendered behind the artwork
+   *  (used for cases where the image is already a fully transparent
+   *  PNG and any halo wash would compete with the page galaxy). */
+  transparent = false,
+  /** Tighter vertical padding — used for divider bands that should
+   *  feel inline with adjacent sections instead of floating apart. */
+  compact = false,
 }: {
   src: string;
   alt: string;
@@ -26,6 +33,8 @@ export default function EvadeIllustrationDivider({
   glow?: "cyan" | "violet" | "amber" | "fuchsia";
   caption?: string;
   height?: number;
+  transparent?: boolean;
+  compact?: boolean;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const { scrollYProgress } = useScroll({
@@ -51,7 +60,7 @@ export default function EvadeIllustrationDivider({
       : "justify-center";
 
   return (
-    <section className="relative py-10">
+    <section className={compact ? "relative py-2" : "relative py-10"}>
       <div className="container-wide">
         <div
           ref={ref}
@@ -59,17 +68,21 @@ export default function EvadeIllustrationDivider({
           style={{ minHeight: height }}
         >
           {/* Soft halo behind the artwork so it reads as floating in
-              space and not pasted on the page background. */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background: `radial-gradient(ellipse 60% 50% at ${
-                align === "left" ? "30%" : align === "right" ? "70%" : "50%"
-              } 50%, ${glowMap[glow]}, transparent 65%)`,
-              filter: "blur(20px)",
-            }}
-          />
+              space and not pasted on the page background. Suppressed
+              when `transparent` is set — the image then floats over
+              the bare page galaxy with no extra backdrop. */}
+          {transparent ? null : (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background: `radial-gradient(ellipse 60% 50% at ${
+                  align === "left" ? "30%" : align === "right" ? "70%" : "50%"
+                } 50%, ${glowMap[glow]}, transparent 65%)`,
+                filter: "blur(20px)",
+              }}
+            />
+          )}
           <motion.img
             src={src}
             alt={alt}

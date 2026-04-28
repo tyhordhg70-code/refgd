@@ -201,13 +201,19 @@ export default function PixelRainCosmic({
     }
 
     // ── Scroll-progress driver ──
+    // Progress now starts the moment the wrapper enters the viewport
+    // (its top crosses the bottom of the screen) instead of waiting
+    // for its top to reach the viewport top. This removes the
+    // "scroll a bit before rain starts" delay the user reported and
+    // makes the transition feel continuous with the section above.
     function onScroll() {
       const r = W.getBoundingClientRect();
       const vh = window.innerHeight || 1;
       // Span over which 0 → 1 plays out.
       const span = vh * scrollLength;
-      // How far the wrapper top has scrolled past viewport top.
-      const traveled = -r.top;
+      // How far the wrapper has traveled INTO the viewport, measured
+      // from when its top first crossed the bottom edge.
+      const traveled = vh - r.top;
       progressRef.current = clamp(traveled / span, 0, 1);
     }
     onScroll();

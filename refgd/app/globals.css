@@ -844,16 +844,57 @@ html { scroll-behavior: smooth; }
     inset 0 1px 0 rgba(255,255,255,0.10);
 }
 @media (prefers-reduced-motion: reduce) {
-  .liquid-glass-3d, .liquid-glass-3d:hover {
+  .liquid-glass-3d, .liquid-glass-3d:hover,
+  .liquid-glass-mobile {
     transform: none;
     border-radius: 1.5rem;
     transition: none;
+    animation: none !important;
   }
 }
-@media (max-width: 480px) {
+
+/* ─────────────────────────────────────────────────────────────────
+   liquid-glass-mobile — continuous "breathing" mesh deformation
+   for touch devices. Mobile users never trigger :hover, so the
+   regular liquid-glass-3d hover effect is invisible to them. This
+   keyframe loops a subtle border-radius asymmetric morph + skew +
+   scale so every elastic GlassCard visibly deforms on its own.
+   Desktop (hover-capable) devices skip this loop and rely on the
+   :hover effect instead.
+   ───────────────────────────────────────────────────────────────── */
+@keyframes liquidMeshBreathe {
+  0% {
+    border-radius: 30px 26px 28px 32px / 28px 30px 26px 30px;
+    transform: perspective(1100px) rotateX(0deg) rotateY(0deg) scale(1) skewX(0deg);
+  }
+  33% {
+    border-radius: 48px 18px 44px 22px / 36px 26px 38px 24px;
+    transform: perspective(1100px) rotateX(1.5deg) rotateY(-1.2deg) scale(1.012) skewX(-0.6deg);
+  }
+  66% {
+    border-radius: 18px 46px 22px 44px / 24px 38px 26px 36px;
+    transform: perspective(1100px) rotateX(-1.4deg) rotateY(1.4deg) scale(1.012) skewX(0.6deg);
+  }
+  100% {
+    border-radius: 30px 26px 28px 32px / 28px 30px 26px 30px;
+    transform: perspective(1100px) rotateX(0deg) rotateY(0deg) scale(1) skewX(0deg);
+  }
+}
+@media (hover: none) {
+  .liquid-glass-mobile {
+    animation: liquidMeshBreathe 6.5s ease-in-out infinite;
+    will-change: transform, border-radius;
+  }
+  /* Hover transform never fires on touch — disable so animation isn't
+     overridden by the static :hover stylesheet rule. */
   .liquid-glass-3d:hover {
     transform: none;
-    border-radius: 1.5rem;
+  }
+}
+/* Desktop (hover-capable) devices skip the breathe loop entirely. */
+@media (hover: hover) {
+  .liquid-glass-mobile {
+    animation: none;
   }
 }
 
