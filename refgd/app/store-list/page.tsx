@@ -11,6 +11,7 @@ import KineticText from "@/components/KineticText";
 import ParallaxChapter from "@/components/ParallaxChapter";
 import { Reveal } from "@/components/Reveal";
 import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
+import EditableText from "@/components/EditableText";
 
 export const dynamic = "force-dynamic";
 
@@ -89,32 +90,40 @@ export default async function StoreListPage() {
       <section id="storelist" className="relative">
         <div className="container-wide relative">
           <div
-            className="mx-auto max-w-5xl rounded-[2.5rem] border border-white/10 px-8 py-12 text-center sm:px-14 sm:py-16"
+            className="mx-auto max-w-5xl rounded-[2.5rem] border border-white/15 px-8 py-12 text-center sm:px-14 sm:py-16"
             style={{
+              // Bumped opacity from 0.85/0.92 → 0.95/0.98 so the headline
+              // sits on a near-solid backdrop and pops above the galaxy.
               background:
-                "linear-gradient(160deg, rgba(15,10,30,0.85), rgba(8,6,18,0.92))",
-              backdropFilter: "blur(12px)",
-              WebkitBackdropFilter: "blur(12px)",
-              boxShadow: "0 40px 120px -40px rgba(0,0,0,0.85)",
+                "linear-gradient(160deg, rgba(15,10,30,0.95), rgba(8,6,18,0.98))",
+              backdropFilter: "blur(16px) saturate(120%)",
+              WebkitBackdropFilter: "blur(16px) saturate(120%)",
+              boxShadow:
+                "0 40px 120px -30px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06)",
             }}
           >
-            <p
+            <EditableText
+              id="storelist.hero.eyebrow"
+              defaultValue="— chapter 05 / curated · 480+ stores"
+              as="p"
               className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300 sm:text-sm"
               style={{ textShadow: "0 0 24px rgba(245,185,69,0.5)" }}
-            >
-              — chapter 05 / curated · 480+ stores
-            </p>
+            />
             <KineticText
               as="h2"
               text="The Store List"
+              editId="storelist.hero.title"
               className="editorial-display mt-6 text-white text-[clamp(2.5rem,10vw,9rem)] uppercase"
               style={{ textShadow: "0 4px 40px rgba(0,0,0,0.9), 0 2px 8px rgba(0,0,0,0.95)" }}
             />
             <Reveal delay={0.4}>
-              <p className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-white/95">
-                Filter by region, search by name, and see live limits, fees and
-                timeframes. Join our channels for the latest store drops.
-              </p>
+              <EditableText
+                id="storelist.hero.body"
+                defaultValue="Filter by region, search by name, and see live limits, fees and timeframes. Join our channels for the latest store drops."
+                as="p"
+                multiline
+                className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-white/95"
+              />
             </Reveal>
           </div>
         </div>
@@ -131,23 +140,37 @@ export default async function StoreListPage() {
       <section className="relative">
         <div className="container-wide relative">
           <Reveal>
-            <p className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300/85">
-              — the rules
-            </p>
+            <EditableText
+              id="storelist.rules.eyebrow"
+              defaultValue="— the rules"
+              as="p"
+              className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300/85"
+            />
           </Reveal>
-          <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {/* 4-up layout activates at lg (1024px) instead of xl so PC users
+              see all four rule cards on a single row instead of having
+              card-3/card-4 stranded on a second row. On <md screens the
+              layout naturally collapses to a single centered column. */}
+          <div className="mx-auto mt-8 grid max-w-6xl justify-items-center gap-5 md:grid-cols-2 lg:grid-cols-4 lg:justify-items-stretch">
             {RULES_BLOCKS.map((b, i) => (
-              <GlassCard key={b.n} tint={b.tint} delay={i * 0.08}>
+              <GlassCard key={b.n} tint={b.tint} delay={i * 0.08} className="w-full max-w-md">
                 <div className="p-6 sm:p-7">
                   <div className="heading-display text-aurora text-5xl font-bold leading-none tracking-tight">
                     {b.n}
                   </div>
-                  <h3 className="heading-display mt-3 text-lg font-bold uppercase tracking-tight text-white">
-                    {b.h}
-                  </h3>
-                  <p className="mt-3 text-sm font-medium leading-relaxed text-white/85">
-                    {b.body}
-                  </p>
+                  <EditableText
+                    id={`storelist.rule.${b.n}.h`}
+                    defaultValue={b.h}
+                    as="h3"
+                    className="heading-display mt-3 text-lg font-bold uppercase tracking-tight text-white"
+                  />
+                  <EditableText
+                    id={`storelist.rule.${b.n}.body`}
+                    defaultValue={b.body}
+                    as="p"
+                    multiline
+                    className="mt-3 text-sm font-medium leading-relaxed text-white/85"
+                  />
                 </div>
               </GlassCard>
             ))}
@@ -167,32 +190,43 @@ export default async function StoreListPage() {
         <div className="container-wide relative grid gap-5 lg:grid-cols-3">
           <GlassCard tint="rose" className="lg:col-span-2">
             <div className="relative overflow-hidden p-8 sm:p-10">
-              <h3 className="relative heading-display text-2xl font-bold uppercase tracking-tight text-rose-100">
-                Non-payment disclaimer
-              </h3>
-              <p className="relative mt-4 text-base leading-relaxed text-white/85">
-                Failure to pay our service fee within the agreed timeframe will
-                result in a rebill and pursuit of legal action by the company
-                and local authorities, with all documentation and evidence
-                supporting this activity. We have automated scripts that inform
-                us of pending orders awaiting payment. Given our service is
-                constructed to help you, it is only fair to treat us with a
-                little gratitude in return.
-              </p>
+              <EditableText
+                id="storelist.nonpay.title"
+                defaultValue="Non-payment disclaimer"
+                as="h3"
+                className="relative heading-display text-2xl font-bold uppercase tracking-tight text-rose-100"
+              />
+              <EditableText
+                id="storelist.nonpay.body"
+                defaultValue="Failure to pay our service fee within the agreed timeframe will result in a rebill and pursuit of legal action by the company and local authorities, with all documentation and evidence supporting this activity. We have automated scripts that inform us of pending orders awaiting payment. Given our service is constructed to help you, it is only fair to treat us with a little gratitude in return."
+                as="p"
+                multiline
+                className="relative mt-4 text-base leading-relaxed text-white/85"
+              />
             </div>
           </GlassCard>
           <GlassCard tint="emerald">
             <div className="relative overflow-hidden p-8 sm:p-10">
-              <h3 className="relative heading-display text-2xl font-bold uppercase tracking-tight text-emerald-100">
-                Payment
-              </h3>
-              <p className="relative mt-4 text-base leading-relaxed text-white/85">
-                We accept ALL cryptocurrencies as payment.
-              </p>
-              <p className="relative mt-3 text-base leading-relaxed text-white/85">
-                Don&apos;t see a store you&apos;re interested in below? We&apos;d be more than
-                happy to try it out for you, for a discounted rate!
-              </p>
+              <EditableText
+                id="storelist.pay.title"
+                defaultValue="Payment"
+                as="h3"
+                className="relative heading-display text-2xl font-bold uppercase tracking-tight text-emerald-100"
+              />
+              <EditableText
+                id="storelist.pay.body1"
+                defaultValue="We accept ALL cryptocurrencies as payment."
+                as="p"
+                multiline
+                className="relative mt-4 text-base leading-relaxed text-white/85"
+              />
+              <EditableText
+                id="storelist.pay.body2"
+                defaultValue="Don't see a store you're interested in below? We'd be more than happy to try it out for you, for a discounted rate!"
+                as="p"
+                multiline
+                className="relative mt-3 text-base leading-relaxed text-white/85"
+              />
             </div>
           </GlassCard>
         </div>

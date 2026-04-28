@@ -1,7 +1,13 @@
 "use client";
 import { motion } from "framer-motion";
 
-export type PathIllustrationKind = "store" | "shield" | "chess" | "spark" | "mastery";
+export type PathIllustrationKind =
+  | "store"
+  | "shield"
+  | "chess"
+  | "spark"
+  | "mastery"
+  | "buy4you";
 
 const ACCENT_TO_HEX: Record<string, { primary: string; secondary: string; soft: string }> = {
   gold:    { primary: "#f5b945", secondary: "#ffe28a", soft: "rgba(245,185,69,0.30)" },
@@ -84,6 +90,7 @@ export default function PathIllustration({
       {kind === "chess"   && <ChessScene   c={c} kind={kind} />}
       {kind === "spark"   && <SparkScene   c={c} kind={kind} />}
       {kind === "mastery" && <MasteryScene c={c} kind={kind} />}
+      {kind === "buy4you" && <Buy4YouScene c={c} kind={kind} />}
 
       {/* Floating accent dots (always present). We animate the wrapping
           <motion.g> via CSS transforms (y) instead of the SVG `cy`
@@ -320,6 +327,100 @@ function SparkScene({ c, kind }: { c: any; kind: string }) {
           <path d="M0,-8 L2,-2 L8,0 L2,2 L0,8 L-2,2 L-8,0 L-2,-2 Z" fill={c.secondary} />
         </motion.g>
       ))}
+    </g>
+  );
+}
+
+/* ─────────────────────────── BUY 4 YOU ─────────────────────── */
+/** "BUY 4 YOU" / concierge ordering illustration — a giant 4 with a
+ *  glowing shopping bag passing through it and orbiting "for-you" tags. */
+function Buy4YouScene({ c, kind }: { c: any; kind: string }) {
+  return (
+    <g filter={`url(#pi-glow-${kind})`}>
+      {/* Background "4" */}
+      <motion.text
+        x="200" y="320"
+        textAnchor="middle"
+        fontFamily="Clash Display, system-ui"
+        fontWeight="800"
+        fontSize="320"
+        fill={c.soft}
+        stroke={c.secondary}
+        strokeWidth="3"
+        animate={{ opacity: [0.55, 0.85, 0.55] }}
+        transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut" }}
+      >
+        4
+      </motion.text>
+
+      {/* Shopping bag — bobs */}
+      <motion.g
+        transform="translate(200,250)"
+        animate={{ y: [0, -10, 0], rotate: [-3, 3, -3] }}
+        transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
+        style={{ transformOrigin: "200px 250px", transformBox: "fill-box" }}
+      >
+        {/* Handle */}
+        <path
+          d="M-22,-30 Q-22,-58 0,-58 Q22,-58 22,-30"
+          stroke={c.secondary}
+          strokeWidth="5"
+          fill="none"
+          strokeLinecap="round"
+        />
+        {/* Bag body */}
+        <path
+          d="M-46,-30 L46,-30 L40,60 L-40,60 Z"
+          fill={c.primary}
+          stroke={c.secondary}
+          strokeWidth="3"
+          strokeLinejoin="round"
+        />
+        {/* Sparkle on the bag */}
+        <motion.path
+          d="M-12,0 L-9,-7 L-2,-10 L-9,-13 L-12,-20 L-15,-13 L-22,-10 L-15,-7 Z"
+          fill="#fff8e6"
+          animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.6, 1, 0.6] }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+          style={{ transformOrigin: "-12px -10px", transformBox: "fill-box" }}
+        />
+        {/* Heart */}
+        <path
+          d="M14,8 a6,6 0 0 1 12,0 a6,6 0 0 1 12,0 c0,8 -12,16 -12,16 c0,0 -12,-8 -12,-16 z"
+          transform="translate(-20,8)"
+          fill="#fff8e6"
+          opacity="0.9"
+        />
+      </motion.g>
+
+      {/* Orbiting "FOR YOU" / coin tags */}
+      {[
+        { a: 0,   r: 130, label: "FOR YOU" },
+        { a: 120, r: 130, label: "GIFT" },
+        { a: 240, r: 130, label: "DEAL" },
+      ].map((t, i) => (
+        <motion.g
+          key={i}
+          animate={{ rotate: 360 }}
+          transition={{ duration: 22 + i * 3, repeat: Infinity, ease: "linear" }}
+          style={{ transformOrigin: "200px 250px", transformBox: "fill-box" }}
+        >
+          <g
+            transform={`translate(${(200 + Math.cos((t.a * Math.PI) / 180) * t.r).toFixed(3)}, ${(250 + Math.sin((t.a * Math.PI) / 180) * (t.r * 0.55)).toFixed(3)})`}
+          >
+            <rect x="-30" y="-12" width="60" height="22" rx="11"
+                  fill="rgba(5,6,10,0.55)" stroke={c.secondary} strokeWidth="1.5" />
+            <text x="0" y="4" textAnchor="middle"
+                  fontFamily="Clash Display, system-ui" fontWeight="700"
+                  fontSize="10" fill={c.secondary} letterSpacing="2">{t.label}</text>
+          </g>
+        </motion.g>
+      ))}
+
+      {/* Engraved label */}
+      <text x="200" y="450" textAnchor="middle"
+            fontFamily="Clash Display, system-ui" fontWeight="700"
+            fontSize="14" fill={c.secondary} letterSpacing="6">CONCIERGE</text>
     </g>
   );
 }

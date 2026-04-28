@@ -616,11 +616,11 @@ export default function MentorshipsPage() {
         <div className="container-wide">
           <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-14">
             <div className="lg:order-2 lg:col-span-5">
-              {/* Use a different illustration not yet on this page —
-                  splash-2 is the celebratory hands-up scene from
-                  /public/images. */}
+              {/* "A whole new world" — paired with the mentorship-key
+                  artwork so the section visually nods to unlocking new
+                  capabilities the add-ons offer. */}
               <ScrollImage
-                src="/images/splash-2.png"
+                src="/uploads/mentorship-key.png"
                 alt=""
                 side="right"
                 glow="amber"

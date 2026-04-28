@@ -20,6 +20,7 @@ const PATHS = [
   { href: "/evade-cancelations",    title: "Evade Cancelations",    illustration: "shield"  as const, accent: "cyan"    as const },
   { href: "/exclusive-mentorships", title: "Exclusive Mentorships", illustration: "mastery" as const, accent: "violet"  as const },
   { href: "https://refundgod.bgng.io/", external: true, title: "Shop Methods", illustration: "spark" as const, accent: "orange" as const },
+  { href: "https://t.me/refundlawfirm", external: true, title: "BUY 4 YOU",    illustration: "buy4you" as const, accent: "fuchsia" as const },
 ];
 
 export default async function HomePage() {
@@ -102,7 +103,10 @@ export default async function HomePage() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+                  {/* 5 cards: 1 / 2 / 3 / 5 column layouts so the BUY 4
+                      YOU card sits inline with the other four on wide
+                      screens, and the rows stay balanced on tablets. */}
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-5">
                     {PATHS.map((p, i) => (
                       <PathCard key={p.href} index={i} {...p} />
                     ))}

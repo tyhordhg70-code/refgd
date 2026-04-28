@@ -362,6 +362,42 @@ html { scroll-behavior: smooth; }
                 0 0 60px 10px rgba(167,139,250,0.20);
   }
 }
+.pulse-glow-gold { animation: pulseGlowGold 4.6s ease-in-out infinite; }
+@keyframes pulseGlowGold {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.10),
+                0 30px 80px -30px rgba(245,185,69,0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.55),
+                0 30px 100px -25px rgba(245,185,69,0.55),
+                0 0 60px 10px rgba(255,237,180,0.22);
+  }
+}
+.pulse-glow-orange { animation: pulseGlowOrange 5.2s ease-in-out infinite; }
+@keyframes pulseGlowOrange {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(249,115,22,0.10),
+                0 30px 80px -30px rgba(249,115,22,0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(249,115,22,0.55),
+                0 30px 100px -25px rgba(249,115,22,0.55),
+                0 0 60px 10px rgba(253,186,116,0.22);
+  }
+}
+.pulse-glow-fuchsia { animation: pulseGlowFuchsia 4.8s ease-in-out infinite; }
+@keyframes pulseGlowFuchsia {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(236,72,153,0.10),
+                0 30px 80px -30px rgba(236,72,153,0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(236,72,153,0.60),
+                0 30px 100px -25px rgba(236,72,153,0.55),
+                0 0 60px 10px rgba(244,114,182,0.22);
+  }
+}
 
 /* ─── Floating card utility ────────────────────────────────────── */
 .float-card {

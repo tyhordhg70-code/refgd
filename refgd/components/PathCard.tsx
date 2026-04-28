@@ -22,6 +22,16 @@ const ACCENT_GLOW: Record<PathCardProps["accent"], string> = {
   orange:  "hover:shadow-[0_50px_120px_-30px_rgba(249,115,22,0.85)]",
 };
 
+/** Continuous pulsating accent-color glow per card so each one breathes
+ *  in its own colour even when the user isn't hovering. */
+const ACCENT_PULSE: Record<PathCardProps["accent"], string> = {
+  gold:    "pulse-glow-gold",
+  fuchsia: "pulse-glow-fuchsia",
+  cyan:    "pulse-glow-cyan",
+  violet:  "pulse-glow-violet",
+  orange:  "pulse-glow-orange",
+};
+
 const ACCENT_RING: Record<PathCardProps["accent"], string> = {
   gold:    "from-amber-300/70 via-amber-400/15 to-transparent",
   fuchsia: "from-fuchsia-300/70 via-fuchsia-500/15 to-transparent",
@@ -84,7 +94,7 @@ export default function PathCard({
         <Tilt3D intensity={0.85} className="h-full">
           <Tag
             {...linkProps}
-            className={`relative block h-full overflow-hidden rounded-[2rem] glass-strong transition-all duration-500 ${ACCENT_GLOW[accent]}`}
+            className={`relative block h-full overflow-hidden rounded-[2rem] glass-strong transition-all duration-500 ${ACCENT_GLOW[accent]} ${ACCENT_PULSE[accent]}`}
             style={{
               // Slightly more opaque base — keeps the glass character
               // but stops the cards from looking like ghostly outlines

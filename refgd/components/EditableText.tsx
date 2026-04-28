@@ -19,7 +19,7 @@
  * disturbing the layout. It never adds extra padding/margin in default mode.
  */
 
-import { useEffect, useRef, type ElementType } from "react";
+import { useEffect, useRef, type ElementType, type CSSProperties } from "react";
 import { useEditContext } from "@/lib/edit-context";
 
 type Props = {
@@ -30,6 +30,10 @@ type Props = {
   /** Element tag to render. Default `<span>`. */
   as?: ElementType;
   className?: string;
+  /** Optional inline style forwarded onto the rendered element. Useful
+   *  for textShadow / paddingX / etc that callers like KineticText apply
+   *  on the underlying tag. */
+  style?: CSSProperties;
   /** Allow line breaks (Enter inserts newline instead of committing). */
   multiline?: boolean;
   /** Optional placeholder shown if value is empty in edit mode. */
@@ -43,6 +47,7 @@ export default function EditableText({
   defaultValue,
   as: Tag = "span",
   className = "",
+  style,
   multiline = false,
   placeholder = "Click to edit…",
   "data-testid": testId,
@@ -53,14 +58,27 @@ export default function EditableText({
   const ref = useRef<HTMLElement | null>(null);
 
   // Keep the DOM in sync when value changes externally (undo / discard /
-  // remote save). We only write the textContent when the user is NOT
-  // currently focused inside the element, otherwise we'd kill their caret.
+  // remote save). We only write the DOM when the user is NOT currently
+  // focused inside the element, otherwise we'd kill their caret.
+  // For multiline text we render newline characters as <br> so the
+  // visual layout matches what the user typed (otherwise textContent
+  // would put everything on one line).
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (document.activeElement === el) return;
-    if (el.textContent !== value) el.textContent = value;
-  }, [value]);
+    if (multiline) {
+      // Convert "\n" → <br>. Escape HTML to keep it safe.
+      const escaped = value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\n/g, "<br>");
+      if (el.innerHTML !== escaped) el.innerHTML = escaped;
+    } else {
+      if (el.textContent !== value) el.textContent = value;
+    }
+  }, [value, multiline]);
 
   // Suppress hydration warning on first paint: server renders the saved
   // value, client may briefly show the same value but with contentEditable
@@ -70,7 +88,24 @@ export default function EditableText({
     : className;
 
   const onBlur = (e: React.FocusEvent<HTMLElement>) => {
-    const next = (e.currentTarget.textContent ?? "").replace(/\u00A0/g, " ");
+    let next: string;
+    if (multiline) {
+      // Read the editable HTML and turn <br> / <div> into newlines so
+      // that text the user wrapped onto multiple lines actually persists
+      // as multi-line content (textContent alone strips them).
+      const html = (e.currentTarget.innerHTML ?? "")
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/(div|p)>/gi, "\n")
+        .replace(/<[^>]+>/g, "");
+      // Decode the basic HTML entities we previously escaped.
+      const tmp = document.createElement("textarea");
+      tmp.innerHTML = html;
+      next = tmp.value.replace(/\u00A0/g, " ");
+      // Trim trailing newline introduced by closing-tag conversion.
+      next = next.replace(/\n+$/, "");
+    } else {
+      next = (e.currentTarget.textContent ?? "").replace(/\u00A0/g, " ");
+    }
     if (next !== value) setValue(id, next);
   };
 
@@ -102,6 +137,7 @@ export default function EditableText({
       className={
         editing && multiline ? `${baseClass} whitespace-pre-line` : baseClass
       }
+      style={style}
       contentEditable={editing}
       suppressContentEditableWarning
       // EditableText is frequently nested inside framer-motion wrappers
