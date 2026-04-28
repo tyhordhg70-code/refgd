@@ -1,42 +1,42 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { motion, useScroll, useSpring, useTransform } from "framer-motion";
 
 /**
- * PathsHorizontalReveal — MOBILE ONLY scroll-jacking layout for the
- * five path cards.
+ * PathsHorizontalReveal — mobile path-card layout.
  *
- * On mobile we don't have horizontal screen real-estate to fan five
- * cards out diagonally, so we fake a cinematic "camera tracks
- * sideways" reveal:
+ * Mobile (< 768px): a native CSS scroll-snap horizontal carousel.
+ *   • All five cards are always in the DOM, side by side.
+ *   • The OS handles scrolling natively — one swipe = one card,
+ *     iOS / Android inertia behaves exactly as users expect.
+ *   • Card 1 is the first item the user sees, card 5 is the last
+ *     and is reachable with simple horizontal swipes.
+ *   • Pagination dots reflect the current card so the user knows
+ *     there are more cards to swipe to.
  *
- *   • The whole component takes a tall vertical scroll runway
- *     (≈ 5 × 100svh) and pins a 100svh sticky stage inside.
- *   • As the user scrolls vertically, the row of cards translates
- *     horizontally (right → left), each card sliding in from off-
- *     screen with a slight diagonal zoom and tilt.
- *   • Once the runway is exhausted (all 5 cards revealed), the
- *     section unpins and normal vertical scroll resumes for whatever
- *     comes next.
+ * Replaces an earlier scroll-jacking ("camera tracks sideways"
+ * with sticky 5×100svh runway). That was cinematic on paper but
+ * combined badly with mobile inertial scroll: a fast flick blew
+ * past several cards, the spring lagged, and cards 1 and 5 were
+ * effectively invisible. The native carousel ships with
+ * predictable touch handling.
  *
- * On desktop and tablet (≥ 768px) we fall back to rendering the
- * children in the parent grid — this component returns null then so
- * the existing `<div className="grid grid-cols-… xl:grid-cols-5">`
- * picks up the cards directly.
+ * Desktop / tablet (≥ 768px): unchanged — render `desktopFallback`,
+ * which is the existing 1 / 2 / 3 / 5-column grid on the home page.
  */
 export default function PathsHorizontalReveal({
   cards,
   desktopFallback,
 }: {
-  /** Pre-built card React nodes, in order. Should be 5 for the
-   *  current home page but the component is resilient to any count. */
+  /** Pre-built card React nodes, in order. */
   cards: ReactNode[];
   /** What to render on tablet / desktop. Typically the existing grid. */
   desktopFallback: ReactNode;
 }) {
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const trackRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -47,184 +47,128 @@ export default function PathsHorizontalReveal({
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  const sectionRef = useRef<HTMLDivElement | null>(null);
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start start", "end end"],
-  });
-  // Snappy spring so a fast swipe still tracks scroll closely (no
-  // visual lag where the user has scrolled but the cards are still
-  // catching up — that's what made card 5 appear "skipped" before).
-  const progress = useSpring(scrollYProgress, {
-    stiffness: 280,
-    damping: 36,
-    mass: 0.2,
-  });
+  // Track which card is currently snapped — used to drive the
+  // pagination dots underneath the carousel. We compute the
+  // closest snap target by inspecting scrollLeft against each
+  // child's offsetLeft + width / 2.
+  useEffect(() => {
+    if (!isMobile) return;
+    const track = trackRef.current;
+    if (!track) return;
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const items = Array.from(track.children) as HTMLElement[];
+        if (items.length === 0) return;
+        const center = track.scrollLeft + track.clientWidth / 2;
+        let bestIdx = 0;
+        let bestDist = Infinity;
+        for (let i = 0; i < items.length; i++) {
+          const c = items[i];
+          const itemCenter = c.offsetLeft + c.offsetWidth / 2;
+          const dist = Math.abs(itemCenter - center);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestIdx = i;
+          }
+        }
+        setActiveIndex(bestIdx);
+      });
+    };
+    track.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => {
+      track.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [isMobile, cards.length]);
 
-  const count = cards.length;
-  // Total horizontal distance: shift the row left by (count - 1)
-  // viewport widths so the last card lands centred. We park the row
-  // at its FINAL position by progress 0.92 — the remaining 8% of
-  // runway is "settle time" so the user can actually see card 5
-  // centred before the sticky disengages and vertical scroll resumes.
-  const x = useTransform(
-    progress,
-    [0, 0.08, 0.92, 1],
-    [
-      `0vw`,
-      `0vw`,
-      `-${(count - 1) * 100}vw`,
-      `-${(count - 1) * 100}vw`,
-    ],
-  );
+  const scrollToCard = (i: number) => {
+    const track = trackRef.current;
+    if (!track) return;
+    const items = Array.from(track.children) as HTMLElement[];
+    const target = items[i];
+    if (!target) return;
+    const left =
+      target.offsetLeft - (track.clientWidth - target.offsetWidth) / 2;
+    track.scrollTo({ left, behavior: "smooth" });
+  };
 
-  // SSR / desktop / tablet: render the desktop grid as-is.
+  // SSR / desktop / tablet: render the existing desktop grid.
   if (!mounted || !isMobile) {
     return <>{desktopFallback}</>;
   }
 
   return (
-    <section
-      ref={sectionRef}
-      data-testid="paths-horizontal-reveal"
-      className="relative w-full"
-      style={{
-        // Runway height ≈ 0.7 viewports per card + a small buffer so
-        // ONE swipe advances roughly one card and the user actually
-        // sees every card in turn (the previous 1.0 vh-per-card
-        // runway took 5+ swipes and made it feel like cards were
-        // being skipped).
-        height: `${(count * 0.7 + 0.5) * 100}svh`,
-      }}
-    >
-      <div className="sticky top-0 flex h-[100svh] w-full items-center overflow-hidden">
-        <motion.div
-          className="flex h-full flex-row items-center"
-          style={{
-            x,
-            willChange: "transform",
-          }}
-        >
-          {cards.map((card, i) => (
-            <CardSlide key={i} index={i} progress={progress} count={count}>
-              {card}
-            </CardSlide>
-          ))}
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
-/**
- * A single card-width "slide" inside the horizontal track. Each
- * slide also gets its own tilt / zoom keyed to the master scroll
- * progress so the reveal feels like a cinematic camera fly-by, not
- * a flat carousel.
- */
-function CardSlide({
-  index,
-  count,
-  progress,
-  children,
-}: {
-  index: number;
-  count: number;
-  progress: ReturnType<typeof useSpring>;
-  children: ReactNode;
-}) {
-  // The horizontal track starts at x=0vw and parks at -(count-1)*100vw
-  // by progress 0.92 (see x mapping in the parent). Each card "owns"
-  // a centred window inside that travel:
-  //
-  //   centre_i = 0.08 + (0.92 - 0.08) * (i / (count - 1))
-  //
-  // so card 0 peaks at 0.08 (start of runway, with a small 8%
-  // pre-roll where it sits centred and fully visible) and card N-1
-  // peaks at 0.92 (then sits there for the closing 8% so the user
-  // actually sees the last card before the section unpins).
-  const SETTLE_IN = 0.08;
-  const SETTLE_OUT = 0.92;
-  const travelSpan = SETTLE_OUT - SETTLE_IN;
-  const centre =
-    count > 1 ? SETTLE_IN + travelSpan * (index / (count - 1)) : 0.5;
-  const span = count > 1 ? travelSpan / (count - 1) : 1;
-
-  // First card holds visible from progress 0; last card holds visible
-  // through progress 1. Middle cards fade between their neighbours.
-  const enter = index === 0 ? 0 : Math.max(0, centre - span);
-  const leave = index === count - 1 ? 1 : Math.min(1, centre + span);
-
-  // Use 5-stop interpolation (enter, justBeforePeak, peak, justAfterPeak,
-  // leave) so the boundary cards keep a stable "fully visible" plateau
-  // around the peak instead of starting to fade immediately.
-  const peakHoldL = index === 0 ? 0 : Math.max(enter, centre - span * 0.15);
-  const peakHoldR = index === count - 1 ? 1 : Math.min(leave, centre + span * 0.15);
-
-  const opacity = useTransform(
-    progress,
-    [enter, peakHoldL, centre, peakHoldR, leave],
-    [
-      index === 0 ? 1 : 0.15,
-      1,
-      1,
-      1,
-      index === count - 1 ? 1 : 0.35,
-    ],
-  );
-  const scale = useTransform(
-    progress,
-    [enter, peakHoldL, centre, peakHoldR, leave],
-    [
-      index === 0 ? 1 : 0.82,
-      1,
-      1,
-      1,
-      index === count - 1 ? 1 : 0.86,
-    ],
-  );
-  const rotateY = useTransform(
-    progress,
-    [enter, peakHoldL, centre, peakHoldR, leave],
-    [
-      index === 0 ? 0 : 22,
-      0,
-      0,
-      0,
-      index === count - 1 ? 0 : -16,
-    ],
-  );
-  const liftY = useTransform(
-    progress,
-    [enter, peakHoldL, centre, peakHoldR, leave],
-    [
-      index === 0 ? "0%" : "6%",
-      "0%",
-      "0%",
-      "0%",
-      index === count - 1 ? "0%" : "-4%",
-    ],
-  );
-
-  return (
-    <div
-      className="flex h-full w-screen shrink-0 items-center justify-center px-6"
-      style={{ perspective: 1400 }}
-    >
-      <motion.div
-        className="w-full max-w-[26rem]"
+    <div data-testid="paths-mobile-carousel" className="relative">
+      {/* Carousel track. Bleed to the screen edges via negative
+          margin so cards can sit in the centre with a peek of the
+          next/previous card on either side. `pl-6 pr-6` adds the
+          inset gutter; `snap-mandatory` snaps each card to centre. */}
+      <div
+        ref={trackRef}
+        className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-6 pb-4 [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{
-          opacity,
-          scale,
-          rotateY,
-          y: liftY,
-          transformStyle: "preserve-3d",
-          transformOrigin: "50% 50%",
-          willChange: "transform, opacity",
+          // pan-x AND pan-y so vertical scrolls flow up to the page
+          // (we only intercept horizontal swipes for the carousel).
+          touchAction: "pan-x pan-y",
+          scrollSnapType: "x mandatory",
         }}
       >
-        {children}
-      </motion.div>
+        {cards.map((card, i) => (
+          <div
+            key={i}
+            data-testid={`paths-card-slot-${i}`}
+            className="w-[85vw] max-w-[24rem] shrink-0 snap-center"
+            style={{ scrollSnapAlign: "center" }}
+          >
+            {card}
+          </div>
+        ))}
+      </div>
+
+      {/* Pagination dots — tappable, also signals there are more
+          cards to scroll to (which fixes the perception that "card
+          5 doesn't exist" because users couldn't reach it before). */}
+      <div className="mt-5 flex items-center justify-center gap-2">
+        {cards.map((_, i) => {
+          const active = i === activeIndex;
+          return (
+            <button
+              key={i}
+              type="button"
+              aria-label={`Show card ${i + 1}`}
+              onClick={() => scrollToCard(i)}
+              className="group p-2"
+            >
+              <span
+                className={`block rounded-full transition-all duration-300 ${
+                  active
+                    ? "h-2 w-6 bg-amber-300"
+                    : "h-2 w-2 bg-white/30 group-hover:bg-white/55"
+                }`}
+                style={
+                  active
+                    ? { boxShadow: "0 0 14px rgba(255,237,180,0.85)" }
+                    : undefined
+                }
+              />
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Swipe hint — fades out the moment the user starts scrolling. */}
+      <p
+        className={`heading-display mt-3 text-center text-[10px] font-semibold uppercase tracking-[0.4em] text-white/55 transition-opacity duration-500 ${
+          activeIndex === 0 ? "opacity-100" : "opacity-0"
+        }`}
+        aria-hidden="true"
+      >
+        ‹ swipe ›
+      </p>
     </div>
   );
 }
