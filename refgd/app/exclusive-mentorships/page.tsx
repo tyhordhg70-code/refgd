@@ -38,10 +38,11 @@ const SE_FEATURES = [
   "Photoshop handwriting onto products, SE companies that don't offer advance replacement",
   "Avoid boxing, getting billed, sending product back and more",
   "Multi-task: SE multiple companies at once via phone + live chat",
+  "Double- and triple-dip every successful SE, SE expensive products, learn how to obtain drops",
 ];
 
 const ADDONS = [
-  "Live SE'ing on call / TeamViewer / screenshare. Personal mentorship through your SE.",
+  "Live SE'ing on call / TeamViewer / screenshare. Live tips on what to say & do in any situation, personal mentorship through your SE, and help gathering documents and proof when needed.",
   "International reshipping to any country with customs prepaid.",
   "VERY detailed document of how every SE method works, all SE terms explained, with private-company application notes.",
   "Private Methods, 1:1 Stealth Setup, Scripts (when they get released) & more.",
@@ -630,6 +631,7 @@ export default function MentorshipsPage() {
                   4: "Photoshop techniques and the specific companies whose flow doesn't include advance replacement.",
                   5: "Handle the phone scripts so you never have to box a product, pay a bill, or ship anything back.",
                   6: "Run multiple SEs in parallel across phone + live chat without one rep ever cross-checking the other.",
+                  7: "Stack additional replacements on a single successful SE, target high-value SKUs, and learn the drop-off pipeline pros use.",
                 }}
               />
             </div>
