@@ -1,5 +1,5 @@
 Render deploy verification — https://refgd.onrender.com
-Run at: 2026-04-26 01:27:54Z
+Run at: 2026-04-28 19:01:21Z
 
 1. HTTP status checks
   [OK]   /                              200 (expected 200)
@@ -8,20 +8,23 @@ Run at: 2026-04-26 01:27:54Z
   [OK]   /evade-cancelations            200 (expected 200)
   [OK]   /our-service                   307 (expected 307)
 
-2. Redesign content markers
-  [OK]   Hero3D full-bleed image (hero-main.png)            on /
+2. Redesign content markers (refreshed for store-list redesign — bf69d6b)
+  [OK]   RefundGod brand on home                            on /
   [OK]   MusicPlayer mute button (aria-label)               on /
-  [OK]   Pinned cinematic hero (sticky h-[100svh])          on /exclusive-mentorships
-  [OK]   Pinned cinematic hero (sticky h-[100svh])          on /evade-cancelations
+  [OK]   LedJoySection — joy of cashback                  on /store-list
+  [OK]   Awarded CTA — Choose wisely                      on /store-list
+  [OK]   GlassCard liquid-glass class                       on /store-list
+  [OK]   Mentorship hero copy                               on /exclusive-mentorships
+  [OK]   Evade page rendered                                on /evade-cancelations
 
 3. Render origin proof (response headers)
-  date: Sun, 26 Apr 2026 01:27:57 GMT
+  date: Tue, 28 Apr 2026 19:01:27 GMT
   x-powered-by: Next.js
   x-render-origin-server: Render
   server: cloudflare
-  cf-ray: 9f21ced61ecee544-ORD
+  cf-ray: 9f3850cd5e55af76-ATL
 
 4. Next.js build fingerprint (buildId — changes on every build)
-  buildId\":\"W83AeW3yoK4o1kn1GQS1s
+  buildId\":\"xa7xQ1NylkZOPlQxAkg_X
 
-Summary: 9 passed, 0 failed
+Summary: 12 passed, 0 failed

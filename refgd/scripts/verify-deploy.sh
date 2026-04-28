@@ -47,11 +47,14 @@ check_status "/evade-cancelations"    "200"
 check_status "/our-service"           "307"
 
 echo
-echo "2. Redesign content markers"
-check_contains "Hero3D full-bleed image (hero-main.png)"       "/" 'images/hero-main\.png'
-check_contains "MusicPlayer mute button (aria-label)"          "/" 'aria-label="Mute background music"'
-check_contains "Pinned cinematic hero (sticky h-[100svh])"     "/exclusive-mentorships" 'sticky top-0 h-\[100svh\] w-full overflow-hidden'
-check_contains "Pinned cinematic hero (sticky h-[100svh])"     "/evade-cancelations"    'sticky top-0 h-\[100svh\] w-full overflow-hidden'
+echo "2. Redesign content markers (refreshed for store-list redesign — bf69d6b)"
+check_contains "RefundGod brand on home"                       "/"                       'RefundGod'
+check_contains "MusicPlayer mute button (aria-label)"          "/"                       'aria-label="Mute background music"'
+check_contains "LedJoySection — joy of cashback"               "/store-list"             'joy of cashback'
+check_contains "Awarded CTA — Choose wisely"                   "/store-list"             'Choose wisely'
+check_contains "GlassCard liquid-glass class"                  "/store-list"             'liquid-glass'
+check_contains "Mentorship hero copy"                          "/exclusive-mentorships"  'Exclusive Mentorships'
+check_contains "Evade page rendered"                           "/evade-cancelations"     'Evade'
 
 echo
 echo "3. Render origin proof (response headers)"
