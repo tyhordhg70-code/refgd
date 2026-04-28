@@ -14,6 +14,7 @@ import { ReorderableContainer, ReorderableSection } from "@/components/Reorderab
 import EditableText from "@/components/EditableText";
 import LedTicker from "@/components/LedTicker";
 import CoinFlip3D from "@/components/CoinFlip3D";
+import ScrollCameraTilt from "@/components/ScrollCameraTilt";
 
 export const dynamic = "force-dynamic";
 
@@ -62,11 +63,14 @@ export default async function StoreListPage() {
   ]);
 
   return (
-    <div className="relative scroll-camera">
+    <>
       {/* Galaxy backdrop is mounted site-wide in layout.tsx — no
           per-page canvases. */}
 
-      {/* Lazy-scroll camera atmosphere image with subtle parallax */}
+      {/* Lazy-scroll camera atmosphere image with subtle parallax.
+          MUST live OUTSIDE ScrollCameraTilt so its `position: fixed`
+          continues to anchor against the viewport — a transformed
+          ancestor would otherwise become its containing block. */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-x-0 top-0 -z-[1] h-[110vh] opacity-25"
@@ -81,6 +85,7 @@ export default async function StoreListPage() {
         }}
       />
 
+      <ScrollCameraTilt className="relative scroll-camera">
       <ReorderableContainer pageId="store-list">
 
       <ReorderableSection sectionId="service-intro">
@@ -363,6 +368,7 @@ export default async function StoreListPage() {
       </ReorderableSection>
 
       </ReorderableContainer>
-    </div>
+      </ScrollCameraTilt>
+    </>
   );
 }

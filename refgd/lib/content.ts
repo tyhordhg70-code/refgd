@@ -74,6 +74,24 @@ export async function setContentBlock(id: string, value: string): Promise<void> 
   invalidateContent();
 }
 
+/**
+ * Return every content block id we know about — every saved DB row
+ * unioned with every fallback default. Used by the layout to seed the
+ * EditProvider so admin-saved values for ad-hoc ids (e.g. inline
+ * YouTube video IDs, elastic detail copy) survive a page reload.
+ */
+export async function getAllContentMap(): Promise<Record<string, string>> {
+  const content = await getAllContent();
+  const out: Record<string, string> = {};
+  for (const id of Object.keys(DEFAULT_CONTENT)) {
+    out[id] = content.has(id) ? content.get(id)! : DEFAULT_CONTENT[id];
+  }
+  for (const [id, value] of Array.from(content.entries())) {
+    out[id] = value;
+  }
+  return out;
+}
+
 export async function listContentBlocks(): Promise<ContentBlock[]> {
   const content = await getAllContent();
   const ids = new Set([...content.keys(), ...Object.keys(DEFAULT_CONTENT)]);

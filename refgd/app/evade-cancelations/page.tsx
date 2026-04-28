@@ -184,6 +184,7 @@ export default function EvadePage() {
               className="heading-display mb-4 text-xs font-semibold uppercase tracking-[0.4em] text-cyan-300"
             />
             <YouTubeTheater
+              editId="evade.theater.videoId"
               videoId="dQw4w9WgXcQ"
               title="RefundGod — Evade Cancelations Trailer"
             />

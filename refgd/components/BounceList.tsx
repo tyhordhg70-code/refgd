@@ -36,6 +36,11 @@ type Props = {
    * map keys are 0-based indices.
    */
   details?: Record<number, string>;
+  /**
+   * When set, the elastic detail strings become inline-editable for
+   * admins. Each detail resolves to `${detailsEditIdPrefix}.${index}`.
+   */
+  detailsEditIdPrefix?: string;
 };
 
 const ACCENT: Record<
@@ -93,6 +98,7 @@ export default function BounceList({
   insert,
   editIdPrefix,
   details,
+  detailsEditIdPrefix,
 }: Props) {
   const tokens = useMemo(() => ACCENT[accent] ?? ACCENT.violet, [accent]);
   const reduce = useReducedMotion();
@@ -109,6 +115,11 @@ export default function BounceList({
           afterNode={insert?.[i + 1]}
           editId={editIdPrefix ? `${editIdPrefix}.${i}` : undefined}
           detail={details?.[i]}
+          detailEditId={
+            detailsEditIdPrefix && details?.[i] != null
+              ? `${detailsEditIdPrefix}.${i}`
+              : undefined
+          }
         />
       ))}
     </ul>
@@ -123,6 +134,7 @@ function Row({
   afterNode,
   editId,
   detail,
+  detailEditId,
 }: {
   index: number;
   text: string;
@@ -131,12 +143,19 @@ function Row({
   afterNode?: React.ReactNode;
   editId?: string;
   detail?: string;
+  detailEditId?: string;
 }) {
   const ctx = useEditContext();
   const editing = !!editId && ctx.isAdmin && ctx.editMode;
+  const detailEditing = !!detailEditId && ctx.isAdmin && ctx.editMode;
   const value = editId ? ctx.getValue(editId, text) : text;
   const [open, setOpen] = useState(false);
-  const elastic = !!detail && !editing;
+  // In admin-edit mode the row is NOT clickable (so the elastic toggle
+  // doesn't collide with text editing) — but we still want admins to
+  // see and edit the detail copy, so we render it always-open whenever
+  // the detail is editable.
+  const elastic = !!detail && !editing && !detailEditing;
+  const showDetail = !!detail && (elastic || detailEditing);
   return (
     <>
       <motion.li
@@ -179,7 +198,7 @@ function Row({
         <div
           className={`relative flex items-start gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.035] px-5 py-4 backdrop-blur-md transition-shadow duration-500 group-hover:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)] sm:gap-6 sm:px-6 sm:py-5 ${
             elastic ? `bounce-elastic ${open ? "is-open" : ""}` : ""
-          }`}
+          } ${detailEditing ? "bounce-elastic is-open" : ""}`}
           style={{
             boxShadow: `0 12px 30px -18px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)`,
           }}
@@ -231,11 +250,21 @@ function Row({
                 value
               )}
             </p>
-            {elastic ? (
+            {showDetail ? (
               <div className="bounce-elastic-content">
-                <p className="text-[0.92rem] leading-relaxed text-white/65 sm:text-base">
-                  {detail}
-                </p>
+                {detailEditing ? (
+                  <EditableText
+                    id={detailEditId!}
+                    defaultValue={detail || ""}
+                    as="p"
+                    multiline
+                    className="text-[0.92rem] leading-relaxed text-white/65 sm:text-base"
+                  />
+                ) : (
+                  <p className="text-[0.92rem] leading-relaxed text-white/65 sm:text-base">
+                    {detailEditId ? ctx.getValue(detailEditId, detail || "") : detail}
+                  </p>
+                )}
               </div>
             ) : null}
           </div>

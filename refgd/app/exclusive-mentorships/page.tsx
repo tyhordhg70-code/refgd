@@ -405,6 +405,7 @@ export default function MentorshipsPage() {
 
               <BounceList
                 items={REFUND_FEATURES}
+                detailsEditIdPrefix="ment.refund.feature.detail"
                 accent="violet"
                 editIdPrefix="ment.refund.feature"
                 details={{
@@ -613,6 +614,7 @@ export default function MentorshipsPage() {
                 items={SE_FEATURES}
                 accent="cyan"
                 editIdPrefix="ment.se.feature"
+                detailsEditIdPrefix="ment.se.feature.detail"
                 details={{
                   0: "Step-by-step social engineering walkthrough — every contact channel, every script, every escalation path.",
                   1: "Generators and vendor sources we trust so the paper trail holds up under loss-prevention review.",

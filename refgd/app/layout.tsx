@@ -9,7 +9,7 @@ import GalaxyBackground from "@/components/GalaxyBackground";
 import EditProvider from "@/lib/edit-context";
 import EditorToolbar from "@/components/EditorToolbar";
 import AutoEditWrapper from "@/components/AutoEditWrapper";
-import { DEFAULT_CONTENT, getContentBlock } from "@/lib/content";
+import { getAllContentMap } from "@/lib/content";
 import { readSession } from "@/lib/auth";
 
 export const metadata: Metadata = {
@@ -38,14 +38,11 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Resolve every known content block server-side so the inline editor
   // already has the correct starting values when the React tree mounts.
-  // (Cheap — they all come from a single in-memory cache after the first
-  // call to getContentBlock.)
-  const ids = Object.keys(DEFAULT_CONTENT);
-  const values = await Promise.all(ids.map((id) => getContentBlock(id)));
-  const initialContent: Record<string, string> = {};
-  ids.forEach((id, i) => {
-    initialContent[id] = values[i];
-  });
+  // We load both the DEFAULT_CONTENT seed *and* every saved row in the
+  // DB — the latter is critical so ad-hoc ids that admins create
+  // through the inline editor (theater video IDs, elastic detail copy,
+  // etc.) survive page reloads.
+  const initialContent = await getAllContentMap();
 
   // Server-side admin check — the toolbar only renders if this is true.
   // We re-check from the client on visibilitychange to handle the
