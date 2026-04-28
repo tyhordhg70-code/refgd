@@ -86,6 +86,13 @@ export default function EditableText({
   const baseClass = editing
     ? `relative cursor-text outline-none rounded-sm ring-1 ring-amber-300/0 hover:ring-amber-300/60 focus:ring-amber-300/90 transition-shadow ${className}`
     : className;
+  // Multiline text MUST keep its `\n` characters visible in BOTH edit
+  // and view modes — otherwise an admin who adds a line break in
+  // preview will see the text revert to a single line after saving
+  // (because the default `white-space: normal` collapses `\n` to a
+  // single space on the next render). `whitespace-pre-line` preserves
+  // newlines while still allowing soft-wrapping at word boundaries.
+  const wrapClass = multiline ? `${baseClass} whitespace-pre-line` : baseClass;
 
   const onBlur = (e: React.FocusEvent<HTMLElement>) => {
     let next: string;
@@ -134,9 +141,7 @@ export default function EditableText({
   return (
     <Component
       ref={ref as React.RefObject<HTMLElement>}
-      className={
-        editing && multiline ? `${baseClass} whitespace-pre-line` : baseClass
-      }
+      className={wrapClass}
       style={style}
       contentEditable={editing}
       suppressContentEditableWarning

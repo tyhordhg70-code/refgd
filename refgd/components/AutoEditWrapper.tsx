@@ -181,9 +181,28 @@ export default function AutoEditWrapper({ children }: Props) {
         el.style.outline = "";
         el.style.cursor = "text";
 
+          // Preserve newlines: when the admin presses Enter inside a
+        // contentEditable element, browsers wrap the new line in a
+        // <div> / <br>. textContent alone strips those structural
+        // tags, collapsing everything onto one line on save. We
+        // convert them back to \n before persisting, then render the
+        // saved value with `white-space: pre-line` so the breaks
+        // survive across reloads.
         const onBlur = () => {
-          const next = (el.textContent || "").replace(/\u00A0/g, " ").trim();
-          if (next !== getValue(id, original)) setValue(id, next);
+          const html = (el as HTMLElement).innerHTML
+            .replace(/<br\s*\/?>/gi, "\n")
+            .replace(/<\/(div|p)>/gi, "\n")
+            .replace(/<[^>]+>/g, "");
+          const tmp = document.createElement("textarea");
+          tmp.innerHTML = html;
+          const next = tmp.value.replace(/\u00A0/g, " ").replace(/\n+$/, "");
+          if (next !== getValue(id, original)) {
+            setValue(id, next);
+            // Make line breaks immediately visible in the live DOM so
+            // the admin sees the same layout they previewed.
+            (el as HTMLElement).style.whiteSpace = "pre-line";
+            (el as HTMLElement).textContent = next;
+          }
         };
         const onKeyDown = (e: KeyboardEvent) => {
           if (e.key === "Enter" && !e.shiftKey) {

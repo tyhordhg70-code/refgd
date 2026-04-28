@@ -335,8 +335,12 @@ export default function StoreFilters({
               data-testid={`store-region-${r.id}`}
               className={`group relative overflow-hidden rounded-2xl border p-4 text-left transition-all ${
                 active
-                  ? "border-amber-400/60 bg-gradient-to-br from-amber-500/20 to-orange-500/8 shadow-[0_0_30px_-10px_rgba(245,185,69,0.65)]"
-                  : "border-white/10 bg-white/5 opacity-60 hover:opacity-100"
+                  ? "border-amber-400/70 bg-gradient-to-br from-amber-500/25 to-orange-500/10 shadow-[0_0_30px_-10px_rgba(245,185,69,0.7)]"
+                  // Inactive: bumped from `border-white/10 bg-white/5 opacity-60`
+                  // — that combo made the cards almost invisible against the
+                  // dark backdrop. Now: stronger border, lifted background
+                  // wash, and full opacity so all four regions stay legible.
+                  : "border-white/25 bg-white/[0.09] opacity-100 hover:border-white/40 hover:bg-white/[0.13]"
               }`}
             >
               <div className="flex items-center gap-3">
