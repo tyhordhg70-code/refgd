@@ -354,14 +354,39 @@ export default function EvadePage() {
       <ReorderableSection sectionId="deforming-mesh">
       {/* Deforming mesh dolly — a wireframe blob whose geometry warps
           as the user scrolls past, reading like a 3D camera fly-by
-          that rotates around the object. Pure SVG so it stays cheap. */}
+          that rotates around the object. Pure SVG so it stays cheap.
+
+          Pairs with a flat illustration on the right side (a team
+          collaborating around a shared idea) so the section reads as
+          "the algorithm is alive, and it's powered by people." The
+          illustration is the user-supplied "ideas / collaboration"
+          asset from the original brief — placed here because this
+          section had room to host it without crowding any other card. */}
       <section className="relative py-12">
         <div className="container-wide">
-          <div className="mx-auto max-w-5xl">
-            <DeformingMesh accent="#7c3aed" />
-            <p className="mt-4 text-center text-xs uppercase tracking-[0.5em] text-violet-200/70">
-              — algorithm, deformed in real time
-            </p>
+          <div className="mx-auto grid max-w-6xl items-center gap-8 lg:grid-cols-[1.3fr_1fr]">
+            <div>
+              <DeformingMesh accent="#7c3aed" />
+              <p className="mt-4 text-center text-xs uppercase tracking-[0.5em] text-violet-200/70">
+                — algorithm, deformed in real time
+              </p>
+            </div>
+            <Reveal delay={0.15}>
+              <div
+                className="relative mx-auto w-full max-w-md"
+                style={{
+                  filter: "drop-shadow(0 30px 60px rgba(0,0,0,0.6))",
+                }}
+              >
+                <img
+                  src="/uploads/evasion-ideas.png"
+                  alt="A team brainstorming evasion strategies around a shared clipboard."
+                  loading="lazy"
+                  decoding="async"
+                  className="h-auto w-full"
+                />
+              </div>
+            </Reveal>
           </div>
         </div>
       </section>

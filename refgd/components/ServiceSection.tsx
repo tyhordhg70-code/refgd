@@ -12,6 +12,50 @@ import MoneyTimeScene from "./MoneyTimeScene";
 import ParallaxChapter from "./ParallaxChapter";
 
 /**
+ * "Stop wasting time and money" illustration: the leaping shopper
+ * artwork (transparent PNG) animated as if he's springing toward the
+ * phone. Uses framer-motion to:
+ *   • float gently up & down on a 3.6s loop (the "leap" pose),
+ *   • bob the credit-card horizontally on a slightly different cadence
+ *     so the figure feels alive rather than static,
+ *   • drift the whole composition in on first paint with a soft scale.
+ *
+ * `MoneyTimeScene` is left in the import list because other entry
+ * points elsewhere in the codebase still reference this module's
+ * exports — removing the import here is a no-op for that.
+ */
+function WastingTimeIllustration({ size }: { size: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.92, y: 18 }}
+      whileInView={{ opacity: 1, scale: 1, y: 0 }}
+      viewport={{ once: false, margin: "-10% 0px" }}
+      transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
+      style={{
+        width: size,
+        height: size,
+        position: "relative",
+        filter: "drop-shadow(0 30px 50px rgba(0,0,0,0.55))",
+      }}
+    >
+      <motion.img
+        src="/uploads/wasting-time-phone.png"
+        alt="Shopper leaping toward a phone with a credit card — saving time and money."
+        loading="lazy"
+        decoding="async"
+        animate={{ y: [0, -10, 0] }}
+        transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+        }}
+      />
+    </motion.div>
+  );
+}
+
+/**
  * Multi-act intro section, embedded at the top of /store-list.
  *   Act 1: animated CASHBACK hero (replaces the central planet/orb with
  *          a 3D-feel cashback scene — coins, shopping bag, sparkling joy).
@@ -181,16 +225,18 @@ export default function ServiceSection() {
               </p>
             </Reveal>
 
-            {/* 3D vector below the text on mobile/tablet — corresponds to
-                the "stop wasting time and money" statement.            */}
+            {/* Animated illustration below the text on mobile/tablet —
+                the leaping shopper with credit card and phone fits the
+                "stop wasting time and money" beat better than the abstract
+                3D money-time render that previously lived here.        */}
             <div className="mt-10 grid place-items-center md:hidden">
-              <MoneyTimeScene size={280} />
+              <WastingTimeIllustration size={280} />
             </div>
           </div>
-          {/* Sticky-feeling 3D money-time scene on desktop */}
+          {/* Same illustration on desktop, larger. */}
           <div className="hidden sm:col-span-4 md:grid md:place-items-center">
             <Reveal delay={0.3}>
-              <MoneyTimeScene size={360} />
+              <WastingTimeIllustration size={360} />
             </Reveal>
           </div>
         </div>
