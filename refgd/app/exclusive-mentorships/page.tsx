@@ -12,6 +12,7 @@ import CosmicBackground from "@/components/CosmicBackground";
 import LiquidParticles from "@/components/LiquidParticles";
 import EmotionChips from "@/components/EmotionChips";
 import EditableText from "@/components/EditableText";
+import GlassCard from "@/components/GlassCard";
 
 export const metadata = {
   title: "Exclusive Mentorships — RefundGod",
@@ -207,10 +208,20 @@ export default function MentorshipsPage() {
       </CubicParallax>
 
       {/* ─── Act 3 — Tailgating + Insider ─────────────────────────── */}
+      {/* The whole left column is wrapped in CubicParallax so the heading
+          + paragraphs enter with a 3D drift / depth shift — i.e. a
+          "creative 3D text animation to the entire paragraph" rather
+          than just per-word fades. */}
       <section className="relative py-20 sm:py-24">
         <div className="container-wide">
           <div className="grid gap-10 lg:grid-cols-12 lg:gap-14">
-            <div className="lg:col-span-7">
+            <CubicParallax
+              axis="y"
+              amount={56}
+              rotate={6}
+              depth={120}
+              className="lg:col-span-7"
+            >
               <Reveal>
                 <EditableText
                   id="ment.insider.eyebrow"
@@ -227,13 +238,13 @@ export default function MentorshipsPage() {
                 />
               </Reveal>
               <div className="mt-8 space-y-6 text-base leading-relaxed text-white/85 sm:text-lg">
-                <TextReveal variant="wordSlide" editId="ment.insider.p1">
+                <TextReveal variant="wordWave" editId="ment.insider.p1">
                   Aside from refunding — as an add-on — we also teach you how
                   to deceive the company by properly studying it, gathering
                   background information, and eventually infiltrating the
                   company to become an &ldquo;insider&rdquo;.
                 </TextReveal>
-                <TextReveal variant="wordWave" editId="ment.insider.p2">
+                <TextReveal variant="charBounce" editId="ment.insider.p2">
                   As you may know, most companies outsource their customer
                   service jobs to overseas countries, saving significantly on
                   employee salary. This is where Access Tailgating Attacks
@@ -255,15 +266,19 @@ export default function MentorshipsPage() {
                   restricted areas.
                 </TextReveal>
               </div>
-            </div>
+            </CubicParallax>
 
-            {/* "Become the insider" — image moved up so the gap below the
-                 add-on note is tight, not airy. */}
+            {/* "Become the insider" — wrapped in GlassCard with elastic
+                 deformation mesh so the box stretches like a 3D liquid
+                 panel on hover (the user-requested "deformed mesh
+                 expansion 3D animation"). */}
             <div className="lg:col-span-5 lg:pt-6">
               <Reveal delay={0.15}>
-                <div
-                  className="relative rounded-[2rem] border border-amber-300/30 bg-gradient-to-br from-amber-400/[0.08] via-transparent to-transparent p-7 backdrop-blur-sm sm:p-8"
-                  style={{ boxShadow: "0 30px 80px -20px rgba(251,191,36,0.25)" }}
+                <GlassCard
+                  tint="amber"
+                  reveal={false}
+                  elastic
+                  className="p-7 sm:p-8"
                 >
                   <EditableText
                     id="ment.insider.addon.kicker"
@@ -298,7 +313,7 @@ export default function MentorshipsPage() {
                     multiline
                     className="mt-6 text-xs italic text-amber-100/80"
                   />
-                </div>
+                </GlassCard>
 
                 {/* Pulled the illustration much closer to the add-on box
                     (mt-5 instead of mt-10) so there's no big visible gap. */}
@@ -321,19 +336,38 @@ export default function MentorshipsPage() {
       </section>
 
       {/* ─── Act 4 — Pull quote / value statement ──────────────────── */}
-      <section className="relative py-24 sm:py-28">
+      {/* Pulled UP against the previous section: pt-2 / pb-12 instead of
+          py-24 / py-28 (was ~7rem of empty space at the top). Replaced
+          KineticText with ExplodeText — the previous KineticText word
+          wrappers used `inline-block overflow-hidden` plus a heavy
+          textShadow which produced visible dark rectangles ("black
+          squares") around italic glyphs at the end of each word. The
+          ExplodeText path renders raw glyphs without overflow:hidden
+          wrappers and adds a true 3D scatter assemble for that
+          "creative 3D text animation" the user asked for. */}
+      <section className="relative pt-2 pb-12 sm:pt-4 sm:pb-16">
         <div className="container-wide">
           <div className="mx-auto max-w-5xl text-center">
-            {/* Quotes removed; pen-emoji removed (it was rendering as a
-                 black tofu glyph on most fonts). The copy is unchanged. */}
-            <KineticText
+            <ExplodeText
               as="h2"
               text="Stop paying for other BS mentorships that have 0 value and ghost you after purchasing. Be your own refunder."
-              editId="ment.pullquote.title"
               className="editorial-display text-white text-[clamp(1.5rem,4vw,3.4rem)] uppercase italic"
-              style={{ textShadow: "0 6px 40px rgba(0,0,0,0.95)", paddingLeft: "0.4em", paddingRight: "0.4em" }}
+              style={{
+                textShadow: "0 6px 40px rgba(0,0,0,0.95)",
+              }}
+              scatter={180}
+              hue="167,139,250"
             />
-            <div className="mt-10 space-y-6 text-left text-base leading-relaxed text-white/85 sm:text-lg">
+            {/* Body wrapped in CubicParallax so the supporting paragraph
+                also enters with a 3D depth shift, completing the
+                "creative 3D text animation to this entire section" ask. */}
+            <CubicParallax
+              axis="y"
+              amount={48}
+              rotate={5}
+              depth={100}
+              className="mt-10 space-y-6 text-left text-base leading-relaxed text-white/85 sm:text-lg"
+            >
               <TextReveal variant="wordBlur" editId="ment.pullquote.body">
                 This mentorship covers all the fundamentals of
                 refunding or social engineering (depending on your
@@ -344,7 +378,7 @@ export default function MentorshipsPage() {
                 boxing, DNA or FTID. We provide top-tier quality and
                 personal 1:1 support.
               </TextReveal>
-            </div>
+            </CubicParallax>
           </div>
         </div>
       </section>
@@ -640,16 +674,10 @@ export default function MentorshipsPage() {
       </section>
 
       {/* ─── Act 9 — Add-ons + final WORLDWIDE statement ─────────── */}
-      <section
-        className="relative py-20 sm:py-24"
-        style={{
-          backgroundImage:
-            "linear-gradient(180deg, rgba(8,6,18,0.95) 0%, rgba(8,6,18,0.65) 50%, rgba(8,6,18,0.95) 100%), url(/uploads/contract-signing.png)",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-        }}
-      >
+      {/* Background contract-signing image removed at user request — the
+          section is now transparent so the page-scoped CosmicBackground
+          shows through, matching the rest of the page. */}
+      <section className="relative py-20 sm:py-24">
         <div className="container-wide">
           <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-14">
             <div className="lg:order-2 lg:col-span-5">

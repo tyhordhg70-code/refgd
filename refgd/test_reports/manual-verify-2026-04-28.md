@@ -122,3 +122,69 @@ cf-ray: 9f3874fb899e53d3-ATL
 served chunk: /_next/static/chunks/app/store-list/page-5dcd44a4f3caa36f.js
 chunk last-modified: Tue, 28 Apr 2026 16:56:33 GMT
 ```
+
+---
+
+## Update — 2026-04-28 20:15 Z — re-verification after fresh deploy (task #8)
+
+The redesign code was pushed to `origin/main` (`94a27c6`) and a manual deploy was triggered on Render. A new build is live and the three previously-FAIL items (b), (c), (d) are now confirmed PASS.
+
+### New build fingerprint
+
+```
+served chunk: /_next/static/chunks/app/store-list/page-21a5937f30e79422.js
+chunk last-modified: Tue, 28 Apr 2026 20:09:41 GMT
+date of probe:      Tue, 28 Apr 2026 20:15:26 GMT
+x-render-origin-server: Render
+```
+
+(was `page-5dcd44a4f3caa36f.js`, last-modified 16:56:33 GMT — superseded.)
+
+### Bundle / HTML markers
+
+| Marker | Where | Count |
+|---|---|---|
+| `AHHHH` | `/store-list` JS chunk `page-21a5937f30e79422.js` | 1 |
+| `Ahhh` | same chunk | 1 |
+| `joy of cashback` | same chunk | 1 |
+| `secure-lock` | served HTML | 1 |
+| `secure-lock` | same chunk | 1 |
+| `payment-pay` | served HTML (server-rendered `<img>` tags, mobile + desktop variants) | 2 |
+
+`AHHHH` lives only inside the client component bundle (LedJoySection hydrates it), as expected. `payment-pay` is server-rendered into the HTML by `app/store-list/page.tsx`. `secure-lock` shows up in both because the `<SecureLockCenterpiece>` references the asset and the surrounding markup is SSR'd.
+
+### Upload assets — direct origin probes
+
+```
+GET https://refgd.onrender.com/uploads/payment-pay.png
+  -> HTTP 200, image/png, 193002 bytes, last-modified Tue, 28 Apr 2026 20:08:56 GMT
+
+GET https://refgd.onrender.com/uploads/secure-lock.png
+  -> HTTP 200, image/png, 113062 bytes, last-modified Tue, 28 Apr 2026 20:08:56 GMT
+```
+
+Both were 404 in the previous pass.
+
+### Visual evidence
+
+`attached_assets/screenshots/refgd_onrender_com_store-list.png` — fresh capture of the live `/store-list` hero on the new deploy. The "Ahh… feel the joy of cashback" tagline is on screen and the new shopping-bag/orbiting-coins illustration is in place — confirming the new build is what's being served.
+
+### Revised per-item results
+
+| # | Criterion | Result |
+|---|---|---|
+| b | LED "AHHHH" beat fires once on first scroll into the cashback section | **PASS** — `AHHHH` / `Ahhh` are now present in the live `/store-list` chunk. |
+| c | Lock + shield centerpiece visible after "Why choose us" | **PASS** — `/uploads/secure-lock.png` returns 200 and `secure-lock` markers are in the live HTML and chunk. |
+| d | PAY illustration (not the old coin) inside the payment card | **PASS** — `/uploads/payment-pay.png` returns 200 and `payment-pay` markup is in the live HTML twice (mobile + desktop). |
+
+Items (a), (e), (f) were already PASS and are unaffected by this redeploy.
+
+### `refgd/scripts/verify-deploy.sh` summary on the new build
+
+```
+1. HTTP status checks: 4/5 passed (transient 502 on /exclusive-mentorships during probe; subsequent 3 retries returned 200 — Render cold-start, not a regression)
+2. Redesign content markers: 7/7 passed
+3. Render origin proof: x-render-origin-server: Render confirmed
+```
+
+Note: this script still does not check the unique `AHHHH` / `secure-lock.png` HTTP 200 / `payment-pay.png` HTTP 200 markers that would have caught the regression — that hardening is tracked in a separate task ("Stop the deploy verifier from giving false PASSes when the redesign isn't actually shipped").

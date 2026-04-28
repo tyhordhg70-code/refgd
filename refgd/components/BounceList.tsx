@@ -162,24 +162,24 @@ function Row({
         initial={
           reduce
             ? { opacity: 0 }
-            : { opacity: 0, y: 30, scale: 0.96 }
+            : { opacity: 0.001, y: 24, scale: 0.97 }
         }
         whileInView={
           reduce
             ? { opacity: 1 }
             : {
                 opacity: 1,
-                y: [30, -8, 0],
-                scale: [0.96, 1.02, 1],
+                y: [24, -6, 0],
+                scale: [0.97, 1.015, 1],
                 transition: {
-                  duration: 0.7,
-                  delay: Math.min(index * 0.06, 0.28),
+                  duration: 0.55,
+                  delay: Math.min(index * 0.04, 0.18),
                   times: [0, 0.6, 1],
                   ease: [0.22, 1, 0.36, 1],
                 },
               }
         }
-        viewport={{ once: true, margin: "-60px" }}
+        viewport={{ once: false, amount: 0.18, margin: "0px 0px -10% 0px" }}
         className="group relative isolate"
         suppressHydrationWarning
         data-testid={`bounce-list-item-${index}`}

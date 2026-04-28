@@ -1,30 +1,35 @@
 Render deploy verification — https://refgd.onrender.com
-Run at: 2026-04-28 19:01:21Z
+Run at: 2026-04-28 20:19:57Z
 
 1. HTTP status checks
-  [OK]   /                              200 (expected 200)
-  [OK]   /store-list                    200 (expected 200)
-  [OK]   /exclusive-mentorships         200 (expected 200)
-  [OK]   /evade-cancelations            200 (expected 200)
-  [OK]   /our-service                   307 (expected 307)
+  [OK]   /                                        200 (expected 200)
+  [OK]   /store-list                              200 (expected 200)
+  [OK]   /exclusive-mentorships                   200 (expected 200)
+  [OK]   /evade-cancelations                      200 (expected 200)
+  [OK]   /our-service                             307 (expected 307)
 
-2. Redesign content markers (refreshed for store-list redesign — bf69d6b)
-  [OK]   RefundGod brand on home                            on /
-  [OK]   MusicPlayer mute button (aria-label)               on /
-  [OK]   LedJoySection — joy of cashback                  on /store-list
-  [OK]   Awarded CTA — Choose wisely                      on /store-list
-  [OK]   GlassCard liquid-glass class                       on /store-list
-  [OK]   Mentorship hero copy                               on /exclusive-mentorships
-  [OK]   Evade page rendered                                on /evade-cancelations
+2. Upload assets (must be 200 — these are how we know the redesign is shipped, not just present in source)
+  [OK]   /uploads/secure-lock.png                 200 (expected 200)
+  [OK]   /uploads/payment-pay.png                 200 (expected 200)
 
-3. Render origin proof (response headers)
-  date: Tue, 28 Apr 2026 19:01:27 GMT
+3. Redesign content markers (unique to the redesign — not ambiguous taglines)
+  [OK]   RefundGod brand on home                            on / (HTML)
+  [OK]   MusicPlayer mute button (aria-label)               on / (HTML)
+  [OK]   LedJoySection — AHHHH beat marker                on /store-list (HTML)
+  [OK]   SecureLockCenterpiece — secure-lock asset        on /store-list (HTML)
+  [OK]   Payment card — payment-pay asset                 on /store-list (HTML)
+  [OK]   Awarded CTA — Choose wisely                      on /store-list (HTML)
+  [OK]   GlassCard liquid-glass class                       on /store-list (HTML)
+  [OK]   Mentorship hero copy                               on /exclusive-mentorships (HTML)
+  [OK]   Evade page rendered                                on /evade-cancelations (HTML)
+
+4. Render origin proof (response headers)
+  date: Tue, 28 Apr 2026 20:20:05 GMT
   x-powered-by: Next.js
   x-render-origin-server: Render
   server: cloudflare
-  cf-ray: 9f3850cd5e55af76-ATL
+  cf-ray: 9f38c3fdaaa4677f-ATL
 
-4. Next.js build fingerprint (buildId — changes on every build)
-  buildId\":\"xa7xQ1NylkZOPlQxAkg_X
+5. Next.js build fingerprint (buildId — changes on every build)
 
-Summary: 12 passed, 0 failed
+Summary: 16 passed, 0 failed

@@ -64,24 +64,35 @@ export default function TextReveal({
     );
   }
 
+  // Both variants use `whitespace-pre-line` so the rendered text wrapping
+  // matches the EditableText (edit-mode) block exactly. Without this the
+  // edit-mode and view-mode blocks could break onto different lines and
+  // appear "misaligned".
+  const composedClassName = `${className} whitespace-pre-line`.trim();
+
   if (reduce) {
     const Plain = as as keyof JSX.IntrinsicElements;
     return (
-      <Plain className={className} style={style}>
+      <Plain className={composedClassName} style={style}>
         {text}
       </Plain>
     );
   }
 
   if (variant === "lineMask") {
+    // Was previously a clipPath-based reveal — clipPath inside a 3D
+    // (transform-style: preserve-3d) ancestor like CubicParallax fails
+    // to repaint reliably in Chromium and left the paragraph permanently
+    // invisible. Switched to a plain opacity + filter + y entrance which
+    // composites cleanly in any 3D context.
     const Tag = motion[as as "p"] as typeof motion.p;
     return (
       <Tag
-        className={className}
+        className={composedClassName}
         style={style}
-        initial={{ clipPath: "inset(0 0 100% 0)", opacity: 0, y: 24 }}
-        whileInView={{ clipPath: "inset(0 0 0 0)", opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-80px" }}
+        initial={{ opacity: 0, filter: "blur(6px)", y: 24 }}
+        whileInView={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+        viewport={{ once: true, margin: "0px 0px -10% 0px" }}
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         suppressHydrationWarning
       >
@@ -102,7 +113,7 @@ export default function TextReveal({
 
   return (
     <Tag
-      className={className}
+      className={composedClassName}
       style={style}
       variants={container}
       initial="hidden"
