@@ -3,36 +3,42 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
- * YouTubeTheater — embeds a YouTube video with a click-to-theater mode.
+ * YouTubeTheater — auto-play-on-scroll video with a "dim the lights"
+ * overlay that does NOT lock page scroll.
  *
- * Default state:  inline, rounded card, soft glow.
- * Theater state:  full-bleed dark overlay, video centred & enlarged,
- *                 background music in MusicPlayer is dimmed via the
- *                 `refgd:music-dim` custom event the player listens for.
+ * Behaviour:
+ *  – As soon as the player scrolls into view (≥45% visible) the iframe
+ *    mounts and starts playing with sound. A radial dim overlay fades
+ *    in over the rest of the page so the video reads as the focus.
+ *  – As soon as the player scrolls back out of view, the overlay fades
+ *    out, the iframe is paused (via postMessage), and the page lights
+ *    return to normal. The user can scroll freely AT ALL TIMES — the
+ *    overlay is `pointer-events: none` and we never set
+ *    `body.style.overflow`.
+ *  – The MusicPlayer listens for `refgd:music-dim` events and ducks
+ *    its own volume while the video has focus.
  *
- * Press Esc, click the backdrop or the close button to exit theater
- * mode; the music returns to its previous volume. The close button is
- * focused on open and the previously-active element is restored on
- * close, providing a basic focus trap for keyboard users.
+ * Browser autoplay policy: most browsers allow autoplay-with-sound
+ * once the user has interacted with the page (a scroll usually counts).
+ * If the visitor hasn't yet interacted, YouTube will start the player
+ * muted; once they click the page (e.g. on the player itself) sound
+ * will engage normally. This is a platform constraint, not an option
+ * we can override.
  *
  * Admin editing:
  *  – When `editId` is provided and the visitor is an admin in edit
  *    mode, a small input strip appears above the player so the admin
- *    can swap the video by pasting a new YouTube URL or ID. The new
- *    ID is persisted through the standard EditContext `setValue`
- *    pipeline (Save/Discard/Undo all just work).
+ *    can swap the video by pasting a new YouTube URL or ID.
  */
 export default function YouTubeTheater({
   videoId,
   title = "RefundGod — Trailer",
   className = "",
-  poster,
   editId,
 }: {
   videoId: string;
   title?: string;
   className?: string;
-  poster?: string;
   /** Optional content-block id so admins can swap the video inline. */
   editId?: string;
 }) {
@@ -46,62 +52,67 @@ export default function YouTubeTheater({
     return parseYouTubeId(raw) || videoId;
   }, [editId, videoId, ctx]);
 
-  const [open, setOpen] = useState(false);
-  const [hover, setHover] = useState(false);
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
-  const lastFocusRef = useRef<HTMLElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [inView, setInView] = useState(false);
+  const [activated, setActivated] = useState(false); // mounts iframe after first reveal
 
+  // ── Visibility gate ───────────────────────────────────────────
   useEffect(() => {
-    if (!open) return;
-    // Remember what was focused so we can restore it on close.
-    lastFocusRef.current = (document.activeElement as HTMLElement) || null;
+    const el = wrapRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        // Treat the player as "engaged" once it's at least 45% visible.
+        const visible = e.intersectionRatio >= 0.45;
+        setInView(visible);
+        if (visible) setActivated(true);
+      },
+      { threshold: [0, 0.2, 0.45, 0.7, 1] }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-      if (e.key === "Tab") {
-        // Trap focus inside the dialog so screen-reader / keyboard
-        // users can't tab back into the dimmed page behind it.
-        const root = dialogRef.current;
-        if (!root) return;
-        const focusables = Array.from(
-          root.querySelectorAll<HTMLElement>(
-            "a[href],button:not([disabled]),iframe,input,[tabindex]:not([tabindex='-1'])"
-          )
-        ).filter((el) => !el.hasAttribute("aria-hidden"));
-        if (focusables.length === 0) return;
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          last.focus();
-          e.preventDefault();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          first.focus();
-          e.preventDefault();
-        }
+  // ── Music + playback control synced to inView ─────────────────
+  useEffect(() => {
+    // Tell the MusicPlayer to dim while video has focus, restore on exit.
+    window.dispatchEvent(
+      new CustomEvent("refgd:music-dim", { detail: { dim: inView } })
+    );
+
+    // Pause the iframe video when we leave view (postMessage to the
+    // YouTube embed). When we re-enter, the iframe re-mounts (we
+    // include inView in the iframe's `src`), so playback resumes
+    // naturally. The pause-on-exit is just defensive.
+    if (!inView && iframeRef.current) {
+      try {
+        iframeRef.current.contentWindow?.postMessage(
+          JSON.stringify({ event: "command", func: "pauseVideo", args: [] }),
+          "*"
+        );
+      } catch {
+        /* ignore — cross-origin is expected */
       }
-    };
-    window.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    window.dispatchEvent(new CustomEvent("refgd:music-dim", { detail: { dim: true } }));
+    }
+  }, [inView]);
 
-    // Focus the Close button after a tick so the autoplaying iframe
-    // doesn't steal focus first.
-    const t = setTimeout(() => closeBtnRef.current?.focus(), 60);
+  // Build the embed URL. autoplay=1 + mute=0 — the browser may force-
+  // mute on the very first visit if the user hasn't interacted yet,
+  // but a single click anywhere unmutes the player thereafter.
+  const embedSrc = useMemo(() => {
+    const params = new URLSearchParams({
+      autoplay: "1",
+      mute: "0",
+      rel: "0",
+      modestbranding: "1",
+      playsinline: "1",
+      enablejsapi: "1",
+    });
+    return `https://www.youtube.com/embed/${resolvedVideoId}?${params.toString()}`;
+  }, [resolvedVideoId]);
 
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-      window.dispatchEvent(new CustomEvent("refgd:music-dim", { detail: { dim: false } }));
-      clearTimeout(t);
-      // Restore focus to whatever opened the dialog.
-      if (lastFocusRef.current && typeof lastFocusRef.current.focus === "function") {
-        lastFocusRef.current.focus();
-      }
-    };
-  }, [open]);
-
-  const thumb = poster || `https://img.youtube.com/vi/${resolvedVideoId}/maxresdefault.jpg`;
+  const posterSrc = `https://img.youtube.com/vi/${resolvedVideoId}/maxresdefault.jpg`;
 
   return (
     <>
@@ -136,112 +147,85 @@ export default function YouTubeTheater({
       ) : null}
 
       <div
-        className={`relative overflow-hidden rounded-3xl border border-white/10 ${className}`}
+        ref={wrapRef}
+        className={`relative z-[60] overflow-hidden rounded-3xl border border-white/10 ${className}`}
         style={{
-          boxShadow: hover
-            ? "0 40px 100px -30px rgba(124,58,237,0.55), 0 0 0 1px rgba(167,139,250,0.25) inset"
+          boxShadow: inView
+            ? "0 50px 140px -30px rgba(124,58,237,0.7), 0 0 0 1px rgba(167,139,250,0.35) inset"
             : "0 30px 80px -30px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.04) inset",
-          transition: "box-shadow .35s ease",
+          transition: "box-shadow .45s ease",
         }}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
       >
-        <button
-          type="button"
-          className="group relative block w-full"
-          onClick={() => setOpen(true)}
-          aria-label={`Play ${title} in theater mode`}
-        >
-          <div className="relative aspect-video w-full overflow-hidden bg-black">
-            {/* Poster image */}
-            <img
-              src={thumb}
-              alt=""
-              loading="lazy"
-              className="absolute inset-0 h-full w-full scale-105 object-cover opacity-90 transition-transform duration-700 group-hover:scale-110"
+        <div className="relative aspect-video w-full overflow-hidden bg-black">
+          {activated ? (
+            <iframe
+              ref={iframeRef}
+              key={resolvedVideoId}
+              src={embedSrc}
+              title={title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              className="absolute inset-0 h-full w-full"
             />
-            <div
-              aria-hidden
-              className="absolute inset-0"
-              style={{
-                background:
-                  "radial-gradient(ellipse at center, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.7) 100%)",
-              }}
-            />
-            {/* Play button */}
-            <div className="absolute inset-0 grid place-items-center">
-              <span
-                className="grid h-20 w-20 place-items-center rounded-full text-black shadow-[0_20px_60px_-10px_rgba(167,139,250,0.6)] transition-transform duration-300 group-hover:scale-110 sm:h-24 sm:w-24"
+          ) : (
+            // Static poster shown only until the user first scrolls into
+            // view. After that, the iframe takes over for the rest of
+            // the page lifetime so re-entries resume playback instantly.
+            <>
+              <img
+                src={posterSrc}
+                alt=""
+                loading="lazy"
+                className="absolute inset-0 h-full w-full object-cover opacity-90"
+              />
+              <div
+                aria-hidden
+                className="absolute inset-0"
                 style={{
                   background:
-                    "radial-gradient(circle at 30% 30%, #ffffff, #d8b4fe 70%, #a78bfa)",
+                    "radial-gradient(ellipse at center, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.7) 100%)",
                 }}
-              >
-                <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              </span>
-            </div>
-            {/* Theater badge */}
-            <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-white/90 backdrop-blur-md">
-              <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
-              theater mode
-            </div>
-            {/* Title strip */}
-            <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between p-4 sm:p-6">
-              <span className="text-base font-semibold text-white drop-shadow sm:text-lg">
-                {title}
-              </span>
-              <span className="text-xs uppercase tracking-[0.3em] text-white/70">
-                tap to expand
-              </span>
-            </div>
-          </div>
-        </button>
+              />
+              <div className="absolute inset-0 grid place-items-center">
+                <span
+                  className="grid h-20 w-20 place-items-center rounded-full text-black shadow-[0_20px_60px_-10px_rgba(167,139,250,0.6)] sm:h-24 sm:w-24"
+                  style={{
+                    background:
+                      "radial-gradient(circle at 30% 30%, #ffffff, #d8b4fe 70%, #a78bfa)",
+                  }}
+                >
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* "On air" badge that appears while the player is engaged */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-white/90 backdrop-blur-md transition-opacity duration-300"
+          style={{ opacity: inView ? 1 : 0 }}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-pulse" />
+          theater mode · lights dimmed
+        </div>
       </div>
 
-      {open ? (
-        <div
-          ref={dialogRef}
-          className="fixed inset-0 z-[200] grid place-items-center bg-black/85 backdrop-blur-md"
-          role="dialog"
-          aria-modal="true"
-          aria-label={title}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setOpen(false);
-          }}
-        >
-          <div className="relative w-full max-w-[1400px] px-4 sm:px-8">
-            <div
-              className="overflow-hidden rounded-2xl border border-white/15"
-              style={{ boxShadow: "0 60px 160px -20px rgba(124,58,237,0.55)" }}
-            >
-              <div className="relative aspect-video w-full bg-black">
-                <iframe
-                  src={`https://www.youtube.com/embed/${resolvedVideoId}?autoplay=1&rel=0&modestbranding=1`}
-                  title={title}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                  className="absolute inset-0 h-full w-full"
-                />
-              </div>
-            </div>
-            <div className="mt-4 flex items-center justify-between text-white/80">
-              <span className="text-sm uppercase tracking-[0.3em]">
-                Music auto-dimmed · Esc to close
-              </span>
-              <button
-                ref={closeBtnRef}
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/60"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {/* Dim-the-lights overlay. Fixed full-screen, but pointer-events
+          NONE so the user can still scroll, click links and interact
+          with the page. Pure visual effect that frames the video. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-[40] transition-opacity duration-500 ease-out"
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 60% at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.92) 100%)",
+          opacity: inView ? 1 : 0,
+        }}
+      />
     </>
   );
 }

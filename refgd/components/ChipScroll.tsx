@@ -1,12 +1,18 @@
 "use client";
-import { animate, useMotionValue, useTransform, motion, useInView } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 
 /**
  * Scroll-linked image-sequence "scrollytelling" component.
  *
- * Container:    h-[400vh]  (4× viewport tall — the scroll runway)
+ * Container:    h-[180svh]  (the scroll runway)
  * Inside:       sticky <canvas> top-0 h-screen w-full (centered)
+ *
+ * The animation is SCROLL-DRIVEN:
+ *   – Page loads → progress = 0, caption fully visible, no animation playing.
+ *   – User starts scrolling → canvas frames advance with their scroll.
+ *   – Animation completes within ONE continuous scroll past the runway.
+ *   – Scroll back up → animation reverses, caption returns.
  *
  * Loads `frame_[i]_delay-0.04s.webp` (or any base) from `dir`,
  * preloads them all, then draws the current frame to canvas based on
@@ -51,28 +57,22 @@ export default function ChipScroll({
   const [total, setTotal] = useState(frameCount);
   const [usingFallback, setUsingFallback] = useState(false);
 
-  // Was scroll-linked (useScroll on a 250-400vh runway). Now time-
-  // driven: when the section enters the viewport, the timeline plays
-  // through ONCE over ~5s, like stop-motion. This is what gives every
-  // page the "completes in one scroll" feel the user asked for.
-  const scrollYProgress = useMotionValue(0);
-  const isInView = useInView(wrapRef, { once: true, margin: "-15% 0px -15% 0px" });
-  useEffect(() => {
-    if (!isInView) return;
-    const c = animate(scrollYProgress, 1, {
-      duration: 5,
-      delay: 0.2,
-      ease: [0.32, 0.0, 0.35, 1],
-    });
-    return c.stop;
-  }, [isInView, scrollYProgress]);
+  // Scroll-driven progress tied to the section's scroll runway. Animation
+  // does NOT auto-play on mount — it only advances when the user scrolls
+  // through the section, and reverses when they scroll back up.
+  const { scrollYProgress } = useScroll({
+    target: wrapRef,
+    offset: ["start start", "end end"],
+  });
 
-  // Caption fades in early in the timeline, out late.
-  const captionOpacity = useTransform(scrollYProgress, [0.0, 0.12, 0.78, 0.92], [0, 1, 1, 0]);
-  const captionY       = useTransform(scrollYProgress, [0.0, 0.15, 0.85, 1.0], [40, 0, 0, -40]);
-  const captionBlur    = useTransform(scrollYProgress, [0.0, 0.1, 0.9, 1.0], [12, 0, 0, 12]);
-  const captionFilter  = useTransform(captionBlur, (v) => `blur(${v}px)`);
-  const scrollPromptOpacity = useTransform(scrollYProgress, [0, 0.05, 0.15, 1], [1, 1, 0.4, 0]);
+  // Caption stays visible from page-load through nearly the whole scroll.
+  // It only dims at the very end of the timeline, just before the next
+  // section begins. This fixes "experience freedom disappears after a
+  // few seconds on page load" — it now never disappears unless the user
+  // has actually scrolled past the entire hero runway.
+  const captionOpacity = useTransform(scrollYProgress, [0.0, 0.05, 0.92, 1.0], [1, 1, 1, 0.0]);
+  const captionY       = useTransform(scrollYProgress, [0.0, 1.0], [0, -24]);
+  const scrollPromptOpacity = useTransform(scrollYProgress, [0, 0.1], [1, 0]);
 
   // ── Preload frames ──────────────────────────────────────────────
   useEffect(() => {
@@ -377,15 +377,15 @@ export default function ChipScroll({
       ref={wrapRef}
       className="relative w-full"
       style={{
-        // Single-viewport scene now (was 250-400vh of scroll runway).
-        // The frame sequence advances on a time-driven timeline that
-        // plays once when the section enters view, so we no longer
-        // need a tall pin distance.
-        height: "100svh",
+        // Scroll runway: outer is taller than viewport so the inner
+        // sticky canvas pins while the user scrolls past, and the
+        // animation advances as a function of that scroll. 180svh
+        // gives a comfortable single-scroll completion gesture.
+        height: "180svh",
         background,
       }}
     >
-      <div className="absolute inset-0 flex h-full w-full items-center justify-center overflow-hidden">
+      <div className="sticky top-0 flex h-screen w-full items-center justify-center overflow-hidden">
         <canvas
           ref={canvasRef}
           className="block h-full w-full"
@@ -407,10 +407,10 @@ export default function ChipScroll({
           </div>
         )}
 
-        {/* Caption overlay — fades in around the middle of the scroll */}
+        {/* Caption overlay — visible from load through almost the entire scroll */}
         {caption && (
           <motion.div
-            style={{ opacity: captionOpacity, y: captionY, filter: captionFilter }}
+            style={{ opacity: captionOpacity, y: captionY }}
             suppressHydrationWarning
             className="container-wide pointer-events-none absolute inset-x-0 bottom-[12%] z-10 text-center"
           >
@@ -429,8 +429,7 @@ export default function ChipScroll({
         )}
 
         {/* Subtle "scroll" prompt at bottom — fades out once the timeline
-            advances. (No longer ties scroll to frame advance, but still
-            cues the user that there's more page below.) */}
+            advances. Cues the user that scrolling is what drives the scene. */}
         <motion.div
           aria-hidden="true"
           style={{ opacity: scrollPromptOpacity }}
