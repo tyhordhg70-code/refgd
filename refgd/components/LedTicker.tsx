@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 
 /**
  * LedTicker — LED matrix-style horizontal scrolling text bar.
@@ -7,6 +8,11 @@ import { useEffect, useRef } from "react";
  * The track auto-duplicates to make the loop seamless. The LED
  * appearance is built from a layered gradient + radial dot
  * background applied via CSS, so no images are needed.
+ *
+ * On first scroll into view the entire bar performs a one-shot
+ * "fly-in" — slides in from the right with a subtle overshoot —
+ * so the visitor's eye is drawn to it just as the marquee text
+ * (e.g. "Cashback up to 100%") starts to scroll.
  */
 export default function LedTicker({
   items,
@@ -30,9 +36,13 @@ export default function LedTicker({
   }, [speed, items]);
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, x: 80, scaleX: 0.92 }}
+      whileInView={{ opacity: 1, x: 0, scaleX: 1 }}
+      viewport={{ once: true, amount: 0.3 }}
+      transition={{ type: "spring", stiffness: 110, damping: 14, mass: 0.9 }}
       className={`led-ticker relative w-full overflow-hidden border-y border-white/[0.07] ${className}`}
-      style={{ ["--led-accent" as string]: accent }}
+      style={{ ["--led-accent" as string]: accent, transformOrigin: "right center" }}
     >
       <div className="led-ticker-mask">
         <div ref={trackRef} className="led-ticker-track">
@@ -58,6 +68,6 @@ export default function LedTicker({
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

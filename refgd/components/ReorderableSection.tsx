@@ -111,7 +111,12 @@ export function ReorderableContainer({ pageId, children }: ContainerProps) {
       const toIdx = next.indexOf(target);
       if (fromIdx < 0 || toIdx < 0) return;
       next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, src);
+      // After removing the source, every index ≥ fromIdx shifts down by
+      // one. If the user dragged downward (fromIdx < toIdx) we have to
+      // compensate so the dropped item lands AT the target's original
+      // visual position rather than one slot past it.
+      const insertIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
+      next.splice(insertIdx, 0, src);
       setValue(orderKey, JSON.stringify(next));
     },
     [savedOrder, orderKey, setValue],

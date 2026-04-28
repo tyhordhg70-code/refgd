@@ -128,7 +128,19 @@ export default function AutoEditWrapper({ children }: Props) {
   const pathname = usePathname() || "/";
   const rootRef = useRef<HTMLDivElement | null>(null);
   // refs to currently-tagged elements so we can clean up on exit
-  const taggedRef = useRef<Map<Element, { id: string; original: string }>>(new Map());
+  // We track each decorated element along with its previously attached
+  // listeners so we can call `removeEventListener` on them when edit
+  // mode is toggled off (or this effect re-runs). Without this, the
+  // listeners pile up across edit-mode toggles, causing duplicate save
+  // calls on a single blur and growing input lag.
+  type Tag = {
+    id: string;
+    original: string;
+    onBlur?: (e: FocusEvent) => void;
+    onKeyDown?: (e: KeyboardEvent) => void;
+    onClick?: (e: MouseEvent) => void;
+  };
+  const taggedRef = useRef<Map<Element, Tag>>(new Map());
 
   // Image editor popover state
   const [imgPopover, setImgPopover] = useState<{ id: string; el: HTMLImageElement; rect: DOMRect } | null>(null);
@@ -146,8 +158,13 @@ export default function AutoEditWrapper({ children }: Props) {
           el.removeAttribute("data-editable-id");
           (el as HTMLElement).style.outline = "";
           (el as HTMLElement).style.cursor = "";
-          (el as HTMLElement).onblur = null;
-          (el as HTMLElement).onkeydown = null;
+          // We attached these via addEventListener — they MUST be
+          // removed via removeEventListener (nulling onblur/onkeydown
+          // doesn't unbind addEventListener handlers, which would leak
+          // and fire repeatedly across edit-mode toggles).
+          if (info.onBlur) el.removeEventListener("blur", info.onBlur as EventListener);
+          if (info.onKeyDown) el.removeEventListener("keydown", info.onKeyDown as EventListener);
+          if (info.onClick) el.removeEventListener("click", info.onClick as EventListener, true);
         } catch {}
       });
       tagged.clear();
@@ -218,7 +235,9 @@ export default function AutoEditWrapper({ children }: Props) {
         el.addEventListener("blur", onBlur);
         el.addEventListener("keydown", onKeyDown);
 
-        tagged.set(el, { id, original });
+        // Store handler refs so the cleanup block above can call
+        // removeEventListener with the exact same function references.
+        tagged.set(el, { id, original, onBlur, onKeyDown });
       });
 
       // 2) Images: tag with id, hover outline + click-to-edit handler
@@ -243,7 +262,7 @@ export default function AutoEditWrapper({ children }: Props) {
         };
         img.addEventListener("click", onClick, true);
 
-        tagged.set(img, { id, original: stored });
+        tagged.set(img, { id, original: stored, onClick });
       });
     };
 
@@ -258,6 +277,19 @@ export default function AutoEditWrapper({ children }: Props) {
     obs.observe(root, { childList: true, subtree: true });
     return () => {
       obs.disconnect();
+      // Tear down every listener and decoration we attached during this
+      // effect run. Without this, switching pages while in edit mode
+      // (or toggling edit mode rapidly) would leave dangling listeners
+      // on detached / re-rendered nodes.
+      const live = taggedRef.current;
+      live.forEach((info, el) => {
+        try {
+          if (info.onBlur) el.removeEventListener("blur", info.onBlur as EventListener);
+          if (info.onKeyDown) el.removeEventListener("keydown", info.onKeyDown as EventListener);
+          if (info.onClick) el.removeEventListener("click", info.onClick as EventListener, true);
+        } catch {}
+      });
+      live.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, editMode, pathname]);

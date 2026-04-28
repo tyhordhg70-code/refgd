@@ -41,8 +41,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing `file` field" }, { status: 400 });
   }
 
-  const ALLOWED = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml", "image/avif"];
-  if (!ALLOWED.includes(file.type)) {
+  // SVG is intentionally NOT allowed: an uploaded SVG can carry inline
+  // <script> and run in the same origin when opened directly at
+  // /uploads/<file>.svg, allowing CSRF-style abuse of any logged-in
+  // admin viewer. We only accept raster formats.
+  const MIME_TO_EXT: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    "image/avif": "avif",
+  };
+  const ext = MIME_TO_EXT[file.type];
+  if (!ext) {
     return NextResponse.json({ error: "Unsupported image type" }, { status: 415 });
   }
 
@@ -52,7 +63,8 @@ export async function POST(req: Request) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const hash = createHash("sha256").update(buffer).digest("hex").slice(0, 32);
-  const ext = (file.name.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
+  // Extension comes from the trusted MIME map above — never from the
+  // client-supplied filename, which could be spoofed.
   const filename = `${hash}.${ext}`;
 
   const uploadDir = process.env.UPLOAD_DIR

@@ -270,7 +270,11 @@ export default function StoreFilters({
       const toIdx = bucket.findIndex((x) => x.id === target.id);
       if (fromIdx < 0 || toIdx < 0) return;
       const [moved] = bucket.splice(fromIdx, 1);
-      bucket.splice(toIdx, 0, moved);
+      // Compensate for the shift caused by removing the source: when
+      // dragging downward (fromIdx < toIdx) the target's index is now
+      // one less than it was at the start of the operation.
+      const insertIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
+      bucket.splice(insertIdx, 0, moved);
 
       // Reassign sortOrder densely (10, 20, 30…) so future inserts
       // have wiggle room without renumbering everything. Server route
@@ -440,7 +444,17 @@ export default function StoreFilters({
               suppressHydrationWarning
             >
               <div className="mb-5 text-center">
-                <h3 className="prismatic-text heading-display inline-block text-3xl font-bold uppercase tracking-tight sm:text-4xl">
+                {/* Category headers now glow soft white in addition to
+                    the prismatic gradient sweep — the halo lifts the
+                    label off the dark galaxy backdrop so it stays
+                    readable from across the page. */}
+                <h3
+                  className="prismatic-text heading-display inline-block text-3xl font-bold uppercase tracking-tight text-white sm:text-4xl"
+                  style={{
+                    textShadow:
+                      "0 0 16px rgba(255,255,255,0.55), 0 0 36px rgba(255,255,255,0.25), 0 2px 6px rgba(0,0,0,0.65)",
+                  }}
+                >
                   {CATEGORY_LABEL[category] ?? category}
                 </h3>
                 <p className="mt-1 text-xs uppercase tracking-widest text-white/40">
