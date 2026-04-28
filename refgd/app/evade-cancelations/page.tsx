@@ -7,6 +7,9 @@ import ParallaxIllustration from "@/components/ParallaxIllustration";
 import ParallaxChapter from "@/components/ParallaxChapter";
 import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
 import EditableText from "@/components/EditableText";
+import VaultScene from "@/components/VaultScene";
+import YouTubeTheater from "@/components/YouTubeTheater";
+import DeformingMesh from "@/components/DeformingMesh";
 
 export const metadata = {
   title: "Evade Cancelations — RefundGod",
@@ -151,6 +154,50 @@ export default function EvadePage() {
       />
       </ReorderableSection>
 
+      <ReorderableSection sectionId="vault-scene">
+      {/* Vault opening — scroll-driven SVG vault that swings open as the
+          visitor passes by, releasing inner light. */}
+      <section className="relative py-10">
+        <div className="container-wide">
+          <div className="mx-auto max-w-4xl">
+            <VaultScene />
+            <p className="mt-6 text-center text-sm uppercase tracking-[0.4em] text-cyan-200/70">
+              — your money, finally unlocked
+            </p>
+          </div>
+        </div>
+      </section>
+      </ReorderableSection>
+
+      <ReorderableSection sectionId="trailer">
+      {/* Trailer — YouTube theater mode. Click to expand to a dimmed
+          full-bleed view; background music auto-dims while the video
+          plays and restores when it closes. */}
+      <section className="relative py-10">
+        <div className="container-wide">
+          <div className="mx-auto max-w-4xl">
+            <EditableText
+              id="evade.trailer.eyebrow"
+              defaultValue="— view trailer · theater mode"
+              as="p"
+              className="heading-display mb-4 text-xs font-semibold uppercase tracking-[0.4em] text-cyan-300"
+            />
+            <YouTubeTheater
+              videoId="dQw4w9WgXcQ"
+              title="RefundGod — Evade Cancelations Trailer"
+            />
+            <EditableText
+              id="evade.trailer.caption"
+              defaultValue="Tap to enter theater mode — the page dims and the music ducks so you stay locked in."
+              as="p"
+              multiline
+              className="mt-4 text-center text-sm text-white/70"
+            />
+          </div>
+        </div>
+      </section>
+      </ReorderableSection>
+
       <ReorderableSection sectionId="intro">
       {/* Act 2 — Editorial intro / chapter 01 — parallax depth */}
       <ParallaxChapter
@@ -281,6 +328,22 @@ export default function EvadePage() {
           ))}
         </div>
       </ParallaxChapter>
+      </ReorderableSection>
+
+      <ReorderableSection sectionId="deforming-mesh">
+      {/* Deforming mesh dolly — a wireframe blob whose geometry warps
+          as the user scrolls past, reading like a 3D camera fly-by
+          that rotates around the object. Pure SVG so it stays cheap. */}
+      <section className="relative py-12">
+        <div className="container-wide">
+          <div className="mx-auto max-w-5xl">
+            <DeformingMesh accent="#7c3aed" />
+            <p className="mt-4 text-center text-xs uppercase tracking-[0.5em] text-violet-200/70">
+              — algorithm, deformed in real time
+            </p>
+          </div>
+        </div>
+      </section>
       </ReorderableSection>
 
       <ReorderableSection sectionId="trust">

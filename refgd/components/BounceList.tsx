@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 
@@ -30,6 +30,12 @@ type Props = {
    * Each item resolves to `${editIdPrefix}.${index}`.
    */
   editIdPrefix?: string;
+  /**
+   * If provided, each item's body becomes a click target that
+   * elastically expands to reveal the matching detail string. The
+   * map keys are 0-based indices.
+   */
+  details?: Record<number, string>;
 };
 
 const ACCENT: Record<
@@ -86,6 +92,7 @@ export default function BounceList({
   className = "",
   insert,
   editIdPrefix,
+  details,
 }: Props) {
   const tokens = useMemo(() => ACCENT[accent] ?? ACCENT.violet, [accent]);
   const reduce = useReducedMotion();
@@ -101,6 +108,7 @@ export default function BounceList({
           reduce={!!reduce}
           afterNode={insert?.[i + 1]}
           editId={editIdPrefix ? `${editIdPrefix}.${i}` : undefined}
+          detail={details?.[i]}
         />
       ))}
     </ul>
@@ -114,6 +122,7 @@ function Row({
   reduce,
   afterNode,
   editId,
+  detail,
 }: {
   index: number;
   text: string;
@@ -121,10 +130,13 @@ function Row({
   reduce: boolean;
   afterNode?: React.ReactNode;
   editId?: string;
+  detail?: string;
 }) {
   const ctx = useEditContext();
   const editing = !!editId && ctx.isAdmin && ctx.editMode;
   const value = editId ? ctx.getValue(editId, text) : text;
+  const [open, setOpen] = useState(false);
+  const elastic = !!detail && !editing;
   return (
     <>
       <motion.li
@@ -165,10 +177,26 @@ function Row({
 
         {/* Card body */}
         <div
-          className="relative flex items-start gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.035] px-5 py-4 backdrop-blur-md transition-shadow duration-500 group-hover:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)] sm:gap-6 sm:px-6 sm:py-5"
+          className={`relative flex items-start gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.035] px-5 py-4 backdrop-blur-md transition-shadow duration-500 group-hover:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)] sm:gap-6 sm:px-6 sm:py-5 ${
+            elastic ? `bounce-elastic ${open ? "is-open" : ""}` : ""
+          }`}
           style={{
             boxShadow: `0 12px 30px -18px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)`,
           }}
+          onClick={elastic ? () => setOpen((o) => !o) : undefined}
+          role={elastic ? "button" : undefined}
+          tabIndex={elastic ? 0 : undefined}
+          onKeyDown={
+            elastic
+              ? (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setOpen((o) => !o);
+                  }
+                }
+              : undefined
+          }
+          aria-expanded={elastic ? open : undefined}
         >
           {/* Index */}
           <div className="relative shrink-0">
@@ -190,18 +218,35 @@ function Row({
           </div>
 
           {/* Body */}
-          <p className="relative text-[0.98rem] leading-relaxed text-white/85 sm:text-lg">
-            {editing ? (
-              <EditableText
-                id={editId!}
-                defaultValue={text}
-                as="span"
-                multiline
-              />
-            ) : (
-              value
-            )}
-          </p>
+          <div className="relative flex-1">
+            <p className="text-[0.98rem] leading-relaxed text-white/85 sm:text-lg">
+              {editing ? (
+                <EditableText
+                  id={editId!}
+                  defaultValue={text}
+                  as="span"
+                  multiline
+                />
+              ) : (
+                value
+              )}
+            </p>
+            {elastic ? (
+              <div className="bounce-elastic-content">
+                <p className="text-[0.92rem] leading-relaxed text-white/65 sm:text-base">
+                  {detail}
+                </p>
+              </div>
+            ) : null}
+          </div>
+
+          {elastic ? (
+            <div className="bounce-elastic-arrow shrink-0 self-center text-white/55">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </div>
+          ) : null}
         </div>
       </motion.li>
       {afterNode ? (

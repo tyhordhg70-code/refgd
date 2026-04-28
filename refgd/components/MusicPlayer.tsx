@@ -242,6 +242,26 @@ export default function MusicPlayer() {
     }
   }, [muted, track]);
 
+  // ── External dim event: when YouTubeTheater (or any other component)
+  // requests theater mode, drop volume to a whisper; restore when the
+  // dim is released. Honors the user's mute preference (we don't
+  // un-mute them just because something closed).
+  useEffect(() => {
+    const onDim = (e: Event) => {
+      const a = audioRef.current;
+      if (!a) return;
+      const detail = (e as CustomEvent).detail || {};
+      const dim = !!detail.dim;
+      if (dim) {
+        fadeVolumeTo(0.08, 500);
+      } else if (!mutedRef.current) {
+        fadeVolumeTo(TARGET_VOLUME, 700);
+      }
+    };
+    window.addEventListener("refgd:music-dim", onDim as EventListener);
+    return () => window.removeEventListener("refgd:music-dim", onDim as EventListener);
+  }, []);
+
   return (
     <>
       {track && (

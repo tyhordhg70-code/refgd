@@ -1,5 +1,5 @@
 import { Reveal } from "@/components/Reveal";
-import ChipScroll from "@/components/ChipScroll";
+import MentorshipHero from "@/components/MentorshipHero";
 import KineticText from "@/components/KineticText";
 import MagneticButton from "@/components/MagneticButton";
 import SplineScene from "@/components/SplineScene";
@@ -77,15 +77,13 @@ export default function MentorshipsPage() {
       <CosmicBackground />
       <LiquidParticles count={14} />
 
-      {/* Act 1 — Scroll-linked scrollytelling hero */}
-      <ChipScroll
-        dir="/sequence/mentor"
-        frameCount={0}
-        background="transparent"
-        accent="#a78bfa"
-        fallbackKind="chess"
+      {/* Act 1 — Bespoke parallax illustration hero (replaces the
+          generic chess fallback). Layers move at different depths
+          on both mouse + scroll for a rich 3D feel. */}
+      <MentorshipHero
         caption="Refund & SE Mentorship."
         subCaption="Stop paying for other BS mentorships that have 0 value and ghost you after purchasing. Be your own refunder."
+        accent="#a78bfa"
       />
 
       {/* Inline CTA */}
@@ -409,6 +407,16 @@ export default function MentorshipsPage() {
                 items={REFUND_FEATURES}
                 accent="violet"
                 editIdPrefix="ment.refund.feature"
+                details={{
+                  0: "Identity scrubbing, persona handling and the right paper trail so loss-prevention never builds a case worth opening.",
+                  1: "Why submitted evidence backfires more often than it helps — and the playbook that wins without it.",
+                  2: "Signed-for orders, denied claims, refused replacements: the exact escalation script that overturns them.",
+                  3: "How to read terms of service for openings most refunders never spot, and how to weaponise carrier policy.",
+                  4: "Auto-buyer pipelines that move stock without you ever touching it — drop-off, reship, paid out.",
+                  5: "Multi-account orchestration: 5 accounts per store, properly isolated, all refunding in parallel.",
+                  6: "Region-by-region playbooks for the highest-yield, lowest-friction stores worldwide.",
+                  7: "Lifetime updates and a private chat where the meta is rewritten every week.",
+                }}
               />
 
               <div className="mt-10 space-y-6 text-base leading-relaxed text-white/85 sm:text-lg">

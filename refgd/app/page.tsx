@@ -6,6 +6,7 @@ import ParallaxIllustration from "@/components/ParallaxIllustration";
 import EditableText from "@/components/EditableText";
 import HomeCTAButton from "@/components/HomeCTAButton";
 import HomeBackground from "@/components/HomeBackground";
+import ScrollRain from "@/components/ScrollRain";
 import CosmicJourney from "@/components/CosmicJourney";
 import ChapterCosmos from "@/components/ChapterCosmos";
 import PathsReveal from "@/components/PathsReveal";
@@ -46,6 +47,10 @@ export default async function HomePage() {
           across every chapter. Sits above the global galaxy field but
           below the page content. */}
       <HomeBackground />
+      {/* Cosmic scroll-rain — falling streaks of light that intensify
+          as the visitor scrolls, layered above the orbs but behind
+          the page content. */}
+      <ScrollRain density={42} />
 
       <ReorderableContainer pageId="home">
         <ReorderableSection sectionId="hero">

@@ -12,6 +12,8 @@ import ParallaxChapter from "@/components/ParallaxChapter";
 import { Reveal } from "@/components/Reveal";
 import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
 import EditableText from "@/components/EditableText";
+import LedTicker from "@/components/LedTicker";
+import CoinFlip3D from "@/components/CoinFlip3D";
 
 export const dynamic = "force-dynamic";
 
@@ -60,15 +62,49 @@ export default async function StoreListPage() {
   ]);
 
   return (
-    <div className="relative">
+    <div className="relative scroll-camera">
       {/* Galaxy backdrop is mounted site-wide in layout.tsx — no
           per-page canvases. */}
+
+      {/* Lazy-scroll camera atmosphere image with subtle parallax */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 top-0 -z-[1] h-[110vh] opacity-25"
+        style={{
+          backgroundImage:
+            "linear-gradient(180deg, rgba(8,6,18,0.4) 0%, rgba(8,6,18,0) 60%), url(/uploads/storelist-furniture.png)",
+          backgroundSize: "cover",
+          backgroundPosition: "center top",
+          backgroundAttachment: "fixed",
+          maskImage: "linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.7) 60%, rgba(0,0,0,0) 100%)",
+          WebkitMaskImage: "linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.7) 60%, rgba(0,0,0,0) 100%)",
+        }}
+      />
 
       <ReorderableContainer pageId="store-list">
 
       <ReorderableSection sectionId="service-intro">
       {/* Multi-act intro */}
       <ServiceSection />
+      </ReorderableSection>
+
+      <ReorderableSection sectionId="led-ticker">
+      {/* LED ticker — broadcast-style amber LED bar showcasing the
+          live offerings. Pauses on hover so visitors can read it. */}
+      <div className="py-6">
+        <LedTicker
+          accent="#f5b945"
+          items={[
+            "+480 stores active",
+            "USA · Canada · EU · UK",
+            "Stealth Identities Available",
+            "Cashback up to 100%",
+            "Lifetime support included",
+            "Crypto only — full anonymity",
+            "New drops every week",
+          ]}
+        />
+      </div>
       </ReorderableSection>
 
       <ReorderableSection sectionId="divider">
@@ -153,7 +189,12 @@ export default async function StoreListPage() {
               layout naturally collapses to a single centered column. */}
           <div className="mx-auto mt-8 grid max-w-6xl justify-items-center gap-5 md:grid-cols-2 lg:grid-cols-4 lg:justify-items-stretch">
             {RULES_BLOCKS.map((b, i) => (
-              <GlassCard key={b.n} tint={b.tint} delay={i * 0.08} className="w-full max-w-md">
+              <GlassCard
+                key={b.n}
+                tint={b.tint}
+                delay={i * 0.08}
+                className="liquid-glass w-full max-w-md"
+              >
                 <div className="p-6 sm:p-7">
                   <div className="heading-display text-aurora text-5xl font-bold leading-none tracking-tight">
                     {b.n}
@@ -206,27 +247,48 @@ export default async function StoreListPage() {
             </div>
           </GlassCard>
           <GlassCard tint="emerald">
-            <div className="relative overflow-hidden p-8 sm:p-10">
-              <EditableText
-                id="storelist.pay.title"
-                defaultValue="Payment"
-                as="h3"
-                className="relative heading-display text-2xl font-bold uppercase tracking-tight text-emerald-100"
-              />
-              <EditableText
-                id="storelist.pay.body1"
-                defaultValue="We accept ALL cryptocurrencies as payment."
-                as="p"
-                multiline
-                className="relative mt-4 text-base leading-relaxed text-white/85"
-              />
-              <EditableText
-                id="storelist.pay.body2"
-                defaultValue="Don't see a store you're interested in below? We'd be more than happy to try it out for you, for a discounted rate!"
-                as="p"
-                multiline
-                className="relative mt-3 text-base leading-relaxed text-white/85"
-              />
+            <div className="relative grid items-center gap-6 overflow-hidden p-8 sm:p-10 sm:grid-cols-[auto_1fr]">
+              {/* 3D coin flip — visual anchor for the Payment card. Spins
+                  on enter and again on every viewport re-entry. */}
+              <div className="hidden sm:block">
+                <CoinFlip3D
+                  size={150}
+                  faceLabel="REFUND"
+                  backLabel="GOD"
+                  accent="#34d399"
+                />
+              </div>
+              <div>
+                <EditableText
+                  id="storelist.pay.title"
+                  defaultValue="Payment"
+                  as="h3"
+                  className="relative heading-display text-2xl font-bold uppercase tracking-tight text-emerald-100"
+                />
+                <EditableText
+                  id="storelist.pay.body1"
+                  defaultValue="We accept ALL cryptocurrencies as payment."
+                  as="p"
+                  multiline
+                  className="relative mt-4 text-base leading-relaxed text-white/85"
+                />
+                <EditableText
+                  id="storelist.pay.body2"
+                  defaultValue="Don't see a store you're interested in below? We'd be more than happy to try it out for you, for a discounted rate!"
+                  as="p"
+                  multiline
+                  className="relative mt-3 text-base leading-relaxed text-white/85"
+                />
+              </div>
+              {/* Mobile-only coin under the copy */}
+              <div className="mt-6 flex justify-center sm:hidden">
+                <CoinFlip3D
+                  size={130}
+                  faceLabel="REFUND"
+                  backLabel="GOD"
+                  accent="#34d399"
+                />
+              </div>
             </div>
           </GlassCard>
         </div>
