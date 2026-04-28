@@ -2,7 +2,7 @@ import { Reveal } from "@/components/Reveal";
 import MentorshipHero from "@/components/MentorshipHero";
 import KineticText from "@/components/KineticText";
 import MagneticButton from "@/components/MagneticButton";
-import SplineScene from "@/components/SplineScene";
+import FactoryIllustration from "@/components/FactoryIllustration";
 import ScrollImage from "@/components/ScrollImage";
 import TextReveal from "@/components/TextReveal";
 import BounceList from "@/components/BounceList";
@@ -435,33 +435,40 @@ export default function MentorshipsPage() {
         </div>
       </section>
 
-      {/* ─── Act 6 — Ambient Spline panel — transparent + scroll rotation */}
+      {/* ─── Act 6 — Factory of methods — design-illustration style    */}
+      {/* A wide, horizontal hand-drawn factory: sawtooth roofs, smoke    */}
+      {/* puffs, conveyor belts, gears and floating icons — all in the   */}
+      {/* same flat editorial style as puppet-brain / refund-engine.     */}
+      {/* Fully transparent: the page's cosmic backdrop shows through.   */}
       <section className="relative overflow-hidden py-12">
-        <div className="absolute inset-0 -z-0">
-          <SplineScene
-            height="h-[520px] sm:h-[640px] md:h-[720px]"
-            opacity={0.7}
-            scrollRotate
-          />
+        <div className="container-wide text-center">
+          <Reveal>
+            <EditableText
+              id="ment.factory.eyebrow"
+              defaultValue="— live · in motion · always running"
+              as="p"
+              className="heading-display text-[10px] font-semibold uppercase tracking-[0.4em] text-white/60 sm:text-xs sm:tracking-[0.5em]"
+            />
+            <KineticText
+              as="h2"
+              text="A factory of methods."
+              editId="ment.factory.title"
+              className="editorial-display mt-5 text-white text-[clamp(2rem,6vw,5rem)] uppercase"
+              style={{ textShadow: "0 6px 40px rgba(0,0,0,0.95)" }}
+            />
+          </Reveal>
         </div>
-        <div className="relative z-10 grid place-items-center py-32 sm:py-40">
-          <div className="container-wide text-center">
-            <Reveal>
-              <EditableText
-                id="ment.spline.eyebrow"
-                defaultValue="— live · in motion · always running"
-                as="p"
-                className="heading-display text-[10px] font-semibold uppercase tracking-[0.4em] text-white/60 sm:text-xs sm:tracking-[0.5em]"
-              />
-              <KineticText
-                as="h2"
-                text="A factory of methods."
-                editId="ment.spline.title"
-                className="editorial-display mt-5 text-white text-[clamp(2rem,6vw,5rem)] uppercase"
-                style={{ textShadow: "0 6px 40px rgba(0,0,0,0.95)" }}
-              />
-            </Reveal>
-          </div>
+        {/* Horizontal illustration — fluid width, fixed-aspect height */}
+        <div className="relative mx-auto mt-10 w-full max-w-7xl px-4 sm:mt-14 sm:px-6">
+          <FactoryIllustration
+            height={420}
+            className="hidden sm:block"
+          />
+          {/* Mobile: shorter to keep the page tight */}
+          <FactoryIllustration
+            height={280}
+            className="block sm:hidden"
+          />
         </div>
       </section>
 
@@ -703,7 +710,10 @@ export default function MentorshipsPage() {
       </section>
 
       {/* ─── Final CTA — reverse explosion text ──────────────────── */}
-      <section className="relative py-24 text-center sm:py-32">
+      {/* Spacing tightened: was py-24/sm:py-32 + mt-10 (≈ 6rem of empty
+          space between headline and the Buy Now button). The CTA now
+          reads as one cohesive block instead of two separated chunks. */}
+      <section className="relative overflow-x-clip pb-20 pt-16 text-center sm:pb-24 sm:pt-20">
         <div className="container-wide relative">
           <ExplodeText
             as="h2"
@@ -713,7 +723,7 @@ export default function MentorshipsPage() {
             scatter={220}
           />
           <Reveal delay={0.5}>
-            <div className="mt-10">
+            <div className="mt-5 sm:mt-6">
               <MagneticButton href="https://refundgod.bgng.io/" external variant="primary">
                 Buy Now
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">

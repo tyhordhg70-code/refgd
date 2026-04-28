@@ -24,7 +24,12 @@ export default function CoinFlip3D({
 }) {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement | null>(null);
-  const inView = useInView(ref, { once: false, margin: "-15% 0px" });
+  // Trigger as soon as ANY part of the coin enters the viewport
+  // (margin "0px" instead of "-15%") so visitors actually see the
+  // animation start. Previously the coin had to be 15% inside the
+  // viewport before the flip began, which made it look static on
+  // most screens.
+  const inView = useInView(ref, { once: false, margin: "0px" });
 
   const ringStyle = {
     background: `conic-gradient(from 0deg, ${accent} 0%, #2a2417 18%, ${accent} 38%, #2a2417 58%, ${accent} 78%, #2a2417 95%, ${accent} 100%)`,
@@ -43,13 +48,20 @@ export default function CoinFlip3D({
           reduce
             ? { rotateY: 0 }
             : inView
-              ? { rotateY: [0, 180, 360, 540, 720] }
+              ? { rotateY: 360 }
               : { rotateY: 0 }
         }
         transition={
           reduce
             ? { duration: 0 }
-            : { duration: 4.6, ease: [0.22, 1, 0.36, 1], repeat: Infinity, repeatDelay: 1.4 }
+            : {
+                // Continuous spin instead of "spin then pause for 1.4s".
+                // Linear so the flip feels mechanical and obvious.
+                duration: 3.6,
+                ease: "linear",
+                repeat: Infinity,
+                repeatType: "loop",
+              }
         }
       >
         {/* Face */}

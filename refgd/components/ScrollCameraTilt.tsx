@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { useEditContext } from "@/lib/edit-context";
 
 /**
  * ScrollCameraTilt
@@ -39,13 +40,25 @@ export default function ScrollCameraTilt({
   zoom = 0.04,
 }: Props) {
   const stageRef = useRef<HTMLDivElement | null>(null);
+  // Disable the 3D camera while an admin is editing. The CSS
+  // transform creates a containing block + 3D context that breaks
+  // contentEditable focus and caret rendering inside motion-wrapped
+  // text on Chromium/WebKit. Editing comes first.
+  const { isAdmin, editMode } = useEditContext();
+  const editing = isAdmin && editMode;
 
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
 
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return;
+    if (reduce || editing) {
+      // Reset transform to a neutral state so previously-applied tilt
+      // doesn't get stuck when the admin enters edit mode mid-scroll.
+      stage.style.transform = "none";
+      stage.style.transformStyle = "flat";
+      return;
+    }
 
     let scrollY = window.scrollY;
     let mouseX = 0; // -1..1
@@ -86,21 +99,25 @@ export default function ScrollCameraTilt({
       window.removeEventListener("mousemove", onMouse);
       if (raf != null) cancelAnimationFrame(raf);
     };
-  }, [tilt, yaw, zoom]);
+  }, [tilt, yaw, zoom, editing]);
 
   return (
     <div
       ref={stageRef}
       className={className}
-      style={{
-        transformOrigin: "50% 30%",
-        transformStyle: "preserve-3d",
-        willChange: "transform",
-        // Match the first applied frame so there's no first-paint snap.
-        transform: `perspective(1600px) rotateX(0deg) rotateY(0deg) scale(${(
-          1 - zoom * 0.5
-        ).toFixed(4)})`,
-      }}
+      style={
+        editing
+          ? { transform: "none", transformStyle: "flat" }
+          : {
+              transformOrigin: "50% 30%",
+              transformStyle: "preserve-3d",
+              willChange: "transform",
+              // Match the first applied frame so there's no first-paint snap.
+              transform: `perspective(1600px) rotateX(0deg) rotateY(0deg) scale(${(
+                1 - zoom * 0.5
+              ).toFixed(4)})`,
+            }
+      }
     >
       {children}
     </div>

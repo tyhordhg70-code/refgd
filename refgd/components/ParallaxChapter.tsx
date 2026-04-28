@@ -1,6 +1,7 @@
 "use client";
 import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEditContext } from "@/lib/edit-context";
 
 /**
  * Wraps a "chapter" section so that any background element you place
@@ -35,6 +36,12 @@ export default function ParallaxChapter({
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const reduced = useReducedMotion();
+  // Disable parallax transforms while admin is editing — the
+  // motion-driven `style.transform` on the foreground container
+  // creates a containing block that interferes with contentEditable
+  // focus and caret positioning inside nested EditableText nodes.
+  const { isAdmin, editMode } = useEditContext();
+  const editing = isAdmin && editMode;
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start end", "end start"],
@@ -93,7 +100,7 @@ export default function ParallaxChapter({
       {bg && (
         <motion.div
           aria-hidden="true"
-          style={mounted ? { y: bgY, scale: bgScale, opacity: bgOpacity } : undefined}
+          style={mounted && !editing ? { y: bgY, scale: bgScale, opacity: bgOpacity } : undefined}
           suppressHydrationWarning
           className={`pointer-events-none z-0 ${bgClassName}`}
         >
@@ -101,7 +108,7 @@ export default function ParallaxChapter({
         </motion.div>
       )}
       <motion.div
-        style={mounted ? { y: fgY } : undefined}
+        style={mounted && !editing ? { y: fgY } : undefined}
         suppressHydrationWarning
         className="relative z-10"
       >

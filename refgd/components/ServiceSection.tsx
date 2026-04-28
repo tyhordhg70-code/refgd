@@ -34,7 +34,7 @@ const STEPS = [
     n: "02",
     title: "Submit your order",
     body:
-      "Once your order is in, fill our service form so we can work our magic. Stores have different timeframes — every form is end-to-end encrypted to protect your privacy.",
+      "If your order ships with UPS courier, let us know right away. Otherwise, once you receive it, fill our service form so we can work our magic. All stores have different timeframes — every form is end-to-end encrypted to protect your privacy. You're notified the moment your order is complete.",
     tint: "violet" as const,
     illust: "encryption" as const,
   },
