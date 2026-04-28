@@ -10,6 +10,7 @@ import YouTubeTheater from "@/components/YouTubeTheater";
 import PixelRainCosmic from "@/components/PixelRainCosmic";
 import EvadeIllustrationDivider from "@/components/EvadeIllustrationDivider";
 import TrailerTitle3D from "@/components/TrailerTitle3D";
+import ChapterHeader from "@/components/ChapterHeader";
 
 export const metadata = {
   title: "Evade Cancelations — RefundGod",
@@ -81,7 +82,9 @@ const TRUST = [
   { title: "The aftermath", body: "For the following six months — after getting our seller account up and running — we dedicated extensive time and effort to developing effective strategies for safely and easily creating multiple Amazon accounts without the risk of being linked and blocked, which soon led to research of other stores and how their algorithms work as well.", illo: "shield" as const },
 ];
 
-/** Reusable card for chapter section headers — redesigned (2026-04):
+/** ChapterHeader — extracted to `@/components/ChapterHeader.tsx` so
+ *  other editorial pages (mentorships, store-list, etc.) can drop
+ *  in the same look. Kept the doc here as a breadcrumb. (2026-04):
  *  – Animated gradient ring around the panel so it reads as a
  *    premium, elevated card instead of a flat box.
  *  – Inherits the same liquid-glass-3d / mobile mesh-breathe
@@ -91,80 +94,6 @@ const TRUST = [
  *    glow) instead of plain text.
  *  – Larger / heavier title typography with a stronger drop-shadow
  *    so it punches over the page galaxy. */
-function ChapterHeader({
-  chapter,
-  title,
-  accentClass = "text-cyan-300",
-  glowRgb = "34,211,238",
-}: {
-  chapter: string;
-  title: string;
-  accentClass?: string;
-  glowRgb?: string;
-}) {
-  return (
-    <div
-      className="liquid-glass-3d liquid-glass-mobile group relative overflow-hidden rounded-[2.25rem] border border-white/15 px-6 py-9 sm:px-14 sm:py-12"
-      style={{
-        background:
-          "linear-gradient(160deg, rgba(20,14,42,0.86), rgba(10,8,22,0.94))",
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
-        boxShadow: `0 40px 120px -30px rgba(0,0,0,0.85), 0 0 90px -30px rgba(${glowRgb},0.45), inset 0 1px 0 rgba(255,255,255,0.07)`,
-      }}
-    >
-      {/* Animated gradient ring — sits inside the border, slowly
-          rotates its hue stops so the chapter card always feels alive. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 rounded-[2.25rem] opacity-70"
-        style={{
-          padding: "1px",
-          background: `conic-gradient(from 180deg at 50% 50%, rgba(${glowRgb},0.0), rgba(${glowRgb},0.65), rgba(255,255,255,0.18), rgba(${glowRgb},0.0))`,
-          WebkitMask:
-            "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-          WebkitMaskComposite: "xor",
-          maskComposite: "exclude",
-        }}
-      />
-      {/* Top inner highlight — gel-cap "liquid glass" gloss. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent"
-      />
-
-      {/* Chapter pill — rounded badge instead of plain dash text. */}
-      <span
-        className={`heading-display relative inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.45em] sm:text-xs ${accentClass}`}
-        style={{
-          textShadow: `0 0 18px rgba(${glowRgb},0.65)`,
-          boxShadow: `inset 0 0 0 1px rgba(${glowRgb},0.25), 0 0 30px -10px rgba(${glowRgb},0.55)`,
-        }}
-      >
-        <span
-          className="h-1.5 w-1.5 rounded-full"
-          style={{
-            background: `rgba(${glowRgb},1)`,
-            boxShadow: `0 0 14px rgba(${glowRgb},0.9)`,
-          }}
-        />
-        {chapter}
-      </span>
-
-      <KineticText
-        as="h2"
-        text={title}
-        className="editorial-display relative mt-6 max-w-5xl text-balance text-white text-[clamp(2.1rem,6.4vw,5.2rem)] uppercase"
-        style={{
-          textShadow:
-            "0 6px 36px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.95)",
-          letterSpacing: "-0.025em",
-        }}
-      />
-    </div>
-  );
-}
-
 /**
  * NOTE: Each major chapter section is wrapped in <ParallaxChapter> — the
  * background illustration drifts slower than the foreground content,
@@ -250,7 +179,13 @@ export default function EvadePage() {
           bg={<ParallaxIllustration kind="shield" accent="cyan" size={420} />}
         >
           <div className="container-wide relative">
-            <ChapterHeader chapter="chapter 01 / evade" title="Evade like a PRO." />
+            <ChapterHeader
+              chapterEditId="evade.ch1.eyebrow"
+              chapterDefault="chapter 01 / evade"
+              titleEditId="evade.ch1.title"
+              titleDefault="Evade like a PRO."
+              accent="cyan"
+            />
             <div className="mt-10 grid gap-6 md:grid-cols-2">
               <GlassCard tint="cyan" className="pulse-glow-cyan">
                 <div className="relative p-8">
@@ -303,10 +238,11 @@ export default function EvadePage() {
         >
           <div className="container-wide relative">
             <ChapterHeader
-              chapter="chapter 02 / solutions"
-              title="Our comprehensive solutions."
-              accentClass="text-violet-300"
-              glowRgb="167,139,250"
+              chapterEditId="evade.ch2.eyebrow"
+              chapterDefault="chapter 02 / solutions"
+              titleEditId="evade.ch2.title"
+              titleDefault="Our comprehensive solutions."
+              accent="violet"
             />
             <div className="mt-14 grid gap-5 lg:grid-cols-3">
               {[
@@ -426,10 +362,11 @@ export default function EvadePage() {
         >
           <div className="container-wide relative">
             <ChapterHeader
-              chapter="chapter 03 / trust"
-              title="Why trust us?"
-              accentClass="text-amber-300"
-              glowRgb="245,185,69"
+              chapterEditId="evade.ch3.eyebrow"
+              chapterDefault="chapter 03 / trust"
+              titleEditId="evade.ch3.title"
+              titleDefault="Why trust us?"
+              accent="amber"
             />
             <div className="mt-14 grid gap-5 lg:grid-cols-3">
               {TRUST.map((c, i) => (
@@ -475,10 +412,11 @@ export default function EvadePage() {
         >
           <div className="container-wide relative" id="Learn">
             <ChapterHeader
-              chapter="chapter 04 / pricing"
-              title="Get started, today."
-              accentClass="text-amber-300"
-              glowRgb="245,185,69"
+              chapterEditId="evade.ch4.eyebrow"
+              chapterDefault="chapter 04 / pricing"
+              titleEditId="evade.ch4.title"
+              titleDefault="Get started, today."
+              accent="amber"
             />
             <EditableText
               id="evade.pricing.lead"

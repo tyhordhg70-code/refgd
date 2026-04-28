@@ -1,4 +1,5 @@
 import { Reveal } from "@/components/Reveal";
+import ChapterPill from "@/components/ChapterPill";
 import MentorshipHero from "@/components/MentorshipHero";
 import KineticText from "@/components/KineticText";
 import MagneticButton from "@/components/MagneticButton";
@@ -118,11 +119,11 @@ export default function MentorshipsPage() {
             </div>
             <div className="lg:col-span-7">
               <Reveal>
-                <EditableText
-                  id="ment.refund.eyebrow"
-                  defaultValue="— chapter 01 / refund"
-                  as="p"
-                  className="heading-display text-[10px] font-semibold uppercase tracking-[0.4em] text-violet-300 sm:text-xs sm:tracking-[0.5em]"
+                <ChapterPill
+                  editId="ment.refund.eyebrow"
+                  defaultValue="chapter 01 / refund"
+                  accent="violet"
+                  size="sm"
                 />
                 <KineticText
                   as="h2"
@@ -524,11 +525,11 @@ export default function MentorshipsPage() {
           <div className="mx-auto max-w-4xl">
             <div>
               <Reveal>
-                <EditableText
-                  id="ment.se.eyebrow"
-                  defaultValue="— chapter 02 / SE"
-                  as="p"
-                  className="heading-display text-[10px] font-semibold uppercase tracking-[0.4em] text-cyan-300 sm:text-xs sm:tracking-[0.5em]"
+                <ChapterPill
+                  editId="ment.se.eyebrow"
+                  defaultValue="chapter 02 / SE"
+                  accent="cyan"
+                  size="sm"
                 />
                 <KineticText
                   as="h2"

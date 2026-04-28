@@ -12,6 +12,7 @@ import ParallaxChapter from "@/components/ParallaxChapter";
 import { Reveal } from "@/components/Reveal";
 import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
 import EditableText from "@/components/EditableText";
+import ChapterPill from "@/components/ChapterPill";
 import LedTicker from "@/components/LedTicker";
 import LedJoySection from "@/components/LedJoySection";
 
@@ -131,12 +132,11 @@ export default async function StoreListPage() {
                       "0 40px 120px -30px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06)",
                   }}
                 >
-                  <EditableText
-                    id="storelist.hero.eyebrow"
-                    defaultValue="— chapter 05 / curated · 480+ stores"
-                    as="p"
-                    className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300 sm:text-sm"
-                    style={{ textShadow: "0 0 24px rgba(245,185,69,0.5)" }}
+                  <ChapterPill
+                    editId="storelist.hero.eyebrow"
+                    defaultValue="chapter 05 / curated · 480+ stores"
+                    accent="amber"
+                    size="md"
                   />
                   <KineticText
                     as="h2"
@@ -306,12 +306,11 @@ export default async function StoreListPage() {
                 >
                   <div className="grid items-end gap-6 sm:grid-cols-[1fr_auto]">
                     <div>
-                      <EditableText
-                        id="storelist.region.eyebrow"
-                        defaultValue="— chapter 06 / browse"
-                        as="p"
-                        className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300"
-                        style={{ textShadow: "0 0 24px rgba(245,185,69,0.5)" }}
+                      <ChapterPill
+                        editId="storelist.region.eyebrow"
+                        defaultValue="chapter 06 / browse"
+                        accent="amber"
+                        size="md"
                       />
                       <KineticText
                         as="h2"

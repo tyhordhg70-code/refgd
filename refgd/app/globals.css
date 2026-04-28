@@ -862,6 +862,11 @@ html { scroll-behavior: smooth; }
    Desktop (hover-capable) devices skip this loop and rely on the
    :hover effect instead.
    ───────────────────────────────────────────────────────────────── */
+@keyframes chapterPillPulse {
+  0%, 100% { transform: scale(1); opacity: 0.95; }
+  50%      { transform: scale(1.35); opacity: 1; }
+}
+
 @keyframes liquidMeshBreathe {
   0% {
     border-radius: 30px 26px 28px 32px / 28px 30px 26px 30px;
