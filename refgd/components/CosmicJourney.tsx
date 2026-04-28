@@ -2,10 +2,10 @@
 import {
   motion,
   useReducedMotion,
-  useScroll,
-  useTransform,
   useMotionValue,
   useSpring,
+  useTransform,
+  animate,
 } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import KineticText from "./KineticText";
@@ -14,28 +14,25 @@ import LiquidGlassOrbs from "./LiquidGlassOrbs";
 /**
  * CosmicJourney — the master 3D storytelling scene.
  *
- * One sustained cinematic arc that lives ABOVE the path picker and
- * sticks for ~260vh of scroll runway. Every layer (planet, rings,
- * starlight streaks, distant nebula, glass orbs, kicker text) is
- * choreographed against the SAME scroll progress so the whole
- * sequence feels like one continuous camera move.
+ * One sustained cinematic arc that plays through ONCE on viewport
+ * entry, like stop-motion. Previous version was 280svh of sticky
+ * scroll runway driven by useScroll — visually impressive but
+ * required the user to keep scrolling to "reveal" the warp, and
+ * pinned a heavy compositor cost the entire time. We now lock the
+ * scene to a single viewport (100svh) and play the four phases via
+ * a time-driven motion value:
  *
  *  Phase 0   0.00 → 0.18  •  WELCOME holds. Planet glows. Stars drift.
  *  Phase 1   0.18 → 0.45  •  Camera punches forward. Planet zooms past,
- *                           orbital rings race outward, streak field
- *                           accelerates. Kicker letters scatter.
- *  Phase 2   0.45 → 0.72  •  Tunnel travel. Pure warp speed, deep core
- *                           bloom, distant nebula brightens.
- *  Phase 3   0.72 → 1.00  •  Emergence. Streaks slow, nebula resolves,
- *                           the world below (chapter 01) is delivered.
+ *                           orbital rings race outward.
+ *  Phase 2   0.45 → 0.72  •  Tunnel travel. Warp speed, deep core bloom.
+ *  Phase 3   0.72 → 1.00  •  Emergence. Streaks slow, nebula resolves.
  *
- * The scene is fully scroll-driven (no scroll-jacking). On mobile the
- * heavy mouse parallax + extreme transforms are tamed so the journey
- * stays smooth even when the address bar resizes the viewport.
+ * Total run-through: ~4.2s. Mouse parallax remains for desktop so
+ * the static end-state still feels alive.
  */
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
-  const ref = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -90,147 +87,145 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
   }, [reduced, isMobile, mx, my]);
 
-  // ── Scroll progress across the full journey runway ────────
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start start", "end start"],
-  });
+  // ── Master timeline progress (0 → 1, time-driven) ─────────
+  // Replaces useScroll. Starts after a short hold so the WELCOME
+  // headline gets a beat to breathe before the warp kicks off.
+  const progress = useMotionValue(0);
+
+  useEffect(() => {
+    if (!mounted || reduced) return;
+    const controls = animate(progress, 1, {
+      duration: 4.2,
+      delay: 0.9, // small hold so the kicker reads first
+      ease: [0.32, 0.0, 0.35, 1],
+    });
+    return controls.stop;
+  }, [mounted, reduced, progress]);
 
   // PLANET — visible early, then zooms past the camera and dissolves.
-  // Mobile: tame the max scale (6 → 1.6) so the GPU doesn't have to
-  // rasterize a planet larger than the viewport every frame, which is
-  // what was causing the address-bar resize flicker / scroll jumps.
   const planetScale = useTransform(
-    scrollYProgress,
+    progress,
     [0, 0.18, 0.42, 0.6],
     reduced ? [1, 1, 1, 1] : isMobile ? [1, 1.05, 2.0, 4.2] : [1, 1.05, 2.6, 6],
   );
   const planetY = useTransform(
-    scrollYProgress,
+    progress,
     [0, 0.5],
     reduced ? ["0%", "0%"] : isMobile ? ["0%", "30%"] : ["0%", "55%"],
   );
   const planetOpacity = useTransform(
-    scrollYProgress,
+    progress,
     [0, 0.18, 0.45, 0.6],
     [1, 1, 0.55, 0],
   );
 
   // RINGS — collapse inward then explode outward as the warp ignites.
-  // Mobile: keep the rings visible without the extreme outward burst
-  // that re-rasterizes a giant element every scroll frame.
   const ringScale = useTransform(
-    scrollYProgress,
+    progress,
     [0, 0.18, 0.45, 0.7],
     reduced ? [1, 1, 1, 1] : isMobile ? [1, 0.7, 2.6, 4.5] : [1, 0.6, 3.6, 6.5],
   );
   const ringOpacity = useTransform(
-    scrollYProgress,
+    progress,
     [0, 0.18, 0.45, 0.7, 0.85],
     [0.9, 0.95, 0.9, 0.4, 0],
   );
   const ringRot = useTransform(
-    scrollYProgress,
+    progress,
     [0, 1],
     reduced ? [0, 0] : [0, 220],
   );
 
   // CORE BLOOM — the heart of the warp. Flares between phase 1 → 2.
   const coreScale = useTransform(
-    scrollYProgress,
+    progress,
     [0, 0.2, 0.5, 0.8, 1],
     reduced ? [0, 0, 1, 1, 1] : isMobile ? [0, 0, 1.6, 3.4, 5] : [0, 0, 1.8, 4.2, 7],
   );
   const coreOpacity = useTransform(
-    scrollYProgress,
+    progress,
     [0, 0.25, 0.5, 0.78, 1],
     [0, 0, 1, 0.55, 0],
   );
 
   // STREAK FIELD — radial light spokes that accelerate outward.
   const streakScale = useTransform(
-    scrollYProgress,
+    progress,
     [0, 0.18, 1],
     reduced ? [1, 1, 1] : isMobile ? [0.7, 1.1, 3.4] : [0.6, 1.1, 4.2],
   );
   const streakOpacity = useTransform(
-    scrollYProgress,
+    progress,
     [0, 0.18, 0.4, 0.78, 1],
     [0, 0.4, 1, 0.85, 0.0],
   );
   const streakRotX = useTransform(
-    scrollYProgress,
+    progress,
     [0, 1],
     reduced ? [0, 0] : [6, -10],
   );
 
   // DISTANT NEBULA — the destination. Brightens as we arrive.
   const nebulaOpacity = useTransform(
-    scrollYProgress,
+    progress,
     [0, 0.55, 0.78, 1],
     [0, 0.2, 0.95, 0.7],
   );
   const nebulaScale = useTransform(
-    scrollYProgress,
+    progress,
     [0, 1],
     reduced ? [1, 1] : isMobile ? [1.1, 1] : [1.3, 0.95],
   );
 
   // KICKER TEXT — sits proudly through phase 0, then accelerates away.
   const textY = useTransform(
-    scrollYProgress,
+    progress,
     [0, 0.18, 0.4],
     reduced ? ["0%", "0%", "0%"] : isMobile ? ["0%", "-3%", "-12%"] : ["0%", "-6%", "-30%"],
   );
   const textScale = useTransform(
-    scrollYProgress,
+    progress,
     [0, 0.18, 0.45],
     reduced ? [1, 1, 1] : isMobile ? [1, 1.02, 1.18] : [1, 1.04, 1.8],
   );
   const textOpacity = useTransform(
-    scrollYProgress,
+    progress,
     [0, 0.18, 0.32, 0.42],
     [1, 1, 0.55, 0],
   );
 
-  // SCROLL HINT — fades out as soon as user starts moving.
-  const hintOpacity = useTransform(scrollYProgress, [0, 0.04, 0.12], [1, 0.7, 0]);
+  // SCROLL HINT — fades out as soon as the warp begins.
+  const hintOpacity = useTransform(progress, [0, 0.04, 0.12], [1, 0.7, 0]);
 
   // VIGNETTE — slight darken at peak warp keeps the bloom punchy.
   const vignette = useTransform(
-    scrollYProgress,
+    progress,
     [0, 0.45, 0.75, 1],
     [0, 0.45, 0.25, 0],
   );
 
-  // Streak spokes — fewer on mobile keeps the GPU compositing budget
-  // sane (each spoke is its own paint layer with a gradient).
+  // Streak spokes — fewer on mobile keeps the GPU compositing budget sane.
   const streakCount = isMobile ? 22 : 32;
   const streaks = Array.from({ length: streakCount }, (_, i) => i * (360 / streakCount));
 
   return (
     <section
-      ref={ref}
       data-testid="cosmic-journey"
       className="relative w-full"
       style={{
-        // Long runway so the storytelling has room to breathe — the
-        // warp builds, peaks and resolves over a sustained scroll, and
-        // the path picker (which overlaps the tail of this section via
-        // a generous negative margin) flies in as the *destination* of
-        // the journey, not a separate page after it.
-        height: isMobile ? "240svh" : "280svh",
+        // Single viewport — the timeline is time-driven, not
+        // scroll-driven, so we no longer need 280svh of runway. This
+        // alone removes a massive compositor cost and is the main
+        // fix for the home-page lag.
+        height: "100svh",
       }}
     >
       <div
         ref={sceneRef}
-        className="sticky top-0 grid h-[100svh] w-full place-items-center overflow-hidden"
+        className="grid h-full w-full place-items-center overflow-hidden"
         style={{
           perspective: isMobile ? "900px" : "1500px",
-          // Force a dedicated compositor layer for the entire sticky
-          // scene so the browser doesn't have to repaint every layer
-          // every frame as scroll progresses (the root cause of the
-          // mobile "jump / flicker" symptom).
+          // Force a dedicated compositor layer for the entire scene.
           transform: "translate3d(0, 0, 0)",
           willChange: "transform",
           contain: "layout paint",
@@ -357,7 +352,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             suppressHydrationWarning
             className="relative h-[60vmin] w-[60vmin]"
           >
-            {/* Living planet body — slow auto-rotation (independent of scroll). */}
+            {/* Living planet body — slow auto-rotation. */}
             <motion.div
               className="absolute inset-[18%] rounded-full"
               animate={reduced ? {} : { rotate: 360 }}
@@ -393,12 +388,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
               }}
             />
 
-            {/* Orbiting accent moons. Two-element trick: the OUTER
-                element handles the orbital rotation (via CSS
-                `animation: spin`), the INNER element handles the
-                fixed orbital radius offset. This avoids the
-                inline-transform-vs-keyframe conflict that previously
-                caused the moons to "stick" / disappear on scroll-up. */}
+            {/* Orbiting accent moons. */}
             {[
               { d: 0, color: "#ffe28a", radiusVmin: 26, dur: 18 },
               { d: -3, color: "#a78bfa", radiusVmin: 30, dur: 22 },

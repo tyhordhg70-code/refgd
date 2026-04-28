@@ -1,5 +1,5 @@
 "use client";
-import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useRef } from "react";
 
 /**
@@ -35,21 +35,19 @@ export default function ParallaxIllustration({
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const reduced = useReducedMotion();
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "end start"],
-  });
-  const y = useTransform(scrollYProgress, [0, 1], reduced ? [0, 0] : [60, -60]);
-  const rot = useTransform(scrollYProgress, [0, 1], reduced ? [0, 0] : [-12, 12]);
-  const scale = useTransform(scrollYProgress, [0, 0.5, 1], reduced ? [1, 1, 1] : [0.85, 1.05, 0.92]);
-  const opacity = useTransform(scrollYProgress, [0, 0.2, 0.8, 1], [0, 1, 1, 0.6]);
-
   const c = ACCENTS[accent] ?? ACCENTS.amber;
 
+  // Was scroll-driven. Now a one-shot viewport-triggered fade + lift
+  // so the illustration enters cleanly in a single motion (no
+  // constant-scroll requirement) and frees the scroll thread.
   return (
     <motion.div
       ref={ref}
-      style={{ y, rotate: rot, scale, opacity, position: "relative" }}
+      initial={reduced ? { opacity: 1 } : { opacity: 0, y: 60, rotate: -8, scale: 0.85 }}
+      whileInView={{ opacity: 1, y: 0, rotate: 0, scale: 1 }}
+      viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
+      transition={{ duration: reduced ? 0 : 1.1, ease: [0.22, 1, 0.36, 1] }}
+      style={{ position: "relative" }}
       suppressHydrationWarning
       className={`pointer-events-none ${className}`}
     >

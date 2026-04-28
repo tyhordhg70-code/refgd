@@ -1,27 +1,22 @@
 "use client";
-import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useState } from "react";
 
 /**
  * Cosmic accent rendered behind the Chapter 01 heading on the home
  * page. Continues the storytelling beat from the CosmicJourney warp:
  * a faint orbital constellation that spins slowly and drifts into
- * view as the user reads the chapter intro — the journey hasn't
- * ended, the cosmos is still here.
+ * view — the journey hasn't ended, the cosmos is still here.
  *
- * Pure CSS / framer-motion. No raster assets. Pointer-events:none so
- * it never gets in the way of editable copy / clicks.
+ * Was scroll-driven; now a one-shot viewport-triggered fade + drift
+ * that completes in ~1.6s on enter. The orbital ring pulse on the
+ * star dots stays continuous (CSS-cheap) so the layer keeps breathing.
  */
 export default function ChapterCosmos() {
   const reduced = useReducedMotion();
-  const ref = useRef<HTMLDivElement | null>(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "end start"],
-  });
-
   const [mounted, setMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
   useEffect(() => {
     setMounted(true);
     const mq = window.matchMedia("(max-width: 768px)");
@@ -32,20 +27,29 @@ export default function ChapterCosmos() {
   }, []);
 
   const stable = reduced || isMobile;
-  const rot = useTransform(scrollYProgress, [0, 1], stable ? [0, 0] : [0, 35]);
-  const fade = useTransform(scrollYProgress, [0, 0.25, 0.85, 1], [0, 1, 1, 0.4]);
-  const drift = useTransform(scrollYProgress, [0, 1], stable ? ["0%", "0%"] : ["6%", "-6%"]);
 
   return (
     <div
-      ref={ref}
       aria-hidden="true"
       data-testid="chapter-cosmos"
       className="pointer-events-none absolute inset-0 overflow-hidden"
     >
       <motion.div
         className="absolute left-1/2 top-1/2 h-[120vmin] w-[120vmin] -translate-x-1/2 -translate-y-1/2"
-        style={mounted ? { rotate: rot, opacity: fade, y: drift } : { opacity: 0 }}
+        initial={
+          mounted
+            ? stable
+              ? { opacity: 0 }
+              : { opacity: 0, rotate: 0, y: "6%" }
+            : { opacity: 0 }
+        }
+        whileInView={
+          stable
+            ? { opacity: 1 }
+            : { opacity: 1, rotate: 35, y: "-6%" }
+        }
+        viewport={{ once: true, margin: "-10% 0px -10% 0px" }}
+        transition={{ duration: stable ? 1.2 : 1.6, ease: [0.22, 1, 0.36, 1] }}
         suppressHydrationWarning
       >
         {/* Faint orbital rings */}

@@ -1,21 +1,24 @@
 "use client";
-import { motion, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion";
+import {
+  animate,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+} from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 
 /**
- * MentorshipHero — replaces the generic chess-board fallback with a
- * bespoke parallax illustration scene for the mentorship page.
+ * MentorshipHero — bespoke parallax illustration scene for the
+ * mentorship page. Replaces a generic chess-board fallback.
  *
- * Layers (back → front), each on its own depth:
- *   1) Far stars — slow drift
- *   2) Aurora rings — slow rotation
- *   3) Crown halo + crown — medium
- *   4) Floating cards (knowledge slates) — medium-fast
- *   5) Foreground mentor sigil — closest
- *
- * Each layer responds to BOTH:
- *   - mouse parallax (desktop only)
- *   - scrollYProgress within the wrapper
+ * Was previously a 170vh sticky scroll-driven scene (useScroll +
+ * useTransform on multiple layers). The user wanted every page to
+ * play through animations in ONE motion (stop-motion feel) instead
+ * of requiring constant scroll. So this is now a single viewport
+ * (100svh) hero with a time-driven master timeline that runs once
+ * on mount over ~4s. Mouse parallax remains for desktop polish.
  */
 export default function MentorshipHero({
   caption,
@@ -29,7 +32,9 @@ export default function MentorshipHero({
   const reduce = useReducedMotion();
   const wrap = useRef<HTMLDivElement | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
+    setMounted(true);
     const mq = window.matchMedia("(max-width: 768px)");
     const sync = () => setIsMobile(mq.matches);
     sync();
@@ -56,19 +61,28 @@ export default function MentorshipHero({
     return () => window.removeEventListener("mousemove", handler);
   }, [stable, mx, my]);
 
-  const { scrollYProgress } = useScroll({
-    target: wrap,
-    offset: ["start start", "end start"],
-  });
+  // Master one-shot timeline (replaces useScroll). Plays once on mount.
+  const progress = useMotionValue(0);
+  useEffect(() => {
+    if (!mounted) return;
+    const c = animate(progress, 1, {
+      duration: reduce ? 0 : 3.8,
+      delay: 0.2,
+      ease: [0.22, 1, 0.36, 1],
+    });
+    return c.stop;
+  }, [mounted, progress, reduce]);
 
-  const farY = useTransform(scrollYProgress, [0, 1], stable ? ["0%", "0%"] : ["0%", "30%"]);
-  const midY = useTransform(scrollYProgress, [0, 1], stable ? ["0%", "0%"] : ["0%", "60%"]);
-  const nearY = useTransform(scrollYProgress, [0, 1], stable ? ["0%", "0%"] : ["0%", "95%"]);
-  const captionOp = useTransform(scrollYProgress, [0, 0.5, 1], [1, 0.6, 0]);
-  const captionY = useTransform(scrollYProgress, [0, 1], stable ? ["0%", "0%"] : ["0%", "-30%"]);
+  // Layer rises (analogous to the old scroll-driven Y)
+  const farY = useTransform(progress, [0, 1], stable ? ["0%", "0%"] : ["12%", "0%"]);
+  const midY = useTransform(progress, [0, 1], stable ? ["0%", "0%"] : ["24%", "0%"]);
+  const nearY = useTransform(progress, [0, 1], stable ? ["0%", "0%"] : ["38%", "0%"]);
+  const ringRot = useTransform(progress, [0, 1], stable ? [0, 0] : [-30, 0]);
+  const masterOp = useTransform(progress, [0, 0.25, 1], [0, 0.85, 1]);
+  const captionOp = useTransform(progress, [0, 0.4, 1], [0, 0.85, 1]);
+  const captionY = useTransform(progress, [0, 1], stable ? ["0%", "0%"] : ["18%", "0%"]);
 
   const px1 = useTransform(px, (v) => v * -8);
-  const py1 = useTransform(py, (v) => v * -8);
   const px2 = useTransform(px, (v) => v * -22);
   const py2 = useTransform(py, (v) => v * -22);
   const px3 = useTransform(px, (v) => v * -42);
@@ -77,14 +91,19 @@ export default function MentorshipHero({
   return (
     <section
       ref={wrap}
-      className="relative h-[170vh] overflow-clip"
+      className="relative h-[100svh] overflow-clip"
       data-testid="mentorship-hero"
     >
-      <div className="sticky top-0 grid h-screen w-full place-items-center overflow-hidden">
+      <motion.div
+        className="absolute inset-0 grid h-full w-full place-items-center overflow-hidden"
+        style={mounted ? { opacity: masterOp } : { opacity: 0 }}
+        suppressHydrationWarning
+      >
         {/* Layer 1 — far stars / aurora wash */}
         <motion.div
           className="pointer-events-none absolute inset-0"
           style={{ y: farY }}
+          suppressHydrationWarning
         >
           <div
             className="absolute inset-0"
@@ -107,8 +126,9 @@ export default function MentorshipHero({
         <motion.svg
           viewBox="0 0 800 800"
           className="absolute h-[120vmin] w-[120vmin]"
-          style={{ y: midY, x: px1, rotate: useTransform(scrollYProgress, [0, 1], [0, stable ? 0 : 60]) }}
+          style={{ y: midY, x: px1, rotate: ringRot }}
           aria-hidden="true"
+          suppressHydrationWarning
         >
           <defs>
             <linearGradient id="mh-ring" x1="0" y1="0" x2="1" y2="1">
@@ -123,8 +143,12 @@ export default function MentorshipHero({
         </motion.svg>
 
         {/* Layer 3 — crown / sigil */}
-        <motion.div className="absolute" style={{ y: midY }}>
-          <motion.div style={{ x: px2, y: py2 }}>
+        <motion.div
+          className="absolute"
+          style={{ y: midY }}
+          suppressHydrationWarning
+        >
+          <motion.div style={{ x: px2, y: py2 }} suppressHydrationWarning>
             <svg width="220" height="220" viewBox="0 0 200 200" aria-hidden>
               <defs>
                 <radialGradient id="mh-crown" cx="50%" cy="40%" r="60%">
@@ -157,6 +181,7 @@ export default function MentorshipHero({
         <motion.div
           className="pointer-events-none absolute inset-0"
           style={{ y: nearY }}
+          suppressHydrationWarning
         >
           {[
             { x: "12%", y: "20%", w: 110, h: 70, r: -8, label: "REFUND" },
@@ -177,6 +202,7 @@ export default function MentorshipHero({
                 y: i < 2 ? py3 : py2,
                 boxShadow: `0 30px 80px -30px ${accent}, inset 0 1px 0 rgba(255,255,255,0.08)`,
               }}
+              suppressHydrationWarning
             >
               <div className="grid h-full place-items-center text-[10px] font-bold uppercase tracking-[0.4em] text-white/85">
                 {s.label}
@@ -189,6 +215,7 @@ export default function MentorshipHero({
         <motion.div
           className="relative z-10 max-w-3xl px-6 text-center"
           style={{ opacity: captionOp, y: captionY }}
+          suppressHydrationWarning
         >
           <p className="heading-display mb-4 text-[10px] font-semibold uppercase tracking-[0.4em] text-violet-200/90 sm:text-xs">
             — chapter 02 / mastery awaits
@@ -205,7 +232,7 @@ export default function MentorshipHero({
             </p>
           ) : null}
         </motion.div>
-      </div>
+      </motion.div>
     </section>
   );
 }

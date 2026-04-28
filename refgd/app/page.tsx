@@ -56,11 +56,12 @@ export default async function HomePage() {
           <CosmicJourney kicker={kicker} />
         </ReorderableSection>
 
-        <ReorderableSection sectionId="paths" className="relative z-10 -mt-[55vh] sm:-mt-[60vh]">
-          {/* Act 2 — Chapter 01 / Path picker. Negative top margin pulls
-              this whole act UP into the tail of the cosmic warp so the
-              transition reads as one continuous sequence — no visible
-              page break, no "white card" floating on a separate page. */}
+        <ReorderableSection sectionId="paths" className="relative z-10">
+          {/* Act 2 — Chapter 01 / Path picker. The CosmicJourney above is
+              now a single-viewport (100svh) auto-playing scene, so we no
+              longer need a 55–60vh negative margin to stitch the two
+              acts together — the warp resolves and this section flows
+              cleanly underneath it. */}
           <ParallaxChapter
             intensity={0.5}
             className="pb-20 pt-0"

@@ -32,8 +32,15 @@ function createPool(): Pool {
       "No database URL found. Set RENDER_DATABASE_URL (Render) or DATABASE_URL (Neon/other Postgres) as an environment variable."
     );
   }
+  // Strip any sslmode= param from the URL — pg 8.16+ logs a security
+  // warning that 'prefer'/'require'/'verify-ca' are now treated as
+  // aliases for 'verify-full'. We control SSL via the explicit `ssl`
+  // option below, so the URL-level mode is redundant noise.
+  const cleanUrl = url.replace(/[?&]sslmode=[^&]*/g, (match) =>
+    match.startsWith("?") ? "?" : "",
+  ).replace(/\?&/, "?").replace(/\?$/, "");
   return new Pool({
-    connectionString: url,
+    connectionString: cleanUrl,
     ssl: { rejectUnauthorized: false },
     max: 5,
     idleTimeoutMillis: 30_000,

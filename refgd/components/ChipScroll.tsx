@@ -1,5 +1,5 @@
 "use client";
-import { useScroll, useTransform, motion, useMotionValueEvent } from "framer-motion";
+import { animate, useMotionValue, useTransform, motion, useInView } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 
 /**
@@ -51,12 +51,23 @@ export default function ChipScroll({
   const [total, setTotal] = useState(frameCount);
   const [usingFallback, setUsingFallback] = useState(false);
 
-  const { scrollYProgress } = useScroll({
-    target: wrapRef,
-    offset: ["start start", "end end"],
-  });
+  // Was scroll-linked (useScroll on a 250-400vh runway). Now time-
+  // driven: when the section enters the viewport, the timeline plays
+  // through ONCE over ~5s, like stop-motion. This is what gives every
+  // page the "completes in one scroll" feel the user asked for.
+  const scrollYProgress = useMotionValue(0);
+  const isInView = useInView(wrapRef, { once: true, margin: "-15% 0px -15% 0px" });
+  useEffect(() => {
+    if (!isInView) return;
+    const c = animate(scrollYProgress, 1, {
+      duration: 5,
+      delay: 0.2,
+      ease: [0.32, 0.0, 0.35, 1],
+    });
+    return c.stop;
+  }, [isInView, scrollYProgress]);
 
-  // Caption fades in early in the scroll, out late.
+  // Caption fades in early in the timeline, out late.
   const captionOpacity = useTransform(scrollYProgress, [0.0, 0.12, 0.78, 0.92], [0, 1, 1, 0]);
   const captionY       = useTransform(scrollYProgress, [0.0, 0.15, 0.85, 1.0], [40, 0, 0, -40]);
   const captionBlur    = useTransform(scrollYProgress, [0.0, 0.1, 0.9, 1.0], [12, 0, 0, 12]);
@@ -364,16 +375,17 @@ export default function ChipScroll({
   return (
     <section
       ref={wrapRef}
-      className="chipscroll-runway relative w-full"
+      className="relative w-full"
       style={{
-        // Pin distance — trimmed from 400vh to 250vh on desktop and
-        // 180vh on mobile so the hero doesn't feel like it pins
-        // forever, especially on phones where vertical space is
-        // precious. Fine-tune via the chipscroll-runway CSS class.
+        // Single-viewport scene now (was 250-400vh of scroll runway).
+        // The frame sequence advances on a time-driven timeline that
+        // plays once when the section enters view, so we no longer
+        // need a tall pin distance.
+        height: "100svh",
         background,
       }}
     >
-      <div className="sticky top-0 flex h-screen w-full items-center justify-center overflow-hidden">
+      <div className="absolute inset-0 flex h-full w-full items-center justify-center overflow-hidden">
         <canvas
           ref={canvasRef}
           className="block h-full w-full"
@@ -416,9 +428,9 @@ export default function ChipScroll({
           </motion.div>
         )}
 
-        {/* Persistent "scroll to continue" prompt at bottom — fades out
-            once you scroll past the runway, so users always know there's
-            more chess scene below. */}
+        {/* Subtle "scroll" prompt at bottom — fades out once the timeline
+            advances. (No longer ties scroll to frame advance, but still
+            cues the user that there's more page below.) */}
         <motion.div
           aria-hidden="true"
           style={{ opacity: scrollPromptOpacity }}
@@ -426,7 +438,7 @@ export default function ChipScroll({
           className="pointer-events-none absolute inset-x-0 bottom-6 z-10 flex flex-col items-center gap-2 text-white/85"
         >
           <span className="heading-display text-[10px] font-semibold uppercase tracking-[0.45em]">
-            scroll to continue
+            scroll
           </span>
           <span className="block h-10 w-px animate-pulseGlow bg-gradient-to-b from-white/85 to-transparent" />
         </motion.div>

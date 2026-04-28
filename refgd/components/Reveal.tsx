@@ -1,6 +1,5 @@
 "use client";
-import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 
 /**
  * Section reveal with 3D tilt + parallax. Wrap any block to give it
@@ -29,16 +28,23 @@ export function Reveal({
   );
 }
 
+/** Block that lifts into place on viewport entry (was scroll-driven). */
 export function ParallaxBlock({
   children,
   amount = 60,
   className = "",
 }: { children: React.ReactNode; amount?: number; className?: string }) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
-  const y = useTransform(scrollYProgress, [0, 1], [amount, -amount]);
+  const reduced = useReducedMotion();
   return (
-    <motion.div ref={ref} style={{ y, position: "relative" }} suppressHydrationWarning className={className}>
+    <motion.div
+      initial={reduced ? { opacity: 1 } : { opacity: 0, y: amount }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-12% 0px -12% 0px" }}
+      transition={{ duration: reduced ? 0 : 0.9, ease: [0.22, 1, 0.36, 1] }}
+      style={{ position: "relative" }}
+      suppressHydrationWarning
+      className={className}
+    >
       {children}
     </motion.div>
   );

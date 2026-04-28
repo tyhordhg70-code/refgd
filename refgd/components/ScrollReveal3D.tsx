@@ -1,11 +1,13 @@
 "use client";
-import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useRef, type ReactNode } from "react";
 
 /**
- * Scroll-driven 3D reveal: as the section enters the viewport, it tilts /
- * lifts up and snaps to flat once centered. Cheap to render — uses CSS
- * transform only, GPU-accelerated.
+ * Section reveal with 3D tilt + lift. Was previously scroll-driven
+ * (useScroll + useTransform), which made every section require
+ * continuous scrolling to complete its entrance and pinned a heavy
+ * compositor cost. Now it's a one-shot viewport-triggered tilt that
+ * settles flat in ~0.9s — stop-motion feel, single scroll completes.
  */
 export default function ScrollReveal3D({
   children,
@@ -18,19 +20,8 @@ export default function ScrollReveal3D({
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const reduced = useReducedMotion();
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "end start"],
-  });
-
-  const rotateX = useTransform(scrollYProgress, [0, 0.5, 1], [18 * intensity, 0, -10 * intensity]);
-  const y       = useTransform(scrollYProgress, [0, 0.5, 1], [60 * intensity, 0, -40 * intensity]);
-  const opacity = useTransform(scrollYProgress, [0, 0.2, 0.8, 1], [0.6, 1, 1, 0.85]);
-  const scale   = useTransform(scrollYProgress, [0, 0.5, 1], [0.96, 1, 0.98]);
 
   if (reduced) {
-    // `position: relative` so framer-motion's useScroll target check
-    // doesn't warn — the ref'd element must be non-static.
     return (
       <div ref={ref} className={className} style={{ position: "relative" }}>
         {children}
@@ -41,11 +32,11 @@ export default function ScrollReveal3D({
   return (
     <motion.div
       ref={ref}
+      initial={{ opacity: 0.6, y: 60 * intensity, rotateX: 18 * intensity, scale: 0.96 }}
+      whileInView={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
+      viewport={{ once: true, margin: "-12% 0px -12% 0px" }}
+      transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
       style={{
-        rotateX,
-        y,
-        opacity,
-        scale,
         transformPerspective: 1400,
         transformStyle: "preserve-3d",
         willChange: "transform, opacity",
@@ -59,7 +50,7 @@ export default function ScrollReveal3D({
   );
 }
 
-/** Image that floats with scroll progress — for hero illustrations. */
+/** Image that lifts on viewport entry — for hero illustrations. */
 export function ScrollFloatImage({
   children,
   amount = 80,
@@ -69,17 +60,17 @@ export function ScrollFloatImage({
   amount?: number;
   className?: string;
 }) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "end start"],
-  });
-  const y = useTransform(scrollYProgress, [0, 1], [amount, -amount]);
-  const rotate = useTransform(scrollYProgress, [0, 1], [-3, 3]);
+  const reduced = useReducedMotion();
+  if (reduced) {
+    return <div className={className} style={{ position: "relative" }}>{children}</div>;
+  }
   return (
     <motion.div
-      ref={ref}
-      style={{ y, rotate, position: "relative" }}
+      initial={{ opacity: 0, y: amount, rotate: -3 }}
+      whileInView={{ opacity: 1, y: 0, rotate: 0 }}
+      viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
+      transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+      style={{ position: "relative" }}
       suppressHydrationWarning
       className={className}
     >

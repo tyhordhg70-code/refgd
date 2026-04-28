@@ -127,10 +127,13 @@ export default function PathCard({
                     "linear-gradient(180deg, transparent 30%, rgba(5,6,10,0.55) 70%, rgba(5,6,10,0.92) 100%)",
                 }}
               />
-              {/* Inner shimmer on hover */}
+              {/* Inner shimmer on hover — toned WAY down (was via-white/25
+                  which produced an obvious white strip across the card
+                  even at low scroll velocities). 8% white + a slower
+                  sweep keeps the polish without the laundry-bar look. */}
               <div
                 aria-hidden="true"
-                className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-0 transition-all duration-1000 group-hover:translate-x-full group-hover:opacity-100"
+                className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/[0.08] to-transparent opacity-0 transition-all duration-[1400ms] group-hover:translate-x-full group-hover:opacity-100"
               />
               {/* Index chip */}
               <div

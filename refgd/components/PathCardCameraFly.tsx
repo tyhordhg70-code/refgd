@@ -1,30 +1,27 @@
 "use client";
 
 import { useRef, type ReactNode } from "react";
-import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 /**
  * PathCardCameraFly
  * ─────────────────────────────────────────────────────────────────
- * Wraps a single PathCard with a scroll-driven 3D "camera fly-by".
+ * Wraps a single PathCard with a one-shot 3D "camera fly-by" that
+ * triggers the moment the card enters the viewport. The card flies
+ * in from a different off-screen anchor along a diagonal trajectory
+ * (sideways + depth + slight rotation) and lands at its grid slot.
  *
- * Each card flies in from a different off-screen anchor along a
- * diagonal trajectory (sideways + depth + slight rotation) and lands
- * at its grid slot as the section scrolls into view. The motion is
- * tied to the WRAPPER's own scroll progress (not the page), so:
+ * Each card uses a distinct anchor (5 anchors for 5 cards), so the
+ * group reveal feels like a coordinated camera move rather than
+ * five independent fades.
  *
- *   – The cards animate continuously while the section is in view,
- *     not just at viewport entry.
- *   – Scrolling back UP reverses the camera (true scroll-driven fly,
- *     not a one-shot reveal).
- *
- * `index` selects the camera anchor (5 anchors for 5 cards), so each
- * card flies in from a distinct corner — left/right, near/far, top/
- * bottom — producing a richly layered, cinematic group reveal.
+ * NOTE: This used to be scroll-driven (useScroll + useTransform),
+ * which meant the user had to keep scrolling for the cards to
+ * finish landing. That's been replaced with a viewport-triggered
+ * spring transition so the entire fly-by completes in one motion.
  */
-
 const ANCHORS: Array<{
-  /** Initial X offset (px) when the section is far below the viewport. */
+  /** Initial X offset (px) when the card is off-screen. */
   x: number;
   /** Initial Y offset (px). */
   y: number;
@@ -57,32 +54,7 @@ type Props = {
 export default function PathCardCameraFly({ index, children }: Props) {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement | null>(null);
-
-  // Scroll progress where 0 ≈ wrapper just entered viewport from the
-  // bottom, 1 ≈ wrapper just left the top. We use the wrapper's own
-  // bounds so the fly-by stays scoped to this card's neighborhood.
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start 95%", "end 5%"],
-  });
-
   const a = ANCHORS[index % ANCHORS.length];
-
-  // Gentle ease — most of the motion happens in the first ~55% of
-  // the section's traversal (the camera lands the card), then it
-  // settles & subtly drifts on the way out so scrolling back up
-  // continues to feel alive rather than frozen.
-  const ease = useTransform(scrollYProgress, [0, 0.55, 1], [0, 1, 1.08]);
-
-  const x = useTransform(ease, [0, 1, 1.08], [a.x, 0,  -a.x * 0.06]);
-  const y = useTransform(ease, [0, 1, 1.08], [a.y, 0,  -a.y * 0.04]);
-  const z = useTransform(ease, [0, 1, 1.08], [a.z, 0,  60]);
-  const ry = useTransform(ease, [0, 1, 1.08], [a.ry, 0, -a.ry * 0.08]);
-  const rx = useTransform(ease, [0, 1, 1.08], [a.rx, 0, -a.rx * 0.08]);
-  const scale = useTransform(ease, [0, 1, 1.08], [a.s, 1, 1.015]);
-  // Soft fade-in over the first 12% of travel so cards do not pop
-  // against the cosmic warp behind them.
-  const opacity = useTransform(scrollYProgress, [0, 0.12, 1], [0, 1, 1]);
 
   if (reduce) {
     // Reduced motion: skip the cinematic fly entirely.
@@ -97,8 +69,24 @@ export default function PathCardCameraFly({ index, children }: Props) {
     >
       <motion.div
         className="h-full"
+        initial={{
+          x: a.x, y: a.y, z: a.z,
+          rotateY: a.ry, rotateX: a.rx,
+          scale: a.s, opacity: 0,
+        }}
+        whileInView={{
+          x: 0, y: 0, z: 0,
+          rotateY: 0, rotateX: 0,
+          scale: 1, opacity: 1,
+        }}
+        viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
+        transition={{
+          duration: 1.4,
+          delay: index * 0.12,
+          ease: [0.16, 1, 0.3, 1], // smooth-out cubic — lands like a camera settle
+          opacity: { duration: 0.6, delay: index * 0.12 },
+        }}
         style={{
-          x, y, z, rotateY: ry, rotateX: rx, scale, opacity,
           transformStyle: "preserve-3d",
           transformOrigin: "50% 50%",
           willChange: "transform, opacity",

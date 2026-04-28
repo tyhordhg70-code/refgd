@@ -1,12 +1,18 @@
 "use client";
-import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useState, type ReactNode } from "react";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
- * Wraps a "chapter" section so that any background element you place
- * inside it scrolls SLOWER than the foreground content — producing a
- * 3D / layered parallax depth effect. Use:
+ * Wraps a "chapter" section so any background element you place inside
+ * fades + lifts into place once the section enters the viewport, then
+ * stays put — no per-frame scroll-driven transforms.
+ *
+ * Was previously scroll-driven (useScroll + useTransform), which made
+ * EVERY page require constant scrolling to advance the parallax and
+ * pinned a heavy compositor cost across the whole document. Now it's
+ * a one-shot viewport-triggered reveal that plays through cleanly
+ * (stop-motion feel) and frees the scroll thread.
  *
  *   <ParallaxChapter
  *     bg={<ParallaxIllustration kind="shield" accent="cyan" size={400} />}
@@ -17,9 +23,9 @@ import { useEditContext } from "@/lib/edit-context";
  *     <Cards ... />
  *   </ParallaxChapter>
  *
- *  - `bg` is rendered at z-0, parallaxed.
- *  - children render at z-10 (normal scroll speed).
- *  - intensity 0..1 → how much the bg lags behind (higher = slower bg).
+ *  - `bg` renders at z-0, fades + drifts in once.
+ *  - children render at z-10 with a small one-shot lift.
+ *  - intensity 0..1 controls bg drift distance.
  */
 export default function ParallaxChapter({
   bg,
@@ -34,7 +40,6 @@ export default function ParallaxChapter({
   className?: string;
   children: ReactNode;
 }) {
-  const ref = useRef<HTMLDivElement | null>(null);
   const reduced = useReducedMotion();
   // Disable parallax transforms while admin is editing — the
   // motion-driven `style.transform` on the foreground container
@@ -42,17 +47,7 @@ export default function ParallaxChapter({
   // focus and caret positioning inside nested EditableText nodes.
   const { isAdmin, editMode } = useEditContext();
   const editing = isAdmin && editMode;
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "end start"],
-  });
 
-  // Detect mobile so we can disable foreground parallax there. Mobile
-  // browsers resize the viewport when the address bar shows / hides,
-  // and percentage-based scroll transforms re-evaluate on every resize
-  // — that's what produces the "Join Channel slightly jumps while
-  // scrolling" effect. Background parallax stays enabled (it sits on a
-  // fixed/absolute layer and isn't visually disturbed by the resize).
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
@@ -62,45 +57,30 @@ export default function ParallaxChapter({
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // Background: slow rise from below, scale from 0.9, opacity in/out.
-  // On mobile we ALSO disable bg parallax — percent-based transforms
-  // re-evaluate every time the address bar shows/hides, which is what
-  // produced the jumping/flickering on mobile scrolls.
-  const bgY = useTransform(
-    scrollYProgress,
-    [0, 1],
-    reduced || isMobile ? ["0%", "0%"] : [`${intensity * 50}%`, `-${intensity * 50}%`],
-  );
-  const bgScale = useTransform(
-    scrollYProgress,
-    [0, 0.5, 1],
-    reduced || isMobile ? [1, 1, 1] : [0.92, 1.04, 0.98],
-  );
-  const bgOpacity = useTransform(scrollYProgress, [0, 0.18, 0.82, 1], [0, 1, 1, 0.35]);
-
-  // Foreground: slight lift on entry then no movement (so users still
-  // read it normally) — gives the depth sensation without making text move.
-  // Disabled on mobile to prevent jitter from address-bar viewport resizes.
-  const fgY = useTransform(
-    scrollYProgress,
-    [0, 0.25, 1],
-    reduced || isMobile ? ["0%", "0%", "0%"] : ["6%", "0%", "-4%"],
-  );
-
-  // Hydration-safe motion-value styles. Framer-motion serialises a
-  // `style="..."` attribute on the SSR pass for any motion-value-driven
-  // style, but on the first client render rewrites it as a `transform`
-  // string. React flags that as "Extra attributes from the server: style".
-  // We dodge it by emitting the styles only after mount.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  const disable = reduced || editing || isMobile;
+
+  // Background: small downward drift + scale + fade-in on enter.
+  const bgInitial = disable
+    ? { opacity: 1 }
+    : { opacity: 0, y: `${intensity * 30}%`, scale: 0.92 };
+  const bgWhileInView = { opacity: 1, y: "0%", scale: 1 };
+
+  // Foreground: subtle 6% lift on enter, no continuous scroll motion.
+  const fgInitial = disable ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 };
+  const fgWhileInView = { opacity: 1, y: 0 };
+
   return (
-    <section ref={ref} className={`relative isolate ${className}`}>
+    <section className={`relative isolate ${className}`}>
       {bg && (
         <motion.div
           aria-hidden="true"
-          style={mounted && !editing ? { y: bgY, scale: bgScale, opacity: bgOpacity } : undefined}
+          initial={mounted ? bgInitial : { opacity: 0 }}
+          whileInView={bgWhileInView}
+          viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
+          transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
           suppressHydrationWarning
           className={`pointer-events-none z-0 ${bgClassName}`}
         >
@@ -108,7 +88,10 @@ export default function ParallaxChapter({
         </motion.div>
       )}
       <motion.div
-        style={mounted && !editing ? { y: fgY } : undefined}
+        initial={mounted ? fgInitial : undefined}
+        whileInView={fgWhileInView}
+        viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
+        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
         suppressHydrationWarning
         className="relative z-10"
       >
