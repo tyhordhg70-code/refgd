@@ -13,8 +13,7 @@ import { Reveal } from "@/components/Reveal";
 import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
 import EditableText from "@/components/EditableText";
 import LedTicker from "@/components/LedTicker";
-import CoinFlip3D from "@/components/CoinFlip3D";
-import ScrollCameraTilt from "@/components/ScrollCameraTilt";
+import LedJoySection from "@/components/LedJoySection";
 
 export const dynamic = "force-dynamic";
 
@@ -65,310 +64,297 @@ export default async function StoreListPage() {
   return (
     <>
       {/* Galaxy backdrop is mounted site-wide in layout.tsx — no
-          per-page canvases. */}
+          per-page canvases. The previous fixed shopping-furniture
+          atmosphere image was removed at the user's request. The
+          ScrollCameraTilt wrapper was also removed because its
+          mouse-driven yaw made the page feel constantly sideways. */}
 
-      {/* Lazy-scroll camera atmosphere image with subtle parallax.
-          MUST live OUTSIDE ScrollCameraTilt so its `position: fixed`
-          continues to anchor against the viewport — a transformed
-          ancestor would otherwise become its containing block. */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 -z-[1] h-[110vh] opacity-25"
-        style={{
-          backgroundImage:
-            "linear-gradient(180deg, rgba(8,6,18,0.4) 0%, rgba(8,6,18,0) 60%), url(/uploads/storelist-furniture.png)",
-          backgroundSize: "cover",
-          backgroundPosition: "center top",
-          backgroundAttachment: "fixed",
-          maskImage: "linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.7) 60%, rgba(0,0,0,0) 100%)",
-          WebkitMaskImage: "linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.7) 60%, rgba(0,0,0,0) 100%)",
-        }}
-      />
-
-      <ScrollCameraTilt className="relative scroll-camera">
       <ReorderableContainer pageId="store-list">
 
-      <ReorderableSection sectionId="service-intro">
-      {/* Multi-act intro */}
-      <ServiceSection />
-      </ReorderableSection>
+        <ReorderableSection sectionId="service-intro">
+          {/* Multi-act intro — Get rewarded → Stop wasting time → How it
+              works → Why choose us → secure-lock centerpiece → Awarded CTA */}
+          <ServiceSection />
+        </ReorderableSection>
 
-      <ReorderableSection sectionId="led-ticker">
-      {/* LED ticker — broadcast-style amber LED bar showcasing the
-          live offerings. Pauses on hover so visitors can read it. */}
-      <div className="py-6">
-        <LedTicker
-          accent="#f5b945"
-          items={[
-            "+480 stores active",
-            "USA · Canada · EU · UK",
-            "Stealth Identities Available",
-            "Cashback up to 100%",
-            "Lifetime support included",
-            "Crypto only — full anonymity",
-            "New drops every week",
-          ]}
-        />
-      </div>
-      </ReorderableSection>
+        {/* The "Ahhh, feel the joy of cashback" digital LED moment. Sits
+            DIRECTLY after the "Get rewarded" hero in scroll order — it's
+            triggered by scroll-into-view inside the section, regardless
+            of where it lands in the chapter sequence. We keep it here
+            (mid-page) so it acts as a punchy interlude instead of an
+            on-load surprise. */}
+        <ReorderableSection sectionId="led-joy">
+          <LedJoySection />
+        </ReorderableSection>
 
-      <ReorderableSection sectionId="divider">
-      {/* Divider with editorial chapter mark */}
-      <div className="container-wide pt-8 pb-2">
-        <div className="mx-auto h-px w-full max-w-3xl bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-      </div>
-      </ReorderableSection>
-
-      <ReorderableSection sectionId="storelist-hero">
-      {/* Store list intro — solid backdrop card so the headline POPS,
-          wrapped in a parallax chapter for scroll-depth on the headline
-          itself (no decorative illustration on this page anymore — the
-          galaxy backdrop is enough). */}
-      <ParallaxChapter
-        intensity={0.5}
-        className="scroll-mt-16 py-20 sm:py-28"
-      >
-      <section id="storelist" className="relative">
-        <div className="container-wide relative">
-          <div
-            className="mx-auto max-w-5xl rounded-[2.5rem] border border-white/15 px-8 py-12 text-center sm:px-14 sm:py-16"
-            style={{
-              // Bumped opacity from 0.85/0.92 → 0.95/0.98 so the headline
-              // sits on a near-solid backdrop and pops above the galaxy.
-              background:
-                "linear-gradient(160deg, rgba(15,10,30,0.95), rgba(8,6,18,0.98))",
-              backdropFilter: "blur(16px) saturate(120%)",
-              WebkitBackdropFilter: "blur(16px) saturate(120%)",
-              boxShadow:
-                "0 40px 120px -30px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06)",
-            }}
-          >
-            <EditableText
-              id="storelist.hero.eyebrow"
-              defaultValue="— chapter 05 / curated · 480+ stores"
-              as="p"
-              className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300 sm:text-sm"
-              style={{ textShadow: "0 0 24px rgba(245,185,69,0.5)" }}
+        <ReorderableSection sectionId="led-ticker">
+          {/* LED ticker — broadcast-style amber LED bar showcasing the
+              live offerings. Pauses on hover so visitors can read it. */}
+          <div className="py-6">
+            <LedTicker
+              accent="#f5b945"
+              items={[
+                "+480 stores active",
+                "USA · Canada · EU · UK",
+                "Stealth Identities Available",
+                "Cashback up to 100%",
+                "Lifetime support included",
+                "Crypto only — full anonymity",
+                "New drops every week",
+              ]}
             />
-            <KineticText
-              as="h2"
-              text="The Store List"
-              editId="storelist.hero.title"
-              className="editorial-display mt-6 text-white text-[clamp(2.5rem,10vw,9rem)] uppercase"
-              style={{ textShadow: "0 4px 40px rgba(0,0,0,0.9), 0 2px 8px rgba(0,0,0,0.95)" }}
-            />
-            <Reveal delay={0.4}>
-              <EditableText
-                id="storelist.hero.body"
-                defaultValue="Filter by region, search by name, and see live limits, fees and timeframes. Join our channels for the latest store drops."
-                as="p"
-                multiline
-                className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-white/95"
-              />
-            </Reveal>
           </div>
-        </div>
-      </section>
-      </ParallaxChapter>
-      </ReorderableSection>
+        </ReorderableSection>
 
-      <ReorderableSection sectionId="rules">
-      {/* Rules — glass cards in 4-up grid, parallax 3D scroll depth */}
-      <ParallaxChapter
-        intensity={0.35}
-        className="py-8"
-      >
-      <section className="relative">
-        <div className="container-wide relative">
-          <Reveal>
-            <EditableText
-              id="storelist.rules.eyebrow"
-              defaultValue="— the rules"
-              as="p"
-              className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300/85"
-            />
-          </Reveal>
-          {/* 4-up layout activates at lg (1024px) instead of xl so PC users
-              see all four rule cards on a single row instead of having
-              card-3/card-4 stranded on a second row. On <md screens the
-              layout naturally collapses to a single centered column. */}
-          <div className="mx-auto mt-8 grid max-w-6xl justify-items-center gap-5 md:grid-cols-2 lg:grid-cols-4 lg:justify-items-stretch">
-            {RULES_BLOCKS.map((b, i) => (
-              <GlassCard
-                key={b.n}
-                tint={b.tint}
-                delay={i * 0.08}
-                className="liquid-glass w-full max-w-md"
-              >
-                <div className="p-6 sm:p-7">
-                  <div className="heading-display text-aurora text-5xl font-bold leading-none tracking-tight">
-                    {b.n}
-                  </div>
-                  <EditableText
-                    id={`storelist.rule.${b.n}.h`}
-                    defaultValue={b.h}
-                    as="h3"
-                    className="heading-display mt-3 text-lg font-bold uppercase tracking-tight text-white"
-                  />
-                  <EditableText
-                    id={`storelist.rule.${b.n}.body`}
-                    defaultValue={b.body}
-                    as="p"
-                    multiline
-                    className="mt-3 text-sm font-medium leading-relaxed text-white/85"
-                  />
-                </div>
-              </GlassCard>
-            ))}
+        <ReorderableSection sectionId="divider">
+          {/* Divider with editorial chapter mark */}
+          <div className="container-wide pt-8 pb-2">
+            <div className="mx-auto h-px w-full max-w-3xl bg-gradient-to-r from-transparent via-white/15 to-transparent" />
           </div>
-        </div>
-      </section>
-      </ParallaxChapter>
-      </ReorderableSection>
+        </ReorderableSection>
 
-      <ReorderableSection sectionId="payment-info">
-      {/* Non-payment + payment — magazine 2/3 + 1/3, parallax depth */}
-      <ParallaxChapter
-        intensity={0.4}
-        className="py-8"
-      >
-      <section className="relative">
-        <div className="container-wide relative grid gap-5 lg:grid-cols-3">
-          <GlassCard tint="rose" className="lg:col-span-2">
-            <div className="relative overflow-hidden p-8 sm:p-10">
-              <EditableText
-                id="storelist.nonpay.title"
-                defaultValue="Non-payment disclaimer"
-                as="h3"
-                className="relative heading-display text-2xl font-bold uppercase tracking-tight text-rose-100"
-              />
-              <EditableText
-                id="storelist.nonpay.body"
-                defaultValue="Failure to pay our service fee within the agreed timeframe will result in a rebill and pursuit of legal action by the company and local authorities, with all documentation and evidence supporting this activity. We have automated scripts that inform us of pending orders awaiting payment. Given our service is constructed to help you, it is only fair to treat us with a little gratitude in return."
-                as="p"
-                multiline
-                className="relative mt-4 text-base leading-relaxed text-white/85"
-              />
-            </div>
-          </GlassCard>
-          <GlassCard tint="emerald">
-            <div className="relative grid items-center gap-6 overflow-hidden p-8 sm:p-10 sm:grid-cols-[auto_1fr]">
-              {/* 3D coin flip — visual anchor for the Payment card. Spins
-                  on enter and again on every viewport re-entry. */}
-              <div className="hidden sm:block">
-                <CoinFlip3D
-                  size={150}
-                  faceLabel="REFUND"
-                  backLabel="GOD"
-                  accent="#34d399"
-                />
-              </div>
-              <div>
-                <EditableText
-                  id="storelist.pay.title"
-                  defaultValue="Payment"
-                  as="h3"
-                  className="relative heading-display text-2xl font-bold uppercase tracking-tight text-emerald-100"
-                />
-                <EditableText
-                  id="storelist.pay.body1"
-                  defaultValue="We accept ALL cryptocurrencies as payment."
-                  as="p"
-                  multiline
-                  className="relative mt-4 text-base leading-relaxed text-white/85"
-                />
-                <EditableText
-                  id="storelist.pay.body2"
-                  defaultValue="Don't see a store you're interested in below? We'd be more than happy to try it out for you, for a discounted rate!"
-                  as="p"
-                  multiline
-                  className="relative mt-3 text-base leading-relaxed text-white/85"
-                />
-              </div>
-              {/* Mobile-only coin under the copy */}
-              <div className="mt-6 flex justify-center sm:hidden">
-                <CoinFlip3D
-                  size={130}
-                  faceLabel="REFUND"
-                  backLabel="GOD"
-                  accent="#34d399"
-                />
-              </div>
-            </div>
-          </GlassCard>
-        </div>
-      </section>
-      </ParallaxChapter>
-      </ReorderableSection>
-
-      <ReorderableSection sectionId="filter-grid">
-      {/* Filters + grid — final chapter, parallax. Reduced top padding
-          so it sits closer to the rules section above (the previous
-          py-20 left a visible empty band between "the rules" and
-          "Select your region"). */}
-      <ParallaxChapter
-        intensity={0.45}
-        className="pt-6 pb-20"
-      >
-      <section className="relative" id="region">
-        <div className="container-wide relative">
-          <div
-            className="mb-10 rounded-[2rem] border border-white/10 px-6 py-8 sm:px-10 sm:py-10"
-            style={{
-              background:
-                "linear-gradient(160deg, rgba(15,10,30,0.78), rgba(8,6,18,0.88))",
-              backdropFilter: "blur(10px)",
-              WebkitBackdropFilter: "blur(10px)",
-            }}
-          >
-            <div className="grid items-end gap-6 sm:grid-cols-[1fr_auto]">
-              <div>
-                <p
-                  className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300"
-                  style={{ textShadow: "0 0 24px rgba(245,185,69,0.5)" }}
+        <ReorderableSection sectionId="storelist-hero">
+          {/* Store list intro — solid backdrop card so the headline POPS,
+              wrapped in a parallax chapter for scroll-depth on the
+              headline itself. */}
+          <ParallaxChapter intensity={0.5} className="scroll-mt-16 py-20 sm:py-28">
+            <section id="storelist" className="relative">
+              <div className="container-wide relative">
+                <div
+                  className="mx-auto max-w-5xl rounded-[2.5rem] border border-white/15 px-8 py-12 text-center sm:px-14 sm:py-16"
+                  style={{
+                    background:
+                      "linear-gradient(160deg, rgba(15,10,30,0.95), rgba(8,6,18,0.98))",
+                    backdropFilter: "blur(16px) saturate(120%)",
+                    WebkitBackdropFilter: "blur(16px) saturate(120%)",
+                    boxShadow:
+                      "0 40px 120px -30px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06)",
+                  }}
                 >
-                  — chapter 06 / browse
-                </p>
-                <KineticText
-                  as="h2"
-                  text="Select your region."
-                  className="editorial-display mt-5 text-white text-[clamp(2rem,6vw,5rem)] uppercase"
-                  style={{ textShadow: "0 4px 30px rgba(0,0,0,0.85)" }}
+                  <EditableText
+                    id="storelist.hero.eyebrow"
+                    defaultValue="— chapter 05 / curated · 480+ stores"
+                    as="p"
+                    className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300 sm:text-sm"
+                    style={{ textShadow: "0 0 24px rgba(245,185,69,0.5)" }}
+                  />
+                  <KineticText
+                    as="h2"
+                    editId="storelist.hero.title"
+                    text="The Store List"
+                    className="editorial-display mt-6 text-white text-[clamp(2.5rem,10vw,9rem)] uppercase"
+                    style={{ textShadow: "0 4px 40px rgba(0,0,0,0.9), 0 2px 8px rgba(0,0,0,0.95)" }}
+                  />
+                  <Reveal delay={0.4}>
+                    <EditableText
+                      id="storelist.hero.body"
+                      defaultValue="Filter by region, search by name, and see live limits, fees and timeframes. Join our channels for the latest store drops."
+                      as="p"
+                      multiline
+                      className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-white/95"
+                    />
+                  </Reveal>
+                </div>
+              </div>
+            </section>
+          </ParallaxChapter>
+        </ReorderableSection>
+
+        <ReorderableSection sectionId="rules">
+          {/* Rules — glass cards in 4-up grid, parallax 3D scroll depth */}
+          <ParallaxChapter intensity={0.35} className="py-8">
+            <section className="relative">
+              <div className="container-wide relative">
+                <Reveal>
+                  <EditableText
+                    id="storelist.rules.eyebrow"
+                    defaultValue="— the rules"
+                    as="p"
+                    className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300/85"
+                  />
+                </Reveal>
+                <div className="mx-auto mt-8 grid max-w-6xl justify-items-center gap-5 md:grid-cols-2 lg:grid-cols-4 lg:justify-items-stretch">
+                  {RULES_BLOCKS.map((b, i) => (
+                    <GlassCard
+                      key={b.n}
+                      tint={b.tint}
+                      delay={i * 0.08}
+                      className="liquid-glass w-full max-w-md"
+                    >
+                      <div className="p-6 sm:p-7">
+                        <div className="heading-display text-aurora text-5xl font-bold leading-none tracking-tight">
+                          {b.n}
+                        </div>
+                        <EditableText
+                          id={`storelist.rule.${b.n}.h`}
+                          defaultValue={b.h}
+                          as="h3"
+                          className="heading-display mt-3 text-lg font-bold uppercase tracking-tight text-white"
+                        />
+                        <EditableText
+                          id={`storelist.rule.${b.n}.body`}
+                          defaultValue={b.body}
+                          as="p"
+                          multiline
+                          className="mt-3 text-sm font-medium leading-relaxed text-white/95"
+                        />
+                      </div>
+                    </GlassCard>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </ParallaxChapter>
+        </ReorderableSection>
+
+        <ReorderableSection sectionId="payment-info">
+          {/* Non-payment + payment — magazine 2/3 + 1/3, parallax depth */}
+          <ParallaxChapter intensity={0.4} className="py-8">
+            <section className="relative">
+              <div className="container-wide relative grid gap-5 lg:grid-cols-3">
+                <GlassCard tint="rose" className="lg:col-span-2">
+                  <div className="relative overflow-hidden p-8 sm:p-10">
+                    <EditableText
+                      id="storelist.nonpay.title"
+                      defaultValue="Non-payment disclaimer"
+                      as="h3"
+                      className="relative heading-display text-2xl font-bold uppercase tracking-tight text-rose-100"
+                    />
+                    <EditableText
+                      id="storelist.nonpay.body"
+                      defaultValue="Failure to pay our service fee within the agreed timeframe will result in a rebill and pursuit of legal action by the company and local authorities, with all documentation and evidence supporting this activity. We have automated scripts that inform us of pending orders awaiting payment. Given our service is constructed to help you, it is only fair to treat us with a little gratitude in return."
+                      as="p"
+                      multiline
+                      className="relative mt-4 text-base leading-relaxed text-white/95"
+                    />
+                  </div>
+                </GlassCard>
+                <GlassCard tint="emerald">
+                  <div className="relative grid items-center gap-6 overflow-hidden p-8 sm:p-10 sm:grid-cols-[auto_1fr]">
+                    {/* Animated PAY illustration replaces the previous coin
+                        flip — softly bobbing transparent PNG provided by
+                        the user. Floats on a 3.6s loop. */}
+                    <div className="hidden sm:block">
+                      <img
+                        src="/uploads/payment-pay.png"
+                        alt="A user tapping PAY on their phone"
+                        loading="lazy"
+                        decoding="async"
+                        className="payment-pay-img h-[170px] w-[170px] object-contain"
+                        style={{
+                          filter:
+                            "drop-shadow(0 25px 40px rgba(0,0,0,0.55)) drop-shadow(0 0 18px rgba(52,211,153,0.4))",
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <EditableText
+                        id="storelist.pay.title"
+                        defaultValue="Payment"
+                        as="h3"
+                        className="relative heading-display text-2xl font-bold uppercase tracking-tight text-emerald-100"
+                      />
+                      <EditableText
+                        id="storelist.pay.body1"
+                        defaultValue="We accept ALL cryptocurrencies as payment."
+                        as="p"
+                        multiline
+                        className="relative mt-4 text-base leading-relaxed text-white/95"
+                      />
+                      <EditableText
+                        id="storelist.pay.body2"
+                        defaultValue="Don't see a store you're interested in below? We'd be more than happy to try it out for you, for a discounted rate!"
+                        as="p"
+                        multiline
+                        className="relative mt-3 text-base leading-relaxed text-white/95"
+                      />
+                    </div>
+                    {/* Mobile-only PAY illustration under the copy */}
+                    <div className="mt-6 flex justify-center sm:hidden">
+                      <img
+                        src="/uploads/payment-pay.png"
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="payment-pay-img h-[150px] w-[150px] object-contain"
+                        style={{
+                          filter:
+                            "drop-shadow(0 25px 40px rgba(0,0,0,0.55)) drop-shadow(0 0 18px rgba(52,211,153,0.4))",
+                        }}
+                      />
+                    </div>
+                  </div>
+                </GlassCard>
+              </div>
+            </section>
+          </ParallaxChapter>
+        </ReorderableSection>
+
+        <ReorderableSection sectionId="filter-grid">
+          {/* Filters + grid — final chapter, parallax. */}
+          <ParallaxChapter intensity={0.45} className="pt-6 pb-20">
+            <section className="relative" id="region">
+              <div className="container-wide relative">
+                <div
+                  className="mb-10 rounded-[2rem] border border-white/10 px-6 py-8 sm:px-10 sm:py-10"
+                  style={{
+                    background:
+                      "linear-gradient(160deg, rgba(15,10,30,0.78), rgba(8,6,18,0.88))",
+                    backdropFilter: "blur(10px)",
+                    WebkitBackdropFilter: "blur(10px)",
+                  }}
+                >
+                  <div className="grid items-end gap-6 sm:grid-cols-[1fr_auto]">
+                    <div>
+                      <EditableText
+                        id="storelist.region.eyebrow"
+                        defaultValue="— chapter 06 / browse"
+                        as="p"
+                        className="heading-display text-xs font-semibold uppercase tracking-[0.5em] text-amber-300"
+                        style={{ textShadow: "0 0 24px rgba(245,185,69,0.5)" }}
+                      />
+                      <KineticText
+                        as="h2"
+                        editId="storelist.region.title"
+                        text="Select your region."
+                        className="editorial-display mt-5 text-white text-[clamp(2rem,6vw,5rem)] uppercase"
+                        style={{ textShadow: "0 4px 30px rgba(0,0,0,0.85)" }}
+                      />
+                    </div>
+                    <EditableText
+                      id="storelist.region.note"
+                      defaultValue="One region at a time. Search across name, category and notes."
+                      as="p"
+                      multiline
+                      className="max-w-xs text-sm text-white/90"
+                    />
+                  </div>
+                </div>
+                {/* Scrolling-products texture strip */}
+                <div
+                  aria-hidden
+                  className="relative mb-8 hidden h-28 overflow-hidden rounded-[1.4rem] border border-white/10 sm:block"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(90deg, rgba(8,6,18,1) 0%, rgba(8,6,18,0) 12%, rgba(8,6,18,0) 88%, rgba(8,6,18,1) 100%), url(/uploads/scrolling-products.png)",
+                    backgroundSize: "auto 100%, 200% 100%",
+                    backgroundRepeat: "no-repeat, repeat-x",
+                    backgroundPosition: "center, 0 center",
+                    animation: "scrollProducts 60s linear infinite",
+                  }}
+                />
+                <StoreFilters
+                  stores={stores}
+                  initialCategories={initialCategories}
+                  initialExtras={initialExtras}
+                  initialCanned={CANNED_CATEGORIES as unknown as string[]}
                 />
               </div>
-              <p className="max-w-xs text-sm text-white/90">
-                One region at a time. Search across name, category and notes.
-              </p>
-            </div>
-          </div>
-          {/* Scrolling-products texture strip — sits above the filters
-              as a thin atmospheric reveal so the visitor feels the
-              breadth of the store catalogue before browsing. */}
-          <div
-            aria-hidden
-            className="relative mb-8 hidden h-28 overflow-hidden rounded-[1.4rem] border border-white/10 sm:block"
-            style={{
-              backgroundImage:
-                "linear-gradient(90deg, rgba(8,6,18,1) 0%, rgba(8,6,18,0) 12%, rgba(8,6,18,0) 88%, rgba(8,6,18,1) 100%), url(/uploads/scrolling-products.png)",
-              backgroundSize: "auto 100%, 200% 100%",
-              backgroundRepeat: "no-repeat, repeat-x",
-              backgroundPosition: "center, 0 center",
-              animation: "scrollProducts 60s linear infinite",
-            }}
-          />
-          <StoreFilters
-            stores={stores}
-            initialCategories={initialCategories}
-            initialExtras={initialExtras}
-            initialCanned={CANNED_CATEGORIES as unknown as string[]}
-          />
-        </div>
-      </section>
-      </ParallaxChapter>
-      </ReorderableSection>
+            </section>
+          </ParallaxChapter>
+        </ReorderableSection>
 
       </ReorderableContainer>
-      </ScrollCameraTilt>
     </>
   );
 }
