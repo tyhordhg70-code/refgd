@@ -104,9 +104,9 @@ function HeroSection() {
           <motion.div className="w-full max-w-4xl px-4 sm:px-0">
             <motion.div
               whileHover={{ scale: 1.02, rotateY: 5 }}
-              style={{ perspective: "1000px" }}
               className="overflow-hidden rounded-2xl border border-cyan-400/20 shadow-2xl"
               style={{
+                perspective: "1000px",
                 background:
                   "linear-gradient(135deg, rgba(15,20,40,0.6), rgba(20,30,60,0.4))",
                 backdropFilter: "blur(8px)",
