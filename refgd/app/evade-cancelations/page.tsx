@@ -10,6 +10,7 @@ import EditableText from "@/components/EditableText";
 import VaultScene from "@/components/VaultScene";
 import YouTubeTheater from "@/components/YouTubeTheater";
 import DeformingMesh from "@/components/DeformingMesh";
+import PixelRainCosmic from "@/components/PixelRainCosmic";
 
 export const metadata = {
   title: "Evade Cancelations — RefundGod",
@@ -193,6 +194,25 @@ export default function EvadePage() {
               multiline
               className="mt-4 text-center text-sm text-white/70"
             />
+          </div>
+        </div>
+      </section>
+      </ReorderableSection>
+
+      <ReorderableSection sectionId="pixel-rain">
+      {/* Cosmic pixel-rain interlude — as the visitor scrolls past the
+          theater (and the page lights fade back in), a brief, scroll-
+          driven matrix-style cosmic blue rain plays. The whole sweep
+          completes within ~one viewport-height of scroll, and reverses
+          if the visitor scrolls back up — giving them the same effect
+          in either direction. */}
+      <section className="relative py-8">
+        <div className="container-wide">
+          <div className="mx-auto max-w-5xl">
+            <PixelRainCosmic accent="#7dd3fc" scrollLength={1.4} />
+            <p className="mt-4 text-center text-xs uppercase tracking-[0.5em] text-cyan-200/70">
+              — system online · the algorithm is watching, and so are we
+            </p>
           </div>
         </div>
       </section>

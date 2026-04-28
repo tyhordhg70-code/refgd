@@ -6,8 +6,8 @@ import ParallaxIllustration from "@/components/ParallaxIllustration";
 import EditableText from "@/components/EditableText";
 import HomeCTAButton from "@/components/HomeCTAButton";
 import HomeBackground from "@/components/HomeBackground";
-import ScrollRain from "@/components/ScrollRain";
 import CosmicJourney from "@/components/CosmicJourney";
+import PathCardCameraFly from "@/components/PathCardCameraFly";
 import ChapterCosmos from "@/components/ChapterCosmos";
 import PathsReveal from "@/components/PathsReveal";
 import { Reveal } from "@/components/Reveal";
@@ -47,10 +47,6 @@ export default async function HomePage() {
           across every chapter. Sits above the global galaxy field but
           below the page content. */}
       <HomeBackground />
-      {/* Cosmic scroll-rain — falling streaks of light that intensify
-          as the visitor scrolls, layered above the orbs but behind
-          the page content. */}
-      <ScrollRain density={42} />
 
       <ReorderableContainer pageId="home">
         <ReorderableSection sectionId="hero">
@@ -110,10 +106,17 @@ export default async function HomePage() {
                   </div>
                   {/* 5 cards: 1 / 2 / 3 / 5 column layouts so the BUY 4
                       YOU card sits inline with the other four on wide
-                      screens, and the rows stay balanced on tablets. */}
+                      screens, and the rows stay balanced on tablets.
+                      Each card is wrapped in a scroll-driven 3D camera
+                      fly-by — diagonal zoom + sideways motion from a
+                      different anchor per card, all tied to scroll
+                      progress so reversing the scroll reverses the
+                      camera. */}
                   <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-5">
                     {PATHS.map((p, i) => (
-                      <PathCard key={p.href} index={i} {...p} />
+                      <PathCardCameraFly key={p.href} index={i}>
+                        <PathCard index={i} {...p} />
+                      </PathCardCameraFly>
                     ))}
                   </div>
                 </div>

@@ -613,6 +613,15 @@ export default function MentorshipsPage() {
                 items={SE_FEATURES}
                 accent="cyan"
                 editIdPrefix="ment.se.feature"
+                details={{
+                  0: "Step-by-step social engineering walkthrough — every contact channel, every script, every escalation path.",
+                  1: "Generators and vendor sources we trust so the paper trail holds up under loss-prevention review.",
+                  2: "How to walk away with high-ticket inventory without ever sending money up front.",
+                  3: "Private chat access — when a method dies, the next one is already documented and waiting.",
+                  4: "Photoshop techniques and the specific companies whose flow doesn't include advance replacement.",
+                  5: "Handle the phone scripts so you never have to box a product, pay a bill, or ship anything back.",
+                  6: "Run multiple SEs in parallel across phone + live chat without one rep ever cross-checking the other.",
+                }}
               />
             </div>
           </div>
@@ -620,7 +629,16 @@ export default function MentorshipsPage() {
       </section>
 
       {/* ─── Act 9 — Add-ons + final WORLDWIDE statement ─────────── */}
-      <section className="relative py-20 sm:py-24">
+      <section
+        className="relative py-20 sm:py-24"
+        style={{
+          backgroundImage:
+            "linear-gradient(180deg, rgba(8,6,18,0.95) 0%, rgba(8,6,18,0.65) 50%, rgba(8,6,18,0.95) 100%), url(/uploads/contract-signing.png)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
         <div className="container-wide">
           <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-14">
             <div className="lg:order-2 lg:col-span-5">

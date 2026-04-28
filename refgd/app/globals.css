@@ -817,3 +817,13 @@ html { scroll-behavior: smooth; }
   /* Liquid-glass loses the heavy hover translate so taps don't shift */
   .liquid-glass:hover { transform: none; }
 }
+
+/* Scrolling products marquee — slow horizontal pan of the products
+   illustration on store-list, between rules and store grid. */
+@keyframes scrollProducts {
+  from { background-position: center, 0 center; }
+  to   { background-position: center, -200% center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="animation: scrollProducts"] { animation: none !important; }
+}
