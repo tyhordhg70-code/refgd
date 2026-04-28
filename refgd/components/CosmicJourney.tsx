@@ -100,11 +100,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     offset: ["start start", "end start"],
   });
   // Smooth the raw scroll progress so phase transitions feel cinematic
-  // instead of snapping with every scroll tick.
+  // instead of snapping with every scroll tick. Snappier on mobile so a
+  // fast flick still visibly plays the animation through (it doesn't
+  // get visually "skipped" because the spring catches up in ~200ms).
   const progress = useSpring(scrollYProgress, {
-    stiffness: 120,
-    damping: 30,
-    mass: 0.4,
+    stiffness: isMobile ? 260 : 120,
+    damping: isMobile ? 36 : 30,
+    mass: isMobile ? 0.25 : 0.4,
   });
 
   // PLANET — visible early, then zooms past the camera and dissolves.
@@ -170,11 +172,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     reduced ? [0, 0] : [6, -10],
   );
 
-  // DISTANT NEBULA — the destination. Brightens as we arrive.
+  // DISTANT NEBULA — the destination. Brightens as we arrive, then
+  // fades to 0 at the very end so the section can hand off to the next
+  // chapter without a bright "white-ish" overlay bleeding through.
   const nebulaOpacity = useTransform(
     progress,
-    [0, 0.55, 0.78, 1],
-    [0, 0.2, 0.95, 0.7],
+    [0, 0.55, 0.78, 0.92, 1],
+    [0, 0.2, 0.95, 0.55, 0],
   );
   const nebulaScale = useTransform(
     progress,
@@ -220,10 +224,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       data-testid="cosmic-journey"
       className="relative w-full"
       style={{
-        // 200svh runway → sticky inner stage plays the scene as the
-        // user scrolls through. Scrolling back up REVERSES it, so the
-        // WELCOME headline returns when they reach the top.
-        height: "200svh",
+        // Mobile: short 130svh runway so the entire welcome
+        // animation finishes within roughly ONE swipe and immediately
+        // hands off to the "Choose your path to mastery" section
+        // underneath. Desktop keeps the longer cinematic 200svh
+        // runway. Scrolling back up still REVERSES the animation
+        // (scroll-driven), so WELCOME returns at the top.
+        height: isMobile ? "130svh" : "200svh",
       }}
     >
       <div

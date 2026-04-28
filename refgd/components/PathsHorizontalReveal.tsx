@@ -52,22 +52,30 @@ export default function PathsHorizontalReveal({
     target: sectionRef,
     offset: ["start start", "end end"],
   });
-  // Smooth the scroll input so the horizontal travel doesn't snap
-  // with every wheel tick on iOS / Android.
+  // Snappy spring so a fast swipe still tracks scroll closely (no
+  // visual lag where the user has scrolled but the cards are still
+  // catching up — that's what made card 5 appear "skipped" before).
   const progress = useSpring(scrollYProgress, {
-    stiffness: 110,
-    damping: 28,
-    mass: 0.5,
+    stiffness: 280,
+    damping: 36,
+    mass: 0.2,
   });
 
   const count = cards.length;
   // Total horizontal distance: shift the row left by (count - 1)
-  // viewport widths so the last card lands centred. Uses CSS calc
-  // string interpolation via Framer's MotionValue<string>.
+  // viewport widths so the last card lands centred. We park the row
+  // at its FINAL position by progress 0.92 — the remaining 8% of
+  // runway is "settle time" so the user can actually see card 5
+  // centred before the sticky disengages and vertical scroll resumes.
   const x = useTransform(
     progress,
-    [0, 1],
-    [`0vw`, `-${(count - 1) * 100}vw`],
+    [0, 0.08, 0.92, 1],
+    [
+      `0vw`,
+      `0vw`,
+      `-${(count - 1) * 100}vw`,
+      `-${(count - 1) * 100}vw`,
+    ],
   );
 
   // SSR / desktop / tablet: render the desktop grid as-is.
@@ -81,10 +89,12 @@ export default function PathsHorizontalReveal({
       data-testid="paths-horizontal-reveal"
       className="relative w-full"
       style={{
-        // Runway height = (cards + 0.5) viewports so each card has a
-        // clear "page" of scroll, and the section unpins cleanly with
-        // a small buffer once the last card is centred.
-        height: `${(count + 0.5) * 100}svh`,
+        // Runway height ≈ 0.7 viewports per card + a small buffer so
+        // ONE swipe advances roughly one card and the user actually
+        // sees every card in turn (the previous 1.0 vh-per-card
+        // runway took 5+ swipes and made it feel like cards were
+        // being skipped).
+        height: `${(count * 0.7 + 0.5) * 100}svh`,
       }}
     >
       <div className="sticky top-0 flex h-[100svh] w-full items-center overflow-hidden">
@@ -123,37 +133,77 @@ function CardSlide({
   progress: ReturnType<typeof useSpring>;
   children: ReactNode;
 }) {
-  // Each card "owns" a window of scroll progress around its centre.
-  // For card i (0-indexed), centre = i / (count - 1).
-  const centre = count > 1 ? index / (count - 1) : 0;
-  const span = count > 1 ? 1 / (count - 1) : 1; // window radius
-  const enter = Math.max(0, centre - span * 0.85);
-  const peak = centre;
-  const leave = Math.min(1, centre + span * 0.85);
+  // The horizontal track starts at x=0vw and parks at -(count-1)*100vw
+  // by progress 0.92 (see x mapping in the parent). Each card "owns"
+  // a centred window inside that travel:
+  //
+  //   centre_i = 0.08 + (0.92 - 0.08) * (i / (count - 1))
+  //
+  // so card 0 peaks at 0.08 (start of runway, with a small 8%
+  // pre-roll where it sits centred and fully visible) and card N-1
+  // peaks at 0.92 (then sits there for the closing 8% so the user
+  // actually sees the last card before the section unpins).
+  const SETTLE_IN = 0.08;
+  const SETTLE_OUT = 0.92;
+  const travelSpan = SETTLE_OUT - SETTLE_IN;
+  const centre =
+    count > 1 ? SETTLE_IN + travelSpan * (index / (count - 1)) : 0.5;
+  const span = count > 1 ? travelSpan / (count - 1) : 1;
 
-  // Cinematic camera fly-by: each card eases in from the right with
-  // a diagonal lift, peaks at full presence, then drifts away. The
-  // first and last cards skip the entry/exit fade respectively so
-  // the row never has both edges blank at once.
+  // First card holds visible from progress 0; last card holds visible
+  // through progress 1. Middle cards fade between their neighbours.
+  const enter = index === 0 ? 0 : Math.max(0, centre - span);
+  const leave = index === count - 1 ? 1 : Math.min(1, centre + span);
+
+  // Use 5-stop interpolation (enter, justBeforePeak, peak, justAfterPeak,
+  // leave) so the boundary cards keep a stable "fully visible" plateau
+  // around the peak instead of starting to fade immediately.
+  const peakHoldL = index === 0 ? 0 : Math.max(enter, centre - span * 0.15);
+  const peakHoldR = index === count - 1 ? 1 : Math.min(leave, centre + span * 0.15);
+
   const opacity = useTransform(
     progress,
-    [enter, peak, leave],
-    [index === 0 ? 1 : 0.15, 1, index === count - 1 ? 1 : 0.45],
+    [enter, peakHoldL, centre, peakHoldR, leave],
+    [
+      index === 0 ? 1 : 0.15,
+      1,
+      1,
+      1,
+      index === count - 1 ? 1 : 0.35,
+    ],
   );
   const scale = useTransform(
     progress,
-    [enter, peak, leave],
-    [0.78, 1, 0.86],
+    [enter, peakHoldL, centre, peakHoldR, leave],
+    [
+      index === 0 ? 1 : 0.82,
+      1,
+      1,
+      1,
+      index === count - 1 ? 1 : 0.86,
+    ],
   );
   const rotateY = useTransform(
     progress,
-    [enter, peak, leave],
-    [22, 0, -16],
+    [enter, peakHoldL, centre, peakHoldR, leave],
+    [
+      index === 0 ? 0 : 22,
+      0,
+      0,
+      0,
+      index === count - 1 ? 0 : -16,
+    ],
   );
   const liftY = useTransform(
     progress,
-    [enter, peak, leave],
-    ["6%", "0%", "-4%"],
+    [enter, peakHoldL, centre, peakHoldR, leave],
+    [
+      index === 0 ? "0%" : "6%",
+      "0%",
+      "0%",
+      "0%",
+      index === count - 1 ? "0%" : "-4%",
+    ],
   );
 
   return (

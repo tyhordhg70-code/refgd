@@ -124,40 +124,55 @@ export default function MusicPlayer() {
     let unmuteListenersAttached = false;
     let cancelled = false;
 
-    const startMutedFallback = () => {
-      if (cancelled) return;
-      a.volume = 0;
-      a.muted = true;
+    const userPrefersMuted = mutedRef.current;
+
+    // ── Strategy ──────────────────────────────────────────────
+    //  Mobile browsers (iOS Safari especially) reject ANY .play()
+    //  call from a useEffect because it isn't running inside a
+    //  user-gesture stack. The desktop "try unmuted, fall back to
+    //  muted" dance therefore never actually starts audio on mobile
+    //  before first interaction. So we ALWAYS attach unmute-on-
+    //  interaction listeners up-front (unless the user explicitly
+    //  prefers muted) and let the very first scroll / tap kick
+    //  playback off — which IS a valid user gesture and will
+    //  reliably start audio on every browser.
+    const tryPlay = () => {
       const p = a.play();
-      if (p) p.catch(() => {/* iOS may still block; pointerdown will retry */});
-      attachUnmuteListeners();
+      if (p) p.catch(() => {});
     };
 
-    const userPrefersMuted = mutedRef.current;
     if (userPrefersMuted) {
       // Honor explicit mute pref → start muted, no unmute listeners.
       a.volume = 0;
       a.muted = true;
-      const p = a.play();
-      if (p) p.catch(() => {});
+      tryPlay();
     } else {
-      // Try unmuted first.
-      a.muted = false;
+      // Always attach interaction listeners as the reliable kick-off.
+      attachUnmuteListeners();
+      // Best-effort: try MUTED autoplay so the audio decoder warms up
+      // and the very first interaction can switch to unmuted instantly.
+      a.muted = true;
       a.volume = 0;
+      tryPlay();
+      // ALSO attempt unmuted — some browsers (Chrome with MEI, Safari
+      // on a return visit, sites whitelisted by the user) will accept
+      // it and we get music immediately without waiting for a gesture.
+      a.muted = false;
       const p = a.play();
       if (p) {
         p.then(() => {
           if (cancelled) return;
           fadeVolumeTo(TARGET_VOLUME, FADE_MS);
+          detach();
         }).catch(() => {
-          // Browser blocked unmuted autoplay → fall back to muted.
-          startMutedFallback();
+          // Unmuted blocked → keep listeners attached and stay muted
+          // until first interaction. tryPlay above keeps muted decoder
+          // alive so the gesture-driven unmute is instant.
+          if (!cancelled) {
+            a.muted = true;
+            tryPlay();
+          }
         });
-      } else {
-        // Older browsers without a play() promise → assume it worked and
-        // ramp volume; if it didn't, the user can always click the mute
-        // button to toggle.
-        fadeVolumeTo(TARGET_VOLUME, FADE_MS);
       }
     }
 
@@ -169,6 +184,9 @@ export default function MusicPlayer() {
         return;
       }
       a.muted = false;
+      // Important: re-issue play() INSIDE the user-gesture stack so
+      // mobile browsers actually authorise sound. Don't depend on the
+      // muted-attempt above already running.
       const p = a.play();
       if (p) p.catch(() => {});
       fadeVolumeTo(TARGET_VOLUME, FADE_MS);
@@ -198,11 +216,6 @@ export default function MusicPlayer() {
       window.removeEventListener("click", unmuteOnInteraction);
       unmuteListenersAttached = false;
     };
-
-    // Note: unmute interaction listeners are NOT attached unconditionally.
-    // They are only registered by `startMutedFallback()` when the unmuted
-    // autoplay attempt is rejected by the browser. If the unmuted attempt
-    // succeeds (or the user explicitly prefers muted), we don't need them.
 
     // Re-attempt muted autoplay if the tab regains focus.
     const onVisible = () => {
