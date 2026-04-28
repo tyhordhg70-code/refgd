@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: refgd
+    rootDir: refgd
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    env: node
+    envVars:
+      - key: NODE_VERSION
+        value: 20
