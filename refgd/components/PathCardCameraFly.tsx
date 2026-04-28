@@ -1,24 +1,25 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { motion, useReducedMotion, useInView } from "framer-motion";
 
 /**
  * PathCardCameraFly
  * ─────────────────────────────────────────────────────────────────
  * Wraps a single PathCard with a one-shot 3D "camera fly-by" that
- * triggers the moment the card enters the viewport. The card flies
- * in from a different off-screen anchor along a diagonal trajectory
- * (sideways + depth + slight rotation) and lands at its grid slot.
+ * triggers the moment the card's GRID SLOT enters the viewport.
+ *
+ * IMPORTANT: detection is done on the OUTER wrapper (which always
+ * sits in its grid slot), NOT the inner transformed motion.div.
+ * Previously `whileInView` watched the inner element, but several
+ * cards started so far off-screen (x: -420, y: -260, z: -640) that
+ * IntersectionObserver never reported them as visible — so the
+ * left-most and right-most cards (anchors 0 and 4) silently never
+ * flew in. That's why two of the five cards looked "missing".
  *
  * Each card uses a distinct anchor (5 anchors for 5 cards), so the
  * group reveal feels like a coordinated camera move rather than
  * five independent fades.
- *
- * NOTE: This used to be scroll-driven (useScroll + useTransform),
- * which meant the user had to keep scrolling for the cards to
- * finish landing. That's been replaced with a viewport-triggered
- * spring transition so the entire fly-by completes in one motion.
  */
 const ANCHORS: Array<{
   /** Initial X offset (px) when the card is off-screen. */
@@ -53,17 +54,30 @@ type Props = {
 
 export default function PathCardCameraFly({ index, children }: Props) {
   const reduce = useReducedMotion();
-  const ref = useRef<HTMLDivElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  // Track viewport entry on the OUTER wrapper (which sits in its
+  // grid slot and is reliably observable by IntersectionObserver),
+  // not on the inner transformed element.
+  const inView = useInView(wrapRef, {
+    once: true,
+    margin: "-15% 0px -15% 0px",
+  });
+  const [shouldAnimate, setShouldAnimate] = useState(false);
+
+  useEffect(() => {
+    if (inView) setShouldAnimate(true);
+  }, [inView]);
+
   const a = ANCHORS[index % ANCHORS.length];
 
   if (reduce) {
     // Reduced motion: skip the cinematic fly entirely.
-    return <div ref={ref} className="h-full">{children}</div>;
+    return <div ref={wrapRef} className="h-full">{children}</div>;
   }
 
   return (
     <div
-      ref={ref}
+      ref={wrapRef}
       className="h-full"
       style={{ perspective: 1600, transformStyle: "preserve-3d" }}
     >
@@ -74,12 +88,15 @@ export default function PathCardCameraFly({ index, children }: Props) {
           rotateY: a.ry, rotateX: a.rx,
           scale: a.s, opacity: 0,
         }}
-        whileInView={{
-          x: 0, y: 0, z: 0,
-          rotateY: 0, rotateX: 0,
-          scale: 1, opacity: 1,
-        }}
-        viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
+        animate={
+          shouldAnimate
+            ? {
+                x: 0, y: 0, z: 0,
+                rotateY: 0, rotateX: 0,
+                scale: 1, opacity: 1,
+              }
+            : undefined
+        }
         transition={{
           duration: 1.4,
           delay: index * 0.12,

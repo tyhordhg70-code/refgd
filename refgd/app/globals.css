@@ -538,30 +538,6 @@ html { scroll-behavior: smooth; }
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   ScrollRain — falling cosmic streaks (page-wide, scroll-driven)
-   ───────────────────────────────────────────────────────────────── */
-.scroll-rain-streak {
-  position: absolute;
-  top: -20vh;
-  display: block;
-  border-radius: 9999px;
-  animation-name: scroll-rain-fall;
-  animation-iteration-count: infinite;
-  animation-timing-function: linear;
-  will-change: transform, opacity;
-  filter: drop-shadow(0 0 4px rgba(255,255,255,0.25));
-}
-@keyframes scroll-rain-fall {
-  0%   { transform: translate3d(0,-30vh,0); opacity: 0; }
-  10%  { opacity: 1; }
-  90%  { opacity: 1; }
-  100% { transform: translate3d(0,130vh,0); opacity: 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .scroll-rain-streak { animation: none; }
-}
-
-/* ─────────────────────────────────────────────────────────────────
    LedTicker — LED matrix marquee
    ───────────────────────────────────────────────────────────────── */
 .led-ticker {
@@ -826,4 +802,17 @@ html { scroll-behavior: smooth; }
 }
 @media (prefers-reduced-motion: reduce) {
   [style*="animation: scrollProducts"] { animation: none !important; }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   ScrollRain — vertical streak shower driven by scroll velocity
+   ───────────────────────────────────────────────────────────────── */
+@keyframes scrollRainFall {
+  0%   { transform: translate3d(0, -30vh, 0); opacity: 0; }
+  10%  { opacity: 0.85; }
+  90%  { opacity: 0.85; }
+  100% { transform: translate3d(0, 130vh, 0); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="scroll-rain"] { display: none !important; }
 }

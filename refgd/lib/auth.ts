@@ -68,7 +68,9 @@ export async function createSession(username: string): Promise<void> {
     .setIssuedAt()
     .setExpirationTime("7d")
     .sign(jwtSecret());
-  cookies().set(COOKIE_NAME, token, {
+  // Next 15 made cookies() async — must be awaited before mutating.
+  const store = await cookies();
+  store.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -78,11 +80,13 @@ export async function createSession(username: string): Promise<void> {
 }
 
 export async function clearSession(): Promise<void> {
-  cookies().delete(COOKIE_NAME);
+  const store = await cookies();
+  store.delete(COOKIE_NAME);
 }
 
 export async function readSession(): Promise<{ username: string } | null> {
-  const c = cookies().get(COOKIE_NAME);
+  const store = await cookies();
+  const c = store.get(COOKIE_NAME);
   if (!c) return null;
   try {
     const { payload } = await jwtVerify(c.value, jwtSecret());

@@ -8,6 +8,8 @@ import HomeCTAButton from "@/components/HomeCTAButton";
 import HomeBackground from "@/components/HomeBackground";
 import CosmicJourney from "@/components/CosmicJourney";
 import PathCardCameraFly from "@/components/PathCardCameraFly";
+import PathsHorizontalReveal from "@/components/PathsHorizontalReveal";
+import ScrollRain from "@/components/ScrollRain";
 import ChapterCosmos from "@/components/ChapterCosmos";
 import PathsReveal from "@/components/PathsReveal";
 import { Reveal } from "@/components/Reveal";
@@ -47,6 +49,11 @@ export default async function HomePage() {
           across every chapter. Sits above the global galaxy field but
           below the page content. */}
       <HomeBackground />
+
+      {/* Scroll-driven streak shower — cosmic light "rains" past the
+          camera and intensifies with scroll velocity. Pure CSS streaks
+          driven by a single scroll listener so it stays cheap. */}
+      <ScrollRain />
 
       <ReorderableContainer pageId="home">
         <ReorderableSection sectionId="hero">
@@ -105,21 +112,33 @@ export default async function HomePage() {
                       />
                     </div>
                   </div>
-                  {/* 5 cards: 1 / 2 / 3 / 5 column layouts so the BUY 4
-                      YOU card sits inline with the other four on wide
-                      screens, and the rows stay balanced on tablets.
-                      Each card is wrapped in a scroll-driven 3D camera
-                      fly-by — diagonal zoom + sideways motion from a
-                      different anchor per card, all tied to scroll
-                      progress so reversing the scroll reverses the
-                      camera. */}
-                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-5">
-                    {PATHS.map((p, i) => (
-                      <PathCardCameraFly key={p.href} index={i}>
-                        <PathCard index={i} {...p} />
-                      </PathCardCameraFly>
+                  {/* 5 cards.
+                      • Desktop / tablet (≥ 768px): 1 / 2 / 3 / 5 grid
+                        with each card wrapped in a 3D camera fly-by
+                        (diagonal zoom + sideways motion from its own
+                        anchor) so the row reveals like a coordinated
+                        camera move.
+                      • Mobile (< 768px): the row pins inside a tall
+                        scroll runway and translates HORIZONTALLY as
+                        the user scrolls vertically — a cinematic
+                        sideways camera track that exposes one card
+                        at a time. After the last card the runway ends
+                        and vertical scroll resumes for the next
+                        section. See PathsHorizontalReveal. */}
+                  <PathsHorizontalReveal
+                    cards={PATHS.map((p, i) => (
+                      <PathCard key={p.href} index={i} {...p} />
                     ))}
-                  </div>
+                    desktopFallback={
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-5">
+                        {PATHS.map((p, i) => (
+                          <PathCardCameraFly key={p.href} index={i}>
+                            <PathCard index={i} {...p} />
+                          </PathCardCameraFly>
+                        ))}
+                      </div>
+                    }
+                  />
                 </div>
               </PathsReveal>
             </section>
