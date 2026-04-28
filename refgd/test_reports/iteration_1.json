@@ -1,0 +1,67 @@
+{
+  "summary": "Frontend testing of /exclusive-mentorships polish. 13 of 13 high-level checks executed. 11 PASS, 2 FAIL. Admin login, session, inline-editor (62 editable IDs), emotion-chip spotlight cycling, cosmic background, liquid particles, Spline mix-blend-mode, GalaxyBackground canvas (no shader errors), pull-quote cleanup, and mobile/tablet all working. Two failures: missing data-testid on eyebrows, and ExplodeText textContent missing spaces.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ExplodeText (final CTA 'Stop watching. Start earning.')",
+        "issue": "textContent is 'Stopwatching.Startearning.' (no spaces). Spacer span between word groups has aria-hidden empty body — visually it has width:0.32em so words look spaced, but textContent (and innerText, screen-readers, copy-paste) collapse to one string. Test spec requires textContent === 'Stop watching. Start earning.'",
+        "selector": "[data-testid='explode-text']",
+        "priority": "HIGH"
+      },
+      {
+        "component": "EditableText eyebrows on /exclusive-mentorships (Refund + SE 'what's included')",
+        "issue": "data-testid='whats-included-eyebrow' and data-testid='whats-included-eyebrow-se' are NOT present on the rendered nodes. Elements only have id='ment.refund.included.eyebrow' / 'ment.se.included.eyebrow'. EditableText component does not forward data-testid prop. Class .gradient-eyebrow IS applied, computed style would pass the bg-clip:text + transparent color check — couldn't verify because the testid-based selector returns null.",
+        "selector": "[data-testid='whats-included-eyebrow'], [data-testid='whats-included-eyebrow-se']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Console (warning, not blocking)",
+        "issues": [
+          "THREE.Clock deprecation warning",
+          "'Multiple instances of Three.js being imported' — Spline runtime + GalaxyBackground each pull their own three. Not blocking but could bloat bundle and cause subtle inconsistencies."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix ExplodeText.tsx spacer (~line 104-114): replace empty <span aria-hidden /> with a span that contains a literal space character so textContent/innerText include the gap. Keep letterSpacing:0 + display:inline-block to prevent the editorial-display -0.045em letter-spacing from collapsing it. Suggested patch: render { ' ' } inside the spacer span and remove aria-hidden, OR keep aria-hidden + add a visually-hidden sibling text node containing a space.",
+    "Add data-testid='whats-included-eyebrow' to the Refund eyebrow EditableText at /app/app/exclusive-mentorships/page.tsx ~line 392-397, and data-testid='whats-included-eyebrow-se' to the SE eyebrow EditableText at ~line 587-592. Likely requires extending EditableText props to forward `data-testid` to its rendered element (or wrap them in a <span data-testid=…>).",
+    "Optional: dedupe three.js — pin a single version and configure webpack alias so Spline runtime + GalaxyBackground share one instance."
+  ],
+  "critical_code_review_comments": [
+    "EditableText does not appear to forward data-testid (or generic data-* attrs). Adding a passthrough makes future test-id wiring much cheaper.",
+    "ExplodeText spacer being empty is a real a11y/copy-paste regression (not just a test-id miss). Screen readers will read 'STOPWATCHING' as one token. Fix is the same as the textContent fix.",
+    "Hero ChipScroll pinning makes the page ~13000px tall — verify reduced-motion users get an OK fallback (the wandering spotlight + cosmic gradient should respect prefers-reduced-motion).",
+    "Two THREE.js copies imported; consolidate to avoid silent drift between Spline runtime and GalaxyBackground."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "n/a (skipped per request)",
+    "frontend": "85% (11/13 explicit assertions pass)"
+  },
+  "test_credentials": "admin / kaizokuoniwa (verified working at POST /api/admin/login and GET /api/admin/session)",
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "When E1 fixes the two issues, retest just: (1) await page.evaluate on [data-testid='explode-text'] textContent equals 'Stop watching. Start earning.'; (2) [data-testid='whats-included-eyebrow'] and -se exist + getComputedStyle().webkitBackgroundClip === 'text' + color is rgba(0,0,0,0). All other flows (admin login, 62 editable IDs, emotion-chip cycling, cosmic background, liquid particles, Spline blend mode, canvas, pull-quote, mobile/tablet) are confirmed passing — no need to re-run unless ExplodeText/EditableText changes break adjacent behavior.",
+  "rca of the issue": {
+    "explode_text_no_spaces": {
+      "root_cause": "ExplodeText.tsx renders the inter-word gap as <span style={{display:'inline-block',width:'0.32em',letterSpacing:'0'}} aria-hidden /> — i.e. an empty element. Visual width is preserved by CSS, but textContent/innerText concatenate without any space character.",
+      "reproduction": "Visit /exclusive-mentorships, scroll to bottom CTA, evaluate document.querySelector(\"[data-testid='explode-text']\").textContent → 'Stopwatching.Startearning.'",
+      "mitigation": "Insert a literal space (or non-breaking space U+00A0) inside the spacer span. letterSpacing:'0' on the spacer already neutralizes the editorial-display -0.045em tracking so the visual gap won't collapse."
+    },
+    "missing_eyebrow_testids": {
+      "root_cause": "Page wires the eyebrows via <EditableText id=… /> with class 'gradient-eyebrow' but does not pass data-testid. EditableText (lib/edit-context.tsx) likely doesn't accept/forward arbitrary data-* props either.",
+      "reproduction": "document.querySelectorAll(\"[data-testid='whats-included-eyebrow']\").length === 0 even though .gradient-eyebrow nodes exist.",
+      "mitigation": "Either add data-testid prop forwarding to EditableText, or wrap the EditableText in a <span data-testid='…'> at both call sites in /app/app/exclusive-mentorships/page.tsx."
+    }
+  }
+}

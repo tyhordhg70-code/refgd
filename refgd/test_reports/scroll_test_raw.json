@@ -1,0 +1,1506 @@
+{
+  "desktop": {
+    "testids_present": {
+      "cosmic-journey": true,
+      "paths-reveal": true,
+      "chapter-cosmos": true,
+      "hero-scroll-indicator": true
+    },
+    "page_height": 4258,
+    "kicker_info": {
+      "kicker_count": 0,
+      "kicker_texts": [],
+      "headline": {
+        "tag": "H2",
+        "top": 2782.308837890625,
+        "text": "Choose your path to mastery."
+      }
+    },
+    "old_kicker_in_cosmic_journey": 0,
+    "scroll_samples": [
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 3129,
+        "pr_top": 2747.90869140625,
+        "pr_bottom": 3420.267578125,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative overflow-hidden bg-gradient-to-r from-fuchsia-600 via-violet-600 to-sky",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      }
+    ],
+    "overlap_found": false,
+    "white_overlay_hits": [],
+    "up_scroll_count": 8
+  },
+  "mobile": {
+    "testids_present": {
+      "cosmic-journey": true,
+      "paths-reveal": true,
+      "chapter-cosmos": true,
+      "hero-scroll-indicator": true
+    },
+    "page_height": 5300,
+    "kicker_info": {
+      "kicker_count": 0,
+      "kicker_texts": [],
+      "headline": {
+        "tag": "H2",
+        "top": 1782.40625,
+        "text": "Choose your path to mastery."
+      }
+    },
+    "old_kicker_in_cosmic_journey": 0,
+    "scroll_samples": [
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 2130.59375,
+        "pr_top": 1746.40625,
+        "pr_bottom": 4025.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px relative flex items-center justify-between gap-3 py-2 text-xs sm:te",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px relative flex items-center justify-between gap-3 py-2 text-xs sm:te",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative h-[60vmin] w-[60vmin]",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 2130.59375,
+        "pr_top": 1746.40625,
+        "pr_bottom": 4025.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px relative flex items-center justify-between gap-3 py-2 text-xs sm:te",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px relative flex items-center justify-between gap-3 py-2 text-xs sm:te",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative h-[60vmin] w-[60vmin]",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 0,
+        "cj_top": 105,
+        "cj_bottom": 2130.59375,
+        "pr_top": 1746.40625,
+        "pr_bottom": 4025.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px relative flex items-center justify-between gap-3 py-2 text-xs sm:te",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px relative flex items-center justify-between gap-3 py-2 text-xs sm:te",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative h-[60vmin] w-[60vmin]",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 163,
+        "cj_top": -58,
+        "cj_bottom": 1967.59375,
+        "pr_top": 1583.40625,
+        "pr_bottom": 3862.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 163,
+        "cj_top": -58,
+        "cj_bottom": 1967.59375,
+        "pr_top": 1583.40625,
+        "pr_bottom": 3862.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 163,
+        "cj_top": -58,
+        "cj_bottom": 1967.59375,
+        "pr_top": 1583.40625,
+        "pr_bottom": 3862.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 270,
+        "cj_top": -165,
+        "cj_bottom": 1860.59375,
+        "pr_top": 1476.40625,
+        "pr_bottom": 3755.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 270,
+        "cj_top": -165,
+        "cj_bottom": 1860.59375,
+        "pr_top": 1476.40625,
+        "pr_bottom": 3755.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 270,
+        "cj_top": -165,
+        "cj_bottom": 1860.59375,
+        "pr_top": 1476.40625,
+        "pr_bottom": 3755.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 357,
+        "cj_top": -252,
+        "cj_bottom": 1773.59375,
+        "pr_top": 1389.40625,
+        "pr_bottom": 3668.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 357,
+        "cj_top": -252,
+        "cj_bottom": 1773.59375,
+        "pr_top": 1389.40625,
+        "pr_bottom": 3668.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 357,
+        "cj_top": -252,
+        "cj_bottom": 1773.59375,
+        "pr_top": 1389.40625,
+        "pr_bottom": 3668.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 436,
+        "cj_top": -331,
+        "cj_bottom": 1694.59375,
+        "pr_top": 1310.40625,
+        "pr_bottom": 3589.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-[18%] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 436,
+        "cj_top": -331,
+        "cj_bottom": 1694.59375,
+        "pr_top": 1310.40625,
+        "pr_bottom": 3589.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative h-[60vmin] w-[60vmin]",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 436,
+        "cj_top": -331,
+        "cj_bottom": 1694.59375,
+        "pr_top": 1310.40625,
+        "pr_bottom": 3589.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative h-[60vmin] w-[60vmin]",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 510,
+        "cj_top": -405,
+        "cj_bottom": 1620.59375,
+        "pr_top": 1236.40625,
+        "pr_bottom": 3515.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative h-[60vmin] w-[60vmin]",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 510,
+        "cj_top": -405,
+        "cj_bottom": 1620.59375,
+        "pr_top": 1236.40625,
+        "pr_bottom": 3515.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative h-[60vmin] w-[60vmin]",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 510,
+        "cj_top": -405,
+        "cj_bottom": 1620.59375,
+        "pr_top": 1236.40625,
+        "pr_bottom": 3515.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "relative h-[60vmin] w-[60vmin]",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 581,
+        "cj_top": -476,
+        "cj_bottom": 1549.59375,
+        "pr_top": 1165.40625,
+        "pr_bottom": 3444.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute z-[7] aspect-square w-[16vmin] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 581,
+        "cj_top": -476,
+        "cj_bottom": 1549.59375,
+        "pr_top": 1165.40625,
+        "pr_bottom": 3444.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute z-[7] aspect-square w-[16vmin] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 581,
+        "cj_top": -476,
+        "cj_bottom": 1549.59375,
+        "pr_top": 1165.40625,
+        "pr_bottom": 3444.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute z-[7] aspect-square w-[16vmin] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 581,
+        "cj_top": -476,
+        "cj_bottom": 1549.59375,
+        "pr_top": 1165.40625,
+        "pr_bottom": 3444.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute z-[7] aspect-square w-[16vmin] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 581,
+        "cj_top": -476,
+        "cj_bottom": 1549.59375,
+        "pr_top": 1165.40625,
+        "pr_bottom": 3444.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute z-[7] aspect-square w-[16vmin] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 649,
+        "cj_top": -544,
+        "cj_bottom": 1481.59375,
+        "pr_top": 1097.40625,
+        "pr_bottom": 3376.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute z-[7] aspect-square w-[16vmin] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 649,
+        "cj_top": -544,
+        "cj_bottom": 1481.59375,
+        "pr_top": 1097.40625,
+        "pr_bottom": 3376.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute z-[7] aspect-square w-[16vmin] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 801,
+        "cj_top": -696,
+        "cj_bottom": 1329.59375,
+        "pr_top": 945.40625,
+        "pr_bottom": 3224.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute inset-0 z-[6] grid place-items-center",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "absolute z-[7] aspect-square w-[16vmin] rounded-full",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      },
+      {
+        "scrollY": 2091,
+        "cj_top": -1986,
+        "cj_bottom": 39.59375,
+        "pr_top": -424.59375,
+        "pr_bottom": 1854.1875,
+        "corners": [
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-px flex h-16 items-center justify-between gap-4",
+            "bg": "rgba(5, 6, 10, 0.85)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-wide relative",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "container-wide relative",
+            "bg": "rgb(5, 6, 10)"
+          },
+          {
+            "tag": "DIV",
+            "cls": "grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4",
+            "bg": "rgb(5, 6, 10)"
+          }
+        ]
+      }
+    ],
+    "overlap_found": true,
+    "white_overlay_hits": [],
+    "telegram_info": {
+      "btn": {
+        "top": 4390.5703125,
+        "bottom": 4414.336669921875,
+        "w": 134,
+        "h": 23.766357421875,
+        "visible": true
+      },
+      "headline": {
+        "top": 12,
+        "bottom": 28,
+        "w": 232.546875,
+        "h": 16,
+        "visible": true
+      },
+      "kicker": {
+        "top": 4189.174560546875,
+        "bottom": 4204.028564453125,
+        "w": 324,
+        "h": 14.85400390625,
+        "visible": true
+      },
+      "btn_text": "Join Group Chat"
+    },
+    "up_scroll_count": 14
+  },
+  "console_errors_total": 0,
+  "console_errors_sample": [],
+  "volume_errors": [],
+  "console_warnings_sample": []
+}

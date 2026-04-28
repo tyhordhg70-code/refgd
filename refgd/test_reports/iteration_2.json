@@ -1,0 +1,65 @@
+{
+  "summary": "Focused retest of the two iteration_1 failures on /exclusive-mentorships plus the regression smoke check. ALL 3 CHECKS PASS. Both fixes verified live in the browser; no regressions detected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Console (warnings only, not blocking; carried over from iteration 1)",
+        "issues": [
+          "THREE.Clock deprecation warning",
+          "Multiple instances of Three.js being imported (Spline runtime + GalaxyBackground)",
+          "GL_CLOSE_PATH_NV / ReadPixels GPU-stall perf notices from Chromium WebGL driver"
+        ]
+      }
+    ]
+  },
+  "verified_fixes": [
+    {
+      "check": "[data-testid='explode-text'] final CTA textContent",
+      "expected": "'Stop watching. Start earning.' (with two real spaces)",
+      "actual": "'Stop watching. Start earning.' — exact match",
+      "status": "PASS",
+      "notes": "Read after scroll-into-view + 2s settle window per request guidance. innerText still uppercases via CSS (STOPWATCHING.STARTEARNING.) which is fine; the spec was on textContent and that now contains both spaces."
+    },
+    {
+      "check": "[data-testid='whats-included-eyebrow'] (Refund)",
+      "expected": "<p> with class containing 'gradient-eyebrow', webkitBackgroundClip='text', text-fill transparent",
+      "actual": "exists=true, tag=P, hasGradientEyebrow=true, webkitBackgroundClip='text', webkitTextFillColor=rgba(0,0,0,0), color=rgba(0,0,0,0)",
+      "status": "PASS"
+    },
+    {
+      "check": "[data-testid='whats-included-eyebrow-se'] (SE)",
+      "expected": "same as above",
+      "actual": "exists=true, tag=P, hasGradientEyebrow=true, webkitBackgroundClip='text', webkitTextFillColor=rgba(0,0,0,0), color=rgba(0,0,0,0)",
+      "status": "PASS"
+    },
+    {
+      "check": "Regression: admin login + >=50 [data-editable-id] after entering edit mode",
+      "expected": ">=50",
+      "actual": "POST /api/admin/login -> 200 {ok:true}; GET /api/admin/session -> 200 {admin:true}; '✏️ Edit page' toggle clicked; querySelectorAll('[data-editable-id]').length === 62",
+      "status": "PASS"
+    }
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Both fixes match the design intent: ExplodeText spacer now contains a real space character so textContent / innerText / screen-readers / clipboard all carry the word break. Eyebrow data-testids are forwarded through EditableText, so future test wiring is now cheap.",
+    "Optional follow-up (carried from iteration 1, NOT blocking): dedupe Three.js between @splinetool/runtime and GalaxyBackground via a webpack alias — currently two copies are loaded. Also consider migrating from THREE.Clock to THREE.Timer to silence the deprecation warning."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "n/a (skipped per request)",
+    "frontend": "100% (3/3 retest checks pass)"
+  },
+  "test_credentials": "admin / kaizokuoniwa (verified working at POST /api/admin/login and GET /api/admin/session)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 2 closed both iteration_1 failures. /exclusive-mentorships is fully green: ExplodeText final CTA carries spaces in textContent, both eyebrow data-testids are present with .gradient-eyebrow + bg-clip:text + transparent text-fill, admin auth + inline editor still functional with 62 editable nodes. Only remaining items are non-blocking console warnings (Three.js dedupe, THREE.Clock deprecation).",
+  "rca of the issue": "N/A — both bugs from iteration_1 fixed and verified."
+}

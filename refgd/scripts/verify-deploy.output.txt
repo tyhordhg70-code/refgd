@@ -1,0 +1,27 @@
+Render deploy verification — https://refgd.onrender.com
+Run at: 2026-04-26 01:27:54Z
+
+1. HTTP status checks
+  [OK]   /                              200 (expected 200)
+  [OK]   /store-list                    200 (expected 200)
+  [OK]   /exclusive-mentorships         200 (expected 200)
+  [OK]   /evade-cancelations            200 (expected 200)
+  [OK]   /our-service                   307 (expected 307)
+
+2. Redesign content markers
+  [OK]   Hero3D full-bleed image (hero-main.png)            on /
+  [OK]   MusicPlayer mute button (aria-label)               on /
+  [OK]   Pinned cinematic hero (sticky h-[100svh])          on /exclusive-mentorships
+  [OK]   Pinned cinematic hero (sticky h-[100svh])          on /evade-cancelations
+
+3. Render origin proof (response headers)
+  date: Sun, 26 Apr 2026 01:27:57 GMT
+  x-powered-by: Next.js
+  x-render-origin-server: Render
+  server: cloudflare
+  cf-ray: 9f21ced61ecee544-ORD
+
+4. Next.js build fingerprint (buildId — changes on every build)
+  buildId\":\"W83AeW3yoK4o1kn1GQS1s
+
+Summary: 9 passed, 0 failed

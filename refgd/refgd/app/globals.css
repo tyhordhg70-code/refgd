@@ -1,0 +1,480 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: 5 6 10;
+    --fg: 240 240 250;
+    --gold: 245 185 69;
+  }
+  html, body {
+    background: rgb(var(--bg));
+    color: rgb(var(--fg));
+    font-family: "Geist", "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-feature-settings: "ss01", "ss02", "cv01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  /* framer-motion's `useScroll({ target })` checks
+     `getComputedStyle(container).position !== "static"` where
+     `container` defaults to `document.documentElement`. Promoting
+     <html> (and <body>/<main> for ancestor chains) to relative
+     silences the project-wide "container has a non-static position"
+     warning without affecting layout. */
+  html { position: relative; }
+  body { position: relative; }
+  main { position: relative; }
+  ::selection {
+    background: rgba(245, 185, 69, 0.35);
+    color: white;
+  }
+  body.cursor-none,
+  body.cursor-none * {
+    cursor: none !important;
+  }
+}
+
+@layer components {
+  .container-px {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+  .container-wide {
+    @apply mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-10;
+  }
+  .glass {
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+    border: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(12px);
+  }
+  .glass-strong {
+    background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(28px) saturate(140%);
+    -webkit-backdrop-filter: blur(28px) saturate(140%);
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 font-semibold tracking-wide text-ink-950 transition;
+    background: linear-gradient(135deg, #ffe28a, #f5b945 50%, #d99520);
+    box-shadow: 0 10px 40px -10px rgba(245,185,69,0.45);
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 48px -10px rgba(245,185,69,0.6);
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-white/85 transition hover:border-white/20 hover:bg-white/10;
+  }
+  .heading-display {
+    font-family: "Clash Display", "Space Grotesk", "Geist", system-ui, sans-serif;
+    letter-spacing: -0.025em;
+    font-weight: 600;
+  }
+  .editorial-display {
+    font-family: "Clash Display", "Space Grotesk", "Geist", system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.045em;
+    /* line-height was 0.88 — too tight, caused descenders/ascenders to
+       overlap when titles wrapped (visible on /exclusive-mentorships).
+       1.02 keeps the chiseled editorial feel without collisions. */
+    line-height: 1.02;
+  }
+  .prismatic-border {
+    background: linear-gradient(135deg,#ff6ad5,#c779d0,#4bc0c8,#feac5e,#ff6ad5);
+    background-size: 200% 200%;
+    animation: prism 8s ease infinite;
+  }
+  .prismatic-text {
+    background: linear-gradient(120deg,#ff6ad5,#c779d0,#4bc0c8,#feac5e,#ff6ad5);
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    text-shadow: 0 0 36px rgba(199,121,208,0.35);
+    animation: prism 8s ease infinite;
+  }
+  .text-aurora {
+    background: linear-gradient(110deg, #ffe28a 10%, #ffffff 38%, #f5b945 60%, #ffe28a 90%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: aurora 10s ease-in-out infinite;
+  }
+  .noise {
+    position: relative;
+  }
+  .noise::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.05;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9'/></filter><rect width='200' height='200' filter='url(%23n)' opacity='0.7'/></svg>");
+  }
+}
+
+/* ─── Custom cursor ─── */
+.custom-cursor-dot {
+  position: fixed;
+  top: 0; left: 0;
+  width: 10px;
+  height: 10px;
+  background: #ffe28a;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 9999;
+  box-shadow: 0 0 14px rgba(255,225,140,0.95), 0 0 28px rgba(245,185,69,0.55);
+  transition: opacity 0.2s;
+  will-change: transform;
+}
+.custom-cursor-ring {
+  position: fixed;
+  top: 0; left: 0;
+  width: 42px;
+  height: 42px;
+  border: 1.5px solid rgba(255,225,140,0.85);
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 9998;
+  box-shadow: 0 0 24px rgba(255,225,140,0.18);
+  transition: width 0.25s cubic-bezier(0.25,0.4,0.25,1),
+              height 0.25s cubic-bezier(0.25,0.4,0.25,1),
+              border-color 0.2s,
+              background 0.2s,
+              opacity 0.2s;
+  will-change: transform;
+}
+.custom-cursor-ring.is-down { transform-origin: center; }
+.custom-cursor-ring[data-hover="link"] {
+  width: 60px; height: 60px;
+  background: rgba(255,225,140,0.10);
+  border-color: rgba(255,225,140,1);
+  mix-blend-mode: normal;
+}
+.custom-cursor-ring[data-hover="hover"] {
+  width: 80px; height: 80px;
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.85);
+}
+.custom-cursor-ring[data-hover="big"] {
+  width: 110px; height: 110px;
+  background: radial-gradient(circle, rgba(245,185,69,0.25), rgba(245,185,69,0));
+  border-color: rgba(245,185,69,0.9);
+}
+.custom-cursor-label {
+  position: fixed;
+  top: 0; left: 0;
+  pointer-events: none;
+  z-index: 9997;
+  font-family: "Clash Display", system-ui, sans-serif;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: #ffe28a;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+/* ─── Marquee ─── */
+@keyframes marquee-track {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+.marquee {
+  animation: marquee-track var(--marquee-duration, 30s) linear infinite;
+}
+.marquee-reverse {
+  animation: marquee-track var(--marquee-duration, 30s) linear infinite reverse;
+}
+
+@keyframes aurora {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* particle canvas baseline */
+.particles-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ─── Pulsating gradient orbs (used in Hero3D + page backdrops) ─── */
+.orb {
+  filter: blur(120px);
+  pointer-events: none;
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+}
+.orb-1 { background: radial-gradient(circle, rgba(245,185,69,0.55), transparent 65%);
+         animation: orbPulse 8s ease-in-out infinite; }
+.orb-2 { background: radial-gradient(circle, rgba(167,139,250,0.55), transparent 65%);
+         animation: orbPulse 10s ease-in-out -2s infinite; }
+.orb-3 { background: radial-gradient(circle, rgba(34,211,238,0.45), transparent 65%);
+         animation: orbPulse 12s ease-in-out -4s infinite; }
+.orb-4 { background: radial-gradient(circle, rgba(244,114,182,0.40), transparent 65%);
+         animation: orbPulse 9s ease-in-out -6s infinite; }
+
+@keyframes orbPulse {
+  0%, 100% { transform: scale(1)   translate(0, 0);    opacity: 0.55; }
+  50%      { transform: scale(1.18) translate(3%, -3%); opacity: 1;    }
+}
+
+/* ─── Floating particle / orbit keyframes (for inline animation styles) ─── */
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0)    rotate(0deg);  }
+  50%      { transform: translateY(-14px) rotate(0.5deg); }
+}
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.55; transform: scale(1);    }
+  50%      { opacity: 1;    transform: scale(1.04); }
+}
+@keyframes orbit {
+  from { transform: translate(-50%, -50%) rotate(0deg)   translateY(var(--orbit-r, -30vh)) translateZ(60px); }
+  to   { transform: translate(-50%, -50%) rotate(360deg) translateY(var(--orbit-r, -30vh)) translateZ(60px); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.animate-spin { animation: spin 1s linear infinite; }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: rgb(10,12,20); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #2a2f47, #1a1d2c);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover { background: #f5b945; }
+
+/* Smooth scroll */
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .marquee, .marquee-reverse { animation: none; }
+  .pulse-glow, .float-card, .pulsating-overlay-a, .pulsating-overlay-b,
+  .chess-float, .prismatic-glow::before, .prismatic-glow::after { animation: none !important; }
+}
+
+/* ─── Site-wide pulsating gradient overlay ──────────────────────── */
+.pulsating-overlay-a {
+  background: radial-gradient(ellipse at 18% 22%, rgba(245,185,69,0.10) 0%, transparent 45%),
+              radial-gradient(ellipse at 82% 78%, rgba(167,139,250,0.10) 0%, transparent 45%);
+  filter: blur(40px);
+  animation: pulsateA 14s ease-in-out infinite;
+}
+.pulsating-overlay-b {
+  background: radial-gradient(ellipse at 80% 20%, rgba(34,211,238,0.07) 0%, transparent 45%),
+              radial-gradient(ellipse at 20% 78%, rgba(244,114,182,0.07) 0%, transparent 45%);
+  filter: blur(60px);
+  animation: pulsateB 18s ease-in-out infinite;
+}
+@keyframes pulsateA {
+  0%, 100% { opacity: 0.5; transform: scale(1)    rotate(0deg); }
+  50%      { opacity: 1;   transform: scale(1.06) rotate(8deg); }
+}
+@keyframes pulsateB {
+  0%, 100% { opacity: 0.4; transform: scale(1.05) rotate(2deg); }
+  50%      { opacity: 0.85;transform: scale(0.98) rotate(-6deg); }
+}
+
+/* ─── Pulsating box-shadow for glass cards ──────────────────────── */
+.pulse-glow {
+  animation: pulseGlowShadow 4.5s ease-in-out infinite;
+}
+@keyframes pulseGlowShadow {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.10),
+                0 30px 80px -30px rgba(245,185,69,0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.45),
+                0 30px 100px -25px rgba(245,185,69,0.55),
+                0 0 60px 10px rgba(167,139,250,0.20);
+  }
+}
+.pulse-glow-violet { animation: pulseGlowViolet 5s ease-in-out infinite; }
+@keyframes pulseGlowViolet {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(167,139,250,0.10),
+                0 30px 80px -30px rgba(167,139,250,0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(167,139,250,0.55),
+                0 30px 100px -25px rgba(167,139,250,0.55),
+                0 0 60px 10px rgba(34,211,238,0.20);
+  }
+}
+.pulse-glow-cyan { animation: pulseGlowCyan 5s ease-in-out infinite; }
+@keyframes pulseGlowCyan {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(34,211,238,0.10),
+                0 30px 80px -30px rgba(34,211,238,0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(34,211,238,0.55),
+                0 30px 100px -25px rgba(34,211,238,0.50),
+                0 0 60px 10px rgba(167,139,250,0.20);
+  }
+}
+
+/* ─── Floating card utility ────────────────────────────────────── */
+.float-card {
+  animation: floatCard 8s ease-in-out infinite;
+  will-change: transform;
+}
+.float-card-2 { animation-delay: -2s; }
+.float-card-3 { animation-delay: -4s; }
+@keyframes floatCard {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0); }
+  50%      { transform: translate3d(0, -10px, 0) rotate(0.4deg); }
+}
+
+/* ─── Chess piece float ────────────────────────────────────────── */
+.chess-float {
+  animation: chessFloat 6s ease-in-out infinite;
+  will-change: transform, filter;
+  filter: drop-shadow(0 14px 30px rgba(167,139,250,0.45));
+}
+@keyframes chessFloat {
+  0%, 100% {
+    transform: translateY(0) rotate(0);
+    filter: drop-shadow(0 14px 30px rgba(167,139,250,0.45));
+  }
+  50% {
+    transform: translateY(-12px) rotate(0.4deg);
+    filter: drop-shadow(0 22px 50px rgba(167,139,250,0.85));
+  }
+}
+
+/* ─── Prismatic glow border (registered properties + fallback) ─── */
+@property --pg-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.prismatic-glow {
+  position: relative;
+  isolation: isolate;
+  padding: var(--pg-thickness, 1.5px);
+  border-radius: var(--pg-radius, 1.5rem);
+  background:
+    conic-gradient(from var(--pg-angle, 0deg),
+      #ff6ad5, #c779d0, #4bc0c8, #feac5e, #ffe28a, #ff6ad5);
+  animation: prismaticSpin 6s linear infinite;
+  box-shadow:
+    0 0 30px calc(8px * var(--pg-intensity, 1)) rgba(199,121,208,0.45),
+    0 0 60px calc(16px * var(--pg-intensity, 1)) rgba(75,192,200,0.3);
+}
+.prismatic-glow-inner {
+  border-radius: calc(var(--pg-radius, 1.5rem) - 1px);
+  background: rgb(var(--bg));
+  height: 100%;
+}
+@keyframes prismaticSpin {
+  to { --pg-angle: 360deg; }
+}
+@supports not (background: conic-gradient(from 0deg, red, blue)) {
+  .prismatic-glow {
+    background: linear-gradient(135deg, #ff6ad5, #c779d0, #4bc0c8, #feac5e, #ff6ad5);
+    background-size: 300% 300%;
+    animation: prism 8s ease infinite;
+  }
+}
+@keyframes prism {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* ─── Mobile typography taming ─────────────────────────────────── */
+@media (max-width: 640px) {
+  .editorial-display {
+    /* Keep enough breathing room so wrapped multi-line titles on small
+       screens don't overlap descenders/ascenders. Slightly tighter than
+       desktop's 1.02 but never below 1.0. */
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+  }
+  /* H1 hero kicker is one short word ("WELCOME") — safe to compress
+     marginally so it dominates the viewport without overlap. */
+  h1.editorial-display { line-height: 1.0; }
+  .container-px { padding-left: 1rem; padding-right: 1rem; }
+  .container-wide { padding-left: 1rem; padding-right: 1rem; }
+}
+@media (max-width: 480px) {
+  /* foldable / tiny phones */
+  .editorial-display { letter-spacing: -0.03em; }
+}
+
+/* ─── Cosmic background (page-scoped) ──────────────────────────── */
+/* Used by <CosmicBackground /> on /exclusive-mentorships. The
+   blobs slowly drift, scale and shift hue. The animation duration
+   is divided by --cosmic-rate which the component updates from
+   the user's scroll velocity, so the cosmos visibly "speeds up"
+   while scrolling and settles afterwards. */
+.cosmic-bg .cosmic-base {
+  background: radial-gradient(ellipse at top, #0a0a18 0%, #05060a 60%, #02030a 100%);
+}
+.cosmic-bg .cosmic-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(110px);
+  opacity: 0.55;
+  will-change: transform, opacity;
+  mix-blend-mode: screen;
+}
+.cosmic-bg .cosmic-blob-1 {
+  width: 60vmax; height: 60vmax;
+  left: -15vmax; top: -10vmax;
+  background: radial-gradient(circle at 30% 30%, #7c3aed 0%, transparent 65%);
+  animation: cosmicDrift1 calc(28s / var(--cosmic-rate, 1)) ease-in-out infinite alternate,
+             cosmicPulse  calc(8s  / var(--cosmic-rate, 1)) ease-in-out infinite;
+}
+.cosmic-bg .cosmic-blob-2 {
+  width: 55vmax; height: 55vmax;
+  right: -12vmax; top: 30vh;
+  background: radial-gradient(circle at 70% 30%, #06b6d4 0%, transparent 65%);
+  animation: cosmicDrift2 calc(34s / var(--cosmic-rate, 1)) ease-in-out infinite alternate,
+             cosmicPulse  calc(11s / var(--cosmic-rate, 1)) ease-in-out infinite;
+}
+.cosmic-bg .cosmic-blob-3 {
+  width: 70vmax; height: 70vmax;
+  left: 20vw; bottom: -25vmax;
+  background: radial-gradient(circle at 50% 50%, #f59e0b 0%, transparent 60%);
+  opacity: 0.32;
+  animation: cosmicDrift3 calc(42s / var(--cosmic-rate, 1)) ease-in-out infinite alternate,
+             cosmicPulse  calc(13s / var(--cosmic-rate, 1)) ease-in-out infinite;
+}
+.cosmic-bg .cosmic-grain {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85'/></filter><rect width='180' height='180' filter='url(%23n)' opacity='0.45'/></svg>");
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+}
+@keyframes cosmicDrift1 {
+  0%   { transform: translate(0,0)        scale(1);    }
+  50%  { transform: translate(8vmax,5vmax) scale(1.15); }
+  100% { transform: translate(-4vmax,3vmax) scale(0.95); }
+}
+@keyframes cosmicDrift2 {
+  0%   { transform: translate(0,0)         scale(1);    }
+  50%  { transform: translate(-7vmax,8vmax) scale(0.95); }
+  100% { transform: translate(5vmax,-4vmax) scale(1.12); }
+}
+@keyframes cosmicDrift3 {
+  0%   { transform: translate(0,0)         scale(1);    }
+  50%  { transform: translate(6vmax,-6vmax) scale(1.1);  }
+  100% { transform: translate(-5vmax,4vmax) scale(0.92); }
+}
+@keyframes cosmicPulse {
+  0%, 100% { opacity: var(--rest, 0.55); }
+  50%      { opacity: calc(var(--rest, 0.55) * 1.4); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cosmic-bg .cosmic-blob { animation: none; }
+}
