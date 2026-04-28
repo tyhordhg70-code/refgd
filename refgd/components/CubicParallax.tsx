@@ -62,7 +62,7 @@ export default function CubicParallax({
           z: 0,
           opacity: 1,
         }}
-        viewport={{ once: true, margin: "-80px" }}
+        viewport={{ once: false, margin: "-80px" }}
         transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
         style={{
           transformStyle: "preserve-3d",

@@ -90,7 +90,7 @@ export default function ScrollImage({
           : { opacity: 0, x: enterX + bleed, y: 30, rotate: side === "left" ? -4 : 4, scale: 0.9 }
       }
       whileInView={{ opacity: 1, x: bleed, y: 0, rotate: 0, scale: 1 }}
-      viewport={{ once: true, margin: "-100px" }}
+      viewport={{ once: false, margin: "-100px" }}
       transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
       style={{ perspective: 1200 }}
       className={`pointer-events-none ${visibilityClass} ${wrapperBase} ${width} ${height} ${className}`}

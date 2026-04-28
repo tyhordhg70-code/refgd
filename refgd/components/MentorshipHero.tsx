@@ -81,18 +81,22 @@ export default function MentorshipHero({
   });
 
   // Layer rises — far layers move slowest, near layers move most.
-  // All layers start slightly off-screen / faded and assemble at p=0.5,
-  // then drift past at p=1 so scrolling back up plays in reverse.
-  const farY = useTransform(sp, [0, 0.5, 1], stable ? ["0%", "0%", "0%"] : ["14%", "0%", "-6%"]);
-  const midY = useTransform(sp, [0, 0.5, 1], stable ? ["0%", "0%", "0%"] : ["28%", "0%", "-12%"]);
-  const nearY = useTransform(sp, [0, 0.5, 1], stable ? ["0%", "0%", "0%"] : ["44%", "0%", "-18%"]);
-  const ringRot = useTransform(sp, [0, 1], stable ? [0, 0] : [-40, 40]);
-  const ringScale = useTransform(sp, [0, 0.5, 1], stable ? [1, 1, 1] : [0.85, 1.02, 1.18]);
-  const crownScale = useTransform(sp, [0, 0.5, 1], stable ? [1, 1, 1] : [0.5, 1, 1.08]);
-  const crownTilt = useTransform(sp, [0, 1], stable ? [0, 0] : [-18, 18]);
-  const masterOp = useTransform(sp, [0, 0.18, 0.85, 1], [0, 1, 1, 0.85]);
-  const captionOp = useTransform(sp, [0, 0.25, 0.85, 1], [0, 1, 1, 0.6]);
-  const captionY = useTransform(sp, [0, 0.5, 1], stable ? ["0%", "0%", "0%"] : ["32%", "0%", "-10%"]);
+  // All layers start MOSTLY ASSEMBLED at p=0 (so the page isn't blank
+  // before the first scroll), drift through their parallax motion as
+  // the user scrolls, and stay fully visible at p=1 so the unpin
+  // moment doesn't visibly fade. Master + caption opacity are pinned
+  // at 1 throughout — opacity changes were what made the section
+  // look broken at the very end of its runway.
+  const farY = useTransform(sp, [0, 0.5, 1], stable ? ["0%", "0%", "0%"] : ["6%", "0%", "-6%"]);
+  const midY = useTransform(sp, [0, 0.5, 1], stable ? ["0%", "0%", "0%"] : ["12%", "0%", "-10%"]);
+  const nearY = useTransform(sp, [0, 0.5, 1], stable ? ["0%", "0%", "0%"] : ["18%", "0%", "-14%"]);
+  const ringRot = useTransform(sp, [0, 1], stable ? [0, 0] : [-30, 30]);
+  const ringScale = useTransform(sp, [0, 0.5, 1], stable ? [1, 1, 1] : [0.92, 1.02, 1.12]);
+  const crownScale = useTransform(sp, [0, 0.5, 1], stable ? [1, 1, 1] : [0.88, 1, 1.06]);
+  const crownTilt = useTransform(sp, [0, 1], stable ? [0, 0] : [-12, 12]);
+  const masterOp = 1; // never fade the section — keep visible always
+  const captionOp = 1;
+  const captionY = useTransform(sp, [0, 0.5, 1], stable ? ["0%", "0%", "0%"] : ["12%", "0%", "-8%"]);
 
   // Mouse-parallax derivatives (small drift on top of scroll position).
   const mxA = useTransform(px, (v) => v * -8);
@@ -104,12 +108,12 @@ export default function MentorshipHero({
   return (
     <section
       ref={wrap}
-      className="relative h-[200svh] overflow-clip"
+      className="relative h-[130svh] overflow-clip sm:h-[180svh]"
       data-testid="mentorship-hero"
     >
       {/* Inner sticky canvas — pins to viewport while the outer 200svh
           runway scrolls past. */}
-      <div className="sticky top-0 h-screen w-full overflow-hidden">
+      <div className="sticky top-0 h-[100svh] w-full overflow-hidden">
         <motion.div
           className="absolute inset-0 grid h-full w-full place-items-center overflow-hidden"
           style={mounted ? { opacity: masterOp } : { opacity: 0 }}

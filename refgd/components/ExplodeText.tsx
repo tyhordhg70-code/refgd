@@ -149,7 +149,7 @@ export default function ExplodeText({
                     rotate: 0,
                     filter: "blur(0px)",
                   }}
-                  viewport={{ once: true, margin: "-60px" }}
+                  viewport={{ once: false, margin: "-60px" }}
                   transition={{
                     duration: 0.85,
                     delay: g.delay,
@@ -157,6 +157,19 @@ export default function ExplodeText({
                   }}
                   style={{
                     display: "inline-block",
+                    // Italic glyphs (used by the BS pull-quote) have
+                    // ascenders / descenders that bleed past their
+                    // bounding-box. Combined with editorial-display's
+                    // -0.045em letter-spacing, adjacent inline-blocks
+                    // can visually clip each other and read as
+                    // "missing letters". A small horizontal padding
+                    // gives each glyph room to breathe; matching
+                    // negative margin keeps total advance width the
+                    // same so the headline still reads tight.
+                    paddingLeft: "0.05em",
+                    paddingRight: "0.05em",
+                    marginLeft: "-0.05em",
+                    marginRight: "-0.05em",
                     willChange: "transform, opacity, filter",
                   }}
                   suppressHydrationWarning

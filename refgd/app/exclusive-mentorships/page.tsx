@@ -6,7 +6,7 @@ import FactoryIllustration from "@/components/FactoryIllustration";
 import ScrollImage from "@/components/ScrollImage";
 import TextReveal from "@/components/TextReveal";
 import BounceList from "@/components/BounceList";
-import ExplodeText from "@/components/ExplodeText";
+import ImpactHeadline from "@/components/ImpactHeadline";
 import CubicParallax from "@/components/CubicParallax";
 import CosmicBackground from "@/components/CosmicBackground";
 import LiquidParticles from "@/components/LiquidParticles";
@@ -348,15 +348,20 @@ export default function MentorshipsPage() {
       <section className="relative pt-2 pb-12 sm:pt-4 sm:pb-16">
         <div className="container-wide">
           <div className="mx-auto max-w-5xl text-center">
-            <ExplodeText
+            {/* The original ExplodeText scattered each glyph with
+                per-letter inline-blocks — that combined with the
+                editorial-display -0.045em letter-spacing AND italic
+                ascenders made adjacent letters visually clip each
+                other, so the line read as missing letters and was
+                hard to parse.  ImpactHeadline renders the line as
+                one flowing block with font-black + WebKit text-stroke
+                outline + heavy double drop-shadow so it stays
+                punchy without losing legibility. */}
+            <ImpactHeadline
               as="h2"
               text="Stop paying for other BS mentorships that have 0 value and ghost you after purchasing. Be your own refunder."
-              className="editorial-display text-white text-[clamp(1.5rem,4vw,3.4rem)] uppercase italic"
-              style={{
-                textShadow: "0 6px 40px rgba(0,0,0,0.95)",
-              }}
-              scatter={180}
-              hue="167,139,250"
+              italic
+              className="editorial-display text-white text-[clamp(1.5rem,4vw,3.4rem)] uppercase"
             />
             {/* Body wrapped in CubicParallax so the supporting paragraph
                 also enters with a 3D depth shift, completing the
@@ -475,7 +480,7 @@ export default function MentorshipsPage() {
       {/* puffs, conveyor belts, gears and floating icons — all in the   */}
       {/* same flat editorial style as puppet-brain / refund-engine.     */}
       {/* Fully transparent: the page's cosmic backdrop shows through.   */}
-      <section className="relative overflow-hidden py-12">
+      <section className="relative z-10 overflow-hidden py-12">
         <div className="container-wide text-center">
           <Reveal>
             <EditableText
@@ -508,22 +513,16 @@ export default function MentorshipsPage() {
       </section>
 
       {/* ─── Act 7 — SE chapter 02 ─────────────────────────────────── */}
+      {/* Layout was previously a 2-column grid (puppet-brain image on
+          the left, copy on the right). Per request the puppet-brain
+          illustration is now placed AFTER the copy block — directly
+          following the "That is the main difference between SE and
+          Refunding" sentence — so it acts as the punctuation-image
+          for the SE definition. */}
       <section className="relative py-20 sm:py-28">
         <div className="container-wide">
-          <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-14">
-            <div className="lg:col-span-5">
-              <ScrollImage
-                src="/illustrations/puppet-brain.png"
-                alt=""
-                side="left"
-                glow="cyan"
-                inline
-                width="w-full max-w-[440px]"
-                height="h-[280px] sm:h-[360px] lg:h-[440px]"
-                tilt={8}
-              />
-            </div>
-            <div className="lg:col-span-7">
+          <div className="mx-auto max-w-4xl">
+            <div>
               <Reveal>
                 <EditableText
                   id="ment.se.eyebrow"
@@ -595,6 +594,24 @@ export default function MentorshipsPage() {
                   electronics and furniture companies. That is the main
                   difference between SE and Refunding.
                 </TextReveal>
+              </div>
+
+              {/* Puppet-brain illustration was previously rendered in
+                  the left column (2-col grid) — moved here per
+                  request to act as the visual punctuation for the
+                  "That is the main difference between SE and
+                  Refunding" sentence. */}
+              <div className="mt-12 sm:mt-16">
+                <ScrollImage
+                  src="/illustrations/puppet-brain.png"
+                  alt=""
+                  side="left"
+                  glow="cyan"
+                  inline
+                  width="w-full max-w-[440px]"
+                  height="h-[280px] sm:h-[360px] lg:h-[440px]"
+                  tilt={8}
+                />
               </div>
             </div>
           </div>
@@ -743,14 +760,16 @@ export default function MentorshipsPage() {
       {/* Spacing tightened: was py-24/sm:py-32 + mt-10 (≈ 6rem of empty
           space between headline and the Buy Now button). The CTA now
           reads as one cohesive block instead of two separated chunks. */}
-      <section className="relative overflow-x-clip pb-20 pt-16 text-center sm:pb-24 sm:pt-20">
+      <section className="relative overflow-x-clip pb-12 pt-6 text-center sm:pb-16 sm:pt-8">
         <div className="container-wide relative">
-          <ExplodeText
+          {/* Same readability fix as the BS pull-quote — render as a
+              single flowing block with heavy outline + drop-shadow so
+              the closing CTA is sharp instead of glitchy / clipping. */}
+          <ImpactHeadline
             as="h2"
             text="Stop watching. Start earning."
             className="editorial-display mx-auto text-white text-[clamp(2rem,7vw,6rem)] uppercase"
-            style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)", paddingLeft: "0.3em", paddingRight: "0.3em" }}
-            scatter={220}
+            style={{ paddingLeft: "0.3em", paddingRight: "0.3em" }}
           />
           <Reveal delay={0.5}>
             <div className="mt-5 sm:mt-6">

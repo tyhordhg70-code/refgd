@@ -84,11 +84,58 @@ export default function GlassCard({
 
   if (!reveal || reduced) return inner;
 
+  // For elastic cards we add a visible "deformed mesh expansion"
+  // entrance — border-radius asymmetric wobble + scale + skew — so the
+  // 3D liquid-glass deformation is actually seen on touch devices that
+  // never trigger the :hover state. Non-elastic cards keep the simple
+  // y/opacity reveal.
+  if (elastic) {
+    return (
+      <motion.div
+        initial={{
+          opacity: 0,
+          y: 30,
+          scale: 0.92,
+          skewX: -6,
+          rotateX: 8,
+          borderRadius: "60px 18px 60px 18px",
+        }}
+        whileInView={{
+          opacity: 1,
+          y: [30, -8, 0],
+          scale: [0.92, 1.04, 1],
+          skewX: [-6, 2, 0],
+          rotateX: [8, -3, 0],
+          // border-radius wobble: stretches into asymmetric shapes
+          // and snaps back to a near-rounded square — visually reads
+          // as the card's mesh deforming and settling.
+          borderRadius: [
+            "60px 18px 60px 18px",
+            "20px 48px 22px 46px",
+            "30px 26px 28px 32px",
+          ],
+        }}
+        viewport={{ once: false, margin: "-60px" }}
+        transition={{
+          duration: 1.1,
+          delay,
+          times: [0, 0.55, 1],
+          ease: [0.22, 1.4, 0.36, 1],
+        }}
+        style={{ perspective: 1100, transformStyle: "preserve-3d" }}
+        suppressHydrationWarning
+        className="group"
+      >
+        {inner}
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
+      viewport={{ once: false, margin: "-60px" }}
       transition={{ duration: 0.7, delay, ease: [0.25, 0.4, 0.25, 1] }}
       suppressHydrationWarning
       className="group"

@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 
 /**
@@ -28,6 +29,17 @@ export default function FactoryIllustration({
 }) {
   const reduce = useReducedMotion();
 
+    // Each instance gets a unique id-suffix so two instances on the page
+    // (mobile + desktop variants) don't collide on shared <defs> ids
+    // — without this the second SVG references the first SVG's gradient
+    // resources and renders mostly invisible.
+    const rawUid = useId();
+    const uid = rawUid.replace(/[^a-zA-Z0-9_-]/g, "");
+    const lineId = `factory-line-${uid}`;
+    const fillId = `factory-fill-${uid}`;
+    const sparkId = `factory-spark-${uid}`;
+    const beltId = `belt-dash-${uid}`;
+
   // Belt / gear loop durations
   const beltDur = reduce ? 0 : 6;
   const gearLargeDur = reduce ? 0 : 8;
@@ -49,23 +61,23 @@ export default function FactoryIllustration({
       >
         <defs>
           {/* Soft amber → cyan editorial accent gradient used across page */}
-          <linearGradient id="factory-line" x1="0" x2="1">
+          <linearGradient id={lineId} x1="0" x2="1">
             <stop offset="0%" stopColor="#f5b945" stopOpacity="0.95" />
             <stop offset="55%" stopColor="#e879f9" stopOpacity="0.85" />
             <stop offset="100%" stopColor="#7dd3fc" stopOpacity="0.95" />
           </linearGradient>
-          <linearGradient id="factory-fill" x1="0" x2="0" y1="0" y2="1">
+          <linearGradient id={fillId} x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor="#f5b945" stopOpacity="0.10" />
             <stop offset="100%" stopColor="#7c3aed" stopOpacity="0.05" />
           </linearGradient>
-          <radialGradient id="factory-spark" cx="50%" cy="50%" r="50%">
+          <radialGradient id={sparkId} cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#fcd34d" stopOpacity="0.95" />
             <stop offset="60%" stopColor="#f5b945" stopOpacity="0.4" />
             <stop offset="100%" stopColor="#f5b945" stopOpacity="0" />
           </radialGradient>
           {/* Belt dash pattern for "moving" stripes */}
           <pattern
-            id="belt-dash"
+            id={beltId}
             x="0"
             y="0"
             width="40"
@@ -73,7 +85,7 @@ export default function FactoryIllustration({
             patternUnits="userSpaceOnUse"
           >
             <rect x="0" y="0" width="40" height="14" fill="#0a0816" />
-            <rect x="0" y="0" width="20" height="14" fill="url(#factory-line)" opacity="0.55" />
+            <rect x="0" y="0" width="20" height="14" fill={`url(#${lineId})`} opacity="0.55" />
           </pattern>
         </defs>
 
@@ -83,7 +95,7 @@ export default function FactoryIllustration({
           y1="470"
           x2="1560"
           y2="470"
-          stroke="url(#factory-line)"
+          stroke={`url(#${lineId})`}
           strokeWidth="1.5"
           strokeOpacity="0.45"
         />
@@ -95,14 +107,14 @@ export default function FactoryIllustration({
             y1="475"
             x2={x}
             y2="488"
-            stroke="url(#factory-line)"
+            stroke={`url(#${lineId})`}
             strokeWidth="1"
             strokeOpacity="0.25"
           />
         ))}
 
         {/* ─── Main factory body — outline rectangle with peaked roof */}
-        <g stroke="url(#factory-line)" strokeWidth="2.2" fill="url(#factory-fill)">
+        <g stroke={`url(#${lineId})`} strokeWidth="2.2" fill={`url(#${fillId})`}>
           {/* Roof saw-tooth (classic factory silhouette) */}
           <path d="M 240 230 L 320 170 L 320 230 L 400 170 L 400 230 L 480 170 L 480 230 L 560 170 L 560 230 L 640 170 L 640 230 Z" />
           {/* Body */}
@@ -124,7 +136,7 @@ export default function FactoryIllustration({
         </g>
 
         {/* Smokestacks */}
-        <g stroke="url(#factory-line)" strokeWidth="2" fill="url(#factory-fill)">
+        <g stroke={`url(#${lineId})`} strokeWidth="2" fill={`url(#${fillId})`}>
           <rect x="700" y="120" width="34" height="120" rx="2" />
           <rect x="760" y="80" width="40" height="160" rx="2" />
           <line x1="700" y1="135" x2="734" y2="135" />
@@ -145,7 +157,7 @@ export default function FactoryIllustration({
             cx={p.cx}
             cy={p.cy}
             r={p.r}
-            fill="url(#factory-line)"
+            fill={`url(#${lineId})`}
             initial={{ opacity: 0, scale: 0.4, y: 0 }}
             animate={
               reduce
@@ -170,7 +182,7 @@ export default function FactoryIllustration({
             y="260"
             width="180"
             height="14"
-            fill="url(#belt-dash)"
+            fill={`url(#${beltId})`}
             opacity="0.85"
           />
           {/* Belt rollers */}
@@ -181,7 +193,7 @@ export default function FactoryIllustration({
               cy={267}
               r={14}
               fill="#0a0816"
-              stroke="url(#factory-line)"
+              stroke={`url(#${lineId})`}
               strokeWidth="2"
             />
           ))}
@@ -210,7 +222,7 @@ export default function FactoryIllustration({
             y="350"
             width="600"
             height="14"
-            fill="url(#belt-dash)"
+            fill={`url(#${beltId})`}
             opacity="0.85"
           />
           {/* Belt rollers */}
@@ -221,7 +233,7 @@ export default function FactoryIllustration({
               cy={357}
               r={14}
               fill="#0a0816"
-              stroke="url(#factory-line)"
+              stroke={`url(#${lineId})`}
               strokeWidth="2"
             />
           ))}
@@ -261,26 +273,26 @@ export default function FactoryIllustration({
               <rect
                 width="36"
                 height="30"
-                fill="url(#factory-fill)"
-                stroke="url(#factory-line)"
+                fill={`url(#${fillId})`}
+                stroke={`url(#${lineId})`}
                 strokeWidth="1.6"
               />
-              <line x1="18" y1="0" x2="18" y2="30" stroke="url(#factory-line)" strokeWidth="1.2" opacity="0.6" />
-              <line x1="0" y1="15" x2="36" y2="15" stroke="url(#factory-line)" strokeWidth="1.2" opacity="0.6" />
+              <line x1="18" y1="0" x2="18" y2="30" stroke={`url(#${lineId})`} strokeWidth="1.2" opacity="0.6" />
+              <line x1="0" y1="15" x2="36" y2="15" stroke={`url(#${lineId})`} strokeWidth="1.2" opacity="0.6" />
             </g>
           </motion.g>
         ))}
 
         {/* ─── Gears ──────────────────────────────────────────── */}
-        <Gear cx={1080} cy={210} r={70} teeth={14} duration={gearLargeDur} reduce={!!reduce} />
-        <Gear cx={1180} cy={140} r={42} teeth={11} duration={gearMidDur} reverse reduce={!!reduce} />
-        <Gear cx={1260} cy={220} r={54} teeth={12} duration={gearSmallDur} reduce={!!reduce} />
-        <Gear cx={1390} cy={170} r={36} teeth={10} duration={gearMidDur * 0.8} reverse reduce={!!reduce} />
+        <Gear cx={1080} cy={210} r={70} teeth={14} duration={gearLargeDur} reduce={!!reduce} lineId={lineId} fillId={fillId} />
+        <Gear cx={1180} cy={140} r={42} teeth={11} duration={gearMidDur} reverse reduce={!!reduce} lineId={lineId} fillId={fillId} />
+        <Gear cx={1260} cy={220} r={54} teeth={12} duration={gearSmallDur} reduce={!!reduce} lineId={lineId} fillId={fillId} />
+        <Gear cx={1390} cy={170} r={36} teeth={10} duration={gearMidDur * 0.8} reverse reduce={!!reduce} lineId={lineId} fillId={fillId} />
 
         {/* ─── Pipes connecting the building to the gears ────── */}
         <g
           fill="none"
-          stroke="url(#factory-line)"
+          stroke={`url(#${lineId})`}
           strokeWidth="3"
           strokeOpacity="0.6"
           strokeLinecap="round"
@@ -296,7 +308,7 @@ export default function FactoryIllustration({
             cx={1260}
             cy={220}
             r={6}
-            fill="url(#factory-spark)"
+            fill={`url(#${sparkId})`}
             initial={{ opacity: 0 }}
             animate={
               reduce
@@ -317,9 +329,9 @@ export default function FactoryIllustration({
         ))}
 
         {/* ─── Antenna / radio dish on roof ───────────────────── */}
-        <g stroke="url(#factory-line)" strokeWidth="2" fill="none">
+        <g stroke={`url(#${lineId})`} strokeWidth="2" fill="none">
           <line x1="900" y1="230" x2="900" y2="160" />
-          <circle cx="900" cy="160" r="8" fill="url(#factory-fill)" />
+          <circle cx="900" cy="160" r="8" fill={`url(#${fillId})`} />
           <motion.circle
             cx="900"
             cy="160"
@@ -350,21 +362,21 @@ export default function FactoryIllustration({
         </g>
 
         {/* ─── Mini icons floating overhead — money / lock / shield */}
-        <FloatingIcon x={140} y={150} delay={0} reduce={!!reduce}>
+        <FloatingIcon x={140} y={150} delay={0} reduce={!!reduce} lineId={lineId} fillId={fillId}>
           {/* dollar */}
           <path d="M 0 -14 L 0 14 M -8 -8 C -8 -12 -4 -14 0 -14 C 4 -14 8 -12 8 -8 C 8 -4 4 -2 0 -2 C -4 -2 -8 0 -8 4 C -8 8 -4 10 0 10 C 4 10 8 8 8 4" />
         </FloatingIcon>
-        <FloatingIcon x={1480} y={140} delay={1.4} reduce={!!reduce}>
+        <FloatingIcon x={1480} y={140} delay={1.4} reduce={!!reduce} lineId={lineId} fillId={fillId}>
           {/* shield */}
           <path d="M 0 -14 L 12 -8 L 12 4 C 12 12 0 16 0 16 C 0 16 -12 12 -12 4 L -12 -8 Z" />
           <path d="M -4 0 L -1 4 L 5 -3" />
         </FloatingIcon>
-        <FloatingIcon x={80} y={380} delay={0.7} reduce={!!reduce}>
+        <FloatingIcon x={80} y={380} delay={0.7} reduce={!!reduce} lineId={lineId} fillId={fillId}>
           {/* lock */}
           <rect x="-9" y="-2" width="18" height="14" rx="2" />
           <path d="M -6 -2 L -6 -8 C -6 -12 -3 -14 0 -14 C 3 -14 6 -12 6 -8 L 6 -2" />
         </FloatingIcon>
-        <FloatingIcon x={1490} y={400} delay={2.1} reduce={!!reduce}>
+        <FloatingIcon x={1490} y={400} delay={2.1} reduce={!!reduce} lineId={lineId} fillId={fillId}>
           {/* gift */}
           <rect x="-12" y="-4" width="24" height="16" rx="1.5" />
           <line x1="0" y1="-4" x2="0" y2="12" />
@@ -385,6 +397,8 @@ function Gear({
   duration,
   reverse = false,
   reduce,
+  lineId,
+  fillId,
 }: {
   cx: number;
   cy: number;
@@ -393,6 +407,8 @@ function Gear({
   duration: number;
   reverse?: boolean;
   reduce: boolean;
+  lineId: string;
+  fillId: string;
 }) {
   // Build the tooth path procedurally.
   const innerR = r * 0.78;
@@ -435,13 +451,13 @@ function Gear({
       <g transform={`translate(${cx} ${cy})`}>
         <path
           d={d}
-          fill="url(#factory-fill)"
-          stroke="url(#factory-line)"
+          fill={`url(#${fillId})`}
+          stroke={`url(#${lineId})`}
           strokeWidth="2"
           strokeLinejoin="round"
         />
-        <circle r={innerR * 0.42} fill="#0a0816" stroke="url(#factory-line)" strokeWidth="1.6" />
-        <circle r={innerR * 0.12} fill="url(#factory-line)" />
+        <circle r={innerR * 0.42} fill="#0a0816" stroke={`url(#${lineId})`} strokeWidth="1.6" />
+        <circle r={innerR * 0.12} fill={`url(#${lineId})`} />
         {/* spokes */}
         {Array.from({ length: 6 }, (_, i) => i).map((i) => {
           const a = (i / 6) * Math.PI * 2;
@@ -452,7 +468,7 @@ function Gear({
               y1={innerR * 0.12 * Math.sin(a)}
               x2={innerR * 0.42 * Math.cos(a)}
               y2={innerR * 0.42 * Math.sin(a)}
-              stroke="url(#factory-line)"
+              stroke={`url(#${lineId})`}
               strokeWidth="1.4"
               opacity="0.6"
             />
@@ -469,12 +485,16 @@ function FloatingIcon({
   delay,
   reduce,
   children,
+  lineId,
+  fillId,
 }: {
   x: number;
   y: number;
   delay: number;
   reduce: boolean;
   children: React.ReactNode;
+  lineId: string;
+  fillId: string;
 }) {
   return (
     <motion.g
@@ -493,9 +513,9 @@ function FloatingIcon({
       }}
     >
       <g transform={`translate(${x} ${y})`}>
-        <circle r="22" fill="url(#factory-fill)" stroke="url(#factory-line)" strokeWidth="1.5" />
+        <circle r="22" fill={`url(#${fillId})`} stroke={`url(#${lineId})`} strokeWidth="1.5" />
         <g
-          stroke="url(#factory-line)"
+          stroke={`url(#${lineId})`}
           strokeWidth="1.6"
           strokeLinecap="round"
           strokeLinejoin="round"
