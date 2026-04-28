@@ -22,10 +22,15 @@ export default function SecureLockCenterpiece({
   size?: number;
 }) {
   const reduce = useReducedMotion();
+  // Clamp the rendered size so the centerpiece never exceeds the viewport
+  // on small phones. The parent section uses `container-wide px-4` which
+  // leaves `calc(100vw - 2rem)` of usable width at the 375px breakpoint.
+  // Keeping a 1:1 aspect ratio preserves the circular glow ring.
+  const clamped = `min(${size}px, calc(100vw - 2rem))`;
   return (
     <div
       className="relative mx-auto grid place-items-center"
-      style={{ width: size, height: size }}
+      style={{ width: clamped, height: clamped, maxWidth: "100%", aspectRatio: "1 / 1" }}
     >
       {/* aurora pulse ring */}
       <motion.div
