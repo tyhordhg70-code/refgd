@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import KineticText from "./KineticText";
 
 /**
- * CosmicJourney — load-once cinematic warp + reversible 3D fly-away.
+ * CosmicJourney — load-once cinematic warp + bidirectional auto-snap
+ * to/from the paths section.
  *
  *   ── On mount (~2.8s timeline) ──────────────────────────────
  *   t=0.00s  nebula backdrop fades up
@@ -15,32 +16,43 @@ import KineticText from "./KineticText";
  *   t=2.60s  scroll hint fades in
  *   t≥2.8s   ambient state — planet softly breathes, scene holds
  *
- *   ── Reversible 3D fly-away on scroll ─────────────────────
- *   `exiting` is derived purely from scrollY (snaps true when the
- *   user has scrolled more than ~8 % of the viewport height). This
- *   makes the fly-away REVERSIBLE: scroll up, the welcome scene
- *   rotates, scales and fades back into rest pose; scroll down,
- *   it tilts back into 3D depth and fades out again.
+ *   ── Bidirectional auto-snap on scroll ───────────────────────
+ *   Single scroll listener. ANY time the user enters the "dead
+ *   zone" between the hero (`scrollY ≈ 0`) and the paths section
+ *   (`scrollY ≈ window.innerHeight − 20`), they get smoothly
+ *   snap-scrolled to whichever boundary they were heading toward:
+ *     • scrolling down  → land at `innerHeight − 20` (kicker line
+ *                         "— you have arrived" comfortably visible
+ *                         with ~20 px breathing room above it,
+ *                         no top-edge text clipping).
+ *     • scrolling up    → land at `0` (welcome scene fully back).
+ *   This eliminates the "scrolling a few times through empty
+ *   space" complaint — one wheel notch is enough to lock you onto
+ *   one of the two boundaries. Replays as many times as the user
+ *   wants; no consumed flag.
  *
- *   ── First-scroll smooth-scroll trigger to paths section ──
- *   On the user's very first scroll attempt while parked at the
- *   top, a custom 1.4s cubic-ease-in-out scroll runs to a target
- *   of `window.innerHeight − 80` (because the hero is exactly
- *   100svh tall, the paths section starts at exactly innerHeight,
- *   so this lands the viewport top 80 px before that boundary —
- *   the kicker line "— you have arrived" and the "Choose your
- *   path to mastery." headline are BOTH comfortably in view, no
- *   top-edge clipping. The basis is `innerHeight`, not a measured
- *   `getBoundingClientRect()` of a descendant whose bbox depends
- *   on the in-view animation state of its parents — so it can't
- *   be thrown off by transient transforms during the scroll.
+ *   ── Cinematic 3D warp during the snap ───────────────────────
+ *   The whole scene-stage flies away in 3D as a rigid unit
+ *   (scale 1 → 0.08, rotateX 0 → −55°, y 0 → −200, opacity 1 → 0)
+ *   over a matched 1.4 s. Layered on top during the exit:
+ *     • A brief WHITE FLASH (peaks at 45 % opacity ~40 % through
+ *       the transition, fades by 85 %) — the "camera passes through
+ *       the planet" punctuation.
+ *     • 32 RADIAL WARP STREAKS shooting outward from the centre
+ *       to ±120 vmin, each scaling 0.5 → 8 → 14 along its length
+ *       so they look like jump-to-lightspeed star trails. Mounted
+ *       only while `exiting` is true — auto-replay every time the
+ *       user re-crosses the threshold.
+ *   The exit is REVERSIBLE — scroll back up, the stage rotates,
+ *   scales and fades back into rest pose.
  */
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
   const [exiting, setExiting] = useState(false);
 
   // 36 streaks distributed evenly around the circle, deterministic so
-  // SSR + hydration match.
+  // SSR + hydration match. These are the MOUNT streaks (radial expand
+  // during the welcome's load-in).
   const streaks = useMemo(() => {
     const colors = ["#ffe28a", "#a78bfa", "#7be7ff", "#f0abfc", "#ffffff"];
     return Array.from({ length: 36 }, (_, i) => {
@@ -61,96 +73,111 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     });
   }, []);
 
-  // ── Reversible exit, driven by scrollY ──────────────────────
+  // 32 EXIT streaks — radial jump-to-lightspeed during the fly-away.
+  const warpStreaks = useMemo(
+    () =>
+      Array.from({ length: 32 }, (_, i) => {
+        const angle = (i / 32) * Math.PI * 2;
+        return {
+          dx: Math.cos(angle) * 120,
+          dy: Math.sin(angle) * 120,
+          rotateDeg: (angle * 180) / Math.PI,
+        };
+      }),
+    [],
+  );
+
+  // ── Unified scroll handler: bidirectional auto-snap + reversible
+  //    exit state. Single listener, single source of truth.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (reduced) return;
+
+    let isAnimating = false;
+    let lastY = window.scrollY;
     let ticking = false;
-    const update = () => {
-      const threshold = Math.max(60, Math.round(window.innerHeight * 0.08));
-      setExiting((prev) => {
-        const next = window.scrollY > threshold;
-        return next === prev ? prev : next;
-      });
-      ticking = false;
-    };
-    const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(update);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    update();
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [reduced]);
-
-  // ── First-scroll smooth-scroll trigger to paths section ─────
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (reduced) return;
-
-    let consumed = false;
-    let armed = false;
-    const armTimer = window.setTimeout(() => {
-      armed = true;
-    }, 1500);
+    let activeRAF = 0;
 
     function smoothScrollTo(targetY: number, duration: number) {
       const startY = window.scrollY;
       const dist = targetY - startY;
       if (Math.abs(dist) < 4) return;
+      isAnimating = true;
+      cancelAnimationFrame(activeRAF);
       const start = performance.now();
       function step(now: number) {
         const t = Math.min((now - start) / duration, 1);
         const eased =
           t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
         window.scrollTo(0, startY + dist * eased);
-        if (t < 1) requestAnimationFrame(step);
+        if (t < 1) {
+          activeRAF = requestAnimationFrame(step);
+        } else {
+          // Settling delay so post-snap inertia / rubber-band doesn't
+          // immediately re-fire the snap in the opposite direction.
+          window.setTimeout(() => {
+            isAnimating = false;
+            lastY = window.scrollY;
+          }, 220);
+        }
       }
-      requestAnimationFrame(step);
+      activeRAF = requestAnimationFrame(step);
     }
 
-    function trigger() {
-      if (consumed || !armed) return;
-      if (window.scrollY > 16) return;
-      consumed = true;
-      // Hero is exactly 100svh tall (CSS `height: 100svh` on the
-      // <section> below) → the paths section starts at exactly
-      // window.innerHeight from the top of the document. Land 80 px
-      // before that boundary so the kicker line "— you have arrived"
-      // is comfortably visible and the headline below it is fully
-      // in the viewport. Robust to any descendant transform state.
-      const targetY = Math.max(0, window.innerHeight - 80);
-      window.setTimeout(() => smoothScrollTo(targetY, 1400), 60);
+    function update() {
+      ticking = false;
+      const y = window.scrollY;
+      const innerH = window.innerHeight;
+      const paths = innerH - 20; // snap target for "down" — kicker just below viewport top
+      const threshold = Math.max(60, innerH * 0.08);
+
+      // Reversible exit state — derived purely from scrollY.
+      setExiting((prev) => {
+        const next = y > threshold;
+        return next === prev ? prev : next;
+      });
+
+      if (isAnimating) {
+        lastY = y;
+        return;
+      }
+
+      const direction = y > lastY ? 1 : y < lastY ? -1 : 0;
+      lastY = y;
+
+      // Dead zone — anything between the very top and the paths section.
+      // If the user has crossed into it, snap them out in their direction
+      // of travel so they're never stranded scrolling through empty space.
+      if (y > 12 && y < paths - 4 && direction !== 0) {
+        if (direction === 1) {
+          smoothScrollTo(paths, 1400);
+        } else {
+          smoothScrollTo(0, 1400);
+        }
+      }
     }
 
-    const onWheel = () => trigger();
-    const onTouch = () => trigger();
-    const onKey = (e: KeyboardEvent) => {
-      if (
-        e.key === "PageDown" ||
-        e.key === "ArrowDown" ||
-        e.key === " " ||
-        e.key === "End"
-      ) {
-        trigger();
-      }
-    };
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(update);
+    }
 
-    window.addEventListener("wheel", onWheel, { passive: true });
-    window.addEventListener("touchmove", onTouch, { passive: true });
-    window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    update();
     return () => {
-      window.clearTimeout(armTimer);
-      window.removeEventListener("wheel", onWheel);
-      window.removeEventListener("touchmove", onTouch);
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(activeRAF);
     };
   }, [reduced]);
 
+  // 3D exit transform applied to the entire scene-stage. Uses
+  // transform-origin near the top of the section so the welcome
+  // appears to lift up & rotate back into space (camera moves past
+  // it), not just shrink in place.
   const stageAnimate = exiting
-    ? { scale: 0.42, rotateX: -42, opacity: 0, y: -180 }
-    : { scale: 1, rotateX: 0, opacity: 1, y: 0 };
+    ? { scale: 0.08, rotateX: -55, y: -200, opacity: 0 }
+    : { scale: 1, rotateX: 0, y: 0, opacity: 1 };
 
   return (
     <section
@@ -163,12 +190,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         transform: "translate3d(0,0,0)",
       }}
     >
+      {/*
+       * Scene stage — wraps every animated layer of the welcome
+       * composition. When `exiting` flips, the whole stage tilts
+       * back & flies up in 3D as a single rigid unit, and reverses
+       * smoothly when scroll returns toward the top.
+       */}
       <motion.div
         className="absolute inset-0 grid place-items-center"
         animate={stageAnimate}
         transition={{
-          duration: 1.0,
-          ease: [0.55, 0.05, 0.2, 1],
+          duration: 1.4,
+          ease: [0.65, 0, 0.35, 1],
         }}
         style={{
           transformStyle: "preserve-3d",
@@ -196,7 +229,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           suppressHydrationWarning
         />
 
-        {/* ── 2. Warp streaks — radial expansion from centre ── */}
+        {/* ── 2. Mount warp streaks (load-in animation) ── */}
         {!reduced && (
           <div
             aria-hidden="true"
@@ -369,6 +402,66 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           />
         </motion.div>
       </motion.div>
+
+      {/*
+       * ── Cinematic mid-flight punctuation, only mounted while
+       *    exiting=true. Replays every time the user re-crosses
+       *    the threshold (because conditional unmount/remount
+       *    re-fires `initial → animate`).
+       */}
+      {exiting && !reduced && (
+        <>
+          {/* Brief white flash — the "camera passes through" punctuation */}
+          <motion.div
+            key="exit-flash"
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-[20] bg-white"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 0.45, 0] }}
+            transition={{
+              duration: 0.95,
+              times: [0, 0.4, 0.9],
+              ease: "easeOut",
+            }}
+          />
+
+          {/* Jump-to-lightspeed radial warp streaks */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-[18] grid place-items-center"
+          >
+            {warpStreaks.map((s, i) => (
+              <motion.span
+                key={`warp-${i}`}
+                className="absolute rounded-full"
+                initial={{ x: 0, y: 0, opacity: 0, scaleX: 0.4 }}
+                animate={{
+                  x: `${s.dx}vmin`,
+                  y: `${s.dy}vmin`,
+                  opacity: [0, 1, 0],
+                  scaleX: [0.5, 8, 14],
+                }}
+                transition={{
+                  duration: 1.1,
+                  ease: [0.16, 0.9, 0.3, 1],
+                  times: [0, 0.5, 1],
+                }}
+                style={{
+                  width: 110,
+                  height: 2,
+                  background:
+                    "linear-gradient(to right, transparent 0%, rgba(255,255,255,0.95) 50%, transparent 100%)",
+                  transform: `rotate(${s.rotateDeg}deg)`,
+                  transformOrigin: "0% 50%",
+                  boxShadow: "0 0 14px rgba(255,230,180,0.85)",
+                  willChange: "transform, opacity",
+                }}
+                suppressHydrationWarning
+              />
+            ))}
+          </div>
+        </>
+      )}
     </section>
   );
 }
