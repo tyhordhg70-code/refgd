@@ -87,7 +87,9 @@ export default function AnimatedTelegramBox() {
           75%  {                              opacity: 0; }
           100% { transform: translateX(130%); opacity: 0; }
         }
-        .atb-anim { will-change: transform, opacity; }
+        /* Only promote the few largest moving layers; promoting all 50+
+           animated elements creates layer bloat that hurts low-end GPUs. */
+        .atb-promote { will-change: transform, opacity; }
         @media (prefers-reduced-motion: reduce) {
           .atb-anim { animation: none !important; }
         }
@@ -164,16 +166,25 @@ export default function AnimatedTelegramBox() {
                 width="24"
                 height="24"
                 viewBox="0 0 24 24"
-                className="atb-anim absolute"
+                className="atb-anim atb-promote absolute"
                 style={{
                   left: `${left}%`,
                   bottom: "-14%",
-                  filter: "drop-shadow(0 0 6px rgba(123,231,255,0.55))",
                   animation: `${
                     swayPos ? "atb-plane-pos" : "atb-plane-neg"
                   } ${dur}s ease-out ${delay}s infinite`,
                 }}
               >
+                {/* Glow approximated with a thicker translucent stroke instead
+                    of a CSS filter — filters force a per-frame raster pass. */}
+                <path d="M22 2 11 13" stroke="rgba(123,231,255,0.55)" strokeWidth="4" strokeLinecap="round" />
+                <path
+                  d="M22 2 15 22 11 13 2 9z"
+                  stroke="rgba(177,150,255,0.45)"
+                  strokeWidth="4"
+                  strokeLinejoin="round"
+                  fill="none"
+                />
                 <path d="M22 2 11 13" stroke="#7be7ff" strokeWidth="1.8" strokeLinecap="round" />
                 <path
                   d="M22 2 15 22 11 13 2 9z"
@@ -190,7 +201,7 @@ export default function AnimatedTelegramBox() {
 
       {/* ───── 4. OUTER ORBITAL RING — clockwise ───── */}
       <div
-        className="atb-anim absolute right-[6%] top-[68%] h-[80%] w-[80%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[10%] sm:top-1/2 sm:h-[100%] sm:w-[100%]"
+        className="atb-anim atb-promote absolute right-[6%] top-[68%] h-[80%] w-[80%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[10%] sm:top-1/2 sm:h-[100%] sm:w-[100%]"
         style={{
           aspectRatio: "1/1",
           maxHeight: "560px",
@@ -206,7 +217,7 @@ export default function AnimatedTelegramBox() {
 
       {/* ───── INNER ORBITAL RING — counter-clockwise ───── */}
       <div
-        className="atb-anim absolute right-[12%] top-[68%] h-[52%] w-[52%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[16%] sm:top-1/2 sm:h-[64%] sm:w-[64%]"
+        className="atb-anim atb-promote absolute right-[12%] top-[68%] h-[52%] w-[52%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[16%] sm:top-1/2 sm:h-[64%] sm:w-[64%]"
         style={{
           aspectRatio: "1/1",
           maxHeight: "360px",
@@ -220,7 +231,7 @@ export default function AnimatedTelegramBox() {
 
       {/* ───── 5. CENTRAL PLANET — pulses + holds steady ───── */}
       <div
-        className="atb-anim absolute right-[12%] top-[68%] h-32 w-32 rounded-full sm:right-[16%] sm:top-1/2 sm:h-44 sm:w-44 md:h-56 md:w-56"
+        className="atb-anim atb-promote absolute right-[12%] top-[68%] h-32 w-32 rounded-full sm:right-[16%] sm:top-1/2 sm:h-44 sm:w-44 md:h-56 md:w-56"
         style={{
           background:
             "radial-gradient(circle at 30% 28%, rgba(255,255,255,0.95), rgba(167,139,250,0.62) 40%, rgba(34,211,238,0.40) 75%, transparent 100%)",
@@ -230,13 +241,15 @@ export default function AnimatedTelegramBox() {
           animation: reduced ? "none" : "atb-planet 5s ease-in-out infinite",
         }}
       />
-      {/* highlight */}
+      {/* highlight — was mixBlendMode:screen, removed because blend modes
+          force a per-frame composite pass against everything underneath
+          (very bad for scroll perf). A bright opaque radial-gradient
+          gives the same "spec highlight on the planet" look. */}
       <div
         className="atb-anim absolute right-[16%] top-[64%] h-8 w-8 rounded-full sm:right-[18%] sm:top-[44%] sm:h-12 sm:w-12"
         style={{
           background:
-            "radial-gradient(circle, rgba(255,255,255,0.95), transparent 70%)",
-          mixBlendMode: "screen",
+            "radial-gradient(circle, rgba(255,255,255,0.95), rgba(255,255,255,0.45) 35%, transparent 70%)",
           animation: reduced ? "none" : "atb-glow 4s ease-in-out infinite",
         }}
       />
