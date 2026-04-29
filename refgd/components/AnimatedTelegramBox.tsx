@@ -194,7 +194,6 @@ export default function AnimatedTelegramBox() {
     }
 
     function onTouchEnd() {
-      lastTouchEndAt = performance.now();
       scheduleMonitor();
     }
 
