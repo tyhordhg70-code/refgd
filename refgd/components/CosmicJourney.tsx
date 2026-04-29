@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import KineticText from "./KineticText";
 
 /**
- * CosmicJourney — load-once cinematic warp + 3D fly-away on first scroll.
+ * CosmicJourney — load-once cinematic warp + reversible 3D fly-away.
  *
  *   ── On mount (~2.8s timeline) ──────────────────────────────
  *   t=0.00s  nebula backdrop fades up
@@ -18,16 +18,20 @@ import KineticText from "./KineticText";
  *   ── On the user's first scroll attempt ────────────────────
  *   The whole composition flies away in 3D — scaled down, tilted
  *   back along X, lifted upward, fading — while the page itself
- *   smooth-scrolls (custom 1.4s cubic ease-in-out) to `#paths`.
- *   Net effect: ONE scroll gesture takes you straight into the
- *   paths section as the welcome scene retreats into the depth.
- *   No abrupt jump — the 3D exit and the scroll are timed
- *   together so they read as a single cinematic transition.
+ *   smooth-scrolls (custom 1.4s cubic ease-in-out) to `#paths`,
+ *   landing with a small headroom so the kicker + headline of
+ *   the paths section are both fully in view (no top-of-headline
+ *   clipping).
  *
- *   The exit only fires once. After it has played, normal scroll
- *   behaviour resumes for the rest of the session, and scrolling
- *   back up shows the welcome scene as a static (held-on-final-
- *   frame) poster.
+ *   ── REVERSIBLE on scroll back up ──────────────────────────
+ *   `exiting` is now driven by the page scrollY, not by a one-
+ *   shot consumed flag. When the user scrolls back near the top
+ *   of the page, the stage rotates, scales and fades back into
+ *   its rest pose — the welcome scene re-appears instead of
+ *   disappearing into the void. Scrolling forward again replays
+ *   the 3D fly-away animation. The first-scroll trigger arms a
+ *   ONE-TIME smooth-scroll-to-paths gesture; subsequent forward
+ *   scrolls behave like normal page scrolling.
  */
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
@@ -55,10 +59,44 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     });
   }, []);
 
-  // ── First-scroll cinematic 3D fly-away + smooth-scroll to #paths ──
+  // ── Reversible exit, driven by scrollY ──────────────────────
+  // The stage's exit state is purely a function of how far the user
+  // has scrolled. This is what makes it reversible: scroll back to
+  // the top, the stage animates back into the rest pose; scroll
+  // forward, it animates into the fly-away pose. Threshold is ≈8 %
+  // of the viewport so a casual nudge doesn't tear the stage apart.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (reduced) return; // honour OS reduced-motion → no scroll hijack
+    if (reduced) return;
+    let ticking = false;
+    const update = () => {
+      const threshold = Math.max(60, Math.round(window.innerHeight * 0.08));
+      setExiting((prev) => {
+        const next = window.scrollY > threshold;
+        return next === prev ? prev : next;
+      });
+      ticking = false;
+    };
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(update);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    update();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [reduced]);
+
+  // ── First-scroll smooth-scroll trigger to #paths ────────────
+  // A separate, one-shot listener: on the user's first wheel /
+  // touch / pageDown attempt while parked at the top, run a custom
+  // 1.4 s cubic-ease-in-out scroll to land a generous headroom
+  // ABOVE the paths section's anchor — so the kicker line ("— you
+  // have arrived") and the headline below it are both fully inside
+  // the viewport. After that, the page scrolls naturally.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (reduced) return;
 
     let consumed = false;
     let armed = false;
@@ -66,10 +104,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       armed = true;
     }, 1500);
 
-    /** Custom smooth-scroll: cubic ease-in-out over `duration` ms. */
     function smoothScrollTo(targetY: number, duration: number) {
       const startY = window.scrollY;
       const dist = targetY - startY;
+      if (Math.abs(dist) < 4) return;
       const start = performance.now();
       function step(now: number) {
         const t = Math.min((now - start) / duration, 1);
@@ -83,16 +121,21 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
     function trigger() {
       if (consumed || !armed) return;
-      if (window.scrollY > 16) return; // already scrolled past hero
-      const target = document.querySelector<HTMLElement>("#paths");
+      if (window.scrollY > 16) return;
+      // Prefer the paths-intro block (kicker + headline) so we land
+      // with the kicker line in view; fall back to #paths section.
+      const target =
+        document.querySelector<HTMLElement>(".paths-intro") ??
+        document.querySelector<HTMLElement>("#paths");
       if (!target) return;
       consumed = true;
-      // Kick off the 3D exit first, then start the page scroll a beat
-      // later so the eye has caught the depth-shift before content
-      // begins moving past.
-      setExiting(true);
+      // Headroom above the kicker so the top of "— you have arrived"
+      // is comfortably visible, not flush with the viewport top.
+      const headroom = 96;
       const targetY =
-        target.getBoundingClientRect().top + window.scrollY;
+        target.getBoundingClientRect().top + window.scrollY - headroom;
+      // Tiny delay so the eye registers the 3D depth-shift starting
+      // before the page itself begins moving past.
       window.setTimeout(() => smoothScrollTo(targetY, 1400), 60);
     }
 
@@ -121,15 +164,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   }, [reduced]);
 
   // 3D exit transform applied to the entire scene-stage. Uses
-  // transform-origin at the top of the section so the welcome
+  // transform-origin near the top of the section so the welcome
   // appears to lift up & rotate back into space (camera moves past
   // it), not just shrink in place.
   const stageAnimate = exiting
     ? { scale: 0.42, rotateX: -42, opacity: 0, y: -180 }
     : { scale: 1, rotateX: 0, opacity: 1, y: 0 };
-  const stageTransition = exiting
-    ? { duration: 1.4, ease: [0.55, 0.05, 0.2, 1] as [number, number, number, number] }
-    : { duration: 0.001 };
 
   return (
     <section
@@ -144,15 +184,17 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     >
       {/*
        * Scene stage — wraps every animated layer of the welcome
-       * composition. When `exiting` flips true, the whole stage tilts
-       * back & flies up in 3D as a single rigid unit (children keep
-       * their internal entrance state). This is what the user sees as
-       * the cinematic hand-off into the paths section.
+       * composition. When `exiting` flips, the whole stage tilts
+       * back & flies up in 3D as a single rigid unit, and reverses
+       * smoothly when scroll returns toward the top.
        */}
       <motion.div
         className="absolute inset-0 grid place-items-center"
         animate={stageAnimate}
-        transition={stageTransition}
+        transition={{
+          duration: 1.0,
+          ease: [0.55, 0.05, 0.2, 1],
+        }}
         style={{
           transformStyle: "preserve-3d",
           transformOrigin: "50% 28%",
