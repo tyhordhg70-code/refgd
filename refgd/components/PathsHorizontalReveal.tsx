@@ -3,6 +3,7 @@
 import {
   cloneElement,
   isValidElement,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -20,23 +21,28 @@ import { motion, useReducedMotion } from "framer-motion";
  *     The grid container itself does a single fade-and-lift on
  *     enter, and each card animates in with a staggered 3D fly-in.
  *
- *   • Mobile (< 768px): native CSS horizontal-scroll carousel.
- *     Uses `overflow-x-auto` + `scroll-snap-type: x mandatory` —
- *     NO sticky-pinned scroll-jacking, NO `useScroll`. Vertical
- *     page scroll passes through naturally; only horizontal
- *     swipes on the carousel itself move between cards. Each
- *     card snaps into view, and each one still gets the 3D
- *     fly-in entrance from `FlyInCard` so it animates in as it
- *     scrolls into the horizontal viewport (and re-animates on
- *     scroll back, because `viewport={{ once: false }}`).
+ *   • Mobile (< 768px): a 3D-CUBE paged carousel.
+ *     Each card occupies one face of a cube. Vertical scroll
+ *     attempts (wheel / touch) AND horizontal touch swipes both
+ *     advance the cube by exactly ONE card per discrete gesture.
+ *     The component itself only takes 100 vh of layout — there's
+ *     NO 4× viewport-tall scroll buffer underneath the carousel,
+ *     so the page can never "overshoot" past the telegram CTA.
  *
- *   ── Persistence on scroll-up & scroll-down ────────────────────
- *   The card entrance uses `viewport={{ once: true, amount: … }}`
- *   so the 3D fly-in REPLAYS every time a card enters the viewport
- *   — not just the first time. Scrolling up to the top of the page
- *   and then back down replays the entrance for the cards that
- *   re-cross the threshold, which is what the user explicitly asked
- *   for.
+ *     • One-scroll-one-card  — wheel and touch are debounced
+ *       so a single deliberate flick = one cube face turn, even
+ *       on a hard fling. No accidental double-skips.
+ *     • 3D cube transition   — the cube rotates 90° between cards
+ *       with `transform-style: preserve-3d`; cards mount once and
+ *       stay mounted (only the cube's rotation changes), so there
+ *       is no remount flicker mid-spin.
+ *     • Edge release         — when the user is on the last card
+ *       and continues to scroll/swipe down, the carousel releases
+ *       and lets the page scroll naturally to the next section
+ *       (telegram CTA). Same on the first card scrolling up. No
+ *       skipping past telegram, no being trapped on card 5.
+ *     • Native horizontal swipe — left/right swipes also advance
+ *       cards, with the same single-step debounce.
  */
 export default function PathsHorizontalReveal({
   cards,
@@ -60,7 +66,7 @@ export default function PathsHorizontalReveal({
     return <DesktopGrid cards={cards} desktopFallback={desktopFallback} />;
   }
 
-  return <MobileHorizontalCarousel cards={cards} />;
+  return <MobileCubeCarousel cards={cards} />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -113,229 +119,405 @@ function DesktopGrid({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Mobile — STICKY-PIN scroll-jacked carousel                        */
+/*  Mobile — 3D CUBE PAGED CAROUSEL                                   */
 /* ------------------------------------------------------------------ */
 
 /**
- * Sticky-pin carousel. Vertical scroll IS horizontal scroll while
- * the cards are on screen. After card 5 the page resumes normal
- * vertical scrolling.
+ * Mobile carousel — 3D cube with one card per face, paged
+ * advancement.
  *
- * The user explicitly asked for this:
+ * ── Layout (no scroll buffer, no overshoot) ───────────────────
  *
- *   "Enable vertical scrolling so that instead of going down it
- *    scrolls the cards instead and after 5th card it resumes
- *    vertical scrolling."
- *
- * ── How the layout works ──────────────────────────────────────
- *
- *   <section style={{ height: N * 80vh }}>     // outer
- *     <div style={{ position: 'sticky', top: 0,
- *                   height: '100vh' }}>        // inner pin
- *       <div ref={trackRef}                    // track
- *            style={{ transform: translateX(...) }} >
- *         <card 1 />
- *         <card 2 />
- *         ...
+ *   <section style={{ height: '100vh' }}>            // outer
+ *     <div className="sticky top-0 h-screen">        // pin
+ *       <div ref={cubeRef} className="cube">         // 3D cube
+ *         <div className="face">card 1</div>         // 5 faces
+ *         <div className="face">card 2</div>
+ *         …
  *       </div>
  *     </div>
  *   </section>
  *
- *   • Outer is N × 80 vh tall (5 cards → 400 vh = ~3380 px on
- *     iPhone 12). It's a normal block-level section so the page
- *     just keeps scrolling through it.
- *   • Inner is `position: sticky; top: 0; height: 100vh`. The
- *     browser pins it to the viewport while the outer is in
- *     view, then releases at the bottom — pure CSS, no listener,
- *     no preventDefault, no scroll-jacking by JS.
- *   • A single passive `scroll` listener computes how far the
- *     outer has scrolled past 0 → 1 and writes a translate3d to
- *     the track via direct DOM (no React render per scroll).
- *     Card K becomes centered when progress ≈ K / (N - 1).
+ *   • Outer is exactly 100 vh tall. No 400 vh scroll buffer like
+ *     the previous sticky-pin design. When the carousel is done,
+ *     the very next section (telegram CTA) sits immediately
+ *     below in the layout — there's no empty page between them
+ *     for momentum to skip through.
+ *   • The page only "pauses" while the user is interacting with
+ *     the carousel — accomplished by an event-level lock (wheel
+ *     and touchmove preventDefault) NOT a layout-level scroll
+ *     buffer. When the user reaches the last card and continues
+ *     to scroll down, the lock releases and the page scrolls
+ *     normally to telegram.
  *
- * ── Why the previous sticky-pin "broke" and this one doesn't ──
+ * ── Why a cube, not a slide ───────────────────────────────────
  *
- *   The old version:
- *     1. Relied on framer's `useScroll` + a setState on every
- *        scroll-tick (one React render per pixel of scroll = lag).
- *     2. Did NOT clamp progress, so iOS rubber-banding produced
- *        negative or > 1 progress and the cards visibly slid past
- *        their endpoints.
- *     3. Re-armed its target on every scroll-up, leaving the user
- *        mid-stage when scrolling back.
+ *   • Single transform changes between cards (rotateY on the
+ *     cube container) — cards mount once and never remount. The
+ *     previous slide-track approach kept all 5 cards mounted but
+ *     they each lived inside a track that translated on every
+ *     scroll-tick — causing per-frame layout work that flickered
+ *     on slow phones. A cube needs ONE transform per face
+ *     change, period.
+ *   • The 3D effect was an explicit user request and reads as
+ *     much more intentional than a flat slide.
  *
- *   This rewrite:
- *     1. Pure DOM mutation in a rAF — zero React renders per
- *        scroll-tick. activeIndex is the only setState and only
- *        flips when it actually changes (≈ once per 80 vh).
- *     2. progress is clamped Math.min/max(0…1) — rubber-band can
- *        push rect.top into negative-than-expected territory but
- *        the transform still reads as 0 or 1.
- *     3. Nothing to "re-arm"; sticky positioning is reversible
- *        for free — scroll back up and the sticky un-pins
- *        naturally as the outer rises out of view.
+ * ── One-scroll-one-card ───────────────────────────────────────
  *
- * ── Why the headline above this carousel still works ──────────
+ *   • A single discrete gesture = one cube turn. After advancing
+ *     the index, we set a 700 ms cooldown during which further
+ *     wheel/touch deltas are absorbed (still preventDefault'd
+ *     so the page doesn't lurch) but ignored.
+ *   • Wheel: each `wheel` event with |deltaY| > 4 advances by 1
+ *     and starts the cooldown. Subsequent events during cooldown
+ *     are absorbed.
+ *   • Touch: track touchstart, then on touchend if the dominant
+ *     delta exceeds the threshold (40 px) advance by 1.
+ *   • Horizontal swipe: same threshold, axis is whichever
+ *     dimension has the larger absolute delta. Right→prev,
+ *     left→next, down→next, up→prev.
  *
- *   PathsHorizontalReveal is rendered AFTER `paths-intro` in the
- *   page. The intro headline scrolls past normally; once the user
- *   reaches this carousel section, the inner pins to the top of
- *   the viewport. After the carousel scrolls past, the next
- *   section (telegram CTA) takes over.
+ * ── Edge release & telegram alignment ─────────────────────────
  *
- * ── Card entrance & float ──────────────────────────────────────
- *
- *   Each carousel card is given `noReveal=true` so it renders in
- *   its final visual state immediately (cards 3-5 never intersect
- *   the window viewport at scroll start, so a `whileInView`
- *   reveal would never fire on them). The PathCard floatSlow
- *   keyframe (~12 px breath every 7 s) IS active because the
- *   sticky pin's overflow:hidden is on a 100 vh container with
- *   the cards vertically centered — no clipping.
+ *   • currentIndex == numCards-1 + scroll/swipe-down → release.
+ *   • currentIndex == 0           + scroll/swipe-up   → release.
+ *   • Release means: do NOT preventDefault that wheel/touch
+ *     event, let the browser scroll the page to the next/prev
+ *     section. No teleport, no jump — the carousel section is
+ *     exactly 100 vh, so the next 100 vh of scroll lands the
+ *     user on the next section.
  */
-function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const trackRef = useRef<HTMLDivElement | null>(null);
+function MobileCubeCarousel({ cards }: { cards: ReactNode[] }) {
+  const sectionRef = useRef<HTMLElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const activeIndexRef = useRef(0);
+  const cooldownRef = useRef(0);
+  const lockedRef = useRef(false);
+  // The page-Y where the carousel section starts. Captured every
+  // time we lock so we can pin scroll exactly there while turning
+  // cards.
+  const sectionTopRef = useRef(0);
+  const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(
+    null,
+  );
 
-  // Track-driven scroll-progress → translate3d. Pure DOM mutation
-  // inside a rAF; activeIndex setState only fires when the index
-  // actually changes (≈ once per 80 vh of scroll).
+  const numCards = cards.length;
+
+  // Keep ref synced for use in event listeners (which capture
+  // closures over their initial values).
   useEffect(() => {
-    const el = containerRef.current;
-    const track = trackRef.current;
-    if (!el || !track) return;
+    activeIndexRef.current = activeIndex;
+  }, [activeIndex]);
 
-    const numCards = cards.length;
-    if (numCards < 2) return;
+  // Lock detection: ratio >= 0.3 (rather than 0.6) so the lock
+  // engages as soon as the section enters viewport prominently
+  // and stays engaged even as its top edge inches off-screen.
+  // We then pin scroll to sectionTop while consuming wheel events
+  // — the section stays exactly aligned with the viewport.
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const recomputeTop = () => {
+      const r = el.getBoundingClientRect();
+      sectionTopRef.current = Math.round(r.top + window.scrollY);
+    };
+    recomputeTop();
+    window.addEventListener("resize", recomputeTop);
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const wasLocked = lockedRef.current;
+          lockedRef.current = entry.intersectionRatio >= 0.3;
+          if (lockedRef.current && !wasLocked) {
+            recomputeTop();
+          }
+        }
+      },
+      { threshold: [0, 0.15, 0.3, 0.5, 0.7, 0.9, 1] },
+    );
+    io.observe(el);
+    return () => {
+      window.removeEventListener("resize", recomputeTop);
+      io.disconnect();
+    };
+  }, []);
 
-    let raf = 0;
-    let lastIdx = -1;
+  const advance = useCallback(
+    (dir: 1 | -1): boolean => {
+      // Returns true if the gesture was consumed (= lock should
+      // intercept the input). Returns false if the carousel is
+      // at an edge and the gesture should pass through to the
+      // page (= release).
+      const now = performance.now();
+      if (now < cooldownRef.current) {
+        // Inside cooldown — consume but don't advance. This
+        // absorbs trackpad inertia / iOS touch-momentum so a
+        // single user gesture really is a single card turn.
+        return true;
+      }
+      const idx = activeIndexRef.current;
+      const next = idx + dir;
+      if (next < 0 || next >= numCards) {
+        // Edge: release.
+        return false;
+      }
+      activeIndexRef.current = next;
+      setActiveIndex(next);
+      cooldownRef.current = now + 700;
+      return true;
+    },
+    [numCards],
+  );
 
-    const update = () => {
-      raf = 0;
-      const rect = el.getBoundingClientRect();
-      const vh = window.innerHeight;
-      const total = el.offsetHeight - vh;
-      if (total <= 0) {
-        track.style.transform = `translate3d(0,0,0)`;
+  // Wheel listener — non-passive so we can preventDefault and
+  // hold the page still while turning cube faces. Critically, we
+  // also pin the body's scrollY back to the section's top after
+  // each consumed wheel event. Without this pin, fast wheel
+  // bursts can drag the section past the lock threshold before
+  // the IntersectionObserver re-fires, breaking subsequent
+  // advances.
+  useEffect(() => {
+    function pinScroll() {
+      if (Math.abs(window.scrollY - sectionTopRef.current) > 1) {
+        window.scrollTo(0, sectionTopRef.current);
+      }
+    }
+    function onWheel(e: WheelEvent) {
+      if (!lockedRef.current) return;
+      // Tiny wheel events are usually trackpad inertia tail —
+      // treat them as belonging to the previous gesture. If we
+      // get one outside cooldown, threshold of 4 px filters out
+      // sub-pixel inertia ticks.
+      const dy = e.deltaY;
+      if (Math.abs(dy) < 4) return;
+      const dir: 1 | -1 = dy > 0 ? 1 : -1;
+      const consumed = advance(dir);
+      if (consumed) {
+        e.preventDefault();
+        // Re-pin to absorb any momentum scroll that already
+        // queued up before this handler ran.
+        pinScroll();
+      } else {
+        // Edge release. We DO preventDefault and place the user
+        // exactly at the next/previous section ourselves. This
+        // matters because a fast wheel burst (deltaY in the
+        // thousands) would otherwise scroll the page far past
+        // the adjacent section — on the down-edge, that means
+        // the user blows straight past the telegram box and
+        // lands at the footer.
+        e.preventDefault();
+        const nextTop =
+          dir === 1
+            ? sectionTopRef.current + window.innerHeight
+            : Math.max(0, sectionTopRef.current - window.innerHeight);
+        window.scrollTo({ top: nextTop, behavior: "smooth" });
+      }
+    }
+    // `passive: false` is required to call preventDefault on wheel.
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+    };
+  }, [advance]);
+
+  // Touch listeners — track start, intercept move only when
+  // appropriate, decide on end.
+  useEffect(() => {
+    function onTouchStart(e: TouchEvent) {
+      if (!lockedRef.current) return;
+      const t = e.touches[0];
+      if (!t) return;
+      touchStartRef.current = { x: t.clientX, y: t.clientY, t: performance.now() };
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (!lockedRef.current) return;
+      const start = touchStartRef.current;
+      if (!start) return;
+      const t = e.touches[0];
+      if (!t) return;
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      const adx = Math.abs(dx);
+      const ady = Math.abs(dy);
+      // Decide axis once the gesture has moved a few pixels.
+      if (adx < 6 && ady < 6) return;
+      // Vertical-dominant gesture
+      const idx = activeIndexRef.current;
+      const dirVertical: 1 | -1 = dy < 0 ? 1 : -1; // swipe up = next
+      const dirHorizontal: 1 | -1 = dx < 0 ? 1 : -1; // swipe left = next
+      const wantDir = ady > adx ? dirVertical : dirHorizontal;
+      const next = idx + wantDir;
+      // If we're at an edge and the user is swiping toward release,
+      // do NOT preventDefault — let the page scroll.
+      if (next < 0 || next >= numCards) {
+        // Only release for vertical gestures. Horizontal at edge
+        // we still preventDefault so the page doesn't sideways-
+        // pan into the wrong section.
+        if (ady > adx) return; // vertical → release
+        e.preventDefault();
         return;
       }
-      // rect.top: 0 when outer's top hits viewport top (sticky engages)
-      //           -total when outer's bottom hits viewport bottom (release)
-      const scrolled = Math.max(0, -rect.top);
-      const p = Math.max(0, Math.min(1, scrolled / total));
-      const tx = -p * (numCards - 1) * 100;
-      track.style.transform = `translate3d(${tx}vw, 0, 0)`;
+      // Otherwise we WILL consume this gesture on touchend, so
+      // start by holding the page still during the move.
+      e.preventDefault();
+    }
 
-      const idx = Math.round(p * (numCards - 1));
-      if (idx !== lastIdx) {
-        lastIdx = idx;
-        setActiveIndex(idx);
-      }
-    };
+    function onTouchEnd(e: TouchEvent) {
+      if (!lockedRef.current) return;
+      const start = touchStartRef.current;
+      touchStartRef.current = null;
+      if (!start) return;
+      const t = e.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      const adx = Math.abs(dx);
+      const ady = Math.abs(dy);
+      const THRESHOLD = 40;
+      if (adx < THRESHOLD && ady < THRESHOLD) return;
+      const dirVertical: 1 | -1 = dy < 0 ? 1 : -1;
+      const dirHorizontal: 1 | -1 = dx < 0 ? 1 : -1;
+      const dir = ady > adx ? dirVertical : dirHorizontal;
+      advance(dir);
+    }
 
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(update);
-    };
-
-    update();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", update);
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
     return () => {
-      if (raf) cancelAnimationFrame(raf);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", update);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
     };
-  }, [cards.length]);
+  }, [advance, numCards]);
 
-  // Tap a dot to scroll the page to that card's position.
-  const goTo = (i: number) => {
-    const el = containerRef.current;
-    if (!el) return;
-    const numCards = cards.length;
-    if (numCards < 2) return;
-    const rect = el.getBoundingClientRect();
-    const top = rect.top + window.scrollY;
-    const total = el.offsetHeight - window.innerHeight;
-    const targetY = top + (i / (numCards - 1)) * total;
-    window.scrollTo({ top: targetY, behavior: "smooth" });
-  };
+  // Tap a dot to jump.
+  const goTo = useCallback((i: number) => {
+    if (i < 0 || i >= numCards) return;
+    activeIndexRef.current = i;
+    setActiveIndex(i);
+    cooldownRef.current = performance.now() + 500;
+  }, [numCards]);
 
-  // Outer height: numCards × 80 vh. With sticky 100 vh inner:
-  //   pin distance = (numCards × 80 vh) - 100 vh
-  //   per-card transition  = pin distance / (numCards - 1)
-  // For 5 cards on a 844 px viewport:
-  //   total = 5 × 0.8 × 844 = 3376 px
-  //   pin distance = 3376 - 844 = 2532 px
-  //   per card = 2532 / 4 = 633 px ≈ 75 % of one viewport
-  // → user scrolls ~75 % of a viewport to advance one card.
-  // Snappy enough not to feel like a slog, slow enough to read
-  // each card.
-  const sectionHeight = `${cards.length * 80}vh`;
+  // ── 3D card-flip geometry ─────────────────────────────────────
+  //
+  // We use a stacked-card "3D flip" approach instead of a literal
+  // 4- or 5-faced cube prism, for two reasons:
+  //
+  //   (a) An N-faced prism with N != 4 either requires fractional
+  //       face rotations (72° for 5 cards, breaking the "cube"
+  //       feel) OR causes face-0 and face-N to overlap when N
+  //       isn't a divisor of 360.
+  //   (b) In a literal cube, 4 of the 5 cards sit at oblique
+  //       angles to the camera at any given moment — they project
+  //       as compressed parallelograms which read as broken
+  //       layouts on a phone.
+  //
+  // The flip approach keeps every card flat to the camera at all
+  // times. Cards are stacked on top of each other in a 3D scene
+  // with their own per-card transform:
+  //
+  //   • i  < activeIndex  → rotateY( -90°), translateZ(-150 px),  opacity 0
+  //   • i == activeIndex  → rotateY(   0°), translateZ(   0  ),   opacity 1
+  //   • i  > activeIndex  → rotateY( +90°), translateZ(-150 px),  opacity 0
+  //
+  // Going from card 2 → 3, card 2 flips out (rotateY 0 → -90°,
+  // sliding back into depth) while card 3 flips in (rotateY 90° →
+  // 0°, swinging from off-camera right). Both transforms run on
+  // CSS transitions so the GPU handles every frame; no JS per-
+  // frame work, no remounts (cards mount once and stay mounted),
+  // no flickering.
+
+  const cardWidth = "min(84vw, 360px)";
+  const cardHeight = "min(112vw, 480px)";
 
   return (
     <section
       data-testid="paths-mobile-stage"
-      ref={containerRef}
+      ref={sectionRef}
       className="relative w-full"
-      style={{ height: sectionHeight }}
+      style={{
+        height: "100vh",
+        // Prevent vertical overscroll on this section from
+        // chaining up into adjacent sections.
+        overscrollBehavior: "contain",
+      }}
     >
-      {/* Sticky pin — pure CSS. The browser handles the pinning;
-          we never preventDefault any input. */}
       <div
-        className="sticky top-0 flex h-screen w-full items-center overflow-hidden"
+        className="sticky top-0 flex h-screen w-full flex-col items-center justify-center overflow-hidden"
         style={{
-          // Bring back the soft amber glow behind the cards from
-          // the previous design.
           background:
             "radial-gradient(ellipse at 50% 50%, rgba(245,185,69,0.08) 0%, transparent 60%)",
+          perspective: "1600px",
         }}
       >
+        {/* 3D CARD-FLIP STACK — every card sits at the same X/Y
+            slot but at a different rotateY/translateZ depending on
+            its position relative to activeIndex. CSS transition
+            handles the in-between frames; no per-frame JS work. */}
         <div
-          ref={trackRef}
-          data-testid="paths-mobile-track"
-          className="flex items-center"
+          data-testid="paths-cube-container"
+          className="relative grid place-items-center"
           style={{
-            width: "max-content",
-            willChange: "transform",
-            transform: "translate3d(0,0,0)",
+            width: cardWidth,
+            height: cardHeight,
+            transformStyle: "preserve-3d",
           }}
         >
           {cards.map((card, i) => {
-            // Same noReveal pattern as before — cards far off-screen
-            // in the track (e.g. card 5 at x=400vw) never intersect
-            // the window viewport, so any IntersectionObserver-based
-            // entrance reveal would freeze them at initial state.
             const renderedCard = isValidElement(card)
               ? cloneElement(card as ReactElement<{ noReveal?: boolean }>, {
                   noReveal: true,
                 })
               : card;
+            const offset = i - activeIndex;
+            // Off-screen cards sit at +/- 90° and ~150 px deeper so
+            // the flip reads as a real 3D rotation, not a flat
+            // crossfade. Faded to opacity 0 while the rotation
+            // happens — this also stops far cards from briefly
+            // appearing as the active card flips past them.
+            const rotateY = offset === 0 ? 0 : offset > 0 ? 90 : -90;
+            const translateZ = offset === 0 ? 0 : -160;
+            const opacity = offset === 0 ? 1 : 0;
+            const pointerEvents = offset === 0 ? "auto" : "none";
             return (
               <div
                 key={i}
-                data-testid={`paths-card-slide-${i + 1}`}
-                className="flex h-full items-center justify-center"
+                data-testid={`paths-card-face-${i + 1}`}
+                className="absolute inset-0 flex items-center justify-center"
                 style={{
-                  width: "100vw",
-                  flexShrink: 0,
-                  paddingLeft: "8vw",
-                  paddingRight: "8vw",
-                  boxSizing: "border-box",
+                  transform: `translateZ(${translateZ}px) rotateY(${rotateY}deg)`,
+                  transformOrigin: "center center",
+                  opacity,
+                  pointerEvents,
+                  transition:
+                    "transform 700ms cubic-bezier(0.65, 0, 0.35, 1)," +
+                    "opacity 500ms ease",
+                  backfaceVisibility: "hidden",
+                  WebkitBackfaceVisibility: "hidden",
+                  willChange: "transform, opacity",
                 }}
               >
-                <div className="w-full max-w-[360px]">{renderedCard}</div>
+                <div className="w-full">{renderedCard}</div>
               </div>
             );
           })}
         </div>
 
-        {/* Pagination dots — fixed near the bottom of the pinned
-            viewport. Tappable so the user can jump to any card.
-            Only re-renders when activeIndex changes (≈ once per
-            card transition). */}
+        {/* Hint above the dots — clarifies the interaction model
+            on first encounter. Fades after the user's first
+            advance. */}
+        <p
+          aria-hidden="true"
+          className={`absolute bottom-16 z-10 heading-display text-center text-[10px] font-semibold uppercase tracking-[0.4em] text-white/60 transition-opacity duration-500 ${
+            activeIndex === 0 ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          Scroll or swipe to turn
+        </p>
+
+        {/* Pagination dots — fixed near the bottom. Tap to jump. */}
         <div
           className="absolute bottom-6 left-0 right-0 z-10 flex items-center justify-center gap-2"
           role="tablist"
@@ -366,14 +548,6 @@ function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
 /*  FlyInCard — shared per-card cinematic 3D entrance                 */
 /* ------------------------------------------------------------------ */
 
-/**
- * Wraps each card with a 3D fly-in entrance. Initial state has the
- * card lifted 80 px below, scaled to 85 %, rotated 18° on the X axis
- * (perspective is supplied by the parent grid section). The entrance
- * fires whenever 15 % of the card is in view — `once: false`, so it
- * REPLAYS when the user scrolls past it and returns. Index-based 120
- * ms stagger keeps adjacent cards from popping in lockstep.
- */
 function FlyInCard({
   children,
   index,
@@ -396,10 +570,6 @@ function FlyInCard({
       </div>
     );
   }
-  // Mobile entrance: simple 2D fade + lift. The desktop version
-  // adds scale and a 3D rotateX which costs the GPU a per-frame
-  // matrix3d composite; on phones the visual gain is invisible
-  // but the cost is real, so mobile gets a flat 2D entrance.
   const initial = isMobile
     ? { opacity: 0, y: 30 }
     : { opacity: 0, y: 80, scale: 0.85, rotateX: 18 };

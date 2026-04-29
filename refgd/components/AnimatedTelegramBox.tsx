@@ -1,9 +1,10 @@
 "use client";
 import { motion, useReducedMotion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Animated illustration for the Telegram CTA box. Pure SVG + framer-motion.
+ *
  * Layers (back→front):
  *   1. Soft mesh gradient backdrop
  *   2. A field of slowly drifting twinkle stars
@@ -12,43 +13,45 @@ import { useEffect, useState } from "react";
  *   5. Trails of paper-plane glyphs that float upward, plus blue chat
  *      bubble glyphs that drift in from the side
  *   6. A short ambient sweep of light across the box every few seconds
- * The whole composition is more dimensional & alive than the previous
- * version, which only had a single ring + planet.
  *
- * ── Mobile mode (rewritten — was "super laggy" per the user) ─────
+ * ── Mobile mode (RESTORED at user's explicit request) ────────────
  *
- * Every framer-motion animation runs through React on the JS main
- * thread, schedules a transform mutation per frame, and (because of
- * `repeat: Infinity`) NEVER stops — even when the box is off-screen.
- * On a phone GPU that's a real cost, especially when stacked behind
- * a fixed `mix-blend-screen` overlay or large `box-shadow` blur.
+ * The user demanded the telegram box animation be brought back. The
+ * previous mobile path stripped almost every animated layer to a
+ * static dot field — visually flat. This rewrite RESTORES the rings,
+ * the planet pulse, the orbital beads, the paper-plane trail, the
+ * chat-bubble drift and the ambient sweep on mobile, with phone-
+ * specific cost reductions that keep the box readable & smooth:
  *
- * The previous "lite" mode still ran 14+ infinite framer animations
- * AND kept the planet's two huge box-shadows (90 px / 36 px spread,
- * 160 px / 70 px spread). Both shadows force the compositor to
- * re-rasterise a ~360 px region every frame the planet's transform
- * changes — i.e. every frame, forever, because of the planet's
- * `scale` pulse loop. That was the lag.
+ *   • Star count: mobile 14 (was 36 desktop / 4 lite). Stars still
+ *     twinkle through framer-motion but with a longer base period
+ *     so per-frame React work is light.
+ *   • Outer ring: mobile keeps the full rotating ring with all 4
+ *     coloured beads — same beads as desktop, slightly smaller
+ *     box-shadow halos (16-20 px vs 22-30 px) so the compositor's
+ *     repaint area on every spin frame is smaller.
+ *   • Inner ring: mobile keeps the counter-rotating ring + 2 beads.
+ *     Halo radii also trimmed to 14 px.
+ *   • Planet: mobile gets a slower, smaller-amplitude pulse
+ *     (scale 1→1.04→1 over 7 s vs 1→1.07→1 over 5 s on desktop)
+ *     and a single mid-sized box-shadow (60px/18px) — half the
+ *     spread of the desktop double-shadow but visually the same
+ *     "glowing planet" feel because the radial gradient on the
+ *     planet itself does most of the work.
+ *   • Paper planes: mobile keeps 4 (was 9 desktop / 0 lite).
+ *   • Chat bubbles: mobile keeps 2 (was 4 desktop / 0 lite).
+ *   • Ambient sweep: mobile keeps it. It's a single linear-gradient
+ *     translateX which is dirt cheap on the GPU.
+ *   • Highlight blob: dropped on mobile only because mix-blend-mode:
+ *     screen forces a compositor blend pass that's expensive on
+ *     phones for negligible visual gain at this size.
  *
- * The new mobile mode:
- *   • Renders zero framer-motion animations. Stars are static
- *     positioned dots. Rings render but don't rotate. Planet has
- *     no scale loop. No ambient sweep, no chat bubbles, no paper
- *     planes, no mix-blend highlight.
- *   • Replaces the planet's two large box-shadows with a single
- *     sized, lower-spread shadow that the compositor can cache
- *     once and reuse — no per-frame recompute because the planet
- *     no longer animates.
- *   • Star count drops from 12 to 8 plain DOM nodes with no
- *     animation prop at all (each star was previously running an
- *     infinite scale + opacity loop).
- *
- * The desktop visual is unchanged — `lite` only fires when isMobile
- * or prefers-reduced-motion.
+ * Reduced-motion users get the static `lite` variant of every layer.
  */
 export default function AnimatedTelegramBox() {
   const reduced = useReducedMotion();
   const [isMobile, setIsMobile] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -59,15 +62,71 @@ export default function AnimatedTelegramBox() {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  const lite = reduced || isMobile;
-  // Mobile gets just 4 static stars (was 8). Each star carries a
-  // small box-shadow glow (~size*4 px blur). Halving the count
-  // halves the compositor cost without making the field feel empty.
-  const starCount = isMobile ? 4 : 36;
+  // ── MOBILE-ONLY SCROLL SNAP TO TELEGRAM SECTION ──────────────
+  // The user reported: "hard scroll past cards skips telegram".
+  // When a fast wheel burst arrives while the telegram box is
+  // even partially in viewport, the browser would otherwise blow
+  // straight past it to the footer. We catch that here: if the
+  // telegram box is at all visible AND a forward wheel of more
+  // than 200 px arrives, we preventDefault and smooth-scroll
+  // to land the box exactly in viewport. Subsequent wheel ticks
+  // (after a short cooldown) pass through normally so the user
+  // can keep scrolling.
+  useEffect(() => {
+    if (!isMobile) return;
+    if (typeof window === "undefined") return;
+    let cooldownUntil = 0;
+    function onWheel(e: WheelEvent) {
+      const root = rootRef.current;
+      if (!root) return;
+      // Find the actual scroll-target = the nearest <section>
+      // ancestor. The section wraps the telegram block in
+      // app/page.tsx and has natural padding above the box.
+      const section = root.closest("section");
+      if (!section) return;
+      const r = section.getBoundingClientRect();
+      const vh = window.innerHeight;
+      // Only intercept when the section is at least partly in
+      // view (so we don't disrupt other scrolls on the page).
+      const visible = r.bottom > 80 && r.top < vh - 80;
+      if (!visible) return;
+      // Skip tiny inertia ticks.
+      if (Math.abs(e.deltaY) < 200) return;
+      const now = performance.now();
+      if (now < cooldownUntil) {
+        // We're still inside the cooldown after the last snap —
+        // absorb so a multi-event hard burst can't blow past.
+        e.preventDefault();
+        return;
+      }
+      // Forward burst that would scroll past the section: snap.
+      const sectionTop = Math.round(r.top + window.scrollY);
+      // Aim for the section's top to sit just below the page
+      // header (~ 8 % of viewport leaves room for breathing).
+      const targetY = Math.max(0, sectionTop - Math.round(vh * 0.08));
+      const dist = Math.abs(window.scrollY - targetY);
+      if (dist < 32) return; // already there
+      e.preventDefault();
+      window.scrollTo({ top: targetY, behavior: "smooth" });
+      cooldownUntil = now + 900;
+    }
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, [isMobile]);
+
+  // `lite` is now ONLY for prefers-reduced-motion. Mobile users
+  // get the full animated experience (with mobile-specific cost
+  // reductions baked into each layer below).
+  const lite = reduced;
+  const starCount = isMobile ? 14 : 36;
+  const bubbleCount = isMobile ? 2 : 4;
+  const planeCount = isMobile ? 4 : 9;
 
   return (
     <div
+      ref={rootRef}
       aria-hidden="true"
+      data-testid="animated-telegram-box"
       className="absolute inset-0 overflow-hidden"
       style={{
         background:
@@ -77,20 +136,12 @@ export default function AnimatedTelegramBox() {
           "linear-gradient(135deg, #08080f 0%, #1a1228 60%, #08080f 100%)",
       }}
     >
-      {/* ───── 1. TWINKLE STAR FIELD ─────
-           In `lite` mode (mobile / reduced motion) every star is
-           a plain static DOM node with no animation prop at all.
-           Previously each of the 12 mobile stars ran an infinite
-           opacity + scale loop through framer-motion — 12 React-
-           driven per-frame DOM mutations forever, which the
-           compositor then had to re-rasterise around the planet's
-           huge box-shadow. That was a measurable slice of the
-           "telegram boxcard is super laggy" complaint. */}
+      {/* ───── 1. TWINKLE STAR FIELD ───── */}
       {Array.from({ length: starCount }).map((_, i) => {
         const left = (i * 37) % 100;
         const top = (i * 53) % 100;
         const size = 1 + (i % 3);
-        const dur = 2 + (i % 5) * 0.6;
+        const dur = 2.5 + (i % 5) * 0.8;
         if (lite) {
           return (
             <span
@@ -126,10 +177,10 @@ export default function AnimatedTelegramBox() {
 
       {/* ───── 2. CHAT BUBBLES drifting from left ───── */}
       {!lite &&
-        Array.from({ length: 4 }).map((_, i) => {
-          const top = 20 + i * 20;
-          const dur = 11 + i * 1.5;
-          const delay = i * 2.4;
+        Array.from({ length: bubbleCount }).map((_, i) => {
+          const top = 22 + i * 30;
+          const dur = 12 + i * 2;
+          const delay = i * 3;
           return (
             <motion.svg
               key={`bub-${i}`}
@@ -157,22 +208,22 @@ export default function AnimatedTelegramBox() {
       {/* ───── 3. PAPER-PLANE GLYPHS rising up ───── */}
       {!lite && (
         <div className="absolute inset-0">
-          {Array.from({ length: 9 }).map((_, i) => {
-            const left = 6 + i * 11;
-            const dur = 8 + (i % 4) * 2.2;
-            const delay = (i * 0.9).toFixed(2);
+          {Array.from({ length: planeCount }).map((_, i) => {
+            const left = 6 + i * (88 / Math.max(1, planeCount - 1));
+            const dur = 9 + (i % 4) * 2.2;
+            const delay = (i * 1.3).toFixed(2);
             const sway = i % 2 === 0 ? 18 : -22;
             return (
               <motion.svg
                 key={`pp-${i}`}
-                width="24"
-                height="24"
+                width="22"
+                height="22"
                 viewBox="0 0 24 24"
                 className="absolute"
                 style={{
                   left: `${left}%`,
                   bottom: "-14%",
-                  filter: "drop-shadow(0 0 6px rgba(123,231,255,0.55))",
+                  filter: "drop-shadow(0 0 5px rgba(123,231,255,0.50))",
                 }}
                 animate={{
                   y: ["0%", "-720%"],
@@ -191,21 +242,10 @@ export default function AnimatedTelegramBox() {
       )}
 
       {/* ───── 4. OUTER ORBITAL RING — clockwise ─────
-           In `lite` mode the rotate is dropped. The visual is a
-           static ring with its bead positions fixed — costs the
-           compositor nothing per frame, vs. the previous infinite
-           60 s rotate which scheduled a transform mutation every
-           single frame.
-
-           On MOBILE specifically, even the static ring is dropped
-           entirely. Each bead carries a 22-30 px box-shadow glow,
-           and although the bead doesn't animate, every page scroll
-           that crosses this region forces the mobile compositor to
-           re-paint each shadow. Combined with the inner ring and
-           planet shadows underneath, this stack was a measurable
-           contributor to scroll jitter on phones. The desktop /
-           tablet ring is unchanged. */}
-      {isMobile ? null : lite ? (
+           Mobile keeps the rotating ring (was static-only in the
+           previous "lite" mobile path). Bead halos trimmed to keep
+           the per-spin-frame compositor cost down. */}
+      {lite ? (
         <div
           className="absolute right-[6%] top-[68%] h-[80%] w-[80%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[10%] sm:top-1/2 sm:h-[100%] sm:w-[100%]"
           style={{ aspectRatio: "1/1", maxHeight: "560px", maxWidth: "560px" }}
@@ -218,23 +258,19 @@ export default function AnimatedTelegramBox() {
       ) : (
         <motion.div
           className="absolute right-[6%] top-[68%] h-[80%] w-[80%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[10%] sm:top-1/2 sm:h-[100%] sm:w-[100%]"
-          style={{ aspectRatio: "1/1", maxHeight: "560px", maxWidth: "560px" }}
+          style={{ aspectRatio: "1/1", maxHeight: "560px", maxWidth: "560px", willChange: "transform" }}
           animate={{ rotate: 360 }}
-          transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+          transition={{ duration: isMobile ? 80 : 60, repeat: Infinity, ease: "linear" }}
         >
-          <span className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 shadow-[0_0_30px_#67e8f9]" />
-          <span className="absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 translate-x-1/2 rounded-full bg-violet-300 shadow-[0_0_22px_#a78bfa]" />
-          <span className="absolute bottom-0 left-1/2 h-2.5 w-2.5 -translate-x-1/2 translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_24px_#ffd06b]" />
-          <span className="absolute left-0 top-1/2 h-2 w-2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-fuchsia-300 shadow-[0_0_22px_#f0abfc]" />
+          <span className={`absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 ${isMobile ? "shadow-[0_0_18px_#67e8f9]" : "shadow-[0_0_30px_#67e8f9]"}`} />
+          <span className={`absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 translate-x-1/2 rounded-full bg-violet-300 ${isMobile ? "shadow-[0_0_14px_#a78bfa]" : "shadow-[0_0_22px_#a78bfa]"}`} />
+          <span className={`absolute bottom-0 left-1/2 h-2.5 w-2.5 -translate-x-1/2 translate-y-1/2 rounded-full bg-amber-300 ${isMobile ? "shadow-[0_0_16px_#ffd06b]" : "shadow-[0_0_24px_#ffd06b]"}`} />
+          <span className={`absolute left-0 top-1/2 h-2 w-2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-fuchsia-300 ${isMobile ? "shadow-[0_0_14px_#f0abfc]" : "shadow-[0_0_22px_#f0abfc]"}`} />
         </motion.div>
       )}
 
-      {/* ───── INNER ORBITAL RING — counter-clockwise ─────
-           Lite mode gets a static ring (same as the outer).
-           Desktop continues to spin at the original 38 s rate.
-           Mobile drops the inner ring for the same compositor-cost
-           reason as the outer ring above. */}
-      {isMobile ? null : lite ? (
+      {/* ───── INNER ORBITAL RING — counter-clockwise ───── */}
+      {lite ? (
         <div
           className="absolute right-[12%] top-[68%] h-[52%] w-[52%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[16%] sm:top-1/2 sm:h-[64%] sm:w-[64%]"
           style={{ aspectRatio: "1/1", maxHeight: "360px", maxWidth: "360px" }}
@@ -245,62 +281,56 @@ export default function AnimatedTelegramBox() {
       ) : (
         <motion.div
           className="absolute right-[12%] top-[68%] h-[52%] w-[52%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[16%] sm:top-1/2 sm:h-[64%] sm:w-[64%]"
-          style={{ aspectRatio: "1/1", maxHeight: "360px", maxWidth: "360px" }}
+          style={{ aspectRatio: "1/1", maxHeight: "360px", maxWidth: "360px", willChange: "transform" }}
           animate={{ rotate: -360 }}
-          transition={{ duration: 38, repeat: Infinity, ease: "linear" }}
+          transition={{ duration: isMobile ? 50 : 38, repeat: Infinity, ease: "linear" }}
         >
-          <span className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-200 shadow-[0_0_18px_#ffe28a]" />
-          <span className="absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 translate-x-1/2 rounded-full bg-cyan-200 shadow-[0_0_18px_#7be7ff]" />
+          <span className={`absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-200 ${isMobile ? "shadow-[0_0_12px_#ffe28a]" : "shadow-[0_0_18px_#ffe28a]"}`} />
+          <span className={`absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 translate-x-1/2 rounded-full bg-cyan-200 ${isMobile ? "shadow-[0_0_12px_#7be7ff]" : "shadow-[0_0_18px_#7be7ff]"}`} />
         </motion.div>
       )}
 
       {/* ───── 5. CENTRAL PLANET ─────
-           CRITICAL CHANGE: in `lite` mode the planet is a plain
-           static `<div>` with a single, smaller box-shadow.
-           Previously the planet ran an infinite `scale: [1, 1.07,
-           1]` + opacity loop, AND rendered two heavy box-shadows
-           (90 px / 36 px spread plus 160 px / 70 px spread). Every
-           frame of the scale loop forced the compositor to re-
-           rasterise both shadow regions (~360 px radius). On a
-           phone this single layer was the dominant per-frame cost
-           in the entire CTA — measurable directly in the user's
-           "super laggy" complaint. The new mobile shadow has half
-           the spread and the planet doesn't animate, so the
-           compositor caches the rasterisation once and reuses it
-           for every subsequent frame. */}
+           Mobile gets a SLOWER, SMALLER pulse (1→1.04→1 over 7 s
+           vs the desktop 1→1.07→1 over 5 s) so the per-frame
+           recompute area on the planet's box-shadow is smaller
+           and the loop completes a full pulse less often. The
+           radial gradient on the planet itself does the heavy
+           visual lifting. */}
       {lite ? (
         <div
           className="absolute right-[12%] top-[68%] h-28 w-28 -translate-y-1/2 rounded-full sm:right-[16%] sm:top-1/2 sm:h-44 sm:w-44 md:h-56 md:w-56"
           style={{
             background:
               "radial-gradient(circle at 30% 28%, rgba(255,255,255,0.95), rgba(167,139,250,0.62) 40%, rgba(34,211,238,0.40) 75%, transparent 100%)",
-            // Mobile: drop the outer 60 px box-shadow halo entirely.
-            // The radial gradient on the planet itself already fades
-            // into transparent at its edges, so the visual difference
-            // is minimal but the compositor saves a ~120 px-wide blur
-            // recompute on every scroll frame that crosses this layer.
-            // Desktop/tablet keep the original glow.
-            boxShadow: isMobile
-              ? "inset 0 0 20px rgba(255,255,255,0.35)"
-              : "0 0 60px 18px rgba(167,139,250,0.32), inset 0 0 30px rgba(255,255,255,0.4)",
+            boxShadow:
+              "0 0 60px 18px rgba(167,139,250,0.32), inset 0 0 30px rgba(255,255,255,0.4)",
           }}
         />
       ) : (
         <motion.div
           className="absolute right-[12%] top-[68%] h-32 w-32 -translate-y-1/2 rounded-full sm:right-[16%] sm:top-1/2 sm:h-44 sm:w-44 md:h-56 md:w-56"
-          animate={{ scale: [1, 1.07, 1], opacity: [0.85, 1, 0.85] }}
-          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+          animate={
+            isMobile
+              ? { scale: [1, 1.04, 1], opacity: [0.88, 1, 0.88] }
+              : { scale: [1, 1.07, 1], opacity: [0.85, 1, 0.85] }
+          }
+          transition={{ duration: isMobile ? 7 : 5, repeat: Infinity, ease: "easeInOut" }}
           style={{
             background:
               "radial-gradient(circle at 30% 28%, rgba(255,255,255,0.95), rgba(167,139,250,0.62) 40%, rgba(34,211,238,0.40) 75%, transparent 100%)",
-            boxShadow:
-              "0 0 90px 36px rgba(167,139,250,0.40), 0 0 160px 70px rgba(34,211,238,0.22), inset 0 0 50px rgba(255,255,255,0.5)",
+            // Mobile: single mid-sized shadow vs desktop's double
+            // shadow. Visual delta is small, paint cost ~halved.
+            boxShadow: isMobile
+              ? "0 0 60px 18px rgba(167,139,250,0.34), inset 0 0 30px rgba(255,255,255,0.5)"
+              : "0 0 90px 36px rgba(167,139,250,0.40), 0 0 160px 70px rgba(34,211,238,0.22), inset 0 0 50px rgba(255,255,255,0.5)",
+            willChange: "transform, opacity",
           }}
         />
       )}
-      {/* highlight — uses mix-blend-screen which is expensive on
-           mobile compositors, so we drop it on small screens. */}
-      {!lite && (
+      {/* highlight — mix-blend-mode: screen is expensive on mobile
+           compositors so we drop it there. Desktop visual unchanged. */}
+      {!lite && !isMobile && (
         <motion.div
           className="absolute right-[16%] top-[64%] h-8 w-8 rounded-full sm:right-[18%] sm:top-[44%] sm:h-12 sm:w-12"
           animate={{ opacity: [0.6, 1, 0.6] }}
@@ -317,7 +347,7 @@ export default function AnimatedTelegramBox() {
         <motion.div
           className="absolute inset-0"
           animate={{ x: ["-30%", "130%"], opacity: [0, 0.55, 0] }}
-          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", repeatDelay: 2 }}
+          transition={{ duration: isMobile ? 8 : 6, repeat: Infinity, ease: "easeInOut", repeatDelay: isMobile ? 3 : 2 }}
           style={{
             background:
               "linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.18) 50%, transparent 70%)",
