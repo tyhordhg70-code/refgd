@@ -1,5 +1,6 @@
 "use client";
 import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useState } from "react";
 
 /**
  * Animated illustration for the Telegram CTA box. Pure SVG + framer-motion.
@@ -13,9 +14,31 @@ import { motion, useReducedMotion } from "framer-motion";
  *   6. A short ambient sweep of light across the box every few seconds
  * The whole composition is more dimensional & alive than the previous
  * version, which only had a single ring + planet.
+ *
+ * ── Mobile mode ───────────────────────────────────────────────────
+ * On viewports ≤ 768 px the busy decorations (chat bubbles, paper
+ * planes, ambient sweep, mix-blend highlight, full star field) are
+ * skipped. Mobile sees: backdrop + 12 twinkle stars + 1 outer ring
+ * + central planet. That's a steep drop from ~52 simultaneous
+ * framer-motion infinite loops down to ~14, which is the difference
+ * between "footer feels laggy when it scrolls into view" and "no
+ * detectable cost". The desktop visual is unchanged.
  */
 export default function AnimatedTelegramBox() {
   const reduced = useReducedMotion();
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 768px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const lite = reduced || isMobile;
+  const starCount = isMobile ? 12 : 36;
 
   return (
     <div
@@ -30,7 +53,7 @@ export default function AnimatedTelegramBox() {
       }}
     >
       {/* ───── 1. TWINKLE STAR FIELD ───── */}
-      {Array.from({ length: 36 }).map((_, i) => {
+      {Array.from({ length: starCount }).map((_, i) => {
         const left = (i * 37) % 100;
         const top = (i * 53) % 100;
         const size = 1 + (i % 3);
@@ -53,7 +76,7 @@ export default function AnimatedTelegramBox() {
       })}
 
       {/* ───── 2. CHAT BUBBLES drifting from left ───── */}
-      {!reduced &&
+      {!lite &&
         Array.from({ length: 4 }).map((_, i) => {
           const top = 20 + i * 20;
           const dur = 11 + i * 1.5;
@@ -83,7 +106,7 @@ export default function AnimatedTelegramBox() {
         })}
 
       {/* ───── 3. PAPER-PLANE GLYPHS rising up ───── */}
-      {!reduced && (
+      {!lite && (
         <div className="absolute inset-0">
           {Array.from({ length: 9 }).map((_, i) => {
             const left = 6 + i * 11;
@@ -154,19 +177,22 @@ export default function AnimatedTelegramBox() {
             "0 0 90px 36px rgba(167,139,250,0.40), 0 0 160px 70px rgba(34,211,238,0.22), inset 0 0 50px rgba(255,255,255,0.5)",
         }}
       />
-      {/* highlight */}
-      <motion.div
-        className="absolute right-[16%] top-[64%] h-8 w-8 rounded-full sm:right-[18%] sm:top-[44%] sm:h-12 sm:w-12"
-        animate={reduced ? {} : { opacity: [0.6, 1, 0.6] }}
-        transition={reduced ? {} : { duration: 4, repeat: Infinity, ease: "easeInOut" }}
-        style={{
-          background: "radial-gradient(circle, rgba(255,255,255,0.95), transparent 70%)",
-          mixBlendMode: "screen",
-        }}
-      />
+      {/* highlight — uses mix-blend-screen which is expensive on
+           mobile compositors, so we drop it on small screens. */}
+      {!lite && (
+        <motion.div
+          className="absolute right-[16%] top-[64%] h-8 w-8 rounded-full sm:right-[18%] sm:top-[44%] sm:h-12 sm:w-12"
+          animate={{ opacity: [0.6, 1, 0.6] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          style={{
+            background: "radial-gradient(circle, rgba(255,255,255,0.95), transparent 70%)",
+            mixBlendMode: "screen",
+          }}
+        />
+      )}
 
       {/* ───── 6. AMBIENT SWEEP OF LIGHT every few seconds ───── */}
-      {!reduced && (
+      {!lite && (
         <motion.div
           className="absolute inset-0"
           animate={{ x: ["-30%", "130%"], opacity: [0, 0.55, 0] }}

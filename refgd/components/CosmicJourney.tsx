@@ -39,6 +39,7 @@ import KineticText from "./KineticText";
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
   const [exiting, setExiting] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   // exitKey increments each time we enter the exiting state so that
   // the warp streaks unmount+remount and replay their animation
@@ -47,11 +48,27 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const [exitKey, setExitKey] = useState(0);
   const exitingRef = useRef(false);
 
-  // 36 mount streaks — radial expansion during the welcome's load-in.
+  // Mobile detection — used to thin out the per-frame DOM work in
+  // the streak fields. Mobile GPUs / CPUs choke on dozens of
+  // independently-animated absolutely-positioned elements, even
+  // though each individual animation is tiny.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 768px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  // Mount streaks — desktop 36, mobile 14. Mobile gets just enough
+  // points to read as a "burst" without saturating the rasteriser
+  // during the initial paint.
   const streaks = useMemo(() => {
+    const total = isMobile ? 14 : 36;
     const colors = ["#ffe28a", "#a78bfa", "#7be7ff", "#f0abfc", "#ffffff"];
-    return Array.from({ length: 36 }, (_, i) => {
-      const angle = (i / 36) * Math.PI * 2;
+    return Array.from({ length: total }, (_, i) => {
+      const angle = (i / total) * Math.PI * 2;
       const reachVw = 60 + ((i * 13) % 40);
       const dx = Math.cos(angle) * reachVw;
       const dy = Math.sin(angle) * reachVw;
@@ -66,21 +83,24 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         delay: 0.1 + (i % 14) * 0.04,
       };
     });
-  }, []);
+  }, [isMobile]);
 
-  // 20 exit warp streaks — lighter set (was 32) to keep DOM work
-  // per-frame small and avoid a mount-jank frame when exiting flips.
+  // Exit warp streaks — desktop 20, mobile 8. Same logic: just
+  // enough points to read as a "warp out" without paying the per-
+  // frame DOM cost of 20 simultaneous transforms on a phone.
   const warpStreaks = useMemo(
-    () =>
-      Array.from({ length: 20 }, (_, i) => {
-        const angle = (i / 20) * Math.PI * 2;
+    () => {
+      const total = isMobile ? 8 : 20;
+      return Array.from({ length: total }, (_, i) => {
+        const angle = (i / total) * Math.PI * 2;
         return {
           dx: Math.cos(angle) * 120,
           dy: Math.sin(angle) * 120,
           rotateDeg: (angle * 180) / Math.PI,
         };
-      }),
-    [],
+      });
+    },
+    [isMobile],
   );
 
   // ── Reversible exit observer (NATIVE scroll only) ─────────
@@ -253,8 +273,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           suppressHydrationWarning
         />
 
-        {/* ── 3b. Ambient pulse on planet ── */}
-        {!reduced && (
+        {/* ── 3b. Ambient pulse on planet ──
+             Uses mix-blend-mode: screen on a 60vmin layer that
+             pulsates infinitely. On mobile this is one of the few
+             remaining compositor-recompute layers, so it's gated
+             behind !isMobile. Desktop visual unchanged. */}
+        {!reduced && !isMobile && (
           <motion.div
             aria-hidden="true"
             className="absolute h-[60vmin] w-[60vmin] rounded-full"

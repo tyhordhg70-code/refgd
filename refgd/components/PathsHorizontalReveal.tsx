@@ -135,7 +135,6 @@ function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
     <section
       data-testid="paths-mobile-stage"
       className="relative w-full pb-4"
-      style={{ perspective: "1400px" }}
     >
       <div className="pointer-events-none absolute inset-x-0 top-1/2 h-40 -translate-y-1/2 bg-amber-300/10 blur-3xl" />
 
@@ -143,6 +142,15 @@ function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
        * The scroller. Uses negative margin + matching padding so
        * the snap points sit flush with the viewport edge while
        * letting card shadows breathe past the container.
+       *
+       * touchAction: "pan-x" tells the browser this scroller is
+       * for HORIZONTAL swipes only — vertical swipes pass straight
+       * through to the page. Without this hint mobile browsers
+       * have to wait for the gesture direction to settle before
+       * deciding whether to scroll the page or the carousel,
+       * which adds a perceptible 100-300 ms input delay on iOS
+       * Safari. Combined with overscrollBehaviorX: contain, the
+       * page scroll is now completely insulated from this widget.
        */}
       <div
         data-testid="paths-mobile-scroller"
@@ -152,6 +160,7 @@ function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
           WebkitOverflowScrolling: "touch",
           overscrollBehaviorX: "contain",
           scrollPaddingLeft: "1rem",
+          touchAction: "pan-x",
         }}
       >
         <div className="flex w-max items-stretch gap-4">
@@ -159,6 +168,7 @@ function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
             <FlyInCard
               key={i}
               index={i}
+              isMobile
               data-testid={`paths-card-slide-${i + 1}`}
               className="w-[78vw] max-w-[340px] shrink-0"
               style={{ scrollSnapAlign: "start" }}
@@ -192,12 +202,14 @@ function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
 function FlyInCard({
   children,
   index,
+  isMobile,
   className,
   style,
   ...rest
 }: {
   children: ReactNode;
   index: number;
+  isMobile?: boolean;
   className?: string;
   style?: React.CSSProperties;
 } & Record<string, unknown>) {
@@ -209,20 +221,30 @@ function FlyInCard({
       </div>
     );
   }
+  // Mobile entrance: simple 2D fade + lift. The desktop version
+  // adds scale and a 3D rotateX which costs the GPU a per-frame
+  // matrix3d composite; on phones the visual gain is invisible
+  // but the cost is real, so mobile gets a flat 2D entrance.
+  const initial = isMobile
+    ? { opacity: 0, y: 30 }
+    : { opacity: 0, y: 80, scale: 0.85, rotateX: 18 };
+  const inView = isMobile
+    ? { opacity: 1, y: 0 }
+    : { opacity: 1, y: 0, scale: 1, rotateX: 0 };
   return (
     <motion.div
       {...(rest as Record<string, unknown>)}
       className={className}
-      initial={{ opacity: 0, y: 80, scale: 0.85, rotateX: 18 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+      initial={initial}
+      whileInView={inView}
       viewport={{ once: false, amount: 0.15 }}
       transition={{
-        duration: 0.95,
+        duration: isMobile ? 0.6 : 0.95,
         delay: index * 0.12,
         ease: [0.16, 1, 0.3, 1],
       }}
       style={{
-        transformStyle: "preserve-3d",
+        ...(isMobile ? {} : { transformStyle: "preserve-3d" }),
         willChange: "transform, opacity",
         ...style,
       }}
