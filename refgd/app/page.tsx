@@ -9,7 +9,6 @@ import HomeBackground from "@/components/HomeBackground";
 import CosmicJourney from "@/components/CosmicJourney";
 import PathsHorizontalReveal from "@/components/PathsHorizontalReveal";
 import ChapterCosmos from "@/components/ChapterCosmos";
-import PathsReveal from "@/components/PathsReveal";
 import MeshExpansionReveal from "@/components/MeshExpansionReveal";
 import { getContentBlock } from "@/lib/content";
 import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
@@ -40,21 +39,17 @@ export default async function HomePage() {
 
   return (
     <>
-      {/* Music player. */}
       <MusicPlayer />
-
-      {/* Page-wide static cosmos backdrop. (`ScrollRain` was removed —
-          it was a global scroll-listener that re-painted hundreds of
-          streak DOM nodes per scroll event and was the single biggest
-          source of the "everything feels laggy" symptom on this page.) */}
       <HomeBackground />
 
       <ReorderableContainer pageId="home">
         <ReorderableSection sectionId="hero">
-          {/* Act 1 — load-once welcome scene. The warp now plays as a
-              self-contained ~2.4s sequence on mount (no scroll-driven
-              sticky pin), and the very first scroll attempt smooth-
-              scrolls the page directly to the paths section below. */}
+          {/* Act 1 — load-once welcome scene. Plays a self-contained
+              ~2.8s warp animation on mount, then the very first scroll
+              attempt smooth-scrolls the page directly to the paths
+              section below while the welcome flies away in 3D. The
+              fly-away is REVERSIBLE: scroll back up and the welcome
+              re-appears. */}
           <CosmicJourney kicker={kicker} />
         </ReorderableSection>
 
@@ -63,59 +58,74 @@ export default async function HomePage() {
             intensity={0.5}
             className="pb-20 pt-0"
           >
+            {/*
+             * The paths section. There is NO PathsReveal wrapper here
+             * any more — that wrapper had `initial: { opacity: 0 }`
+             * which (a) made the entire section invisible until its
+             * own in-view trigger fired, leaving the user staring at
+             * empty space when they smooth-scrolled into it, and (b)
+             * applied a translateY(50px) initial transform that
+             * shifted the bbox of every descendant, throwing off
+             * smooth-scroll target calculations and clipping the
+             * headline above the viewport.
+             *
+             * Now the headline sits at its natural position from the
+             * very first paint, and each card animates IN on its
+             * own via FlyInCard (3D fly-in, viewport: { once: false }
+             * so it REPLAYS on scroll up + scroll down).
+             */}
             <section id="paths" className="relative">
               <ChapterCosmos />
-              <PathsReveal>
-                <div className="container-wide relative">
-                  <div className="paths-intro mb-14 px-2 sm:mb-16 sm:px-0">
-                    <div className="grid items-end gap-8 sm:grid-cols-[1fr_auto]">
-                      <div>
-                        <EditableText
-                          id="home.paths.kicker"
-                          defaultValue={pathsKicker || "— you have arrived"}
-                          as="p"
-                          className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300 sm:text-sm [text-shadow:0_2px_18px_rgba(0,0,0,0.85),0_0_22px_rgba(255,237,180,0.35)]"
-                        />
-                        <EditableText
-                          id="home.paths.title"
-                          defaultValue={pathsTitle || "Choose your path to mastery."}
-                          as="h2"
-                          className="editorial-display mt-5 text-balance text-white text-[clamp(2.25rem,7vw,6rem)] uppercase [text-shadow:0_4px_40px_rgba(0,0,0,0.95),0_0_30px_rgba(167,139,250,0.35)]"
-                        />
-                      </div>
+              <div className="container-wide relative">
+                <div className="paths-intro mb-14 px-2 sm:mb-16 sm:px-0">
+                  <div className="grid items-end gap-8 sm:grid-cols-[1fr_auto]">
+                    <div>
                       <EditableText
-                        id="home.paths.lead"
-                        defaultValue={
-                          pathsLead ||
-                          "Four doors. Behind each, a craft refined by years of work under glass — chosen, not assigned."
-                        }
+                        id="home.paths.kicker"
+                        defaultValue={pathsKicker || "— you have arrived"}
                         as="p"
-                        multiline
-                        className="max-w-sm text-base leading-relaxed text-white/90 [text-shadow:0_2px_14px_rgba(0,0,0,0.85)]"
+                        className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300 sm:text-sm [text-shadow:0_2px_18px_rgba(0,0,0,0.85),0_0_22px_rgba(255,237,180,0.35)]"
+                      />
+                      <EditableText
+                        id="home.paths.title"
+                        defaultValue={pathsTitle || "Choose your path to mastery."}
+                        as="h2"
+                        className="editorial-display mt-5 text-balance text-white text-[clamp(2.25rem,7vw,6rem)] uppercase [text-shadow:0_4px_40px_rgba(0,0,0,0.95),0_0_30px_rgba(167,139,250,0.35)]"
                       />
                     </div>
+                    <EditableText
+                      id="home.paths.lead"
+                      defaultValue={
+                        pathsLead ||
+                        "Four doors. Behind each, a craft refined by years of work under glass — chosen, not assigned."
+                      }
+                      as="p"
+                      multiline
+                      className="max-w-sm text-base leading-relaxed text-white/90 [text-shadow:0_2px_14px_rgba(0,0,0,0.85)]"
+                    />
                   </div>
-                  {/* PathsHorizontalReveal:
-                      • desktop / tablet ≥ 768px → responsive grid
-                        (2 → 3 → 5 cols), each card flies in with a
-                        cinematic 3D entrance (FlyInCard).
-                      • mobile < 768px → native CSS scroll-snap
-                        horizontal carousel (no scroll-jacking, no
-                        sticky pin); each card gets the same fly-in. */}
-                  <PathsHorizontalReveal
-                    cards={PATHS.map((p, i) => (
-                      <PathCard key={p.href} index={i} {...p} />
-                    ))}
-                    desktopFallback={
-                      <div className="mx-auto grid w-full max-w-[1500px] grid-cols-2 items-stretch gap-4 sm:grid-cols-3 md:gap-5 xl:grid-cols-5 xl:gap-6">
-                        {PATHS.map((p, i) => (
-                          <PathCard key={p.href} index={i} {...p} />
-                        ))}
-                      </div>
-                    }
-                  />
                 </div>
-              </PathsReveal>
+                {/*
+                 * PathsHorizontalReveal:
+                 *   • desktop / tablet ≥ 768px → responsive grid
+                 *     (2 → 3 → 5 cols), each card flies in with the
+                 *     cinematic 3D entrance (FlyInCard).
+                 *   • mobile < 768px → native CSS scroll-snap
+                 *     horizontal carousel (no scroll-jacking, no
+                 *     sticky pin); each card gets the same fly-in.
+                 *
+                 * NOTE: we deliberately do NOT pass `desktopFallback`
+                 * any more — the previous fallback rendered cards
+                 * WITHOUT the FlyInCard wrapper, which is why the
+                 * desktop cards weren't flying in. The component's
+                 * built-in mapping wraps every card in FlyInCard.
+                 */}
+                <PathsHorizontalReveal
+                  cards={PATHS.map((p, i) => (
+                    <PathCard key={p.href} index={i} {...p} />
+                  ))}
+                />
+              </div>
             </section>
           </ParallaxChapter>
         </ReorderableSection>
@@ -128,9 +138,9 @@ export default async function HomePage() {
             bg={<ParallaxIllustration kind="spark" accent="violet" size={620} />}
           >
             <section className="container-px pb-10 sm:pb-14">
-              {/* Stay-up-to-speed CTA — wrapped in a 3D distorted-mesh
-                  expansion entrance: the box folds out of depth while
-                  a wireframe grid detonates outward from its centre,
+              {/* "Stay up to speed" CTA — wrapped in a 3D distorted-mesh
+                  expansion entrance: the box folds out of depth while a
+                  wireframe grid detonates outward from its centre,
                   ripples through a turbulence filter and fades away.
                   Replays every time the section re-enters view. */}
               <MeshExpansionReveal borderRadius="2.5rem">
