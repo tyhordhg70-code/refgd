@@ -122,7 +122,14 @@ export default async function HomePage() {
                       <PathCard key={p.href} index={i} {...p} />
                     ))}
                     desktopFallback={
-                      <div className="mx-auto grid w-full max-w-[1500px] grid-cols-5 items-stretch gap-4 md:gap-5 xl:gap-6">
+                      // Responsive grid:
+                      //   • <md  : N/A (mobile uses MobileHorizontalStage)
+                      //   • md+  : 3 columns — cards get to actually breathe
+                      //           on tablets / small desktops instead of
+                      //           being squashed to ~150px each.
+                      //   • xl+  : 5 columns — full row, the canonical
+                      //           "all paths visible at a glance" layout.
+                      <div className="mx-auto grid w-full max-w-[1500px] grid-cols-2 items-stretch gap-4 sm:grid-cols-3 md:gap-5 xl:grid-cols-5 xl:gap-6">
                         {PATHS.map((p, i) => (
                           <PathCard key={p.href} index={i} {...p} />
                         ))}
