@@ -131,7 +131,22 @@ export default function PathCard({
       data-cursor="hover"
       data-cursor-label={title}
     >
-      <div style={{ animation: size === "sm" ? "none" : `floatSlow ${floatDuration} ease-in-out ${floatDelay} infinite` }} className="h-full">
+      {/*
+       * floatSlow is disabled in 3 cases:
+       *   1. size === "sm" — small cards in dense grids look busy when floating.
+       *   2. noReveal === true — used by the mobile horizontal carousel.
+       *      floatSlow is a continuous translateY keyframe that lifts the card
+       *      ~12 px every 7 s. The carousel scroller has overflow-y: hidden
+       *      (required so overflow-x: auto doesn't enable a vertical inner
+       *      scroller), so the lift gets visibly clipped at the top edge of
+       *      every card on every breath — the exact "tops of cards getting
+       *      cut off while floating" complaint. Disabling the float in the
+       *      carousel makes the cards sit completely still inside their
+       *      snap slots with no clipping.
+       *   3. Continuous translateY animations are also wasted compositor
+       *      work on phones, so dropping them improves carousel smoothness.
+       */}
+      <div style={{ animation: (size === "sm" || noReveal) ? "none" : `floatSlow ${floatDuration} ease-in-out ${floatDelay} infinite` }} className="h-full">
         <Tilt3D intensity={0.85} className="h-full">
           <Tag
             {...linkProps}

@@ -202,21 +202,41 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   //     hot reload mid-scroll, browser back-forward cache restore)
   //     — start in the snapped state so we don't yank the user from
   //     wherever they intentionally landed.
+  // ── Snap-to-paths: DESKTOP-ONLY now ───────────────────────────
+  //
+  // The previous implementation also ran on mobile and used a
+  // 3-step reassertion timer (250 / 550 / 950 ms) to "correct" the
+  // smooth-scroll target after iOS touch inertia fought it. In
+  // practice that reassertion loop was the single biggest source
+  // of the "scroll goes haywire / way past where supposed to" bug
+  // the user reported on phones: every reassertion fired
+  // `scrollTo({behavior: smooth})` on top of the user's still-
+  // active touch-drag, producing a visible snap → jolt → snap loop
+  // that often overshot well past the telegram CTA.
+  //
+  // The fix is two-fold:
+  //   1. Mobile (≤ 768 px) gets NO snap at all — the user just
+  //      scrolls naturally, the welcome scene flies away on its
+  //      own (handled by the exit observer above).
+  //   2. Desktop fires ONE smooth-scroll on the first scroll-down
+  //      from y≈0 and never reasserts. A wheel notch produces a
+  //      single deliberate scroll event with no inertia stream
+  //      behind it, so the browser's built-in smooth-scroll lands
+  //      cleanly without any follow-up. The snap does not re-arm
+  //      after firing, so users can scroll up/down freely without
+  //      the page snapping back at them on every return to the top.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (reduced) return;
+    // Skip the snap entirely on mobile-sized viewports.
+    if (window.matchMedia("(max-width: 768px)").matches) return;
 
     let snapped = window.scrollY >= 60;
     let lastY = window.scrollY;
-    const reassertTimers: number[] = [];
 
     function targetY(): number | null {
       const paths = document.getElementById("paths");
       if (!paths) return null;
-      // Header is ~80 px tall (sticky). Subtract a bit more so the
-      // kicker isn't right under the header — gives the headline
-      // breathing room and makes the "you have arrived" feel like
-      // a deliberate landing rather than a clipped cut.
       const headerOffset = 80;
       return Math.max(
         0,
@@ -224,55 +244,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       );
     }
 
-    function clearReassertTimers() {
-      while (reassertTimers.length > 0) {
-        const t = reassertTimers.pop();
-        if (t != null) window.clearTimeout(t);
-      }
-    }
-
-    // Fire the smooth-scroll AND schedule a few re-assertions.
-    //
-    // Why re-assert? On mobile especially, the user's touch drag
-    // and its inertial follow-through fire scroll events that
-    // INTERRUPT and cancel an in-progress `behavior: 'smooth'`
-    // scroll. Without re-assertion, the snap visibly aborts in
-    // mid-air at whatever point the touch ended, leaving the
-    // kicker partially off-screen — exactly the "page scrolls
-    // way further than supposed to" complaint.
-    //
-    // The re-assertions at 250 / 550 / 950 ms cover:
-    //   • A short tap-flick that ends quickly (250 ms reassert
-    //     finishes the journey to the target).
-    //   • A long deliberate drag (550 ms reassert catches the
-    //     case where touch only just released).
-    //   • iOS rubber-band / momentum scroll (950 ms reassert
-    //     corrects the eventual settle position).
-    //
-    // Each reassertion is a no-op once we're within 5 px of the
-    // target, so a clean snap that reached the target on the
-    // first try simply skips the follow-up scrollTo calls.
-    function fireSnap(target: number) {
-      window.scrollTo({ top: target, behavior: "smooth" });
-      for (const delay of [250, 550, 950]) {
-        const id = window.setTimeout(() => {
-          if (Math.abs(window.scrollY - target) > 5) {
-            window.scrollTo({ top: target, behavior: "smooth" });
-          }
-        }, delay);
-        reassertTimers.push(id);
-      }
-    }
-
     function onScroll() {
       const y = window.scrollY;
       if (snapped) {
-        if (y < 8) {
-          // User has returned to the welcome — re-arm so the
-          // snap fires again on a future scroll-down.
-          snapped = false;
-          clearReassertTimers();
-        }
         lastY = y;
         return;
       }
@@ -282,16 +256,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           lastY = y;
           return;
         }
-        // 5-pixel pixel tolerance: if the very first scroll event
-        // already landed essentially on target, no need to fire a
-        // smooth-scroll at all. Anything further away is corrected.
-        if (Math.abs(y - target) <= 5) {
-          snapped = true;
-          lastY = y;
-          return;
-        }
         snapped = true;
-        fireSnap(target);
+        if (Math.abs(y - target) > 5) {
+          window.scrollTo({ top: target, behavior: "smooth" });
+        }
       }
       lastY = y;
     }
@@ -299,7 +267,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
-      clearReassertTimers();
     };
   }, [reduced]);
 

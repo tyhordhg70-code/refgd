@@ -1,6 +1,6 @@
 "use client";
 import { motion, useReducedMotion } from "framer-motion";
-import { useId, type ReactNode, type CSSProperties } from "react";
+import { useEffect, useId, useState, type ReactNode, type CSSProperties } from "react";
 
 /**
  * MeshExpansionReveal — wraps a card-shaped block with a 3D entrance:
@@ -34,7 +34,31 @@ export default function MeshExpansionReveal({
   const reduced = useReducedMotion();
   const filterId = useId();
 
-  if (reduced) {
+  // ── Mobile bypass ──────────────────────────────────────────
+  // The mesh overlay uses `feTurbulence` + `feDisplacementMap`
+  // animated through a scale 0.1 → 1.6 + opacity pulse over
+  // 1.6 s. SVG turbulence + displacement filters are extremely
+  // expensive on mobile compositors — every animation frame the
+  // browser has to re-rasterise the entire grid (13×13 lines)
+  // through the displacement map, which on a phone GPU produces
+  // a visible scroll stutter the moment the wrapped element
+  // crosses the viewport. Combined with the AnimatedTelegramBox
+  // gradients and box-shadows it wraps, this was the dominant
+  // remaining hitch on the home page on mobile. Mobile simply
+  // gets the children with no entrance overlay — the
+  // AnimatedTelegramBox underneath still has its own visual
+  // life, so the section doesn't feel static.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 768px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  if (reduced || isMobile) {
     return <div className={className}>{children}</div>;
   }
 

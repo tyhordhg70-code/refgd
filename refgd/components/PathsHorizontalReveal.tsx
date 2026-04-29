@@ -215,20 +215,36 @@ function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
        *     scrolling carousel are pathological under framer
        *     `whileInView`.
        */}
+      {/*
+       * Scroller padding rationale:
+       *   pt-4 / pb-4 (was pt-2 / pb-3) gives the cards 16 px of
+       *   breathing room top and bottom inside the overflow-y:hidden
+       *   scroller. Even with floatSlow disabled (see PathCard), the
+       *   card's accent box-shadow glow and 1px gradient ring need a
+       *   small buffer so they aren't visibly clipped at the top edge
+       *   on every card during the snap.
+       *
+       *   px-[6vw] (was px-4) widens the side gutters so a single card
+       *   of width 88vw fills the visible area with a small symmetric
+       *   margin on both sides — only one card at a time, no peek of
+       *   the next card poking past the right edge. Combined with
+       *   `scroll-snap-stop: always` and the wider per-card slot, a
+       *   single swipe ALWAYS advances exactly one card.
+       */}
       <div
         ref={scrollerRef}
         data-testid="paths-mobile-scroller"
-        className="relative -mx-4 overflow-x-auto px-4 pt-2 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="relative -mx-4 overflow-x-auto px-[6vw] pt-4 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{
           scrollSnapType: "x mandatory",
           WebkitOverflowScrolling: "touch",
           overscrollBehaviorX: "contain",
           overflowY: "hidden",
-          scrollPaddingLeft: "1rem",
+          scrollPaddingLeft: "6vw",
           touchAction: "pan-x",
         }}
       >
-        <div className="flex w-max items-stretch gap-3">
+        <div className="flex w-max items-stretch gap-[6vw]">
           {cards.map((card, i) => {
             // Inject `noReveal` into PathCard so the card renders in
             // its final visual state from the start. Without this,
@@ -252,9 +268,17 @@ function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
               <div
                 key={i}
                 data-testid={`paths-card-slide-${i + 1}`}
-                className="w-[70vw] max-w-[300px] shrink-0"
+                /*
+                 * w-[88vw] max-w-[360px] — sized so a single card
+                 * fills the visible carousel area on a 390 px viewport
+                 * (88 vw ≈ 343 px) with the 6vw side padding hiding
+                 * the next card. The user explicitly asked for "one
+                 * card per scroll", and combined with scrollSnapStop:
+                 * always this guarantees that.
+                 */
+                className="w-[88vw] max-w-[360px] shrink-0"
                 style={{
-                  scrollSnapAlign: "start",
+                  scrollSnapAlign: "center",
                   scrollSnapStop: "always",
                 }}
               >

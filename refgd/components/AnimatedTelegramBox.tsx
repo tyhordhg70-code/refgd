@@ -60,7 +60,10 @@ export default function AnimatedTelegramBox() {
   }, []);
 
   const lite = reduced || isMobile;
-  const starCount = isMobile ? 8 : 36;
+  // Mobile gets just 4 static stars (was 8). Each star carries a
+  // small box-shadow glow (~size*4 px blur). Halving the count
+  // halves the compositor cost without making the field feel empty.
+  const starCount = isMobile ? 4 : 36;
 
   return (
     <div
@@ -192,8 +195,17 @@ export default function AnimatedTelegramBox() {
            static ring with its bead positions fixed — costs the
            compositor nothing per frame, vs. the previous infinite
            60 s rotate which scheduled a transform mutation every
-           single frame. */}
-      {lite ? (
+           single frame.
+
+           On MOBILE specifically, even the static ring is dropped
+           entirely. Each bead carries a 22-30 px box-shadow glow,
+           and although the bead doesn't animate, every page scroll
+           that crosses this region forces the mobile compositor to
+           re-paint each shadow. Combined with the inner ring and
+           planet shadows underneath, this stack was a measurable
+           contributor to scroll jitter on phones. The desktop /
+           tablet ring is unchanged. */}
+      {isMobile ? null : lite ? (
         <div
           className="absolute right-[6%] top-[68%] h-[80%] w-[80%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[10%] sm:top-1/2 sm:h-[100%] sm:w-[100%]"
           style={{ aspectRatio: "1/1", maxHeight: "560px", maxWidth: "560px" }}
@@ -219,8 +231,10 @@ export default function AnimatedTelegramBox() {
 
       {/* ───── INNER ORBITAL RING — counter-clockwise ─────
            Lite mode gets a static ring (same as the outer).
-           Desktop continues to spin at the original 38 s rate. */}
-      {lite ? (
+           Desktop continues to spin at the original 38 s rate.
+           Mobile drops the inner ring for the same compositor-cost
+           reason as the outer ring above. */}
+      {isMobile ? null : lite ? (
         <div
           className="absolute right-[12%] top-[68%] h-[52%] w-[52%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[16%] sm:top-1/2 sm:h-[64%] sm:w-[64%]"
           style={{ aspectRatio: "1/1", maxHeight: "360px", maxWidth: "360px" }}
@@ -256,12 +270,19 @@ export default function AnimatedTelegramBox() {
            for every subsequent frame. */}
       {lite ? (
         <div
-          className="absolute right-[12%] top-[68%] h-32 w-32 -translate-y-1/2 rounded-full sm:right-[16%] sm:top-1/2 sm:h-44 sm:w-44 md:h-56 md:w-56"
+          className="absolute right-[12%] top-[68%] h-28 w-28 -translate-y-1/2 rounded-full sm:right-[16%] sm:top-1/2 sm:h-44 sm:w-44 md:h-56 md:w-56"
           style={{
             background:
               "radial-gradient(circle at 30% 28%, rgba(255,255,255,0.95), rgba(167,139,250,0.62) 40%, rgba(34,211,238,0.40) 75%, transparent 100%)",
-            boxShadow:
-              "0 0 60px 18px rgba(167,139,250,0.32), inset 0 0 30px rgba(255,255,255,0.4)",
+            // Mobile: drop the outer 60 px box-shadow halo entirely.
+            // The radial gradient on the planet itself already fades
+            // into transparent at its edges, so the visual difference
+            // is minimal but the compositor saves a ~120 px-wide blur
+            // recompute on every scroll frame that crosses this layer.
+            // Desktop/tablet keep the original glow.
+            boxShadow: isMobile
+              ? "inset 0 0 20px rgba(255,255,255,0.35)"
+              : "0 0 60px 18px rgba(167,139,250,0.32), inset 0 0 30px rgba(255,255,255,0.4)",
           }}
         />
       ) : (
