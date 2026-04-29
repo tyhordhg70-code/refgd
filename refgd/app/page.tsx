@@ -64,10 +64,9 @@ export default async function HomePage() {
 
         <ReorderableSection sectionId="paths" className="relative z-10">
           {/* Act 2 — Chapter 01 / Path picker. The CosmicJourney above is
-              now a single-viewport (100svh) auto-playing scene, so we no
-              longer need a 55–60vh negative margin to stitch the two
-              acts together — the warp resolves and this section flows
-              cleanly underneath it. */}
+              now a short pinned scene, so a single scroll gesture
+              resolves the warp and immediately reveals this section
+              with no blank pause. */}
           <ParallaxChapter
             intensity={0.5}
             className="pb-20 pt-0"
@@ -112,19 +111,20 @@ export default async function HomePage() {
                     </div>
                   </div>
                   {/* 5 cards.
-                      • Desktop / tablet (≥ 768px): all cards stay visible
-                        together while the camera flies diagonally through
-                        the row on scroll.
-                      • Mobile (< 768px): keep the locked one-card stepper
-                        exactly as-is. */}
+                      • Desktop / tablet (≥ 768px): all cards stay
+                        visible together. Each PathCard's built-in
+                        cinematic 3D fly-in handles entrance, and the
+                        `floatSlow` CSS keeps each one gently bobbing.
+                      • Mobile (< 768px): sticky-pinned horizontal
+                        slide stage — one card per scroll. */}
                   <PathsHorizontalReveal
                     cards={PATHS.map((p, i) => (
                       <PathCard key={p.href} index={i} {...p} />
                     ))}
                     desktopFallback={
-                      <div className="grid grid-cols-5 items-stretch gap-3 md:gap-4 xl:gap-5">
+                      <div className="mx-auto grid w-full max-w-[1500px] grid-cols-5 items-stretch gap-4 md:gap-5 xl:gap-6">
                         {PATHS.map((p, i) => (
-                          <PathCard key={p.href} index={i} size="sm" {...p} />
+                          <PathCard key={p.href} index={i} {...p} />
                         ))}
                       </div>
                     }
