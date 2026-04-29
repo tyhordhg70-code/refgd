@@ -3,43 +3,43 @@ import {
   motion,
   useReducedMotion,
   useMotionValue,
+  useScroll,
   useSpring,
   useTransform,
-  animate,
 } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import KineticText from "./KineticText";
 import LiquidGlassOrbs from "./LiquidGlassOrbs";
-import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 
 /**
  * CosmicJourney — the master 3D welcome scene.
  *
  *   ── How it plays ──────────────────────────────────────────────
- *   • The section is a single 100svh stage; it does NOT consume a
- *     long scroll runway.
- *   • The first DOWN scroll gesture is intercepted → the entire page
- *     is hard-locked (body position:fixed) → a TIME-based animation
- *     plays through phases 0 → 1 over ~2.4s → on completion the lock
- *     releases and the page smooth-scrolls down to the "paths" section.
- *   • While the animation is playing the page does not move at all.
- *     This is what the user explicitly asked for: "scroll triggers
- *     the animation but the page should not actually scroll".
- *   • Reverse direction is handled by tying `progress` back to the
- *     window scroll position whenever the user manually scrolls up
- *     through the hero region.
+ *   • The section is a TALL container (200vh) whose inner stage is
+ *     `position: sticky; top: 0; height: 100vh`. As the user scrolls
+ *     through the section, the stage stays pinned to the viewport
+ *     and the animation progresses 0 → 1 in lock-step with the scroll
+ *     position. NO body-lock, NO wheel hijacking, NO time-based
+ *     playback fighting against the user.
+ *   • Every visible layer (planet, rings, streaks, nebula, kicker)
+ *     is driven by a spring-smoothed `progress` value derived from
+ *     scroll. This is the canonical Framer Motion pattern and it is
+ *     hardware-accelerated (transform / opacity only) on every device.
+ *   • When `progress` reaches 1, the section ends and the next
+ *     section ("paths") flows in immediately underneath — no jump,
+ *     no blank pause, no cut-off content.
  *
  *   Phase 0   0.00 → 0.18  •  WELCOME holds. Planet glows. Stars drift.
  *   Phase 1   0.18 → 0.45  •  Camera punches forward. Planet zooms past,
- *                            orbital rings race outward.
+ *                             orbital rings race outward.
  *   Phase 2   0.45 → 0.72  •  Tunnel travel. Warp speed, deep core bloom.
- *   Phase 3   0.72 → 1.00  •  Emergence. Streaks slow, nebula resolves.
+ *   Phase 3   0.72 → 1.00  •  Emergence. Streaks slow, nebula resolves
+ *                             then dissolves so paths can take over.
  */
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
   const sectionRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<HTMLDivElement | null>(null);
-  const phaseRef = useRef<"hero" | "running" | "past">("hero");
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -52,14 +52,21 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // Single source of truth for animation progress (0 → 1).
-  const progress = useMotionValue(0);
+  // Scroll progress 0 → 1 across the entire section (top hits viewport
+  // top → bottom hits viewport bottom). Because the inner stage is
+  // sticky, the camera stays pinned while progress advances.
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start start", "end end"],
+  });
 
-  // Smooth the progress so phases feel cinematic instead of stepped.
-  const smoothProgress = useSpring(progress, {
-    stiffness: 220,
-    damping: 36,
-    mass: 0.25,
+  // Spring-smooth the raw scroll progress so the warp feels cinematic
+  // rather than 1:1 with the wheel ticks. Spring runs on the compositor
+  // thread so it costs almost nothing.
+  const progress = useSpring(scrollYProgress, {
+    stiffness: 140,
+    damping: 28,
+    mass: 0.3,
   });
 
   // ── Mouse parallax (desktop only) ─────────────────────────
@@ -103,249 +110,97 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
   }, [reduced, isMobile, mx, my]);
 
-  // ── Reverse direction (scroll-up) drives progress from scrollY ──
-  // While the user is NOT in the middle of the locked forward play,
-  // bind `progress` to their manual scroll position through the hero
-  // region. This way scrolling up smoothly returns the WELCOME state.
-  // We deliberately ignore scroll events while ANY scroll lock is
-  // active (e.g. the paths stepper) — those make scrollY appear as 0
-  // even though the user is visually at the cards section, which used
-  // to incorrectly snap the hero back to its WELCOME state.
-  useEffect(() => {
-    const onScroll = () => {
-      if (phaseRef.current === "running") return;
-      if (document.body.style.position === "fixed") return;
-      const section = sectionRef.current;
-      if (!section) return;
-      const heroEnd = section.offsetHeight || window.innerHeight;
-      const sy = Math.max(0, Math.min(heroEnd, window.scrollY));
-      const p = heroEnd > 0 ? sy / heroEnd : 0;
-      progress.set(p);
-      if (p <= 0.02) phaseRef.current = "hero";
-      else if (p >= 0.98) phaseRef.current = "past";
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [progress]);
-
-  // ── Forward play: gesture-triggered, time-based, body-locked ──
-  useEffect(() => {
-    if (reduced) return;
-
-    let running: { stop: () => void } | null = null;
-    let touchStart: { y: number } | null = null;
-
-    const playForward = () => {
-      if (phaseRef.current !== "hero") return;
-      phaseRef.current = "running";
-      lockScroll();
-      running?.stop();
-      // Capture the absolute Y of the paths section BEFORE the lock
-      // is engaged. Computing it during onComplete gives the wrong
-      // number (the page is `position: fixed` so offsetTop is unstable).
-      const paths = document.getElementById("paths");
-      const rect = paths?.getBoundingClientRect();
-      const targetY = paths && rect
-        ? Math.max(0, window.scrollY + rect.top - 8)
-        : window.innerHeight;
-
-      running = animate(progress, 1, {
-        duration: isMobile ? 2.0 : 2.4,
-        ease: [0.22, 1, 0.36, 1],
-        onComplete: () => {
-          unlockScroll(targetY);
-          phaseRef.current = "past";
-          running = null;
-        },
-      });
-    };
-
-    const onWheel = (e: WheelEvent) => {
-      // While the locked forward animation is playing, swallow EVERY
-      // wheel event so the page cannot move and the animation cannot
-      // be skipped or interrupted.
-      if (phaseRef.current === "running") {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-      // Trigger play only on a deliberate downward wheel while at top.
-      if (
-        phaseRef.current === "hero" &&
-        e.deltaY > 4 &&
-        Math.abs(e.deltaY) >= Math.abs(e.deltaX)
-      ) {
-        e.preventDefault();
-        e.stopPropagation();
-        playForward();
-      }
-    };
-
-    const onTouchStart = (e: TouchEvent) => {
-      const t = e.touches[0];
-      touchStart = t ? { y: t.clientY } : null;
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (phaseRef.current === "running") {
-        e.preventDefault();
-        return;
-      }
-      if (phaseRef.current !== "hero") return;
-      const start = touchStart;
-      const t = e.touches[0];
-      if (!start || !t) return;
-      const dy = t.clientY - start.y;
-      // Down-swipe (finger drags up) → dy < 0 → forward
-      if (dy < -22) {
-        e.preventDefault();
-        touchStart = null;
-        playForward();
-      }
-    };
-
-    const onKey = (e: KeyboardEvent) => {
-      if (phaseRef.current === "running") {
-        // Block scroll keys while animation is running.
-        if (
-          e.key === "ArrowDown" ||
-          e.key === "ArrowUp" ||
-          e.key === "PageDown" ||
-          e.key === "PageUp" ||
-          e.key === "Space" ||
-          e.key === " "
-        ) {
-          e.preventDefault();
-        }
-        return;
-      }
-      if (
-        phaseRef.current === "hero" &&
-        (e.key === "ArrowDown" || e.key === "PageDown" || e.key === " ")
-      ) {
-        e.preventDefault();
-        playForward();
-      }
-    };
-
-    document.addEventListener("wheel", onWheel, {
-      capture: true,
-      passive: false,
-    });
-    document.addEventListener("touchstart", onTouchStart, {
-      capture: true,
-      passive: true,
-    });
-    document.addEventListener("touchmove", onTouchMove, {
-      capture: true,
-      passive: false,
-    });
-    document.addEventListener("keydown", onKey, { capture: true });
-
-    return () => {
-      running?.stop();
-      document.removeEventListener("wheel", onWheel, { capture: true });
-      document.removeEventListener("touchstart", onTouchStart, {
-        capture: true,
-      });
-      document.removeEventListener("touchmove", onTouchMove, {
-        capture: true,
-      });
-      document.removeEventListener("keydown", onKey, { capture: true });
-    };
-  }, [isMobile, progress, reduced]);
-
+  // ── Animation transforms ──────────────────────────────────
   // PLANET — visible early, then zooms past the camera and dissolves.
   const planetScale = useTransform(
-    smoothProgress,
+    progress,
     [0, 0.18, 0.42, 0.6],
     reduced ? [1, 1, 1, 1] : isMobile ? [1, 1.05, 2.0, 4.2] : [1, 1.05, 2.6, 6],
   );
   const planetY = useTransform(
-    smoothProgress,
+    progress,
     [0, 0.5],
     reduced ? ["0%", "0%"] : isMobile ? ["0%", "30%"] : ["0%", "55%"],
   );
   const planetOpacity = useTransform(
-    smoothProgress,
+    progress,
     [0, 0.18, 0.45, 0.6],
     [1, 1, 0.55, 0],
   );
 
   // RINGS — collapse inward then explode outward as the warp ignites.
   const ringScale = useTransform(
-    smoothProgress,
+    progress,
     [0, 0.18, 0.45, 0.7],
     reduced ? [1, 1, 1, 1] : isMobile ? [1, 0.7, 2.6, 4.5] : [1, 0.6, 3.6, 6.5],
   );
   const ringOpacity = useTransform(
-    smoothProgress,
+    progress,
     [0, 0.18, 0.45, 0.7, 0.85],
     [0.9, 0.95, 0.9, 0.4, 0],
   );
-  const ringRot = useTransform(smoothProgress, [0, 1], reduced ? [0, 0] : [0, 220]);
+  const ringRot = useTransform(progress, [0, 1], reduced ? [0, 0] : [0, 220]);
 
   // CORE BLOOM — the heart of the warp. Flares between phase 1 → 2.
   const coreScale = useTransform(
-    smoothProgress,
+    progress,
     [0, 0.2, 0.5, 0.8, 1],
     reduced ? [0, 0, 1, 1, 1] : isMobile ? [0, 0, 1.6, 3.4, 5] : [0, 0, 1.8, 4.2, 7],
   );
   const coreOpacity = useTransform(
-    smoothProgress,
+    progress,
     [0, 0.25, 0.5, 0.78, 1],
     [0, 0, 1, 0.55, 0],
   );
 
   // STREAK FIELD — radial light spokes that accelerate outward.
   const streakScale = useTransform(
-    smoothProgress,
+    progress,
     [0, 0.18, 1],
     reduced ? [1, 1, 1] : isMobile ? [0.7, 1.1, 3.4] : [0.6, 1.1, 4.2],
   );
   const streakOpacity = useTransform(
-    smoothProgress,
+    progress,
     [0, 0.18, 0.4, 0.78, 1],
     [0, 0.4, 1, 0.85, 0.0],
   );
-  const streakRotX = useTransform(smoothProgress, [0, 1], reduced ? [0, 0] : [6, -10]);
+  const streakRotX = useTransform(progress, [0, 1], reduced ? [0, 0] : [6, -10]);
 
-  // DISTANT NEBULA — the destination. Brightens as we arrive, then fades to
-  // 0 so the section can hand off to the next chapter cleanly.
+  // DISTANT NEBULA — the destination. Brightens as we arrive, then
+  // fades to 0 so the section can hand off to the next chapter cleanly.
   const nebulaOpacity = useTransform(
-    smoothProgress,
+    progress,
     [0, 0.55, 0.78, 0.92, 1],
     [0, 0.2, 0.95, 0.55, 0],
   );
   const nebulaScale = useTransform(
-    smoothProgress,
+    progress,
     [0, 1],
     reduced ? [1, 1] : isMobile ? [1.1, 1] : [1.3, 0.95],
   );
 
   // KICKER TEXT — sits proudly through phase 0, then accelerates away.
   const textY = useTransform(
-    smoothProgress,
+    progress,
     [0, 0.18, 0.4],
     reduced ? ["0%", "0%", "0%"] : isMobile ? ["0%", "-3%", "-12%"] : ["0%", "-6%", "-30%"],
   );
   const textScale = useTransform(
-    smoothProgress,
+    progress,
     [0, 0.18, 0.45],
     reduced ? [1, 1, 1] : isMobile ? [1, 1.02, 1.18] : [1, 1.04, 1.8],
   );
   const textOpacity = useTransform(
-    smoothProgress,
+    progress,
     [0, 0.18, 0.32, 0.42],
     [1, 1, 0.55, 0],
   );
 
   // SCROLL HINT — fades out as soon as the warp begins.
-  const hintOpacity = useTransform(smoothProgress, [0, 0.04, 0.12], [1, 0.7, 0]);
+  const hintOpacity = useTransform(progress, [0, 0.04, 0.12], [1, 0.7, 0]);
 
   // VIGNETTE — slight darken at peak warp keeps the bloom punchy.
-  const vignette = useTransform(smoothProgress, [0, 0.45, 0.75, 1], [0, 0.45, 0.25, 0]);
+  const vignette = useTransform(progress, [0, 0.45, 0.75, 1], [0, 0.45, 0.25, 0]);
 
   // Streak spokes — fewer on mobile keeps the GPU compositing budget sane.
   const streakCount = isMobile ? 12 : 18;
@@ -356,284 +211,281 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       ref={sectionRef}
       data-testid="cosmic-journey"
       className="relative w-full"
-      style={{ height: "100svh" }}
+      // 200vh on desktop, 180vh on mobile — gives the warp enough
+      // scroll runway to read as a sustained scene without feeling
+      // like dead space. The inner stage is `sticky`, so what the user
+      // SEES is always exactly one viewport of cosmic content.
+      style={{ height: reduced ? "100svh" : "200svh" }}
     >
       <div
-        className="absolute inset-0 h-full w-full"
+        ref={sceneRef}
+        className="sticky top-0 grid h-[100svh] w-full place-items-center overflow-hidden"
         style={{
-          // Force a dedicated compositor layer for the entire scene.
+          perspective: isMobile ? "900px" : "1500px",
+          contain: "layout paint",
           transform: "translate3d(0, 0, 0)",
           willChange: "transform",
         }}
+        data-cursor="big"
+        data-cursor-label="explore"
       >
-        <div
-          ref={sceneRef}
-          className="grid h-full w-full place-items-center overflow-hidden"
-          style={{
-            perspective: isMobile ? "900px" : "1500px",
-            contain: "layout paint",
-          }}
-          data-cursor="big"
-          data-cursor-label="explore"
+        {/* Layer 0 — sparse glassy orbs as ambient depth. */}
+        <LiquidGlassOrbs count={isMobile ? 3 : 5} className="z-[1]" />
+
+        {/* Layer 1 — distant nebula (far). Gradients only, very cheap. */}
+        <motion.div
+          className="absolute inset-0 z-[2]"
+          style={
+            mounted
+              ? { opacity: nebulaOpacity, scale: nebulaScale }
+              : { opacity: 0 }
+          }
+          suppressHydrationWarning
         >
-          {/* Layer 0 — sparse glassy orbs as ambient depth. */}
-          <LiquidGlassOrbs count={isMobile ? 3 : 5} className="z-[1]" />
-
-          {/* Layer 1 — distant nebula (far). Gradients only, very cheap. */}
-          <motion.div
-            className="absolute inset-0 z-[2]"
-            style={
-              mounted
-                ? { opacity: nebulaOpacity, scale: nebulaScale }
-                : { opacity: 0 }
-            }
-            suppressHydrationWarning
-          >
-            <div
-              className="absolute inset-0"
-              style={{
-                background:
-                  "radial-gradient(ellipse at 28% 32%, rgba(167,139,250,0.55) 0%, transparent 45%)," +
-                  "radial-gradient(ellipse at 75% 60%, rgba(34,211,238,0.45) 0%, transparent 50%)," +
-                  "radial-gradient(ellipse at 50% 80%, rgba(245,185,69,0.35) 0%, transparent 50%)",
-                filter: "blur(40px)",
-              }}
-            />
-          </motion.div>
-
-          {/* Layer 2 — vignette dimmer at warp peak. */}
-          <motion.div
-            className="pointer-events-none absolute inset-0 z-[3] bg-black"
-            style={mounted ? { opacity: vignette } : { opacity: 0 }}
-            suppressHydrationWarning
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(ellipse at 28% 32%, rgba(167,139,250,0.55) 0%, transparent 45%)," +
+                "radial-gradient(ellipse at 75% 60%, rgba(34,211,238,0.45) 0%, transparent 50%)," +
+                "radial-gradient(ellipse at 50% 80%, rgba(245,185,69,0.35) 0%, transparent 50%)",
+              filter: "blur(40px)",
+            }}
           />
+        </motion.div>
 
-          {/* Layer 3 — radial streak field (warp). 3D tilted plane. */}
-          <motion.div
-            className="absolute inset-0 z-[4] grid place-items-center"
-            style={
-              mounted
-                ? {
-                    opacity: streakOpacity,
-                    scale: streakScale,
-                    rotateX: streakRotX,
-                    transformStyle: "preserve-3d",
-                  }
-                : { opacity: 0 }
-            }
-            suppressHydrationWarning
-          >
-            <div className="relative h-[140vmin] w-[140vmin]">
-              {streaks.map((deg, i) => (
-                <span
-                  key={i}
-                  className="absolute left-1/2 top-1/2 block h-[60vmin] w-[2px] origin-top"
-                  style={{
-                    transform: `translate(-50%, 0) rotate(${deg}deg)`,
-                    background:
-                      i % 3 === 0
-                        ? "linear-gradient(to bottom, rgba(255,237,180,0), rgba(255,237,180,0.95) 30%, rgba(167,139,250,0.6) 75%, transparent)"
-                        : i % 3 === 1
-                        ? "linear-gradient(to bottom, rgba(123,231,255,0), rgba(123,231,255,0.85) 26%, rgba(123,231,255,0.4) 80%, transparent)"
-                        : "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.85) 28%, rgba(244,114,182,0.5) 80%, transparent)",
-                    filter: "blur(0.5px)",
-                  }}
-                />
-              ))}
-            </div>
-          </motion.div>
+        {/* Layer 2 — vignette dimmer at warp peak. */}
+        <motion.div
+          className="pointer-events-none absolute inset-0 z-[3] bg-black"
+          style={mounted ? { opacity: vignette } : { opacity: 0 }}
+          suppressHydrationWarning
+        />
 
-          {/* Layer 4 — orbital rings expanding outward. */}
-          <motion.div
-            className="absolute inset-0 z-[5] grid place-items-center"
-            style={
-              mounted
-                ? { scale: ringScale, opacity: ringOpacity, rotate: ringRot }
-                : { opacity: 0 }
-            }
-            suppressHydrationWarning
-          >
-            {[1, 2, 3, 4, 5].map((n) => (
-              <div
-                key={n}
-                className="absolute rounded-full"
+        {/* Layer 3 — radial streak field (warp). 3D tilted plane. */}
+        <motion.div
+          className="absolute inset-0 z-[4] grid place-items-center"
+          style={
+            mounted
+              ? {
+                  opacity: streakOpacity,
+                  scale: streakScale,
+                  rotateX: streakRotX,
+                  transformStyle: "preserve-3d",
+                }
+              : { opacity: 0 }
+          }
+          suppressHydrationWarning
+        >
+          <div className="relative h-[140vmin] w-[140vmin]">
+            {streaks.map((deg, i) => (
+              <span
+                key={i}
+                className="absolute left-1/2 top-1/2 block h-[60vmin] w-[2px] origin-top"
                 style={{
-                  width: `${n * 16}vmin`,
-                  height: `${n * 16}vmin`,
-                  border: `1px solid rgba(255,225,140,${0.55 - n * 0.08})`,
-                  boxShadow: `inset 0 0 ${n * 14}px rgba(245,185,69,${
-                    0.18 - n * 0.025
-                  }), 0 0 ${n * 18}px rgba(167,139,250,${0.2 - n * 0.03})`,
+                  transform: `translate(-50%, 0) rotate(${deg}deg)`,
+                  background:
+                    i % 3 === 0
+                      ? "linear-gradient(to bottom, rgba(255,237,180,0), rgba(255,237,180,0.95) 30%, rgba(167,139,250,0.6) 75%, transparent)"
+                      : i % 3 === 1
+                      ? "linear-gradient(to bottom, rgba(123,231,255,0), rgba(123,231,255,0.85) 26%, rgba(123,231,255,0.4) 80%, transparent)"
+                      : "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.85) 28%, rgba(244,114,182,0.5) 80%, transparent)",
+                  filter: "blur(0.5px)",
                 }}
               />
             ))}
-          </motion.div>
+          </div>
+        </motion.div>
 
-          {/* Layer 5 — the planet itself, with full mouse parallax. */}
-          <motion.div
-            className="absolute inset-0 z-[6] grid place-items-center"
-            style={
-              mounted
-                ? {
-                    scale: planetScale,
-                    y: planetY,
-                    opacity: planetOpacity,
-                  }
-                : { opacity: 1 }
-            }
-            suppressHydrationWarning
-          >
-            <motion.div
+        {/* Layer 4 — orbital rings expanding outward. */}
+        <motion.div
+          className="absolute inset-0 z-[5] grid place-items-center"
+          style={
+            mounted
+              ? { scale: ringScale, opacity: ringOpacity, rotate: ringRot }
+              : { opacity: 0 }
+          }
+          suppressHydrationWarning
+        >
+          {[1, 2, 3, 4, 5].map((n) => (
+            <div
+              key={n}
+              className="absolute rounded-full"
               style={{
-                rotateX: reduced || isMobile ? 0 : rotX,
-                rotateY: reduced || isMobile ? 0 : rotY,
-                x: reduced || isMobile ? 0 : transX,
-                y: reduced || isMobile ? 0 : transY,
-                transformStyle: "preserve-3d",
-                willChange: "transform",
+                width: `${n * 16}vmin`,
+                height: `${n * 16}vmin`,
+                border: `1px solid rgba(255,225,140,${0.55 - n * 0.08})`,
+                boxShadow: `inset 0 0 ${n * 14}px rgba(245,185,69,${
+                  0.18 - n * 0.025
+                }), 0 0 ${n * 18}px rgba(167,139,250,${0.2 - n * 0.03})`,
               }}
-              suppressHydrationWarning
-              className="relative h-[60vmin] w-[60vmin]"
-            >
-              {/* Living planet body — slow auto-rotation. */}
-              <motion.div
-                className="absolute inset-[18%] rounded-full"
-                animate={reduced ? {} : { rotate: 360 }}
-                transition={
-                  reduced
-                    ? {}
-                    : { duration: 90, repeat: Infinity, ease: "linear" }
-                }
-                style={{
-                  background:
-                    "radial-gradient(circle at 30% 28%, rgba(255,237,180,1) 0%, rgba(245,185,69,0.85) 22%, rgba(167,139,250,0.62) 55%, rgba(34,211,238,0.32) 85%, transparent 100%)," +
-                    "radial-gradient(circle at 70% 78%, rgba(167,139,250,0.55), transparent 60%)," +
-                    "radial-gradient(circle at 22% 80%, rgba(34,211,238,0.45), transparent 55%)",
-                  boxShadow:
-                    "0 0 140px 50px rgba(245,185,69,0.40), 0 0 260px 90px rgba(167,139,250,0.28), inset 0 0 80px rgba(255,255,255,0.5)",
-                }}
-              />
-              {/* Solar flare highlight */}
-              <motion.div
-                className="absolute inset-[18%] rounded-full"
-                animate={
-                  reduced ? {} : { opacity: [0.5, 0.95, 0.5], scale: [1, 1.05, 1] }
-                }
-                transition={
-                  reduced
-                    ? {}
-                    : { duration: 6, repeat: Infinity, ease: "easeInOut" }
-                }
-                style={{
-                  background:
-                    "radial-gradient(circle at 32% 26%, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.0) 28%)",
-                  mixBlendMode: "screen",
-                }}
-              />
+            />
+          ))}
+        </motion.div>
 
-              {/* Orbiting accent moons. (Disabled on mobile to save GPU.) */}
-              {!isMobile &&
-                [
-                  { d: 0, color: "#ffe28a", radiusVmin: 26, dur: 18 },
-                  { d: -3, color: "#a78bfa", radiusVmin: 30, dur: 22 },
-                  { d: -6, color: "#67e8f9", radiusVmin: 22, dur: 16 },
-                  { d: -9, color: "#f472b6", radiusVmin: 34, dur: 26 },
-                ].map((o, i) => (
-                  <span
-                    key={i}
-                    aria-hidden="true"
-                    className="absolute left-1/2 top-1/2 block h-0 w-0"
-                    style={{
-                      animation: reduced
-                        ? "none"
-                        : `spin ${o.dur}s linear ${o.d}s infinite`,
-                      transformOrigin: "center",
-                    }}
-                  >
-                    <span
-                      className="absolute block h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                      style={{
-                        background: o.color,
-                        boxShadow: `0 0 18px ${o.color}, 0 0 50px ${o.color}`,
-                        top: `-${o.radiusVmin}vmin`,
-                        left: 0,
-                      }}
-                    />
-                  </span>
-                ))}
-            </motion.div>
-          </motion.div>
-
-          {/* Layer 6 — hot core bloom (peak of warp). */}
+        {/* Layer 5 — the planet itself, with full mouse parallax. */}
+        <motion.div
+          className="absolute inset-0 z-[6] grid place-items-center"
+          style={
+            mounted
+              ? {
+                  scale: planetScale,
+                  y: planetY,
+                  opacity: planetOpacity,
+                }
+              : { opacity: 1 }
+          }
+          suppressHydrationWarning
+        >
           <motion.div
-            className="absolute z-[7] aspect-square w-[16vmin] rounded-full"
-            style={
-              mounted
-                ? {
-                    scale: coreScale,
-                    opacity: coreOpacity,
-                    background:
-                      "radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,237,180,0.85) 22%, rgba(245,185,69,0.55) 50%, rgba(167,139,250,0.3) 80%, transparent 100%)",
-                    boxShadow:
-                      "0 0 200px 80px rgba(255,237,180,0.55), 0 0 400px 120px rgba(167,139,250,0.4)",
-                  }
-                : { opacity: 0 }
-            }
+            style={{
+              rotateX: reduced || isMobile ? 0 : rotX,
+              rotateY: reduced || isMobile ? 0 : rotY,
+              x: reduced || isMobile ? 0 : transX,
+              y: reduced || isMobile ? 0 : transY,
+              transformStyle: "preserve-3d",
+              willChange: "transform",
+            }}
             suppressHydrationWarning
-          />
-
-          {/* Layer 7 — kicker / WELCOME headline. */}
-          <motion.div
-            className="container-wide pointer-events-none relative z-[8] flex h-full flex-col items-center justify-center text-center"
-            style={
-              mounted
-                ? { y: textY, scale: textScale, opacity: textOpacity }
-                : undefined
-            }
-            suppressHydrationWarning
+            className="relative h-[60vmin] w-[60vmin]"
           >
+            {/* Living planet body — slow auto-rotation. */}
             <motion.div
-              initial={{ opacity: 0, y: 24, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 1.1, ease: [0.25, 0.4, 0.25, 1] }}
-              suppressHydrationWarning
-              className="mx-auto inline-block px-2"
-            >
-              <KineticText
-                as="h1"
-                text={kicker}
-                className="editorial-display text-balance uppercase text-white text-[clamp(2.5rem,9vw,7rem)] leading-[0.95] tracking-[-0.015em]"
-                style={{
-                  textShadow:
-                    "0 4px 50px rgba(0,0,0,0.95), 0 0 60px rgba(245,185,69,0.45), 0 2px 14px rgba(0,0,0,0.95)",
-                }}
-                stagger={0.1}
-                delay={0.1}
-              />
-            </motion.div>
+              className="absolute inset-[18%] rounded-full"
+              animate={reduced ? {} : { rotate: 360 }}
+              transition={
+                reduced
+                  ? {}
+                  : { duration: 90, repeat: Infinity, ease: "linear" }
+              }
+              style={{
+                background:
+                  "radial-gradient(circle at 30% 28%, rgba(255,237,180,1) 0%, rgba(245,185,69,0.85) 22%, rgba(167,139,250,0.62) 55%, rgba(34,211,238,0.32) 85%, transparent 100%)," +
+                  "radial-gradient(circle at 70% 78%, rgba(167,139,250,0.55), transparent 60%)," +
+                  "radial-gradient(circle at 22% 80%, rgba(34,211,238,0.45), transparent 55%)",
+                boxShadow:
+                  "0 0 140px 50px rgba(245,185,69,0.40), 0 0 260px 90px rgba(167,139,250,0.28), inset 0 0 80px rgba(255,255,255,0.5)",
+              }}
+            />
+            {/* Solar flare highlight */}
+            <motion.div
+              className="absolute inset-[18%] rounded-full"
+              animate={
+                reduced ? {} : { opacity: [0.5, 0.95, 0.5], scale: [1, 1.05, 1] }
+              }
+              transition={
+                reduced
+                  ? {}
+                  : { duration: 6, repeat: Infinity, ease: "easeInOut" }
+              }
+              style={{
+                background:
+                  "radial-gradient(circle at 32% 26%, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.0) 28%)",
+                mixBlendMode: "screen",
+              }}
+            />
 
-            <motion.div
-              style={mounted ? { opacity: hintOpacity } : { opacity: 1 }}
-              suppressHydrationWarning
-              className="mt-14 flex flex-col items-center gap-3 text-white"
-              data-testid="hero-scroll-indicator"
-            >
-              <span
-                className="heading-display text-xs font-bold uppercase tracking-[0.5em] text-white sm:text-sm"
-                style={{
-                  textShadow:
-                    "0 2px 14px rgba(0,0,0,0.95), 0 0 22px rgba(255,237,180,0.65), 0 0 4px rgba(0,0,0,0.9)",
-                }}
-              >
-                scroll
-              </span>
-              <span
-                className="block h-14 w-[2px] animate-pulseGlow rounded-full bg-gradient-to-b from-amber-200 via-white/80 to-transparent"
-                style={{ boxShadow: "0 0 14px rgba(255,237,180,0.7)" }}
-              />
-            </motion.div>
+            {/* Orbiting accent moons. (Disabled on mobile to save GPU.) */}
+            {!isMobile &&
+              [
+                { d: 0, color: "#ffe28a", radiusVmin: 26, dur: 18 },
+                { d: -3, color: "#a78bfa", radiusVmin: 30, dur: 22 },
+                { d: -6, color: "#67e8f9", radiusVmin: 22, dur: 16 },
+                { d: -9, color: "#f472b6", radiusVmin: 34, dur: 26 },
+              ].map((o, i) => (
+                <span
+                  key={i}
+                  aria-hidden="true"
+                  className="absolute left-1/2 top-1/2 block h-0 w-0"
+                  style={{
+                    animation: reduced
+                      ? "none"
+                      : `spin ${o.dur}s linear ${o.d}s infinite`,
+                    transformOrigin: "center",
+                  }}
+                >
+                  <span
+                    className="absolute block h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                    style={{
+                      background: o.color,
+                      boxShadow: `0 0 18px ${o.color}, 0 0 50px ${o.color}`,
+                      top: `-${o.radiusVmin}vmin`,
+                      left: 0,
+                    }}
+                  />
+                </span>
+              ))}
           </motion.div>
-        </div>
+        </motion.div>
+
+        {/* Layer 6 — hot core bloom (peak of warp). */}
+        <motion.div
+          className="absolute z-[7] aspect-square w-[16vmin] rounded-full"
+          style={
+            mounted
+              ? {
+                  scale: coreScale,
+                  opacity: coreOpacity,
+                  background:
+                    "radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,237,180,0.85) 22%, rgba(245,185,69,0.55) 50%, rgba(167,139,250,0.3) 80%, transparent 100%)",
+                  boxShadow:
+                    "0 0 200px 80px rgba(255,237,180,0.55), 0 0 400px 120px rgba(167,139,250,0.4)",
+                }
+              : { opacity: 0 }
+          }
+          suppressHydrationWarning
+        />
+
+        {/* Layer 7 — kicker / WELCOME headline. */}
+        <motion.div
+          className="container-wide pointer-events-none relative z-[8] flex h-full flex-col items-center justify-center text-center"
+          style={
+            mounted
+              ? { y: textY, scale: textScale, opacity: textOpacity }
+              : undefined
+          }
+          suppressHydrationWarning
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 1.1, ease: [0.25, 0.4, 0.25, 1] }}
+            suppressHydrationWarning
+            className="mx-auto inline-block px-2"
+          >
+            <KineticText
+              as="h1"
+              text={kicker}
+              className="editorial-display text-balance uppercase text-white text-[clamp(2.5rem,9vw,7rem)] leading-[0.95] tracking-[-0.015em]"
+              style={{
+                textShadow:
+                  "0 4px 50px rgba(0,0,0,0.95), 0 0 60px rgba(245,185,69,0.45), 0 2px 14px rgba(0,0,0,0.95)",
+              }}
+              stagger={0.1}
+              delay={0.1}
+            />
+          </motion.div>
+
+          <motion.div
+            style={mounted ? { opacity: hintOpacity } : { opacity: 1 }}
+            suppressHydrationWarning
+            className="mt-14 flex flex-col items-center gap-3 text-white"
+            data-testid="hero-scroll-indicator"
+          >
+            <span
+              className="heading-display text-xs font-bold uppercase tracking-[0.5em] text-white sm:text-sm"
+              style={{
+                textShadow:
+                  "0 2px 14px rgba(0,0,0,0.95), 0 0 22px rgba(255,237,180,0.65), 0 0 4px rgba(0,0,0,0.9)",
+              }}
+            >
+              scroll
+            </span>
+            <span
+              className="block h-14 w-[2px] animate-pulseGlow rounded-full bg-gradient-to-b from-amber-200 via-white/80 to-transparent"
+              style={{ boxShadow: "0 0 14px rgba(255,237,180,0.7)" }}
+            />
+          </motion.div>
+        </motion.div>
       </div>
     </section>
   );
