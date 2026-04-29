@@ -1,72 +1,51 @@
 "use client";
 import { motion, useReducedMotion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import KineticText from "./KineticText";
 
 /**
  * CosmicJourney — load-once cinematic warp + INPUT-INTERCEPTING
- * snap to/from the paths section.
+ * bidirectional snap to/from the paths section.
  *
- *   ── On mount (~2.8s timeline) ──────────────────────────────
- *   t=0.00s  nebula backdrop fades up
- *   t=0.10s  warp streaks begin radial expansion from the centre
- *   t=0.30s  central planet starts blooming up from a tiny dot
- *   t=0.80s  halo ring expands outward & pulses once
- *   t=1.55s  WELCOME headline rises in (KineticText stagger)
- *   t=2.60s  scroll hint fades in
- *   t≥2.8s   ambient state — planet softly breathes, scene holds
+ * ── Scroll feel design notes ───────────────────────────────────
  *
- *   ── Why we intercept INPUT events, not scroll events ────────
- *   Previous revisions listened to the `scroll` event and snapped
- *   from there. That has two unfixable failure modes:
- *     • HARD scroll → browser scrolls many pixels instantly
- *       BEFORE the scroll handler runs (one rAF frame later).
- *       By the time we fire, the user has already overshot the
- *       snap target, so the snap-then-fight-with-inertia produces
- *       a jittery half-played animation.
- *     • LIGHT scroll → browser scrolls a few pixels, then our
- *       handler kicks in one frame later and starts the smooth
- *       scroll. The visible "tiny native jump → then a smooth
- *       scroll starts from the jumped position" is the stutter.
- *   Solution: hook the INPUT (wheel / touchmove / keydown) with
- *   `passive: false` + `preventDefault()` while the user is in
- *   the welcome / boundary zone, so the browser NEVER scrolls
- *   natively in that range — we own scrollY from the very first
- *   millisecond of user intent.
+ * Easing choice — why cubic-out everywhere for the scroll:
+ *   cubic-in-out: slow start → builds → slow end.
+ *     Problem: the "slow start" makes the page appear frozen for
+ *     the first ~200 ms after a wheel/swipe, which the user reads
+ *     as a STUTTER even though the animation is technically running.
+ *   cubic-out: fast start → eases gently into the target.
+ *     The viewport moves immediately on the first rAF frame, giving
+ *     instant tactile feedback, then decelerates for a smooth stop.
+ *     This eliminates the "dead beat at the beginning" stutter.
  *
- *   ── Snap behaviour ──────────────────────────────────────────
- *   • In welcome zone (`scrollY < pathsTarget − 4`):
- *       – wheel / swipe / arrow / space → snap to `pathsTarget`
- *         (= `innerHeight − 20`, kicker line "— you have arrived"
- *         comfortably visible with 20 px breathing room above).
- *       – wheel up → snap to `0`.
- *   • Just past paths boundary, scrolling up
- *     (`pathsTarget ≤ scrollY < pathsTarget + 12`):
- *       – snap back to `0`. (One-wheel response, no overshoot.)
- *   • Past the boundary in the paths / telegram sections:
- *       – we don't intercept. Native scroll works normally.
- *   • A 500 ms cooldown after each snap absorbs trackpad inertia
- *     and iOS rubber-band so a single hard wheel doesn't bounce
- *     us back the other way.
+ * Direction-aware stage transition:
+ *   Exiting (down): 1.2 s, cubic-in-out [0.65, 0, 0.35, 1] —
+ *     the cinematic slow build feels weighty and intentional.
+ *   Returning (up): 0.7 s, cubic-out [0.16, 1, 0.3, 1] —
+ *     stage rushes back to full opacity/scale in the first ~150 ms
+ *     so the hero is visible before the smooth-scroll has moved far.
+ *     Without this, the hero is a near-invisible tiny dot for the
+ *     first third of the scroll-up, making it look like blank space.
  *
- *   ── Cinematic 3D warp during the snap ───────────────────────
- *   The whole scene-stage flies away in 3D as a rigid unit
- *   (scale 1 → 0.08, rotateX 0 → −55°, y 0 → −200, opacity 1 → 0)
- *   over 1.2 s. Layered on top during the exit:
- *     • A brief WHITE FLASH (peaks at 45 % opacity ~40 % through
- *       the transition) — the "camera passes through the planet"
- *       punctuation.
- *     • 32 RADIAL WARP STREAKS shooting outward from the centre
- *       to ±120 vmin, each scaling 0.5 → 8 → 14 along its length
- *       so they look like jump-to-lightspeed star trails.
- *   Both are mounted only while `exiting` is true — auto-replay
- *   every time the user re-crosses the threshold. The exit is
- *   REVERSIBLE — scroll back up, the stage rotates, scales and
- *   fades back into rest pose.
+ * Cooldown 500 → 200 ms:
+ *   The 500 ms post-snap cooldown was added to absorb trackpad
+ *   inertia / iOS rubber-band. However it also blocked the
+ *   scroll-UP trigger for half a second after arriving at the paths
+ *   section, which the user experienced as a visible "delay".
+ *   200 ms is still enough to block one stray inertia wheel event
+ *   but imperceptible to deliberate user input.
  */
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
   const [exiting, setExiting] = useState(false);
+
+  // exitKey increments each time we enter the exiting state so that
+  // the warp streaks unmount+remount and replay their animation
+  // cleanly on each scroll-down, instead of being stuck at their
+  // end-state from the previous exit.
+  const [exitKey, setExitKey] = useState(0);
+  const exitingRef = useRef(false);
 
   // 36 mount streaks — radial expansion during the welcome's load-in.
   const streaks = useMemo(() => {
@@ -89,11 +68,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     });
   }, []);
 
-  // 32 EXIT streaks — radial jump-to-lightspeed during the fly-away.
+  // 20 exit warp streaks — lighter set (was 32) to keep DOM work
+  // per-frame small and avoid a mount-jank frame when exiting flips.
   const warpStreaks = useMemo(
     () =>
-      Array.from({ length: 32 }, (_, i) => {
-        const angle = (i / 32) * Math.PI * 2;
+      Array.from({ length: 20 }, (_, i) => {
+        const angle = (i / 20) * Math.PI * 2;
         return {
           dx: Math.cos(angle) * 120,
           dy: Math.sin(angle) * 120,
@@ -120,18 +100,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const start = performance.now();
       function step(now: number) {
         const t = Math.min((now - start) / duration, 1);
-        // cubic in-out — feels like a weighty camera move
-        const eased =
-          t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        // cubic-out: immediate movement on first frame → no stutter.
+        // f(t) = 1 - (1-t)^3
+        const eased = 1 - Math.pow(1 - t, 3);
         window.scrollTo(0, startY + dist * eased);
         if (t < 1) {
           activeRAF = requestAnimationFrame(step);
         } else {
-          // Cooldown absorbs trackpad inertia + iOS rubber-band so
-          // a single hard wheel doesn't bounce us back the other way.
+          // 200 ms cooldown absorbs one stray inertia wheel event
+          // without blocking deliberate reverse-direction input.
           window.setTimeout(() => {
             isAnimating = false;
-          }, 500);
+          }, 200);
         }
       }
       activeRAF = requestAnimationFrame(step);
@@ -146,13 +126,20 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     }
 
     // Pure observer — derives reversible exit state from scrollY.
+    // Uses a ref to track previous state without closure staleness,
+    // and increments exitKey each time we freshly enter exiting so
+    // the warp streaks replay correctly.
     function onScroll() {
       const y = window.scrollY;
       const { exitThreshold } = getTargets();
-      setExiting((prev) => {
-        const next = y > exitThreshold;
-        return next === prev ? prev : next;
-      });
+      const next = y > exitThreshold;
+      if (next !== exitingRef.current) {
+        exitingRef.current = next;
+        if (next) {
+          setExitKey((k) => k + 1);
+        }
+        setExiting(next);
+      }
     }
 
     // Wheel — intercept BEFORE the browser scrolls so hard wheels
@@ -169,25 +156,21 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         e.preventDefault();
         if (isAnimating) return;
         if (e.deltaY > 0) {
-          smoothScrollTo(pathsTarget, 1100);
+          smoothScrollTo(pathsTarget, 950);
         } else if (e.deltaY < 0 && y > 8) {
-          smoothScrollTo(0, 1100);
+          smoothScrollTo(0, 950);
         }
       } else if (y < pathsTarget + 12 && e.deltaY < 0) {
-        // Just past the paths boundary, scrolling up → snap back
-        // to welcome on the very first wheel notch (no waiting for
-        // the user to native-scroll into the dead zone first).
+        // Just past the paths boundary, scrolling up → snap back.
         e.preventDefault();
         if (isAnimating) return;
-        smoothScrollTo(0, 1100);
+        smoothScrollTo(0, 950);
       }
-      // Otherwise we're past the welcome zone — native scroll
-      // works freely throughout paths / telegram sections.
+      // Past the welcome zone → native scroll works freely.
     }
 
-    // Touch — same intent as wheel, scoped to touches that BEGIN
-    // in the welcome / boundary zone so swipes started inside the
-    // paths / telegram sections never get hijacked.
+    // Touch — scoped to touches that BEGIN in the welcome / boundary
+    // zone so swipes started inside paths / telegram are never hijacked.
     let touchStartY = 0;
     let touchActive = false;
     let touchTriggered = false;
@@ -215,9 +198,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
       touchTriggered = true;
       if (swipeDelta > 0 && y < pathsTarget - 4) {
-        smoothScrollTo(pathsTarget, 1100);
+        smoothScrollTo(pathsTarget, 950);
       } else if (swipeDelta < 0 && y > 8) {
-        smoothScrollTo(0, 1100);
+        smoothScrollTo(0, 950);
       }
     }
 
@@ -239,10 +222,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
       if (isDown && y < pathsTarget - 4) {
         e.preventDefault();
-        if (!isAnimating) smoothScrollTo(pathsTarget, 1100);
+        if (!isAnimating) smoothScrollTo(pathsTarget, 950);
       } else if (isUp && y < pathsTarget + 12 && y > 8) {
         e.preventDefault();
-        if (!isAnimating) smoothScrollTo(0, 1100);
+        if (!isAnimating) smoothScrollTo(0, 950);
       }
     }
 
@@ -265,12 +248,17 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
   }, [reduced]);
 
-  // 3D exit transform — applied to the entire scene-stage.
-  // Single-keyframe so it reverses smoothly when scroll returns
-  // toward the top.
+  // Direction-aware stage transition.
+  //   Exit  → cinematic slow build (cubic-in-out, 1.2 s)
+  //   Return → eager rush back (cubic-out, 0.7 s) so the hero is
+  //            fully visible within ~150 ms of scroll-up, not blank.
   const stageAnimate = exiting
     ? { scale: 0.08, rotateX: -55, y: -200, opacity: 0 }
     : { scale: 1, rotateX: 0, y: 0, opacity: 1 };
+
+  const stageTransition = exiting
+    ? { duration: 1.2, ease: [0.65, 0, 0.35, 1] as const }
+    : { duration: 0.7, ease: [0.16, 1, 0.3, 1] as const };
 
   return (
     <section
@@ -283,22 +271,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         transform: "translate3d(0,0,0)",
       }}
     >
-      {/*
-       * Scene stage — wraps every animated layer of the welcome
-       * composition. When `exiting` flips, the whole stage tilts
-       * back & flies up in 3D as a single rigid unit, and reverses
-       * smoothly when scroll returns toward the top. Duration
-       * matched (1.2 s) to feel cohesive with the 1.1 s smooth
-       * scroll without ending so abruptly that the streaks haven't
-       * finished radiating.
-       */}
+      {/* Scene stage */}
       <motion.div
         className="absolute inset-0 grid place-items-center"
         animate={stageAnimate}
-        transition={{
-          duration: 1.2,
-          ease: [0.65, 0, 0.35, 1],
-        }}
+        transition={stageTransition}
         style={{
           transformStyle: "preserve-3d",
           transformOrigin: "50% 28%",
@@ -313,7 +290,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           initial={reduced ? { opacity: 1 } : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={
-            reduced ? { duration: 0 } : { duration: 1.2, ease: "easeOut" }
+            reduced ? { duration: 0 } : { duration: 0.8, ease: "easeOut" }
           }
           style={{
             background:
@@ -343,7 +320,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
                   scaleX: [0.3, 1, 1.6],
                 }}
                 transition={{
-                  duration: 2.0,
+                  duration: 1.8,
                   delay: s.delay,
                   ease: [0.16, 0.9, 0.3, 1],
                   times: [0, 0.45, 1],
@@ -363,7 +340,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           </div>
         )}
 
-        {/* ── 3. Central planet — blooms up from a tiny dot ── */}
+        {/* ── 3. Central planet ── */}
         <motion.div
           className="absolute h-[60vmin] w-[60vmin] rounded-full"
           initial={
@@ -373,7 +350,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           transition={
             reduced
               ? { duration: 0 }
-              : { duration: 1.8, ease: [0.16, 1, 0.3, 1], delay: 0.3 }
+              : { duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.1 }
           }
           style={{
             background:
@@ -385,7 +362,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           suppressHydrationWarning
         />
 
-        {/* ── 3b. Slow ambient pulse on planet ── */}
+        {/* ── 3b. Ambient pulse on planet ── */}
         {!reduced && (
           <motion.div
             aria-hidden="true"
@@ -398,7 +375,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             transition={{
               duration: 8,
               ease: "easeInOut",
-              delay: 2.4,
+              delay: 2.0,
               times: [0, 0.25, 0.5, 0.75, 1],
               repeat: Infinity,
               repeatType: "loop",
@@ -420,9 +397,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             initial={{ opacity: 0, scale: 0.55 }}
             animate={{ opacity: [0, 0.75, 0.4], scale: 1 }}
             transition={{
-              duration: 2.2,
+              duration: 2.0,
               ease: "easeOut",
-              delay: 0.8,
+              delay: 0.4,
               times: [0, 0.5, 1],
             }}
             style={{
@@ -447,7 +424,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           transition={
             reduced
               ? { duration: 0 }
-              : { duration: 1.0, ease: [0.16, 1, 0.3, 1], delay: 1.55 }
+              : { duration: 1.0, ease: [0.16, 1, 0.3, 1], delay: 1.0 }
           }
           suppressHydrationWarning
         >
@@ -460,7 +437,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
                 "0 4px 50px rgba(0,0,0,0.95), 0 0 60px rgba(245,185,69,0.45), 0 2px 14px rgba(0,0,0,0.95)",
             }}
             stagger={0.08}
-            delay={1.7}
+            delay={1.1}
           />
         </motion.div>
 
@@ -469,17 +446,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           className="absolute bottom-12 z-[6] flex flex-col items-center gap-3 text-white"
           data-testid="hero-scroll-indicator"
           initial={reduced ? { opacity: 1 } : { opacity: 0, y: 10 }}
-          animate={
-            exiting
-              ? { opacity: 0, y: 0 }
-              : { opacity: 1, y: 0 }
-          }
+          animate={exiting ? { opacity: 0, y: 0 } : { opacity: 1, y: 0 }}
           transition={
             reduced
               ? { duration: 0 }
               : exiting
-              ? { duration: 0.4 }
-              : { duration: 0.7, ease: "easeOut", delay: 2.6 }
+                ? { duration: 0.4 }
+                : { duration: 0.7, ease: "easeOut", delay: 2.0 }
           }
           suppressHydrationWarning
         >
@@ -500,64 +473,59 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       </motion.div>
 
       {/*
-       * ── Cinematic mid-flight punctuation, only mounted while
-       *    exiting=true. Replays every time the user re-crosses
-       *    the threshold (because conditional unmount/remount
-       *    re-fires `initial → animate`).
+       * Cinematic mid-flight effects.
+       * Always mounted (empty when not exiting) so there's no
+       * mount-jank frame at the moment of first scroll. The inner
+       * content is keyed to exitKey so it unmounts+remounts — and
+       * thus replays its initial→animate — on every exit.
        */}
-      {exiting && !reduced && (
-        <>
-          {/* Brief white flash — the "camera passes through" beat */}
-          <motion.div
-            key="exit-flash"
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 z-[20] bg-white"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0, 0.45, 0] }}
-            transition={{
-              duration: 0.85,
-              times: [0, 0.4, 0.9],
-              ease: "easeOut",
-            }}
-          />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-[18]"
+        style={{ display: exiting && !reduced ? "block" : "none" }}
+      >
+        {/* White flash — "camera passes through" beat */}
+        <motion.div
+          key={`flash-${exitKey}`}
+          className="absolute inset-0 bg-white"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 0.45, 0] }}
+          transition={{ duration: 0.85, times: [0, 0.4, 0.9], ease: "easeOut" }}
+        />
 
-          {/* Jump-to-lightspeed radial warp streaks */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 z-[18] grid place-items-center"
-          >
-            {warpStreaks.map((s, i) => (
-              <motion.span
-                key={`warp-${i}`}
-                className="absolute rounded-full"
-                initial={{ x: 0, y: 0, opacity: 0, scaleX: 0.4 }}
-                animate={{
-                  x: `${s.dx}vmin`,
-                  y: `${s.dy}vmin`,
-                  opacity: [0, 1, 0],
-                  scaleX: [0.5, 8, 14],
-                }}
-                transition={{
-                  duration: 1.0,
-                  ease: [0.16, 0.9, 0.3, 1],
-                  times: [0, 0.5, 1],
-                }}
-                style={{
-                  width: 110,
-                  height: 2,
-                  background:
-                    "linear-gradient(to right, transparent 0%, rgba(255,255,255,0.95) 50%, transparent 100%)",
-                  transform: `rotate(${s.rotateDeg}deg)`,
-                  transformOrigin: "0% 50%",
-                  boxShadow: "0 0 14px rgba(255,230,180,0.85)",
-                  willChange: "transform, opacity",
-                }}
-                suppressHydrationWarning
-              />
-            ))}
-          </div>
-        </>
-      )}
+        {/* Jump-to-lightspeed warp streaks */}
+        <div className="absolute inset-0 grid place-items-center">
+          {warpStreaks.map((s, i) => (
+            <motion.span
+              key={`warp-${exitKey}-${i}`}
+              className="absolute rounded-full"
+              initial={{ x: 0, y: 0, opacity: 0, scaleX: 0.4 }}
+              animate={{
+                x: `${s.dx}vmin`,
+                y: `${s.dy}vmin`,
+                opacity: [0, 1, 0],
+                scaleX: [0.5, 8, 14],
+              }}
+              transition={{
+                duration: 1.0,
+                ease: [0.16, 0.9, 0.3, 1],
+                times: [0, 0.5, 1],
+              }}
+              style={{
+                width: 110,
+                height: 2,
+                background:
+                  "linear-gradient(to right, transparent 0%, rgba(255,255,255,0.95) 50%, transparent 100%)",
+                transform: `rotate(${s.rotateDeg}deg)`,
+                transformOrigin: "0% 50%",
+                boxShadow: "0 0 14px rgba(255,230,180,0.85)",
+                willChange: "transform, opacity",
+              }}
+              suppressHydrationWarning
+            />
+          ))}
+        </div>
+      </div>
     </section>
   );
 }
