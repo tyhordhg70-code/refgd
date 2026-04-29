@@ -9,29 +9,45 @@ Undo latest commit. After undo it fix the issues for mobile and PC on home page:
 - Card-to-card scroll animation should complete in one scroll.
 - Card 5 should be viewable before the page scrolls down.
 
+Follow-up report from user:
+- Hard scrolling on the homepage still skipped the welcome animation.
+- Scrolling could create a bottom overlay/boxed artifact.
+- Scrolling back up from the bottom made animations/layout behave incorrectly.
+- The five path cards should change only on vertical scrolling, not sideways scrolling.
+- Hard downward scrolling must be strictly locked so unrevealed cards cannot be skipped.
+- After the fifth card, normal vertical page scrolling must resume.
+
 ## Architecture Decisions
 - Reverted the latest commit with a git revert commit before implementing new targeted fixes.
 - Kept existing Next.js/Framer Motion homepage structure.
 - Replaced fragile scroll-runway card behavior with a one-scroll locked stepper that works on mobile and desktop.
 - Added a document-capture scroll/touch gate for the hero so hard wheel/swipe gestures are intercepted before native scrolling can skip sections.
+- Tightened the hero-to-paths handoff to recalculate its target live, preventing layout shifts from landing short or skipping past paths.
+- Removed the upward hero auto-gate that could interfere when users scrolled back from the bottom of the page.
+- Converted path cards from a sideways carousel motion into an in-place vertical-scroll card stepper.
 
 ## Implemented
 - CosmicJourney now maps bright warp progress to the sticky runway and prevents the pale/white arrival overlay.
 - One hard scroll from top/header lands at the paths section instead of skipping to Telegram/footer.
-- Scrolling up near paths returns toward the welcome scene smoothly.
-- Path cards now start on card 1 and advance exactly one card per wheel/vertical swipe.
-- Card 5 “BUY 4 YOU” is reachable and visible before normal page scroll resumes.
+- Path cards start on card 1 and advance exactly one card per vertical wheel/swipe.
+- Horizontal/sideways wheel input no longer changes cards.
+- Card 5 “BUY 4 YOU” is reachable and the next down-scroll resumes normal page scroll.
+- Returning above the paths section resets the stepper to card 1 so repeat journeys do not restart on card 5.
 - Added key `data-testid` hooks for path cards and controls.
+- Removed the visible carousel frame/box around the card stepper to avoid the bottom overlay artifact.
 
 ## Verification
 - `npx tsc --noEmit` passes.
 - Self-tested mobile 390x800 and desktop 1920x800 hard-scroll from top/header.
 - Self-tested card progression from card 1 through card 5.
 - Testing agent initially found the top/header edge case; it was fixed and self-verified afterward.
+- 2026-04-29: `npx tsc --noEmit` passes after strict scroll-lock fixes.
+- 2026-04-29: Self-tested desktop and mobile hard-scroll flows, card 1→5 progression, post-card-5 vertical resume, and top reset.
+- 2026-04-29: Testing agent iteration 2 passed requested frontend scroll regressions at 100%; no frontend bugs found.
 
 ## Backlog
 ### P0
-- None remaining for the reported homepage scroll/card issue.
+- None remaining for the reported homepage scroll/card issue after iteration 2 regression testing.
 
 ### P1
 - Remove unrelated existing hydration warning in EditableText/HomeCTAButton flow.
