@@ -10,7 +10,7 @@ import CosmicJourney from "@/components/CosmicJourney";
 import PathsHorizontalReveal from "@/components/PathsHorizontalReveal";
 import ChapterCosmos from "@/components/ChapterCosmos";
 import PathsReveal from "@/components/PathsReveal";
-import { Reveal } from "@/components/Reveal";
+import MeshExpansionReveal from "@/components/MeshExpansionReveal";
 import { getContentBlock } from "@/lib/content";
 import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
 
@@ -99,10 +99,9 @@ export default async function HomePage() {
                       • desktop / tablet ≥ 768px → responsive grid
                         (2 → 3 → 5 cols), each card flies in with a
                         cinematic 3D entrance (FlyInCard).
-                      • mobile < 768px → vertical stack with the same
-                        per-card fly-in entrance. No more sticky-pinned
-                        horizontal scroll (it was the source of the
-                        scroll-up breakage). */}
+                      • mobile < 768px → native CSS scroll-snap
+                        horizontal carousel (no scroll-jacking, no
+                        sticky pin); each card gets the same fly-in. */}
                   <PathsHorizontalReveal
                     cards={PATHS.map((p, i) => (
                       <PathCard key={p.href} index={i} {...p} />
@@ -129,7 +128,12 @@ export default async function HomePage() {
             bg={<ParallaxIllustration kind="spark" accent="violet" size={620} />}
           >
             <section className="container-px pb-10 sm:pb-14">
-              <Reveal>
+              {/* Stay-up-to-speed CTA — wrapped in a 3D distorted-mesh
+                  expansion entrance: the box folds out of depth while
+                  a wireframe grid detonates outward from its centre,
+                  ripples through a turbulence filter and fades away.
+                  Replays every time the section re-enters view. */}
+              <MeshExpansionReveal borderRadius="2.5rem">
                 <div className="relative overflow-hidden rounded-[2.5rem] border border-white/[0.10] pulse-glow-violet">
                   <div className="relative aspect-[4/5] sm:aspect-[16/6]">
                     <AnimatedTelegramBox />
@@ -155,7 +159,7 @@ export default async function HomePage() {
                     </div>
                   </div>
                 </div>
-              </Reveal>
+              </MeshExpansionReveal>
             </section>
             <div
               aria-hidden="true"
