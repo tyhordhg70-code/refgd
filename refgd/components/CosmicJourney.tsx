@@ -159,6 +159,150 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
   }, [reduced]);
 
+  // ── One-shot snap to "— you have arrived" ─────────────────────
+  //
+  // The user explicitly asked: "desktop scroll should lock onto
+  // 'you have arrived' after scrolling from welcome no matter how
+  // fast or light scrolling, both on desktop and mobile".
+  //
+  // The previous incarnation of this effect was a full scroll-jacker
+  // that intercepted every wheel/touchmove with `passive: false` +
+  // preventDefault and ran a custom rAF scroll loop. That broke the
+  // entire page (the subject of the desktop scroll-stutter fix in
+  // commit 07d5a1c).
+  //
+  // This implementation is intentionally minimal:
+  //
+  //   • A single passive `scroll` listener — never preventDefault,
+  //     never `passive: false`, no custom rAF loop. The browser's
+  //     compositor stays in charge of every frame.
+  //   • Triggers exactly ONCE per "departure from welcome" — the
+  //     instant the user's scrollY moves from ~0 to anywhere above,
+  //     we fire `window.scrollTo({behavior: 'smooth'})` to land at
+  //     the paths section kicker, and then we get out of the way.
+  //   • Re-arms ONLY when the user returns all the way back to the
+  //     welcome (y < 8). After that, a fresh scroll-down snaps to
+  //     the kicker again.
+  //   • Works equally on desktop wheel and on mobile touch — the
+  //     `scroll` event fires for both, and the only thing the snap
+  //     does is set the target. The browser handles the smooth
+  //     animation natively, so the feel is identical on every
+  //     platform.
+  //
+  // Implementation note on "fast or light":
+  //   The user's first wheel notch / touch-drag gives us 1 scroll
+  //   event with whatever `y` the browser computed. We immediately
+  //   fire `scrollTo(targetY, smooth)`. Whether the user moved
+  //   1 px or 600 px, the smooth scroll animates from current
+  //   position to targetY and lands there. That's the "lock".
+  //
+  // Skipping cases:
+  //   • Reduced motion users — never snap.
+  //   • Page loads already past the welcome (deep link, hash anchor,
+  //     hot reload mid-scroll, browser back-forward cache restore)
+  //     — start in the snapped state so we don't yank the user from
+  //     wherever they intentionally landed.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (reduced) return;
+
+    let snapped = window.scrollY >= 60;
+    let lastY = window.scrollY;
+    const reassertTimers: number[] = [];
+
+    function targetY(): number | null {
+      const paths = document.getElementById("paths");
+      if (!paths) return null;
+      // Header is ~80 px tall (sticky). Subtract a bit more so the
+      // kicker isn't right under the header — gives the headline
+      // breathing room and makes the "you have arrived" feel like
+      // a deliberate landing rather than a clipped cut.
+      const headerOffset = 80;
+      return Math.max(
+        0,
+        Math.round(paths.getBoundingClientRect().top + window.scrollY - headerOffset),
+      );
+    }
+
+    function clearReassertTimers() {
+      while (reassertTimers.length > 0) {
+        const t = reassertTimers.pop();
+        if (t != null) window.clearTimeout(t);
+      }
+    }
+
+    // Fire the smooth-scroll AND schedule a few re-assertions.
+    //
+    // Why re-assert? On mobile especially, the user's touch drag
+    // and its inertial follow-through fire scroll events that
+    // INTERRUPT and cancel an in-progress `behavior: 'smooth'`
+    // scroll. Without re-assertion, the snap visibly aborts in
+    // mid-air at whatever point the touch ended, leaving the
+    // kicker partially off-screen — exactly the "page scrolls
+    // way further than supposed to" complaint.
+    //
+    // The re-assertions at 250 / 550 / 950 ms cover:
+    //   • A short tap-flick that ends quickly (250 ms reassert
+    //     finishes the journey to the target).
+    //   • A long deliberate drag (550 ms reassert catches the
+    //     case where touch only just released).
+    //   • iOS rubber-band / momentum scroll (950 ms reassert
+    //     corrects the eventual settle position).
+    //
+    // Each reassertion is a no-op once we're within 5 px of the
+    // target, so a clean snap that reached the target on the
+    // first try simply skips the follow-up scrollTo calls.
+    function fireSnap(target: number) {
+      window.scrollTo({ top: target, behavior: "smooth" });
+      for (const delay of [250, 550, 950]) {
+        const id = window.setTimeout(() => {
+          if (Math.abs(window.scrollY - target) > 5) {
+            window.scrollTo({ top: target, behavior: "smooth" });
+          }
+        }, delay);
+        reassertTimers.push(id);
+      }
+    }
+
+    function onScroll() {
+      const y = window.scrollY;
+      if (snapped) {
+        if (y < 8) {
+          // User has returned to the welcome — re-arm so the
+          // snap fires again on a future scroll-down.
+          snapped = false;
+          clearReassertTimers();
+        }
+        lastY = y;
+        return;
+      }
+      if (lastY < 8 && y >= 8) {
+        const target = targetY();
+        if (target == null) {
+          lastY = y;
+          return;
+        }
+        // 5-pixel pixel tolerance: if the very first scroll event
+        // already landed essentially on target, no need to fire a
+        // smooth-scroll at all. Anything further away is corrected.
+        if (Math.abs(y - target) <= 5) {
+          snapped = true;
+          lastY = y;
+          return;
+        }
+        snapped = true;
+        fireSnap(target);
+      }
+      lastY = y;
+    }
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      clearReassertTimers();
+    };
+  }, [reduced]);
+
   // Direction-aware stage transition.
   //   Exit  → cinematic slow build (cubic-in-out, 1.2 s)
   //   Return → eager rush back (cubic-out, 0.7 s) so the hero is
