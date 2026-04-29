@@ -5,44 +5,58 @@ import { useReducedMotion } from "framer-motion";
 import KineticText from "./KineticText";
 
 /**
- * CosmicJourney — load-once cinematic warp + INPUT-INTERCEPTING
- * bidirectional snap to/from the paths section.
+ * CosmicJourney — load-once cinematic welcome.
  *
- * ── Architecture: 100% compositor-thread animation ─────────────
+ * ── This rewrite removes the source of the stutter ────────────
  *
- * Every visual animation in this hero — mount streaks, planet
- * entrance, halo entrance, ambient pulse, headline reveal, scroll
- * hint, stage exit, warp streaks, white flash — is implemented as
- * a CSS @keyframes animation or CSS transition on transform/opacity.
- * That means the GPU compositor handles them; the main thread is
- * free for the rAF smooth-scroll loop and React state updates.
+ * Two things were causing stutter on scroll, and both are gone:
  *
- * The previous version used framer-motion for these animations,
- * which interpolates each property on the JS main thread every rAF
- * tick. With ~38 motion components mounted (36 mount streaks + an
- * infinite ambient pulse + headline + scroll hint + stage), the
- * main thread was doing thousands of style writes per second. When
- * the user wheel-scrolled, the scroll rAF had to compete for time
- * with all of that work — hence the visible stutter at the start
- * of every scroll-down and scroll-up.
+ * 1) Custom JS smooth-scroll loop. The previous version intercepted
+ *    every wheel/touch/key and ran its own requestAnimationFrame
+ *    loop calling `window.scrollTo(0, y)` 60 times per second.
+ *    That can never beat the browser's native scroll, which runs
+ *    on the compositor thread with sub-pixel precision and is
+ *    aggressively optimised. Mixing the two also competes with
+ *    every other component on the page that listens to scroll.
  *
- * Direction-aware stage transition:
- *   Exit  → 1.1 s cubic-in-out — cinematic, weighty
- *   Return → 0.65 s cubic-out — eager rush back so the hero is
- *           visible early during scroll-up, no blank space.
+ *    → We now use NATIVE browser scroll. No wheel interception,
+ *      no rAF scroll loop. The page scrolls the way every other
+ *      page on the internet scrolls.
+ *
+ * 2) Heavy compositor effects on the animated stage. The exit
+ *    animation rotated the whole stage in 3D (rotateX + scale +
+ *    translate). The stage contained `filter: blur(40px)` (nebula)
+ *    and `mix-blend-mode: screen` (pulse). Both force the browser
+ *    to RE-RASTERISE the entire layer on every frame of the
+ *    transform — completely defeating GPU compositing and
+ *    saturating the main thread.
+ *
+ *    → Heavy effects (nebula, pulse) are now SIBLINGS of the
+ *      stage, not children, so they don't get transformed at all.
+ *      The stage exit is now a simple opacity + small scale fade
+ *      (no rotateX, no translate, no blur inside) that the
+ *      compositor can handle with zero re-rasterisation.
+ *
+ * Visual changes you'll notice:
+ *   - Scrolling is now native and smooth — no snap, no JS scroll.
+ *   - As you scroll past ~15 % of the viewport, the hero fades
+ *     out (0.6 s ease-out). Scroll back and it fades in.
+ *   - The planet, halo, headline and scroll hint still play their
+ *     mount entrance animations. Mount warp streaks are kept (a
+ *     single one-shot CSS keyframe burst).
+ *   - Exit warp streaks and white flash are removed — they were
+ *     visual noise that depended on the (now-removed) snap.
  */
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
   const [exiting, setExiting] = useState(false);
-  const [exitKey, setExitKey] = useState(0);
   const exitingRef = useRef(false);
 
-  // 36 mount streaks — radial expansion during the welcome's load-in.
-  // Driven by CSS @keyframes (per-element CSS variables for end pos).
+  // Mount-time radial streaks — CSS @keyframes, fired once.
   const streaks = useMemo(() => {
     const colors = ["#ffe28a", "#a78bfa", "#7be7ff", "#f0abfc", "#ffffff"];
-    return Array.from({ length: 36 }, (_, i) => {
-      const angle = (i / 36) * Math.PI * 2;
+    return Array.from({ length: 24 }, (_, i) => {
+      const angle = (i / 24) * Math.PI * 2;
       const reachVw = 60 + ((i * 13) % 40);
       const dx = Math.cos(angle) * reachVw;
       const dy = Math.sin(angle) * reachVw;
@@ -54,194 +68,70 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         color: colors[i % colors.length],
         width: 1 + (i % 3),
         length: 70 + (i % 6) * 18,
-        delay: 0.1 + (i % 14) * 0.04,
+        delay: 0.1 + (i % 12) * 0.04,
       };
     });
   }, []);
 
-  // 20 exit warp streaks — also CSS @keyframes.
-  const warpStreaks = useMemo(
-    () =>
-      Array.from({ length: 20 }, (_, i) => {
-        const angle = (i / 20) * Math.PI * 2;
-        return {
-          dx: Math.cos(angle) * 120,
-          dy: Math.sin(angle) * 120,
-          rotateDeg: (angle * 180) / Math.PI,
-        };
-      }),
-    [],
-  );
-
-  // ── Input-intercepting snap controller ─────────────────────
+  // Passive, rAF-throttled scroll listener — only toggles a
+  // boolean state when the threshold is crossed. Cheap.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (reduced) return;
 
-    let isAnimating = false;
-    let activeRAF = 0;
+    let ticking = false;
+    let rafId = 0;
 
-    function smoothScrollTo(targetY: number, duration: number) {
-      const startY = window.scrollY;
-      const dist = targetY - startY;
-      if (Math.abs(dist) < 4) return;
-      isAnimating = true;
-      cancelAnimationFrame(activeRAF);
-      const start = performance.now();
-      function step(now: number) {
-        const t = Math.min((now - start) / duration, 1);
-        const eased = 1 - Math.pow(1 - t, 3);
-        window.scrollTo(0, startY + dist * eased);
-        if (t < 1) {
-          activeRAF = requestAnimationFrame(step);
-        } else {
-          window.setTimeout(() => {
-            isAnimating = false;
-          }, 180);
-        }
+    function check() {
+      const y = window.scrollY;
+      const threshold = Math.max(60, window.innerHeight * 0.15);
+      const next = y > threshold;
+      if (next !== exitingRef.current) {
+        exitingRef.current = next;
+        setExiting(next);
       }
-      activeRAF = requestAnimationFrame(step);
-    }
-
-    function getTargets() {
-      const innerH = window.innerHeight;
-      return {
-        pathsTarget: innerH - 20,
-        exitThreshold: Math.max(60, innerH * 0.08),
-      };
+      ticking = false;
     }
 
     function onScroll() {
-      const y = window.scrollY;
-      const { exitThreshold } = getTargets();
-      const next = y > exitThreshold;
-      if (next !== exitingRef.current) {
-        exitingRef.current = next;
-        if (next) setExitKey((k) => k + 1);
-        setExiting(next);
-      }
-    }
-
-    function onWheel(e: WheelEvent) {
-      if (e.ctrlKey || e.metaKey) return;
-      if (Math.abs(e.deltaY) < 1) return;
-      const y = window.scrollY;
-      const { pathsTarget } = getTargets();
-
-      if (y < pathsTarget - 4) {
-        e.preventDefault();
-        if (isAnimating) return;
-        if (e.deltaY > 0) smoothScrollTo(pathsTarget, 900);
-        else if (e.deltaY < 0 && y > 8) smoothScrollTo(0, 900);
-      } else if (y < pathsTarget + 12 && e.deltaY < 0) {
-        e.preventDefault();
-        if (isAnimating) return;
-        smoothScrollTo(0, 900);
-      }
-    }
-
-    let touchStartY = 0;
-    let touchActive = false;
-    let touchTriggered = false;
-
-    function onTouchStart(e: TouchEvent) {
-      if (e.touches.length !== 1) return;
-      const y = window.scrollY;
-      const { pathsTarget } = getTargets();
-      touchActive = y < pathsTarget + 12;
-      touchStartY = e.touches[0].clientY;
-      touchTriggered = false;
-    }
-
-    function onTouchMove(e: TouchEvent) {
-      if (!touchActive || e.touches.length !== 1) return;
-      const y = window.scrollY;
-      const { pathsTarget } = getTargets();
-      e.preventDefault();
-      if (isAnimating || touchTriggered) return;
-      const currentY = e.touches[0].clientY;
-      const swipeDelta = touchStartY - currentY;
-      if (Math.abs(swipeDelta) < 12) return;
-      touchTriggered = true;
-      if (swipeDelta > 0 && y < pathsTarget - 4) smoothScrollTo(pathsTarget, 900);
-      else if (swipeDelta < 0 && y > 8) smoothScrollTo(0, 900);
-    }
-
-    function onTouchEnd() {
-      touchActive = false;
-    }
-
-    function onKey(e: KeyboardEvent) {
-      const y = window.scrollY;
-      const { pathsTarget } = getTargets();
-      const isDown =
-        e.key === "PageDown" ||
-        e.key === "ArrowDown" ||
-        e.key === " " ||
-        e.key === "End";
-      const isUp =
-        e.key === "PageUp" || e.key === "ArrowUp" || e.key === "Home";
-      if (isDown && y < pathsTarget - 4) {
-        e.preventDefault();
-        if (!isAnimating) smoothScrollTo(pathsTarget, 900);
-      } else if (isUp && y < pathsTarget + 12 && y > 8) {
-        e.preventDefault();
-        if (!isAnimating) smoothScrollTo(0, 900);
+      if (!ticking) {
+        ticking = true;
+        rafId = requestAnimationFrame(check);
       }
     }
 
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("wheel", onWheel, { passive: false });
-    window.addEventListener("touchstart", onTouchStart, { passive: true });
-    window.addEventListener("touchmove", onTouchMove, { passive: false });
-    window.addEventListener("touchend", onTouchEnd, { passive: true });
-    window.addEventListener("keydown", onKey);
-    onScroll();
+    check();
 
     return () => {
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("wheel", onWheel);
-      window.removeEventListener("touchstart", onTouchStart);
-      window.removeEventListener("touchmove", onTouchMove);
-      window.removeEventListener("touchend", onTouchEnd);
-      window.removeEventListener("keydown", onKey);
-      cancelAnimationFrame(activeRAF);
+      if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [reduced]);
+  }, []);
 
-  // CSS-transition stage style — direction-aware easing.
+  // Stage style — opacity + tiny scale fade. NO rotateX, NO translate,
+  // NO blur, NO mix-blend-mode in this layer. The compositor can
+  // animate this without re-rasterising.
   const stageStyle: CSSProperties = {
     position: "absolute",
     inset: 0,
     display: "grid",
     placeItems: "center",
-    transformStyle: "preserve-3d",
-    transformOrigin: "50% 28%",
     willChange: "transform, opacity",
-    transform: exiting
-      ? "scale(0.08) rotateX(-55deg) translate3d(0, -200px, 0)"
-      : "scale(1) rotateX(0deg) translate3d(0, 0, 0)",
+    transform: exiting ? "scale(0.94)" : "scale(1)",
     opacity: exiting ? 0 : 1,
     transition: reduced
       ? "none"
-      : exiting
-        ? "transform 1.1s cubic-bezier(0.65, 0, 0.35, 1), opacity 0.95s cubic-bezier(0.65, 0, 0.35, 1)"
-        : "transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease-out",
+      : "opacity 0.6s ease-out, transform 0.6s ease-out",
   };
 
   return (
     <section
       data-testid="cosmic-journey"
       className="relative grid w-full place-items-center overflow-hidden"
-      style={{
-        height: "100svh",
-        contain: "layout paint",
-        perspective: "1400px",
-        transform: "translate3d(0,0,0)",
-      }}
+      style={{ height: "100svh" }}
     >
       <style jsx>{`
-        /* ── Mount entrance keyframes (compositor-only) ── */
+        /* Mount-time keyframes (compositor-only) */
         @keyframes cj-fade {
           from { opacity: 0; }
           to { opacity: 1; }
@@ -256,9 +146,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           100% { opacity: 0.4; transform: scale(1); }
         }
         @keyframes cj-pulse {
-          0%, 100% { opacity: 0.55; transform: scale(1); }
-          25%, 75% { opacity: 0.85; transform: scale(1.04); }
-          50% { opacity: 0.55; transform: scale(1); }
+          0%, 100% { opacity: 0.45; transform: scale(1); }
+          50% { opacity: 0.7; transform: scale(1.04); }
         }
         @keyframes cj-mount-streak {
           0% { transform: translate3d(0, 0, 0) scaleX(0.2); opacity: 0; }
@@ -285,56 +174,77 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           to { opacity: 1; transform: translate3d(0, 0, 0); }
         }
 
-        /* ── Exit-time keyframes (compositor-only) ── */
-        @keyframes cj-flash {
-          0% { opacity: 0; }
-          40% { opacity: 0.45; }
-          90%, 100% { opacity: 0; }
-        }
-        @keyframes cj-streak {
-          0% { transform: translate3d(0, 0, 0) scaleX(0.5); opacity: 0; }
-          50% {
-            transform: translate3d(
-                calc(var(--cj-dx) / 2),
-                calc(var(--cj-dy) / 2),
-                0
-              )
-              scaleX(8);
-            opacity: 1;
-          }
-          100% {
-            transform: translate3d(var(--cj-dx), var(--cj-dy), 0) scaleX(14);
-            opacity: 0;
-          }
-        }
-
+        /* Backdrop nebula — sibling of stage, NOT animated by exit.
+           Uses layered radial gradients for soft falloff INSTEAD of
+           filter:blur(), which is a known compositor killer. */
         .cj-nebula {
           position: absolute;
           inset: 0;
           background:
-            radial-gradient(ellipse at 28% 32%, rgba(167, 139, 250, 0.5) 0%, transparent 45%),
-            radial-gradient(ellipse at 75% 60%, rgba(34, 211, 238, 0.42) 0%, transparent 50%),
-            radial-gradient(ellipse at 50% 80%, rgba(245, 185, 69, 0.35) 0%, transparent 50%);
-          filter: blur(40px);
+            radial-gradient(
+              ellipse 70% 60% at 28% 32%,
+              rgba(167, 139, 250, 0.42) 0%,
+              rgba(167, 139, 250, 0.18) 40%,
+              transparent 70%
+            ),
+            radial-gradient(
+              ellipse 60% 55% at 75% 60%,
+              rgba(34, 211, 238, 0.34) 0%,
+              rgba(34, 211, 238, 0.14) 40%,
+              transparent 70%
+            ),
+            radial-gradient(
+              ellipse 65% 60% at 50% 80%,
+              rgba(245, 185, 69, 0.3) 0%,
+              rgba(245, 185, 69, 0.12) 40%,
+              transparent 70%
+            );
           opacity: 0;
           animation: cj-fade 0.8s ease-out forwards;
           pointer-events: none;
         }
 
+        /* Mount streaks live OUTSIDE the stage — they finish in ~2 s
+           and the user is unlikely to be scrolling yet. */
         .cj-mount-streak-rotor {
           position: absolute;
           width: 0;
           height: 0;
           transform-origin: 0% 50%;
+          left: 50%;
+          top: 50%;
         }
         .cj-mount-streak {
           display: block;
           opacity: 0;
           transform-origin: 0% 50%;
           animation: cj-mount-streak 1.8s cubic-bezier(0.16, 0.9, 0.3, 1) forwards;
-          will-change: transform, opacity;
         }
 
+        /* Ambient pulse — sibling of stage, NOT animated by exit.
+           No mix-blend-mode (compositor killer). Plain opacity. */
+        .cj-pulse {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 60vmin;
+          height: 60vmin;
+          margin: -30vmin 0 0 -30vmin;
+          border-radius: 9999px;
+          background: radial-gradient(
+            circle,
+            rgba(255, 240, 200, 0.25) 0%,
+            rgba(255, 240, 200, 0.08) 50%,
+            transparent 75%
+          );
+          opacity: 0;
+          animation: cj-fade 0.5s ease-out 2s forwards,
+            cj-pulse 8s ease-in-out 2.5s infinite;
+          pointer-events: none;
+        }
+
+        /* Planet — large box-shadow reduced from 140 + 260 px blur to
+           80 + 150 px. Still glowy, much cheaper to rasterise. */
         .cj-planet {
           position: absolute;
           width: 60vmin;
@@ -348,45 +258,25 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             rgba(34, 211, 238, 0.32) 85%,
             transparent 100%
           );
-          box-shadow: 0 0 140px 50px rgba(245, 185, 69, 0.4),
-            0 0 260px 90px rgba(167, 139, 250, 0.28);
+          box-shadow: 0 0 80px 30px rgba(245, 185, 69, 0.32),
+            0 0 150px 60px rgba(167, 139, 250, 0.22);
           opacity: 0;
           transform: scale(0.18);
           animation: cj-planet-in 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
-          will-change: transform, opacity;
         }
 
-        .cj-pulse {
-          position: absolute;
-          width: 60vmin;
-          height: 60vmin;
-          border-radius: 9999px;
-          background: radial-gradient(
-            circle,
-            rgba(255, 255, 255, 0.35) 0%,
-            transparent 60%
-          );
-          mix-blend-mode: screen;
-          opacity: 0;
-          /* delay 2s, then infinite 8s loop */
-          animation: cj-fade 0.5s ease-out 2s forwards,
-            cj-pulse 8s ease-in-out 2.5s infinite;
-          will-change: transform, opacity;
-          pointer-events: none;
-        }
-
+        /* Halo — softer shadows */
         .cj-halo {
           position: absolute;
           width: 88vmin;
           height: 88vmin;
           border-radius: 9999px;
-          border: 1px solid rgba(255, 225, 140, 0.4);
-          box-shadow: inset 0 0 90px rgba(245, 185, 69, 0.18),
-            0 0 140px rgba(167, 139, 250, 0.2);
+          border: 1px solid rgba(255, 225, 140, 0.35);
+          box-shadow: inset 0 0 50px rgba(245, 185, 69, 0.14),
+            0 0 80px rgba(167, 139, 250, 0.16);
           opacity: 0;
           transform: scale(0.55);
           animation: cj-halo-in 2s ease-out 0.4s forwards;
-          will-change: transform, opacity;
           pointer-events: none;
         }
 
@@ -394,48 +284,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           opacity: 0;
           transform: translate3d(0, 32px, 0) scale(0.95);
           animation: cj-headline-in 1s cubic-bezier(0.16, 1, 0.3, 1) 1s forwards;
-          will-change: transform, opacity;
         }
 
         .cj-hint {
           opacity: 0;
           animation: cj-hint-in 0.7s ease-out 2s forwards;
-          transition: opacity 0.4s ease-out;
-        }
-        .cj-hint--gone {
-          opacity: 0 !important;
-        }
-
-        /* Exit-time effects */
-        .cj-flash {
-          position: absolute;
-          inset: 0;
-          background: #fff;
-          opacity: 0;
-          animation: cj-flash 0.85s ease-out forwards;
-          will-change: opacity;
-        }
-        .cj-warp-rotor {
-          position: absolute;
-          width: 0;
-          height: 0;
-          transform-origin: 0% 50%;
-        }
-        .cj-warp-streak {
-          display: block;
-          width: 110px;
-          height: 2px;
-          background: linear-gradient(
-            to right,
-            transparent 0%,
-            rgba(255, 255, 255, 0.95) 50%,
-            transparent 100%
-          );
-          box-shadow: 0 0 14px rgba(255, 230, 180, 0.85);
-          opacity: 0;
-          transform-origin: 0% 50%;
-          animation: cj-streak 1s cubic-bezier(0.16, 0.9, 0.3, 1) forwards;
-          will-change: transform, opacity;
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -445,68 +298,60 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           .cj-pulse,
           .cj-headline-wrap,
           .cj-hint,
-          .cj-mount-streak,
-          .cj-warp-streak,
-          .cj-flash {
+          .cj-mount-streak {
             animation: none !important;
             opacity: 1;
             transform: none;
           }
           .cj-pulse,
-          .cj-flash,
-          .cj-warp-streak,
           .cj-mount-streak {
             display: none;
           }
         }
       `}</style>
 
-      {/* Scene stage — pure CSS transition, off-main-thread */}
-      <div style={stageStyle} suppressHydrationWarning>
-        {/* 1. Nebula backdrop */}
-        <div aria-hidden="true" className="cj-nebula" />
+      {/* Sibling layers — NOT inside the animated stage. They keep
+          the cosmic atmosphere visible at all scroll positions. */}
+      <div aria-hidden="true" className="cj-nebula" />
+      {!reduced && <div aria-hidden="true" className="cj-pulse" />}
 
-        {/* 2. Mount warp streaks */}
-        {!reduced && (
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 grid place-items-center"
-          >
-            {streaks.map((s, i) => (
+      {/* Mount streaks — fire once at mount, also outside the stage */}
+      {!reduced && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+        >
+          {streaks.map((s, i) => (
+            <span
+              key={`mount-streak-${i}`}
+              className="cj-mount-streak-rotor"
+              style={{ transform: `rotate(${s.rotateDeg}deg)` }}
+            >
               <span
-                key={`mount-streak-${i}`}
-                className="cj-mount-streak-rotor"
-                style={{ transform: `rotate(${s.rotateDeg}deg)` }}
-              >
-                <span
-                  className="cj-mount-streak"
-                  style={
-                    {
-                      width: s.length,
-                      height: s.width,
-                      backgroundColor: s.color,
-                      boxShadow: `0 0 ${s.width * 6}px ${s.color}`,
-                      animationDelay: `${s.delay}s`,
-                      "--cj-dx": `${s.dx}vmin`,
-                      "--cj-dy": `${s.dy}vmin`,
-                    } as CSSProperties
-                  }
-                />
-              </span>
-            ))}
-          </div>
-        )}
+                className="cj-mount-streak"
+                style={
+                  {
+                    width: s.length,
+                    height: s.width,
+                    backgroundColor: s.color,
+                    boxShadow: `0 0 ${s.width * 6}px ${s.color}`,
+                    animationDelay: `${s.delay}s`,
+                    "--cj-dx": `${s.dx}vmin`,
+                    "--cj-dy": `${s.dy}vmin`,
+                  } as CSSProperties
+                }
+              />
+            </span>
+          ))}
+        </div>
+      )}
 
-        {/* 3. Central planet */}
+      {/* Stage — only opacity + small scale, no heavy effects inside.
+          The compositor can animate this for free. */}
+      <div style={stageStyle} suppressHydrationWarning>
         <div className="cj-planet" suppressHydrationWarning />
-
-        {/* 3b. Ambient pulse — CSS infinite, GPU compositor */}
-        {!reduced && <div aria-hidden="true" className="cj-pulse" />}
-
-        {/* 4. Halo ring */}
         {!reduced && <div aria-hidden="true" className="cj-halo" />}
 
-        {/* 5. WELCOME headline */}
         <div className="cj-headline-wrap container-wide pointer-events-none relative z-[5] flex flex-col items-center justify-center text-center">
           <KineticText
             as="h1"
@@ -521,12 +366,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           />
         </div>
 
-        {/* 6. Scroll hint */}
         <div
           data-testid="hero-scroll-indicator"
-          className={`cj-hint absolute bottom-12 z-[6] flex flex-col items-center gap-3 text-white${
-            exiting ? " cj-hint--gone" : ""
-          }`}
+          className="cj-hint absolute bottom-12 z-[6] flex flex-col items-center gap-3 text-white"
         >
           <span
             className="heading-display text-xs font-bold uppercase tracking-[0.5em] sm:text-sm"
@@ -543,36 +385,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           />
         </div>
       </div>
-
-      {/* Exit-time cinematic effects — CSS animations, replay via key */}
-      {exiting && !reduced && (
-        <div
-          key={`exit-fx-${exitKey}`}
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-[18]"
-        >
-          <div className="cj-flash" />
-          <div className="absolute inset-0 grid place-items-center">
-            {warpStreaks.map((s, i) => (
-              <span
-                key={`warp-${i}`}
-                className="cj-warp-rotor"
-                style={{ transform: `rotate(${s.rotateDeg}deg)` }}
-              >
-                <span
-                  className="cj-warp-streak"
-                  style={
-                    {
-                      "--cj-dx": `${s.dx}vmin`,
-                      "--cj-dy": `${s.dy}vmin`,
-                    } as CSSProperties
-                  }
-                />
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
     </section>
   );
 }
