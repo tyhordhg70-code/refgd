@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 
 /**
- * Animated illustration for the Telegram CTA box. Pure SVG + CSS @keyframes.
+ * Animated illustration for the Telegram CTA box. Pure SVG + CSS
+ * @keyframes (declared in app/globals.css under "AnimatedTelegramBox").
  *
  * Layers (back→front):
  *   1. Soft mesh gradient backdrop
@@ -20,6 +21,13 @@ import { useEffect, useState } from "react";
  * scroll stutter the user reported. They are now CSS @keyframes so
  * the work moves to the compositor and the main thread is free to
  * keep up with native scroll.
+ *
+ * NOTE: keyframes live in globals.css, NOT in a `<style jsx>` block.
+ * styled-jsx scopes both selectors and `@keyframes` names per
+ * component, but our inline `style={{ animation: "atb-twinkle ..." }}`
+ * references the unscoped name. Defining the keyframes via styled-jsx
+ * silently broke every animation (the renamed keyframe never matched
+ * the inline name). globals.css gives us truly global keyframe names.
  */
 export default function AnimatedTelegramBox() {
   const [reduced, setReduced] = useState(false);
@@ -44,57 +52,6 @@ export default function AnimatedTelegramBox() {
           "linear-gradient(135deg, #08080f 0%, #1a1228 60%, #08080f 100%)",
       }}
     >
-      <style jsx>{`
-        @keyframes atb-twinkle {
-          0%, 100% { opacity: 0.2; transform: scale(0.6); }
-          50%      { opacity: 0.95; transform: scale(1.3); }
-        }
-        @keyframes atb-bubble {
-          0%   { transform: translateX(0%);    opacity: 0; }
-          15%  {                                opacity: 0.85; }
-          85%  {                                opacity: 0.85; }
-          100% { transform: translateX(1400%); opacity: 0; }
-        }
-        @keyframes atb-plane-pos {
-          0%   { transform: translate(0%, 0%) rotate(0deg);    opacity: 0; }
-          15%  {                                                opacity: 0.95; }
-          50%  { transform: translate(18%, -360%) rotate(8deg); }
-          75%  {                                                opacity: 0.7; }
-          80%  { transform: translate(0%, -576%) rotate(-4deg); }
-          100% { transform: translate(0%, -720%) rotate(0deg);  opacity: 0; }
-        }
-        @keyframes atb-plane-neg {
-          0%   { transform: translate(0%, 0%) rotate(0deg);     opacity: 0; }
-          15%  {                                                 opacity: 0.95; }
-          50%  { transform: translate(-22%, -360%) rotate(8deg); }
-          75%  {                                                 opacity: 0.7; }
-          80%  { transform: translate(0%, -576%) rotate(-4deg);  }
-          100% { transform: translate(0%, -720%) rotate(0deg);   opacity: 0; }
-        }
-        @keyframes atb-spin     { to { transform: rotate(360deg); } }
-        @keyframes atb-spin-rev { to { transform: rotate(-360deg); } }
-        @keyframes atb-planet {
-          0%, 100% { transform: translateY(-50%) scale(1);    opacity: 0.85; }
-          50%      { transform: translateY(-50%) scale(1.07); opacity: 1;    }
-        }
-        @keyframes atb-glow {
-          0%, 100% { opacity: 0.6; }
-          50%      { opacity: 1;   }
-        }
-        @keyframes atb-sweep {
-          0%   { transform: translateX(-30%); opacity: 0; }
-          25%  {                              opacity: 0.55; }
-          75%  {                              opacity: 0; }
-          100% { transform: translateX(130%); opacity: 0; }
-        }
-        /* Only promote the few largest moving layers; promoting all 50+
-           animated elements creates layer bloat that hurts low-end GPUs. */
-        .atb-promote { will-change: transform, opacity; }
-        @media (prefers-reduced-motion: reduce) {
-          .atb-anim { animation: none !important; }
-        }
-      `}</style>
-
       {/* ───── 1. TWINKLE STAR FIELD ───── */}
       {Array.from({ length: 36 }).map((_, i) => {
         const left = (i * 37) % 100;

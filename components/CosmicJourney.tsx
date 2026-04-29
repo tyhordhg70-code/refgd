@@ -46,6 +46,16 @@ import KineticText from "./KineticText";
  *     single one-shot CSS keyframe burst).
  *   - Exit warp streaks and white flash are removed — they were
  *     visual noise that depended on the (now-removed) snap.
+ *
+ * NOTE: keyframes (`cj-fade`, `cj-planet-in`, `cj-halo-in`,
+ * `cj-pulse`, `cj-mount-streak`, `cj-headline-in`, `cj-hint-in`)
+ * and helper classes (`cj-nebula`, `cj-planet`, `cj-halo`,
+ * `cj-pulse`, `cj-headline-wrap`, `cj-hint`,
+ * `cj-mount-streak-rotor`, `cj-mount-streak`) live in
+ * app/globals.css under "CosmicJourney". They MUST live there and
+ * NOT inside a `<style jsx>` block — styled-jsx scopes both
+ * selectors and `@keyframes` names, which would silently break
+ * every inline `style={{ animation: "cj-... ..." }}` reference.
  */
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
@@ -130,186 +140,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       className="relative grid w-full place-items-center overflow-hidden"
       style={{ height: "100svh" }}
     >
-      <style jsx>{`
-        /* Mount-time keyframes (compositor-only) */
-        @keyframes cj-fade {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes cj-planet-in {
-          from { opacity: 0; transform: scale(0.18); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        @keyframes cj-halo-in {
-          0% { opacity: 0; transform: scale(0.55); }
-          50% { opacity: 0.75; transform: scale(0.9); }
-          100% { opacity: 0.4; transform: scale(1); }
-        }
-        @keyframes cj-pulse {
-          0%, 100% { opacity: 0.45; transform: scale(1); }
-          50% { opacity: 0.7; transform: scale(1.04); }
-        }
-        @keyframes cj-mount-streak {
-          0% { transform: translate3d(0, 0, 0) scaleX(0.2); opacity: 0; }
-          45% {
-            transform: translate3d(
-                calc(var(--cj-dx) * 0.6),
-                calc(var(--cj-dy) * 0.6),
-                0
-              )
-              scaleX(1);
-            opacity: 1;
-          }
-          100% {
-            transform: translate3d(var(--cj-dx), var(--cj-dy), 0) scaleX(1.6);
-            opacity: 0;
-          }
-        }
-        @keyframes cj-headline-in {
-          from { opacity: 0; transform: translate3d(0, 32px, 0) scale(0.95); }
-          to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-        }
-        @keyframes cj-hint-in {
-          from { opacity: 0; transform: translate3d(0, 10px, 0); }
-          to { opacity: 1; transform: translate3d(0, 0, 0); }
-        }
-
-        /* Backdrop nebula — sibling of stage, NOT animated by exit.
-           Uses layered radial gradients for soft falloff INSTEAD of
-           filter:blur(), which is a known compositor killer. */
-        .cj-nebula {
-          position: absolute;
-          inset: 0;
-          background:
-            radial-gradient(
-              ellipse 70% 60% at 28% 32%,
-              rgba(167, 139, 250, 0.42) 0%,
-              rgba(167, 139, 250, 0.18) 40%,
-              transparent 70%
-            ),
-            radial-gradient(
-              ellipse 60% 55% at 75% 60%,
-              rgba(34, 211, 238, 0.34) 0%,
-              rgba(34, 211, 238, 0.14) 40%,
-              transparent 70%
-            ),
-            radial-gradient(
-              ellipse 65% 60% at 50% 80%,
-              rgba(245, 185, 69, 0.3) 0%,
-              rgba(245, 185, 69, 0.12) 40%,
-              transparent 70%
-            );
-          opacity: 0;
-          animation: cj-fade 0.8s ease-out forwards;
-          pointer-events: none;
-        }
-
-        /* Mount streaks live OUTSIDE the stage — they finish in ~2 s
-           and the user is unlikely to be scrolling yet. */
-        .cj-mount-streak-rotor {
-          position: absolute;
-          width: 0;
-          height: 0;
-          transform-origin: 0% 50%;
-          left: 50%;
-          top: 50%;
-        }
-        .cj-mount-streak {
-          display: block;
-          opacity: 0;
-          transform-origin: 0% 50%;
-          animation: cj-mount-streak 1.8s cubic-bezier(0.16, 0.9, 0.3, 1) forwards;
-        }
-
-        /* Ambient pulse — sibling of stage, NOT animated by exit.
-           No mix-blend-mode (compositor killer). Plain opacity. */
-        .cj-pulse {
-          position: absolute;
-          left: 50%;
-          top: 50%;
-          width: 60vmin;
-          height: 60vmin;
-          margin: -30vmin 0 0 -30vmin;
-          border-radius: 9999px;
-          background: radial-gradient(
-            circle,
-            rgba(255, 240, 200, 0.25) 0%,
-            rgba(255, 240, 200, 0.08) 50%,
-            transparent 75%
-          );
-          opacity: 0;
-          animation: cj-fade 0.5s ease-out 2s forwards,
-            cj-pulse 8s ease-in-out 2.5s infinite;
-          pointer-events: none;
-        }
-
-        /* Planet — large box-shadow reduced from 140 + 260 px blur to
-           80 + 150 px. Still glowy, much cheaper to rasterise. */
-        .cj-planet {
-          position: absolute;
-          width: 60vmin;
-          height: 60vmin;
-          border-radius: 9999px;
-          background: radial-gradient(
-            circle at 30% 28%,
-            rgba(255, 237, 180, 1) 0%,
-            rgba(245, 185, 69, 0.85) 22%,
-            rgba(167, 139, 250, 0.62) 55%,
-            rgba(34, 211, 238, 0.32) 85%,
-            transparent 100%
-          );
-          box-shadow: 0 0 80px 30px rgba(245, 185, 69, 0.32),
-            0 0 150px 60px rgba(167, 139, 250, 0.22);
-          opacity: 0;
-          transform: scale(0.18);
-          animation: cj-planet-in 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
-        }
-
-        /* Halo — softer shadows */
-        .cj-halo {
-          position: absolute;
-          width: 88vmin;
-          height: 88vmin;
-          border-radius: 9999px;
-          border: 1px solid rgba(255, 225, 140, 0.35);
-          box-shadow: inset 0 0 50px rgba(245, 185, 69, 0.14),
-            0 0 80px rgba(167, 139, 250, 0.16);
-          opacity: 0;
-          transform: scale(0.55);
-          animation: cj-halo-in 2s ease-out 0.4s forwards;
-          pointer-events: none;
-        }
-
-        .cj-headline-wrap {
-          opacity: 0;
-          transform: translate3d(0, 32px, 0) scale(0.95);
-          animation: cj-headline-in 1s cubic-bezier(0.16, 1, 0.3, 1) 1s forwards;
-        }
-
-        .cj-hint {
-          opacity: 0;
-          animation: cj-hint-in 0.7s ease-out 2s forwards;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .cj-nebula,
-          .cj-planet,
-          .cj-halo,
-          .cj-pulse,
-          .cj-headline-wrap,
-          .cj-hint,
-          .cj-mount-streak {
-            animation: none !important;
-            opacity: 1;
-            transform: none;
-          }
-          .cj-pulse,
-          .cj-mount-streak {
-            display: none;
-          }
-        }
-      `}</style>
-
       {/* Sibling layers — NOT inside the animated stage. They keep
           the cosmic atmosphere visible at all scroll positions. */}
       <div aria-hidden="true" className="cj-nebula" />
