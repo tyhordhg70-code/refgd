@@ -46,8 +46,8 @@ export default function GalaxyBackground() {
       // Reduced counts again — was making a visibly-rectangular dense
       // cluster mid-page on long pages. Halving the outer torus is
       // the single most effective fix.
-      const PARTICLE_COUNT_INNER = isMobile ? 5000 : isTablet ? 12000 : 18000;
-      const PARTICLE_COUNT_OUTER = isMobile ? 7000 : isTablet ? 16000 : 26000;
+      const PARTICLE_COUNT_INNER = isMobile ? 1800 : isTablet ? 4500 : 6500;
+      const PARTICLE_COUNT_OUTER = isMobile ? 2600 : isTablet ? 6500 : 9500;
 
       const scene = new THREE.Scene();
       // Transparent so layout overlays work
@@ -56,7 +56,7 @@ export default function GalaxyBackground() {
 
       const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: "low-power" });
       renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(Math.min(isMobile ? 1.25 : 1.75, window.devicePixelRatio || 1));
+      renderer.setPixelRatio(Math.min(isMobile ? 1 : 1.15, window.devicePixelRatio || 1));
       renderer.setClearColor(0x000000, 0);
       mount.appendChild(renderer.domElement);
 
@@ -199,6 +199,7 @@ export default function GalaxyBackground() {
       const clock = new THREE.Timer();
       let raf = 0;
       let visible = true;
+      let lastRender = 0;
       const io = new IntersectionObserver((entries) => {
         visible = entries[0]?.isIntersecting ?? true;
       });
@@ -208,10 +209,13 @@ export default function GalaxyBackground() {
 
       const tick = () => {
         if (disposed) return;
+        raf = requestAnimationFrame(tick);
+        const now = performance.now();
+        if (now - lastRender < 33) return;
+        lastRender = now;
         // update() must be called first each frame so getElapsed() is current.
         clock.update();
         if (!visible) {
-          raf = requestAnimationFrame(tick);
           return;
         }
         const t = clock.getElapsed() * 0.5;
@@ -237,7 +241,6 @@ export default function GalaxyBackground() {
         points.rotation.x = scrollNorm * 0.2;
 
         renderer.render(scene, camera);
-        raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
 

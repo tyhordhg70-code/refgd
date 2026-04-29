@@ -112,22 +112,20 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   });
 
   // One-scroll gate: a hard wheel flick should not jump past the scene.
-  // The first down-scroll plays the full WELCOME → arrival arc, then lands
-  // the user directly at the paths section. Extra wheel/touch events are
-  // swallowed while the controlled scroll is running, so the animation
-  // cannot be skipped even by aggressive trackpad momentum.
+  // Attach immediately after hydration instead of waiting for the mounted
+  // render flag; otherwise the user's very first wheel can slip through as
+  // native scroll and skip the whole WELCOME timeline.
   useEffect(() => {
-    if (!mounted) return;
-
-    let raf = 0;
-    const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+    let timer: number | null = null;
+    const ease = (t: number) =>
+      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
     const stopAnimation = () => {
-      if (raf) cancelAnimationFrame(raf);
-      raf = 0;
+      if (timer) window.clearInterval(timer);
+      timer = null;
     };
 
-    const animateTo = (target: number | (() => number), duration = 980) => {
+    const animateTo = (target: number | (() => number), duration = 1800) => {
       stopAnimation();
       scrollLockRef.current = true;
       const start = window.scrollY;
@@ -138,32 +136,47 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       };
       const startedAt = performance.now();
 
-      const step = (now: number) => {
+      const step = () => {
+        const now = performance.now();
         const t = Math.min(1, (now - startedAt) / duration);
         const safeTarget = getSafeTarget();
         const distance = safeTarget - start;
         window.scrollTo(0, start + distance * ease(t));
-        if (t < 1) {
-          raf = requestAnimationFrame(step);
-          return;
-        }
+        if (t < 1) return;
         window.scrollTo(0, safeTarget);
-        raf = 0;
+        stopAnimation();
         window.setTimeout(() => {
           scrollLockRef.current = false;
-        }, 520);
+        }, 180);
       };
 
-      raf = requestAnimationFrame(step);
+      step();
+      timer = window.setInterval(step, 16);
+    };
+
+    const queueControlledScroll = (target: number | (() => number), duration: number) => {
+      scrollLockRef.current = true;
+      window.setTimeout(() => animateTo(target, duration), 0);
+    };
+
+    const getLandingOffset = () => {
+      const header = document.querySelector("header");
+      const headerHeight =
+        header instanceof HTMLElement ? header.getBoundingClientRect().height : 64;
+      return Math.min(
+        window.innerHeight * 0.18,
+        headerHeight + (isMobile ? 32 : 42),
+      );
     };
 
     const getHandoffTarget = () => {
       const section = sectionRef.current;
       if (!section) return window.scrollY;
       const paths = document.getElementById("paths");
-      return paths
+      const rawTarget = paths
         ? window.scrollY + paths.getBoundingClientRect().top
         : section.offsetTop + section.offsetHeight;
+      return Math.max(0, rawTarget - getLandingOffset());
     };
 
     const getBounds = () => {
@@ -184,10 +197,16 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // y=0/header wheel events on hard scrolls, allowing native scrolling to
       // jump straight to lower content.
       const beforePaths = y <= bounds.pathsTop - 8;
+      const justInsidePaths = y > bounds.top + 8 && y <= bounds.pathsTop + 72;
       if (scrollLockRef.current) return true;
 
       if (direction > 0 && beforePaths) {
-        animateTo(getHandoffTarget, reduced ? 240 : isMobile ? 900 : 1040);
+        queueControlledScroll(getHandoffTarget(), reduced ? 260 : isMobile ? 1700 : 1950);
+        return true;
+      }
+
+      if (direction < 0 && justInsidePaths) {
+        queueControlledScroll(bounds.top, reduced ? 260 : isMobile ? 1500 : 1750);
         return true;
       }
 
@@ -233,7 +252,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       document.removeEventListener("touchstart", onTouchStart, { capture: true });
       document.removeEventListener("touchmove", onTouchMove, { capture: true });
     };
-  }, [isMobile, mounted, reduced]);
+  }, [isMobile, reduced]);
 
   // PLANET — visible early, then zooms past the camera and dissolves.
   const planetScale = useTransform(
@@ -341,7 +360,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   );
 
   // Streak spokes — fewer on mobile keeps the GPU compositing budget sane.
-  const streakCount = isMobile ? 22 : 32;
+  const streakCount = isMobile ? 14 : 22;
   const streaks = Array.from({ length: streakCount }, (_, i) => i * (360 / streakCount));
 
   return (
@@ -374,7 +393,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           data-cursor-label="explore"
         >
           {/* Layer 0 — sparse glassy orbs as ambient depth. */}
-          <LiquidGlassOrbs count={isMobile ? 5 : 7} className="z-[1]" />
+          <LiquidGlassOrbs count={isMobile ? 3 : 5} className="z-[1]" />
 
           {/* Layer 1 — distant nebula (far). Gradients only, very cheap. */}
           <motion.div

@@ -39,13 +39,13 @@ export default function PathsReveal({ children }: { children: ReactNode }) {
         reduced
           ? { opacity: 1 }
           : isMobile
-          ? { opacity: 0, y: 80, scale: 1 }
-          : { opacity: 0, y: 220, scale: 0.86 }
+          ? { opacity: 0, y: 28, scale: 1 }
+          : { opacity: 0, y: 34, scale: 0.98 }
       }
       whileInView={{ opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-10% 0px -10% 0px" }}
       transition={{
-        duration: reduced ? 0 : 1.4,
+        duration: reduced ? 0 : 0.65,
         ease: [0.16, 1, 0.3, 1],
       }}
       style={{

@@ -65,11 +65,11 @@ export default function ParallaxChapter({
   // Background: small downward drift + scale + fade-in on enter.
   const bgInitial = disable
     ? { opacity: 1 }
-    : { opacity: 0, y: `${intensity * 30}%`, scale: 0.92 };
+    : { opacity: 0, y: `${intensity * 12}%`, scale: 0.97 };
   const bgWhileInView = { opacity: 1, y: "0%", scale: 1 };
 
   // Foreground: subtle 6% lift on enter, no continuous scroll motion.
-  const fgInitial = disable ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 };
+  const fgInitial = disable ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 };
   const fgWhileInView = { opacity: 1, y: 0 };
 
   return (
@@ -80,7 +80,7 @@ export default function ParallaxChapter({
           initial={mounted ? bgInitial : { opacity: 0 }}
           whileInView={bgWhileInView}
           viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
-          transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
           suppressHydrationWarning
           className={`pointer-events-none z-0 ${bgClassName}`}
         >
@@ -91,7 +91,7 @@ export default function ParallaxChapter({
         initial={mounted ? fgInitial : undefined}
         whileInView={fgWhileInView}
         viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
-        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
         suppressHydrationWarning
         className="relative z-10"
       >

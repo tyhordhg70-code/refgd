@@ -81,25 +81,36 @@ export default function PathCard({
   const labelClass = size === "sm" ? "mt-2 text-[9px] tracking-[0.22em]" : "mt-3 text-[10px] tracking-[0.3em]";
   const chipClass = size === "sm" ? "px-2 py-0.5 text-[9px] tracking-[0.18em]" : "px-3 py-1 text-[11px] tracking-[0.25em]";
   const textPad = size === "sm" ? "p-3 md:p-4 xl:p-5" : "p-6";
+  const revealProps =
+    size === "sm"
+      ? {
+          initial: false as const,
+          whileInView: undefined,
+          viewport: undefined,
+          transition: undefined,
+        }
+      : {
+          initial: { opacity: 0, y: 80, scale: 0.85, rotateX: 18 },
+          whileInView: { opacity: 1, y: 0, scale: 1, rotateX: 0 },
+          viewport: { once: true, margin: "-80px" },
+          transition: {
+            duration: 1.0,
+            delay: index * 0.12,
+            ease: [0.22, 1, 0.36, 1],
+          },
+        };
 
   return (
     <motion.div
       data-testid={`path-card-${index + 1}`}
-      initial={{ opacity: 0, y: 80, scale: 0.85, rotateX: 18 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{
-        duration: 1.0,
-        delay: index * 0.12,
-        ease: [0.22, 1, 0.36, 1],
-      }}
+      {...revealProps}
       suppressHydrationWarning
       className="group relative h-full"
       style={{ transformStyle: "preserve-3d", perspective: "1200px" }}
       data-cursor="hover"
       data-cursor-label={title}
     >
-      <div style={{ animation: `floatSlow ${floatDuration} ease-in-out ${floatDelay} infinite` }} className="h-full">
+      <div style={{ animation: size === "sm" ? "none" : `floatSlow ${floatDuration} ease-in-out ${floatDelay} infinite` }} className="h-full">
         <Tilt3D intensity={0.85} className="h-full">
           <Tag
             {...linkProps}

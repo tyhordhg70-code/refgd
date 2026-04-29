@@ -25,11 +25,29 @@ export default function PathsHorizontalReveal({
   const sectionRef = useRef<HTMLDivElement | null>(null);
   const lockRef = useRef(false);
   const activeRef = useRef(0);
+  const holdTimerRef = useRef<number | null>(null);
+  const releaseTimerRef = useRef<number | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const reduce = useReducedMotion();
   const count = cards.length;
   const [activeIndex, setActiveIndex] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
+
+  const stopScrollHold = useCallback(() => {
+    if (holdTimerRef.current) window.clearInterval(holdTimerRef.current);
+    holdTimerRef.current = null;
+    if (releaseTimerRef.current) clearTimeout(releaseTimerRef.current);
+    releaseTimerRef.current = null;
+  }, []);
+
+  const holdScrollPosition = useCallback((y: number) => {
+    stopScrollHold();
+    const keepStill = () => {
+      window.scrollTo(0, y);
+    };
+    keepStill();
+    holdTimerRef.current = window.setInterval(keepStill, 16);
+  }, [stopScrollHold]);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
@@ -46,12 +64,15 @@ export default function PathsHorizontalReveal({
       activeRef.current = next;
       setActiveIndex(next);
       lockRef.current = true;
-      window.setTimeout(() => {
+      const duration = reduce ? 140 : 820;
+      holdScrollPosition(window.scrollY);
+      releaseTimerRef.current = window.setTimeout(() => {
         lockRef.current = false;
-      }, reduce ? 120 : 760);
+        stopScrollHold();
+      }, duration);
       return true;
     },
-    [count, reduce],
+    [count, holdScrollPosition, reduce, stopScrollHold],
   );
 
   useEffect(() => {
@@ -79,10 +100,11 @@ export default function PathsHorizontalReveal({
     window.addEventListener("resize", syncIndexWhenAway);
 
     return () => {
+      stopScrollHold();
       window.removeEventListener("scroll", syncIndexWhenAway);
       window.removeEventListener("resize", syncIndexWhenAway);
     };
-  }, [count, isDesktop]);
+  }, [count, isDesktop, stopScrollHold]);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -111,6 +133,7 @@ export default function PathsHorizontalReveal({
       if (maybeStep(direction)) {
         event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation();
       }
     };
 
@@ -132,6 +155,7 @@ export default function PathsHorizontalReveal({
       if (maybeStep(direction)) {
         event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation();
         touchStartRef.current = null;
       }
     };
@@ -141,11 +165,12 @@ export default function PathsHorizontalReveal({
     document.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
 
     return () => {
+      stopScrollHold();
       document.removeEventListener("wheel", onWheel, { capture: true });
       document.removeEventListener("touchstart", onTouchStart, { capture: true });
       document.removeEventListener("touchmove", onTouchMove, { capture: true });
     };
-  }, [count, goToCard, isDesktop]);
+  }, [count, goToCard, isDesktop, stopScrollHold]);
 
   if (isDesktop) {
     return <DesktopCameraFlyby>{desktopFallback}</DesktopCameraFlyby>;
@@ -222,7 +247,7 @@ function DesktopCameraFlyby({ children }: { children: ReactNode }) {
   const x = useTransform(progress, [0, 0.5, 1], reduce ? ["0%", "0%", "0%"] : ["-8%", "0%", "7%"]);
   const y = useTransform(progress, [0, 0.5, 1], reduce ? ["0%", "0%", "0%"] : ["7%", "-1%", "-5%"]);
   const z = useTransform(progress, [0, 0.52, 1], reduce ? [0, 0, 0] : [-340, 90, -80]);
-  const scale = useTransform(progress, [0, 0.52, 1], reduce ? [1, 1, 1] : [0.82, 1.04, 0.94]);
+  const scale = useTransform(progress, [0, 0.52, 1], reduce ? [1, 1, 1] : [0.78, 0.96, 0.9]);
   const rotateX = useTransform(progress, [0, 0.52, 1], reduce ? [0, 0, 0] : [12, -1, -7]);
   const rotateY = useTransform(progress, [0, 0.52, 1], reduce ? [0, 0, 0] : [-18, 2, 16]);
   const opacity = useTransform(progress, [0, 0.12, 0.9, 1], [0.68, 1, 1, 0.92]);
@@ -235,7 +260,7 @@ function DesktopCameraFlyby({ children }: { children: ReactNode }) {
     >
       <div className="pointer-events-none absolute inset-x-6 top-1/2 h-40 -translate-y-1/2 rounded-full bg-amber-300/10 blur-3xl" />
       <div
-        className="relative flex min-h-[min(78svh,760px)] w-full items-center justify-center overflow-visible px-2 md:px-4"
+        className="relative flex h-[clamp(360px,48svh,460px)] w-full items-center justify-center overflow-visible px-2 md:px-4"
         style={{ perspective: 1900 }}
       >
         <motion.div

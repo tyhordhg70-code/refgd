@@ -98,10 +98,11 @@ export default function ScrollRain() {
     const apply = () => {
       // velocity in px/ms → tame to 0..1 then expand to a multiplier.
       const v = Math.min(1, Math.abs(velocity) / 4);
-      // Speed multiplier: 1 (idle) → 6 (fast scroll). Length: 1 → 3.
-      wrap.style.setProperty("--rain-speed", String(1 + v * 5));
-      wrap.style.setProperty("--rain-length", String(1 + v * 2));
-      wrap.style.setProperty("--rain-opacity", String(0.55 + v * 0.45));
+      // Keep the effect restrained; the old high velocity multiplier made
+      // the page feel noisy and expensive during controlled scroll scenes.
+      wrap.style.setProperty("--rain-speed", String(1 + v * 2.2));
+      wrap.style.setProperty("--rain-length", String(1 + v * 0.9));
+      wrap.style.setProperty("--rain-opacity", String(0.34 + v * 0.26));
     };
 
     const onScroll = () => {
@@ -159,7 +160,7 @@ export default function ScrollRain() {
   if (!mounted) return null;
 
   // Halve the streak count on mobile to protect the GPU compositor.
-  const streaks = buildStreaks(isMobile ? 28 : 60);
+  const streaks = buildStreaks(isMobile ? 14 : 28);
 
   return (
     <div
@@ -172,7 +173,7 @@ export default function ScrollRain() {
         // @ts-expect-error CSS custom properties.
         "--rain-speed": "1",
         "--rain-length": "1",
-        "--rain-opacity": "0.55",
+        "--rain-opacity": "0.34",
         opacity: "var(--rain-opacity)",
         transition: "opacity 250ms linear",
       }}
