@@ -15,23 +15,25 @@ import KineticText from "./KineticText";
  *   t=2.60s  scroll hint fades in
  *   t≥2.8s   ambient state — planet softly breathes, scene holds
  *
- *   ── On the user's first scroll attempt ────────────────────
- *   The whole composition flies away in 3D — scaled down, tilted
- *   back along X, lifted upward, fading — while the page itself
- *   smooth-scrolls (custom 1.4s cubic ease-in-out) to `#paths`,
- *   landing with a small headroom so the kicker + headline of
- *   the paths section are both fully in view (no top-of-headline
- *   clipping).
+ *   ── Reversible 3D fly-away on scroll ─────────────────────
+ *   `exiting` is derived purely from scrollY (snaps true when the
+ *   user has scrolled more than ~8 % of the viewport height). This
+ *   makes the fly-away REVERSIBLE: scroll up, the welcome scene
+ *   rotates, scales and fades back into rest pose; scroll down,
+ *   it tilts back into 3D depth and fades out again.
  *
- *   ── REVERSIBLE on scroll back up ──────────────────────────
- *   `exiting` is now driven by the page scrollY, not by a one-
- *   shot consumed flag. When the user scrolls back near the top
- *   of the page, the stage rotates, scales and fades back into
- *   its rest pose — the welcome scene re-appears instead of
- *   disappearing into the void. Scrolling forward again replays
- *   the 3D fly-away animation. The first-scroll trigger arms a
- *   ONE-TIME smooth-scroll-to-paths gesture; subsequent forward
- *   scrolls behave like normal page scrolling.
+ *   ── First-scroll smooth-scroll trigger to paths section ──
+ *   On the user's very first scroll attempt while parked at the
+ *   top, a custom 1.4s cubic-ease-in-out scroll runs to a target
+ *   of `window.innerHeight − 80` (because the hero is exactly
+ *   100svh tall, the paths section starts at exactly innerHeight,
+ *   so this lands the viewport top 80 px before that boundary —
+ *   the kicker line "— you have arrived" and the "Choose your
+ *   path to mastery." headline are BOTH comfortably in view, no
+ *   top-edge clipping. The basis is `innerHeight`, not a measured
+ *   `getBoundingClientRect()` of a descendant whose bbox depends
+ *   on the in-view animation state of its parents — so it can't
+ *   be thrown off by transient transforms during the scroll.
  */
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
@@ -60,11 +62,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   }, []);
 
   // ── Reversible exit, driven by scrollY ──────────────────────
-  // The stage's exit state is purely a function of how far the user
-  // has scrolled. This is what makes it reversible: scroll back to
-  // the top, the stage animates back into the rest pose; scroll
-  // forward, it animates into the fly-away pose. Threshold is ≈8 %
-  // of the viewport so a casual nudge doesn't tear the stage apart.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (reduced) return;
@@ -87,13 +84,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, [reduced]);
 
-  // ── First-scroll smooth-scroll trigger to #paths ────────────
-  // A separate, one-shot listener: on the user's first wheel /
-  // touch / pageDown attempt while parked at the top, run a custom
-  // 1.4 s cubic-ease-in-out scroll to land a generous headroom
-  // ABOVE the paths section's anchor — so the kicker line ("— you
-  // have arrived") and the headline below it are both fully inside
-  // the viewport. After that, the page scrolls naturally.
+  // ── First-scroll smooth-scroll trigger to paths section ─────
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (reduced) return;
@@ -122,20 +113,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     function trigger() {
       if (consumed || !armed) return;
       if (window.scrollY > 16) return;
-      // Prefer the paths-intro block (kicker + headline) so we land
-      // with the kicker line in view; fall back to #paths section.
-      const target =
-        document.querySelector<HTMLElement>(".paths-intro") ??
-        document.querySelector<HTMLElement>("#paths");
-      if (!target) return;
       consumed = true;
-      // Headroom above the kicker so the top of "— you have arrived"
-      // is comfortably visible, not flush with the viewport top.
-      const headroom = 96;
-      const targetY =
-        target.getBoundingClientRect().top + window.scrollY - headroom;
-      // Tiny delay so the eye registers the 3D depth-shift starting
-      // before the page itself begins moving past.
+      // Hero is exactly 100svh tall (CSS `height: 100svh` on the
+      // <section> below) → the paths section starts at exactly
+      // window.innerHeight from the top of the document. Land 80 px
+      // before that boundary so the kicker line "— you have arrived"
+      // is comfortably visible and the headline below it is fully
+      // in the viewport. Robust to any descendant transform state.
+      const targetY = Math.max(0, window.innerHeight - 80);
       window.setTimeout(() => smoothScrollTo(targetY, 1400), 60);
     }
 
@@ -163,10 +148,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
   }, [reduced]);
 
-  // 3D exit transform applied to the entire scene-stage. Uses
-  // transform-origin near the top of the section so the welcome
-  // appears to lift up & rotate back into space (camera moves past
-  // it), not just shrink in place.
   const stageAnimate = exiting
     ? { scale: 0.42, rotateX: -42, opacity: 0, y: -180 }
     : { scale: 1, rotateX: 0, opacity: 1, y: 0 };
@@ -182,12 +163,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         transform: "translate3d(0,0,0)",
       }}
     >
-      {/*
-       * Scene stage — wraps every animated layer of the welcome
-       * composition. When `exiting` flips, the whole stage tilts
-       * back & flies up in 3D as a single rigid unit, and reverses
-       * smoothly when scroll returns toward the top.
-       */}
       <motion.div
         className="absolute inset-0 grid place-items-center"
         animate={stageAnimate}
