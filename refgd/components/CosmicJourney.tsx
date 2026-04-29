@@ -83,56 +83,45 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     [],
   );
 
-  // ── Input-intercepting snap controller ─────────────────────
+  // ── Reversible exit observer (NATIVE scroll only) ─────────
+  //
+  // The previous version of this effect installed an
+  // input-intercepting "scroll-jacker": it caught every wheel,
+  // touchmove and key event with `passive: false` + preventDefault,
+  // then ran its own `window.scrollTo()` rAF loop to do a custom
+  // smooth scroll. That was the primary cause of the desktop
+  // scroll stutter the user was reporting:
+  //
+  //   1. `wheel` listener with `passive: false` forces the browser
+  //      to wait for the JS handler to run before it can scroll —
+  //      the browser CAN'T pre-emptively scroll on the compositor.
+  //   2. `window.scrollTo` inside a rAF tick competes with the
+  //      browser's own scroll compositor for the same frame.
+  //   3. The 200 ms cooldown blocked subsequent input even after
+  //      the smooth scroll had finished, so a quick second flick
+  //      felt dead.
+  //   4. With WebGL + a fixed `mix-blend-screen` overlay rendering
+  //      every frame, the compositor was already saturated; adding
+  //      a JS scroll on top of that produced visible jank.
+  //
+  // The rewrite drops the entire interceptor. The browser does
+  // native compositor-driven scrolling (smooth, snappy, GPU-only),
+  // and a single passive `scroll` listener flips the exit state
+  // when the user crosses the threshold. The hero still flies
+  // away when leaving and snaps back in when returning — the
+  // visual choreography is unchanged — but no input is ever
+  // captured or delayed.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (reduced) return;
 
-    let isAnimating = false;
-    let activeRAF = 0;
-
-    function smoothScrollTo(targetY: number, duration: number) {
-      const startY = window.scrollY;
-      const dist = targetY - startY;
-      if (Math.abs(dist) < 4) return;
-      isAnimating = true;
-      cancelAnimationFrame(activeRAF);
-      const start = performance.now();
-      function step(now: number) {
-        const t = Math.min((now - start) / duration, 1);
-        // cubic-out: immediate movement on first frame → no stutter.
-        // f(t) = 1 - (1-t)^3
-        const eased = 1 - Math.pow(1 - t, 3);
-        window.scrollTo(0, startY + dist * eased);
-        if (t < 1) {
-          activeRAF = requestAnimationFrame(step);
-        } else {
-          // 200 ms cooldown absorbs one stray inertia wheel event
-          // without blocking deliberate reverse-direction input.
-          window.setTimeout(() => {
-            isAnimating = false;
-          }, 200);
-        }
-      }
-      activeRAF = requestAnimationFrame(step);
+    function getExitThreshold() {
+      return Math.max(60, window.innerHeight * 0.08);
     }
 
-    function getTargets() {
-      const innerH = window.innerHeight;
-      return {
-        pathsTarget: innerH - 20,
-        exitThreshold: Math.max(60, innerH * 0.08),
-      };
-    }
-
-    // Pure observer — derives reversible exit state from scrollY.
-    // Uses a ref to track previous state without closure staleness,
-    // and increments exitKey each time we freshly enter exiting so
-    // the warp streaks replay correctly.
     function onScroll() {
       const y = window.scrollY;
-      const { exitThreshold } = getTargets();
-      const next = y > exitThreshold;
+      const next = y > getExitThreshold();
       if (next !== exitingRef.current) {
         exitingRef.current = next;
         if (next) {
@@ -142,109 +131,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
     }
 
-    // Wheel — intercept BEFORE the browser scrolls so hard wheels
-    // can't overshoot and light wheels don't cause a tiny native
-    // jump before the smooth scroll starts.
-    function onWheel(e: WheelEvent) {
-      if (e.ctrlKey || e.metaKey) return; // allow pinch-zoom shortcut
-      if (Math.abs(e.deltaY) < 1) return;
-      const y = window.scrollY;
-      const { pathsTarget } = getTargets();
-
-      if (y < pathsTarget - 4) {
-        // In the welcome / dead zone — own the scroll completely.
-        e.preventDefault();
-        if (isAnimating) return;
-        if (e.deltaY > 0) {
-          smoothScrollTo(pathsTarget, 950);
-        } else if (e.deltaY < 0 && y > 8) {
-          smoothScrollTo(0, 950);
-        }
-      } else if (y < pathsTarget + 12 && e.deltaY < 0) {
-        // Just past the paths boundary, scrolling up → snap back.
-        e.preventDefault();
-        if (isAnimating) return;
-        smoothScrollTo(0, 950);
-      }
-      // Past the welcome zone → native scroll works freely.
-    }
-
-    // Touch — scoped to touches that BEGIN in the welcome / boundary
-    // zone so swipes started inside paths / telegram are never hijacked.
-    let touchStartY = 0;
-    let touchActive = false;
-    let touchTriggered = false;
-
-    function onTouchStart(e: TouchEvent) {
-      if (e.touches.length !== 1) return;
-      const y = window.scrollY;
-      const { pathsTarget } = getTargets();
-      touchActive = y < pathsTarget + 12;
-      touchStartY = e.touches[0].clientY;
-      touchTriggered = false;
-    }
-
-    function onTouchMove(e: TouchEvent) {
-      if (!touchActive || e.touches.length !== 1) return;
-      const y = window.scrollY;
-      const { pathsTarget } = getTargets();
-
-      e.preventDefault();
-      if (isAnimating || touchTriggered) return;
-
-      const currentY = e.touches[0].clientY;
-      const swipeDelta = touchStartY - currentY;
-      if (Math.abs(swipeDelta) < 12) return;
-
-      touchTriggered = true;
-      if (swipeDelta > 0 && y < pathsTarget - 4) {
-        smoothScrollTo(pathsTarget, 950);
-      } else if (swipeDelta < 0 && y > 8) {
-        smoothScrollTo(0, 950);
-      }
-    }
-
-    function onTouchEnd() {
-      touchActive = false;
-    }
-
-    // Keyboard — PageDown / ArrowDown / Space / End / Home / PageUp.
-    function onKey(e: KeyboardEvent) {
-      const y = window.scrollY;
-      const { pathsTarget } = getTargets();
-      const isDown =
-        e.key === "PageDown" ||
-        e.key === "ArrowDown" ||
-        e.key === " " ||
-        e.key === "End";
-      const isUp =
-        e.key === "PageUp" || e.key === "ArrowUp" || e.key === "Home";
-
-      if (isDown && y < pathsTarget - 4) {
-        e.preventDefault();
-        if (!isAnimating) smoothScrollTo(pathsTarget, 950);
-      } else if (isUp && y < pathsTarget + 12 && y > 8) {
-        e.preventDefault();
-        if (!isAnimating) smoothScrollTo(0, 950);
-      }
-    }
-
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("wheel", onWheel, { passive: false });
-    window.addEventListener("touchstart", onTouchStart, { passive: true });
-    window.addEventListener("touchmove", onTouchMove, { passive: false });
-    window.addEventListener("touchend", onTouchEnd, { passive: true });
-    window.addEventListener("keydown", onKey);
     onScroll();
 
     return () => {
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("wheel", onWheel);
-      window.removeEventListener("touchstart", onTouchStart);
-      window.removeEventListener("touchmove", onTouchMove);
-      window.removeEventListener("touchend", onTouchEnd);
-      window.removeEventListener("keydown", onKey);
-      cancelAnimationFrame(activeRAF);
     };
   }, [reduced]);
 

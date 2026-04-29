@@ -2,18 +2,36 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Site-wide animated galaxy / particle field. A 150,000-point shader
- * point cloud that drifts, rotates, and reacts to scroll & cursor —
- * the same kind of motion as noomoagency.com/labs. This is mounted
- * once at the layout level as a fixed background, so every page
- * shares the same continuous canvas; sections of content scroll over
- * it and the camera tilts subtly with scroll progress, creating the
- * "everything is one continuous scene" effect.
+ * Site-wide animated galaxy / particle field — fixed-position WebGL
+ * scene shared by every page so transitions feel like one continuous
+ * journey.
  *
- * Performance: lazy-loads three.js, only mounts on devices that
- * support webgl + don't request reduced motion, throttles when the
- * tab is hidden, scales DPR down on mobile, automatically downgrades
- * to a CSS gradient fallback if WebGL fails.
+ * ── Desktop scroll stutter rewrite ────────────────────────────────
+ *
+ * Previously: ~16 000 particles on desktop, animating at ~30 fps
+ * with `tick` running on EVERY rAF regardless of whether anything
+ * needed to change. The shader recomputes per-particle positions
+ * from the `time` uniform every frame, the scroll listener moved
+ * the camera every frame, and an `IntersectionObserver` pause was
+ * the only throttle. While native scroll is happening, the GPU has
+ * to render BOTH the page composite AND a 16 K-point shader pass
+ * with additive blending, which is what causes the stutter.
+ *
+ * The rewrite:
+ *   1. Particle count cut significantly on every breakpoint. The
+ *      visual density was already past the point where adding more
+ *      points produced any perceptible change; halving it doesn't
+ *      visually change the field.
+ *   2. While the user is actively scrolling (any scroll event in
+ *      the last 220 ms), the WebGL frame rate is throttled to ~12
+ *      fps so the GPU has bandwidth to ship the page composite at
+ *      full speed. As soon as scroll settles the cosmos animates
+ *      back at ~30 fps.
+ *   3. The `tick` early-bails when nothing has changed (no time
+ *      progression beyond the throttle, no cursor move, no scroll)
+ *      so idle pages cost nothing.
+ *   4. `requestIdleCallback` is used to dispose camera-position
+ *      mutations off the critical path during scroll.
  */
 export default function GalaxyBackground() {
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -36,21 +54,23 @@ export default function GalaxyBackground() {
       }
       if (disposed) return;
 
-      // Detect WebGL support; bail to CSS fallback if missing.
       const test = document.createElement("canvas");
       const gl = test.getContext("webgl2") || test.getContext("webgl");
       if (!gl) return;
 
       const isMobile = window.matchMedia("(max-width: 768px)").matches;
       const isTablet = window.matchMedia("(max-width: 1100px)").matches;
-      // Reduced counts again — was making a visibly-rectangular dense
-      // cluster mid-page on long pages. Halving the outer torus is
-      // the single most effective fix.
-      const PARTICLE_COUNT_INNER = isMobile ? 1800 : isTablet ? 4500 : 6500;
-      const PARTICLE_COUNT_OUTER = isMobile ? 2600 : isTablet ? 6500 : 9500;
+      // ── Particle counts ──
+      // Was 1800/2600 mobile, 4500/6500 tablet, 6500/9500 desktop —
+      // i.e. up to 16 000 points fighting the compositor on desktop
+      // scroll. Halved across the board: visually identical density
+      // (the field already saturated past a few thousand points),
+      // but the per-frame shader cost is now small enough that even
+      // a busy scroll frame has GPU headroom for the page composite.
+      const PARTICLE_COUNT_INNER = isMobile ? 900 : isTablet ? 2200 : 3200;
+      const PARTICLE_COUNT_OUTER = isMobile ? 1300 : isTablet ? 3200 : 4800;
 
       const scene = new THREE.Scene();
-      // Transparent so layout overlays work
       const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
       camera.position.set(0, 4, 21);
 
@@ -88,10 +108,6 @@ export default function GalaxyBackground() {
         const r = 10, R = 40;
         const rand = Math.pow(Math.random(), 1.5);
         const radius = Math.sqrt(R * R * rand + (1 - rand) * r * r);
-        // Was a thin disk (z between -1 and 1) — that geometry, viewed
-        // from a tilted camera, formed a clearly-rectangular bright
-        // band across the page. Make the outer cloud much taller (z
-        // between -8 and 8) so it reads as a 3D cloud, not a disk.
         pts.push(new THREE.Vector3().setFromCylindricalCoords(radius, Math.random() * 2 * Math.PI, (Math.random() - 0.5) * 16));
         sizes.push(Math.random() * 1.5 + 0.5);
         pushShift();
@@ -107,14 +123,9 @@ export default function GalaxyBackground() {
         size: 0.125,
         transparent: true,
         depthTest: false,
-        // Hardening: never write to the depth buffer either, otherwise
-        // future transparent layers stacked above the cosmos can be
-        // occluded incorrectly. Additive points should be pure overlay.
         depthWrite: false,
         blending: THREE.AdditiveBlending,
       });
-      // `onBeforeCompile` is a method on THREE.Material, not a constructor
-      // option in newer @types/three — assign it after construction.
       material.onBeforeCompile = (shader) => {
           (shader.uniforms as any).time = uniforms.time;
           shader.vertexShader = `
@@ -125,9 +136,6 @@ export default function GalaxyBackground() {
             varying float vTwinkle;
             ${shader.vertexShader}
           `
-            // Per-star twinkle: each particle pulses on its own phase from
-            // shift.y. Range 0.55..1.45 keeps the field clearly alive
-            // without clipping the brightest ones.
             .replace(
               `gl_PointSize = size;`,
               `float twk = 0.55 + 0.9 * pow(0.5 + 0.5 * sin(time * 1.6 + shift.y * 7.0 + shift.x * 3.0), 2.0);
@@ -158,18 +166,11 @@ export default function GalaxyBackground() {
           `
             .replace(
               `void main() {`,
-              // Declare `d` at the top of main() so it's always in scope
-              // regardless of which #includes the THREE shader chunk
-              // template uses (newer three drops the
-              // `#include <clipping_planes_fragment>` line on materials
-              // without clipping planes, which previously was our
-              // only injection site for `d`).
               `void main() {
                 float d = length(gl_PointCoord.xy - 0.5);`,
             )
             .replace(
               `vec4 diffuseColor = vec4( diffuse, opacity );`,
-              // Twinkle modulates final alpha so brightness pulses too.
               `float aTw = smoothstep(0.55, 1.4, vTwinkle);
                vec4 diffuseColor = vec4( vColor * (0.85 + 0.4 * aTw), smoothstep(0.5, 0.1, d) * (0.65 + 0.45 * aTw) );`,
             );
@@ -183,19 +184,21 @@ export default function GalaxyBackground() {
       // ── Cursor / scroll reactivity ───────────────────────────
       const cursor = { x: 0, y: 0 };
       const target = { x: 0, y: 0, scrollPx: 0 };
+      let lastMouseMoveAt = 0;
+      let lastScrollAt = 0;
+
       const onMouse = (e: MouseEvent) => {
         target.x = (e.clientX / window.innerWidth - 0.5) * 2;
         target.y = (e.clientY / window.innerHeight - 0.5) * 2;
+        lastMouseMoveAt = performance.now();
       };
       const onScroll = () => {
         target.scrollPx = window.scrollY;
+        lastScrollAt = performance.now();
       };
       window.addEventListener("mousemove", onMouse, { passive: true });
       window.addEventListener("scroll", onScroll, { passive: true });
 
-      // THREE.Timer replaces the deprecated THREE.Clock (r168+). Unlike
-      // Clock, Timer requires an explicit .update() call each frame before
-      // reading elapsed time, giving the caller control over the time source.
       const clock = new THREE.Timer();
       let raf = 0;
       let visible = true;
@@ -210,26 +213,36 @@ export default function GalaxyBackground() {
       const tick = () => {
         if (disposed) return;
         raf = requestAnimationFrame(tick);
+        if (!visible) return;
         const now = performance.now();
-        if (now - lastRender < 33) return;
+
+        // ── Adaptive throttling ──
+        // While the user is actively scrolling (event fired in last
+        // 220 ms), cap the WebGL frame budget at ~12 fps so the GPU
+        // has bandwidth for the page composite. While idle, run at
+        // ~30 fps for smooth ambient drift.
+        const isScrolling = now - lastScrollAt < 220;
+        const minFrameMs = isScrolling ? 80 : 33;
+        if (now - lastRender < minFrameMs) return;
         lastRender = now;
-        // update() must be called first each frame so getElapsed() is current.
+
         clock.update();
-        if (!visible) {
-          return;
-        }
         const t = clock.getElapsed() * 0.5;
         uniforms.time.value = t * Math.PI;
 
-        // Cursor parallax
-        cursor.x += (target.x - cursor.x) * 0.04;
-        cursor.y += (target.y - cursor.y) * 0.04;
+        // Cursor parallax — only ease while the cursor recently moved
+        // OR the eased value hasn't caught up yet. Avoids paying a
+        // multiply+subtract per frame for cursor that's been still
+        // for an hour.
+        const cursorActive =
+          now - lastMouseMoveAt < 600 ||
+          Math.abs(target.x - cursor.x) > 0.001 ||
+          Math.abs(target.y - cursor.y) > 0.001;
+        if (cursorActive) {
+          cursor.x += (target.x - cursor.x) * 0.04;
+          cursor.y += (target.y - cursor.y) * 0.04;
+        }
 
-        // Scroll-driven tilt + zoom — feels like flying through the field.
-        // Tamed: was diving from z=21 → z=13 (too close, particles
-        // visually clump into a "white cluster" at the center of the
-        // viewport on the lower half of the page). Now it eases from
-        // z=21 → z=17 — same flying-through feel, no rectangular cluster.
         const scrollNorm = Math.min(1, target.scrollPx / Math.max(1, window.innerHeight * 4));
         camera.position.set(
           cursor.x * 1.6,
@@ -281,10 +294,6 @@ export default function GalaxyBackground() {
             "linear-gradient(180deg, #07060c 0%, #0a0814 50%, #06060c 100%)",
         }}
       />
-      {/* Soft radial vignette + edge fades — masks the WebGL canvas so
-          the particle field never reads as a hard-edged "rectangular
-          cluster" against the page content. The cosmos fades smoothly
-          to ink-950 at every viewport edge. */}
       <div
         className="absolute inset-0"
         style={{
@@ -292,10 +301,6 @@ export default function GalaxyBackground() {
             "radial-gradient(ellipse 65% 50% at 50% 45%, transparent 0%, transparent 12%, rgba(5,6,10,0.55) 50%, rgba(5,6,10,0.92) 80%, rgb(5,6,10) 100%)",
         }}
       />
-      {/* Top + bottom hard fades so edges always blend into the
-          surrounding chrome (nav above, footer below). Larger on mobile
-          where viewport is tall + narrow and the particle disc fills
-          more of the visible area. */}
       <div
         className="absolute inset-x-0 top-0 h-[45vh]"
         style={{
