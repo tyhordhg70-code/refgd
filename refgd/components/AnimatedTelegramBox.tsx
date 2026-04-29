@@ -114,6 +114,99 @@ export default function AnimatedTelegramBox() {
     return () => window.removeEventListener("wheel", onWheel);
   }, [isMobile]);
 
+  // ── iOS-SAFARI TOUCH-MOMENTUM ANTI-SKIP ──────────────────────
+  // The wheel handler above does nothing on real iPhones because
+  // iOS Safari doesn't fire `wheel` for touch-driven scrolling.
+  // Once a swipe ends, the browser keeps scrolling (momentum) for
+  // up to ~1.5 s. A vigorous up-swipe just before the telegram
+  // section enters the viewport will glide right past it.
+  //
+  // We protect against that with a rAF-based monitor that runs
+  // for ~1500 ms after every touchend. While running, if it sees
+  // the telegram section start to enter view (top < 50% vh) AND
+  // the user is still moving past it (delta > 0 between frames),
+  // it issues a single smooth scrollTo to land the section near
+  // the top of the viewport. After the section is locked in we
+  // shut the monitor off so further user scrolling is unaffected.
+  useEffect(() => {
+    if (!isMobile) return;
+    if (typeof window === "undefined") return;
+
+    let rafId = 0;
+    let monitorUntil = 0;
+    let lastY = -1;
+    let snapFiredAt = 0;
+
+    function scheduleMonitor() {
+      monitorUntil = performance.now() + 1500;
+      lastY = window.scrollY;
+      if (!rafId) rafId = requestAnimationFrame(monitor);
+    }
+
+    function monitor() {
+      const root = rootRef.current;
+      if (!root) {
+        rafId = 0;
+        return;
+      }
+      const section = root.closest("section");
+      if (!section) {
+        rafId = 0;
+        return;
+      }
+      const now = performance.now();
+      if (now > monitorUntil) {
+        rafId = 0;
+        return;
+      }
+      const r = section.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const y = window.scrollY;
+      const moving = y !== lastY;
+      const direction = y > lastY ? 1 : -1;
+      lastY = y;
+
+      // Conditions for an anti-skip snap:
+      //   • section top is between (-0.5 vh) and (vh) — so it's
+      //     entering or partially in view, not already passed.
+      //   • user is moving DOWN (forward) right now.
+      //   • we haven't snapped recently (≥ 600 ms cooldown).
+      const enteringView = r.top > -vh * 0.5 && r.top < vh * 0.6;
+      const passingThrough = moving && direction > 0 && r.top < 0;
+      const recently = now - snapFiredAt < 600;
+
+      if (!recently && (enteringView || passingThrough)) {
+        const sectionTop = Math.round(r.top + window.scrollY);
+        const targetY = Math.max(0, sectionTop - Math.round(vh * 0.08));
+        const dist = Math.abs(window.scrollY - targetY);
+        // Only snap if we're meaningfully off-target. Using
+        // scrollTo cancels the existing momentum scroll.
+        if (dist > 60) {
+          window.scrollTo({ top: targetY, behavior: "smooth" });
+          snapFiredAt = now;
+          // Once snap is requested, give iOS time to complete the
+          // smooth-scroll without us re-firing on every frame.
+          monitorUntil = Math.min(monitorUntil, now + 300);
+        }
+      }
+
+      rafId = requestAnimationFrame(monitor);
+    }
+
+    function onTouchEnd() {
+      lastTouchEndAt = performance.now();
+      scheduleMonitor();
+    }
+
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", onTouchEnd);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [isMobile]);
+
   // `lite` is now ONLY for prefers-reduced-motion. Mobile users
   // get the full animated experience (with mobile-specific cost
   // reductions baked into each layer below).

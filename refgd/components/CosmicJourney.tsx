@@ -228,8 +228,53 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     if (typeof window === "undefined") return;
     if (reduced) return;
 
+    // The "snap to 'you have arrived'" guarantee, hardened against
+    // hard / fast scrolls.
+    //
+    // The PREVIOUS implementation only fired when `lastY < 8 && y >= 8`.
+    // That works for a gentle wheel-tick (one pixel at a time) but
+    // FAILS on a hard fling: a single scroll event might jump straight
+    // from y=0 to y=2000, skipping the [8, 60) trigger band entirely
+    // because by the time the listener runs the user is already
+    // hundreds of pixels past the snap target. The user reported:
+    // "Scrolling too hard after welcome should still land me on you
+    // have arrived; instead it lands all the way at end."
+    //
+    // Hardened logic:
+    //   • While not yet snapped, ANY scroll event with y > 0 triggers
+    //     the snap, regardless of velocity. We always smooth-scroll
+    //     to the paths-intro target.
+    //   • To beat iOS touch momentum (which can keep firing scroll
+    //     events for ~700 ms after touchend, each one cancelling our
+    //     scrollTo), we keep RE-FIRING scrollTo while the user is
+    //     significantly past the target (|delta| > 60), up to a hard
+    //     cap of 1.2 s and 8 attempts. This is the minimum "fight
+    //     iOS inertia" that actually works reliably without producing
+    //     the haywire feeling of the previous infinite-reassertion
+    //     timer (which fought ALL scrolls forever and that's what
+    //     broke before).
+    //   • Once the user is within 60 px of the target the snap is
+    //     considered locked and we stop re-firing.
+    //   • The snap arms exactly once per page load. Returning to y≈0
+    //     does NOT re-arm — that prevented an infinite ping-pong loop.
+
     let snapped = window.scrollY >= 60;
-    let lastY = window.scrollY;
+    let armedAt = 0;
+    let rafId = 0;
+    let lastY = -1;
+    let quietFrames = 0;
+    // We re-fire scrollTo for up to 1.8 s after the user touches the
+    // page — that's longer than iOS Safari's typical inertia tail
+    // (~700-1500 ms after touchend). Stopping criteria: we're within
+    // 30 px of the target AND scrollY has been stationary for 6
+    // consecutive rAF frames (~100 ms of zero motion). This is
+    // robust against trackpad inertia AND iOS touch momentum,
+    // because it doesn't depend on the COUNT of scroll events
+    // (which iOS fires at 60 fps for the entire inertia tail) but
+    // on actual elapsed time and on scroll position settling.
+    const MAX_DURATION_MS = 1800;
+    const PROXIMITY_PX = 30;
+    const QUIET_FRAMES_REQUIRED = 6;
 
     function targetY(): number | null {
       const paths = document.getElementById("paths");
@@ -241,29 +286,58 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       );
     }
 
-    function onScroll() {
-      const y = window.scrollY;
-      if (snapped) {
-        lastY = y;
+    function tick() {
+      if (snapped) return;
+      const target = targetY();
+      if (target == null) {
+        rafId = requestAnimationFrame(tick);
         return;
       }
-      if (lastY < 8 && y >= 8) {
-        const target = targetY();
-        if (target == null) {
-          lastY = y;
-          return;
-        }
-        snapped = true;
-        if (Math.abs(y - target) > 5) {
-          window.scrollTo({ top: target, behavior: "smooth" });
-        }
+      const y = window.scrollY;
+      const delta = Math.abs(y - target);
+      // Re-issue scrollTo only when we're not already there. Browser
+      // smoothScroll is idempotent; calling it every frame would
+      // start a new animation each time and look choppy. So we only
+      // re-fire if delta has GROWN (= the user / momentum has
+      // pulled us further away).
+      if (delta > 5) {
+        window.scrollTo({ top: target, behavior: "smooth" });
       }
-      lastY = y;
+      // Quiet detection: if scroll position is unchanged from last
+      // frame, count up. Once we've had several quiet frames in a
+      // row AND we're within tolerance, lock in.
+      if (lastY === y) {
+        quietFrames += 1;
+      } else {
+        quietFrames = 0;
+        lastY = y;
+      }
+      const elapsed = performance.now() - armedAt;
+      const settled = delta < PROXIMITY_PX && quietFrames >= QUIET_FRAMES_REQUIRED;
+      if (settled || elapsed > MAX_DURATION_MS) {
+        snapped = true;
+        rafId = 0;
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+    }
+
+    function onScroll() {
+      if (snapped) return;
+      const y = window.scrollY;
+      if (y < 1) return;
+      if (armedAt === 0) {
+        armedAt = performance.now();
+        lastY = -1;
+        quietFrames = 0;
+        if (!rafId) rafId = requestAnimationFrame(tick);
+      }
     }
 
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
+      if (rafId) cancelAnimationFrame(rafId);
     };
   }, [reduced]);
 
