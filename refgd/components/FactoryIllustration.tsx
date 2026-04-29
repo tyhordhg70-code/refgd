@@ -3,6 +3,8 @@
 import { useId } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 
+const svgCoord = (value: number) => Number(value.toFixed(3));
+
 /**
  * FactoryIllustration
  * ──────────────────────────────────────────────────────────────────
@@ -420,10 +422,10 @@ function Gear({
     const a2 = ((i + 0.6) / teeth) * Math.PI * 2;
     const a3 = ((i + 1) / teeth) * Math.PI * 2;
     points.push(
-      `${innerR * Math.cos(a0)},${innerR * Math.sin(a0)}`,
-      `${(innerR + toothH) * Math.cos(a1)},${(innerR + toothH) * Math.sin(a1)}`,
-      `${(innerR + toothH) * Math.cos(a2)},${(innerR + toothH) * Math.sin(a2)}`,
-      `${innerR * Math.cos(a3)},${innerR * Math.sin(a3)}`,
+      `${svgCoord(innerR * Math.cos(a0))},${svgCoord(innerR * Math.sin(a0))}`,
+      `${svgCoord((innerR + toothH) * Math.cos(a1))},${svgCoord((innerR + toothH) * Math.sin(a1))}`,
+      `${svgCoord((innerR + toothH) * Math.cos(a2))},${svgCoord((innerR + toothH) * Math.sin(a2))}`,
+      `${svgCoord(innerR * Math.cos(a3))},${svgCoord(innerR * Math.sin(a3))}`,
     );
   }
   const d =
@@ -464,10 +466,10 @@ function Gear({
           return (
             <line
               key={`sp-${i}`}
-              x1={innerR * 0.12 * Math.cos(a)}
-              y1={innerR * 0.12 * Math.sin(a)}
-              x2={innerR * 0.42 * Math.cos(a)}
-              y2={innerR * 0.42 * Math.sin(a)}
+              x1={svgCoord(innerR * 0.12 * Math.cos(a))}
+              y1={svgCoord(innerR * 0.12 * Math.sin(a))}
+              x2={svgCoord(innerR * 0.42 * Math.cos(a))}
+              y2={svgCoord(innerR * 0.42 * Math.sin(a))}
               stroke={`url(#${lineId})`}
               strokeWidth="1.4"
               opacity="0.6"

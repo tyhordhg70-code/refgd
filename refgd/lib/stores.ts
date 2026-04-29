@@ -50,13 +50,24 @@ function rowToStore(row: Record<string, unknown>): Store {
 
 /** Load all stores from DB into cache (called once on first request). */
 async function loadAll(): Promise<Store[]> {
-  await initDb();
-  const { rows } = await getPool().query(
-    "SELECT * FROM stores ORDER BY sort_order ASC, name ASC"
-  );
-  const stores = rows.map(rowToStore);
-  setCachedStores(stores);
-  return stores;
+  try {
+    await initDb();
+    const { rows } = await getPool().query(
+      "SELECT * FROM stores ORDER BY sort_order ASC, name ASC"
+    );
+    const stores = rows.map(rowToStore);
+    setCachedStores(stores);
+    return stores;
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "[stores] DB unavailable, rendering empty store list fallback:",
+        (err as Error).message,
+      );
+    }
+    setCachedStores([]);
+    return [];
+  }
 }
 
 /** Get the full store list, using cache when available. */
