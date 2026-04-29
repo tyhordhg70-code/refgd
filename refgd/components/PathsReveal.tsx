@@ -3,14 +3,17 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useState, type ReactNode } from "react";
 
 /**
- * PathsReveal — flies the "Choose your path to mastery" headline + the
- * four path cards in from depth, so the chapter 01 section feels like
- * a direct continuation of the cosmic warp above.
+ * PathsReveal — flies the "Choose your path to mastery" headline +
+ * the four path cards in from depth, so the chapter section feels
+ * like a direct continuation of the cosmic warp above.
  *
- * Was previously scroll-driven (useScroll + useTransform), which meant
- * the user had to keep scrolling to reveal the section. It's now a
- * one-shot viewport-triggered animation that completes in ~1.4s the
- * moment the wrapper enters view.
+ *   ── Behaviour ────────────────────────────────────────────────
+ *   On enter, the wrapper fades in, lifts up, rotates from a slight
+ *   3D tilt (`rotateX: 18°`) and scales from 95 % → 100 %. With
+ *   `once: false`, the entrance REPLAYS every time the section
+ *   re-enters the viewport — exactly what the user asked for so
+ *   that scrolling back up to the top and then down again doesn't
+ *   leave the section sitting in its final state silently.
  */
 export default function PathsReveal({ children }: { children: ReactNode }) {
   const reduced = useReducedMotion();
@@ -39,17 +42,19 @@ export default function PathsReveal({ children }: { children: ReactNode }) {
         reduced
           ? { opacity: 1 }
           : isMobile
-          ? { opacity: 0, y: 28, scale: 1 }
-          : { opacity: 0, y: 34, scale: 0.98 }
+          ? { opacity: 0, y: 36, scale: 0.97, rotateX: 12 }
+          : { opacity: 0, y: 50, scale: 0.95, rotateX: 18 }
       }
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, margin: "-10% 0px -10% 0px" }}
+      whileInView={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+      viewport={{ once: false, amount: 0.18 }}
       transition={{
-        duration: reduced ? 0 : 0.65,
+        duration: reduced ? 0 : 0.85,
         ease: [0.16, 1, 0.3, 1],
       }}
       style={{
         transformOrigin: "50% 0%",
+        transformStyle: "preserve-3d",
+        perspective: 1600,
         willChange: "transform, opacity",
       }}
       className="relative"
