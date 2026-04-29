@@ -1,9 +1,12 @@
 "use client";
 
 import {
+  cloneElement,
+  isValidElement,
   useEffect,
   useRef,
   useState,
+  type ReactElement,
   type ReactNode,
 } from "react";
 import { motion, useReducedMotion } from "framer-motion";
@@ -226,19 +229,39 @@ function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
         }}
       >
         <div className="flex w-max items-stretch gap-3">
-          {cards.map((card, i) => (
-            <div
-              key={i}
-              data-testid={`paths-card-slide-${i + 1}`}
-              className="w-[70vw] max-w-[300px] shrink-0"
-              style={{
-                scrollSnapAlign: "start",
-                scrollSnapStop: "always",
-              }}
-            >
-              {card}
-            </div>
-          ))}
+          {cards.map((card, i) => {
+            // Inject `noReveal` into PathCard so the card renders in
+            // its final visual state from the start. Without this,
+            // PathCard's default size="md" branch triggers a
+            // `whileInView` IntersectionObserver entrance reveal, and
+            // cards waiting horizontally off-screen in the carousel
+            // queue (cards 3-5 at x=586+, viewport=390 wide) never
+            // intersect the window viewport and stay frozen at their
+            // initial state (`opacity:0, y:80, scale:0.85, rotateX:18`)
+            // forever. cloneElement is safe here because every entry
+            // in `cards` is a `<PathCard>` element passed in from the
+            // page. Non-element children (strings, numbers) are passed
+            // through unchanged.
+            const renderedCard =
+              isValidElement(card)
+                ? cloneElement(card as ReactElement<{ noReveal?: boolean }>, {
+                    noReveal: true,
+                  })
+                : card;
+            return (
+              <div
+                key={i}
+                data-testid={`paths-card-slide-${i + 1}`}
+                className="w-[70vw] max-w-[300px] shrink-0"
+                style={{
+                  scrollSnapAlign: "start",
+                  scrollSnapStop: "always",
+                }}
+              >
+                {renderedCard}
+              </div>
+            );
+          })}
         </div>
       </div>
 

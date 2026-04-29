@@ -12,6 +12,21 @@ interface PathCardProps {
   illustration: PathIllustrationKind;
   accent: "gold" | "fuchsia" | "cyan" | "violet" | "orange";
   size?: "sm" | "md" | "lg";
+  /**
+   * Suppress the framer-motion entrance reveal entirely.
+   *
+   * Used by `PathsHorizontalReveal` for the mobile carousel. Inside a
+   * horizontally-scrolling snap container, only 1-2 cards are ever in
+   * the window viewport at once; cards waiting in the queue are
+   * positioned at large positive x offsets and never trigger the
+   * `whileInView` IntersectionObserver, which would otherwise leave
+   * them permanently stuck at their initial transform (the original
+   * "cards cut off from the top" bug). The carousel instead asks
+   * PathCard to render in its final visual state from the start, so
+   * snapping to any card always shows the card correctly with no
+   * dependency on viewport observation.
+   */
+  noReveal?: boolean;
 }
 
 const ACCENT_GLOW: Record<PathCardProps["accent"], string> = {
@@ -64,6 +79,7 @@ export default function PathCard({
   illustration,
   accent,
   size = "md",
+  noReveal = false,
 }: PathCardProps) {
   const Tag: any = external ? "a" : Link;
   const linkProps = external
@@ -81,8 +97,13 @@ export default function PathCard({
   const labelClass = size === "sm" ? "mt-2 text-[9px] tracking-[0.22em]" : "mt-3 text-[10px] tracking-[0.3em]";
   const chipClass = size === "sm" ? "px-2 py-0.5 text-[9px] tracking-[0.18em]" : "px-3 py-1 text-[11px] tracking-[0.25em]";
   const textPad = size === "sm" ? "p-3 md:p-4 xl:p-5" : "p-6";
+  // `noReveal` and `size === "sm"` BOTH disable the entrance reveal.
+  // The mobile carousel passes `noReveal` to keep the default `md`
+  // visual styling (fonts, padding, radius, aspect) while still
+  // dropping the viewport-triggered animation that would otherwise
+  // strand off-screen-x cards at their initial transform.
   const revealProps =
-    size === "sm"
+    noReveal || size === "sm"
       ? {
           initial: false as const,
           whileInView: undefined,
