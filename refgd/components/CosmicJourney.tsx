@@ -5,28 +5,29 @@ import {
   useMotionValue,
   useSpring,
   useTransform,
-  useScroll,
+  animate,
 } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import KineticText from "./KineticText";
 import LiquidGlassOrbs from "./LiquidGlassOrbs";
+import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 
 /**
- * CosmicJourney — the master 3D storytelling scene.
+ * CosmicJourney — the master 3D welcome scene.
  *
- * SCROLL-DRIVEN ARC. The animation is mapped to the user's scroll
- * position over a 200svh runway with a sticky 100svh inner stage:
- *
- *   • At scroll = 0  → WELCOME holds, no warp. Page looks "still".
- *   • First scroll   → planet zooms past, rings explode outward.
- *   • Mid runway     → tunnel travel + core bloom peak.
- *   • End of runway  → emergence, nebula resolves, paths section
- *                       comes into view directly underneath.
- *
- * Because progress is bound to scroll, scrolling BACK UP reverses
- * the entire scene, so the WELCOME headline returns when the user
- * scrolls back to the top — no longer "lost forever" the first time
- * they pass through it.
+ *   ── How it plays ──────────────────────────────────────────────
+ *   • The section is a single 100svh stage; it does NOT consume a
+ *     long scroll runway.
+ *   • The first DOWN scroll gesture is intercepted → the entire page
+ *     is hard-locked (body position:fixed) → a TIME-based animation
+ *     plays through phases 0 → 1 over ~2.4s → on completion the lock
+ *     releases and the page smooth-scrolls down to the "paths" section.
+ *   • While the animation is playing the page does not move at all.
+ *     This is what the user explicitly asked for: "scroll triggers
+ *     the animation but the page should not actually scroll".
+ *   • Reverse direction is handled by tying `progress` back to the
+ *     window scroll position whenever the user manually scrolls up
+ *     through the hero region.
  *
  *   Phase 0   0.00 → 0.18  •  WELCOME holds. Planet glows. Stars drift.
  *   Phase 1   0.18 → 0.45  •  Camera punches forward. Planet zooms past,
@@ -38,8 +39,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
   const sectionRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<HTMLDivElement | null>(null);
-  const scrollLockRef = useRef(false);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const phaseRef = useRef<"hero" | "running" | "past">("hero");
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -51,6 +51,16 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
+
+  // Single source of truth for animation progress (0 → 1).
+  const progress = useMotionValue(0);
+
+  // Smooth the progress so phases feel cinematic instead of stepped.
+  const smoothProgress = useSpring(progress, {
+    stiffness: 220,
+    damping: 36,
+    mass: 0.25,
+  });
 
   // ── Mouse parallax (desktop only) ─────────────────────────
   const mx = useMotionValue(0);
@@ -93,274 +103,252 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
   }, [reduced, isMobile, mx, my]);
 
-  // ── Scroll-driven master timeline ─────────────────────────
-  // Progress maps from 0 → 1 across only the sticky runway. That means
-  // the bright warp layers reach opacity 0 before the next chapter rises
-  // into view, which prevents the pale overlay above "you have arrived".
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start start", "end end"],
-  });
-  // Smooth the raw scroll progress so phase transitions feel cinematic
-  // instead of snapping with every scroll tick. Snappier on mobile so a
-  // fast flick still visibly plays the animation through (it doesn't
-  // get visually "skipped" because the spring catches up in ~200ms).
-  const progress = useSpring(scrollYProgress, {
-    stiffness: isMobile ? 430 : 240,
-    damping: isMobile ? 42 : 34,
-    mass: isMobile ? 0.14 : 0.24,
-  });
-
-  // One-scroll gate: a hard wheel flick should not jump past the scene.
-  // Attach immediately after hydration instead of waiting for the mounted
-  // render flag; otherwise the user's very first wheel can slip through as
-  // native scroll and skip the whole WELCOME timeline.
+  // ── Reverse direction (scroll-up) drives progress from scrollY ──
+  // While the user is NOT in the middle of the locked forward play,
+  // bind `progress` to their manual scroll position through the hero
+  // region. This way scrolling up smoothly returns the WELCOME state.
+  // We deliberately ignore scroll events while ANY scroll lock is
+  // active (e.g. the paths stepper) — those make scrollY appear as 0
+  // even though the user is visually at the cards section, which used
+  // to incorrectly snap the hero back to its WELCOME state.
   useEffect(() => {
-    let timer: number | null = null;
-    const ease = (t: number) =>
-      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-
-    const stopAnimation = () => {
-      if (timer) window.clearInterval(timer);
-      timer = null;
-    };
-
-    const animateTo = (target: number | (() => number), duration = 1800) => {
-      stopAnimation();
-      scrollLockRef.current = true;
-      const start = window.scrollY;
-      const getSafeTarget = () => {
-        const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-        const rawTarget = typeof target === "function" ? target() : target;
-        return Math.max(0, Math.min(rawTarget, maxScroll));
-      };
-      const startedAt = performance.now();
-
-      const step = () => {
-        const now = performance.now();
-        const t = Math.min(1, (now - startedAt) / duration);
-        const safeTarget = getSafeTarget();
-        const distance = safeTarget - start;
-        window.scrollTo(0, start + distance * ease(t));
-        if (t < 1) return;
-        window.scrollTo(0, safeTarget);
-        stopAnimation();
-        window.setTimeout(() => {
-          scrollLockRef.current = false;
-        }, 180);
-      };
-
-      step();
-      timer = window.setInterval(step, 16);
-    };
-
-    const queueControlledScroll = (target: number | (() => number), duration: number) => {
-      scrollLockRef.current = true;
-      window.setTimeout(() => animateTo(target, duration), 0);
-    };
-
-    const getLandingOffset = () => {
-      const header = document.querySelector("header");
-      const headerHeight =
-        header instanceof HTMLElement ? header.getBoundingClientRect().height : 64;
-      return Math.min(
-        window.innerHeight * 0.18,
-        headerHeight + (isMobile ? 32 : 42),
-      );
-    };
-
-    const getHandoffTarget = () => {
+    const onScroll = () => {
+      if (phaseRef.current === "running") return;
+      if (document.body.style.position === "fixed") return;
       const section = sectionRef.current;
-      if (!section) return window.scrollY;
+      if (!section) return;
+      const heroEnd = section.offsetHeight || window.innerHeight;
+      const sy = Math.max(0, Math.min(heroEnd, window.scrollY));
+      const p = heroEnd > 0 ? sy / heroEnd : 0;
+      progress.set(p);
+      if (p <= 0.02) phaseRef.current = "hero";
+      else if (p >= 0.98) phaseRef.current = "past";
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [progress]);
+
+  // ── Forward play: gesture-triggered, time-based, body-locked ──
+  useEffect(() => {
+    if (reduced) return;
+
+    let running: { stop: () => void } | null = null;
+    let touchStart: { y: number } | null = null;
+
+    const playForward = () => {
+      if (phaseRef.current !== "hero") return;
+      phaseRef.current = "running";
+      lockScroll();
+      running?.stop();
+      // Capture the absolute Y of the paths section BEFORE the lock
+      // is engaged. Computing it during onComplete gives the wrong
+      // number (the page is `position: fixed` so offsetTop is unstable).
       const paths = document.getElementById("paths");
-      const rawTarget = paths
-        ? window.scrollY + paths.getBoundingClientRect().top
-        : section.offsetTop + section.offsetHeight;
-      return Math.max(0, rawTarget - getLandingOffset());
+      const rect = paths?.getBoundingClientRect();
+      const targetY = paths && rect
+        ? Math.max(0, window.scrollY + rect.top - 8)
+        : window.innerHeight;
+
+      running = animate(progress, 1, {
+        duration: isMobile ? 2.0 : 2.4,
+        ease: [0.22, 1, 0.36, 1],
+        onComplete: () => {
+          unlockScroll(targetY);
+          phaseRef.current = "past";
+          running = null;
+        },
+      });
     };
 
-    const getBounds = () => {
-      const section = sectionRef.current;
-      if (!section) return null;
-      const top = section.offsetTop;
-      const pathsTop = getHandoffTarget();
-      return { top, pathsTop };
-    };
-
-    const maybeRun = (direction: 1 | -1) => {
-      const bounds = getBounds();
-      if (!bounds) return false;
-
-      const y = window.scrollY;
-      // Treat the absolute top, fixed-header area, and the entire hero runway
-      // as one locked gateway. The previous range could still miss some
-      // y=0/header wheel events on hard scrolls, allowing native scrolling to
-      // jump straight to lower content.
-      const beforePaths = y <= bounds.pathsTop - 8;
-      const justInsidePaths = y > bounds.top + 8 && y <= bounds.pathsTop + 72;
-      if (scrollLockRef.current) return true;
-
-      if (direction > 0 && beforePaths) {
-        queueControlledScroll(getHandoffTarget(), reduced ? 260 : isMobile ? 1700 : 1950);
-        return true;
+    const onWheel = (e: WheelEvent) => {
+      // While the locked forward animation is playing, swallow EVERY
+      // wheel event so the page cannot move and the animation cannot
+      // be skipped or interrupted.
+      if (phaseRef.current === "running") {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
       }
-
-      if (direction < 0 && justInsidePaths) {
-        queueControlledScroll(bounds.top, reduced ? 260 : isMobile ? 1500 : 1750);
-        return true;
-      }
-
-      return false;
-    };
-
-    const onWheel = (event: WheelEvent) => {
-      if (Math.abs(event.deltaY) < 6) return;
-      const direction = event.deltaY > 0 ? 1 : -1;
-      if (maybeRun(direction)) {
-        event.preventDefault();
-        event.stopPropagation();
+      // Trigger play only on a deliberate downward wheel while at top.
+      if (
+        phaseRef.current === "hero" &&
+        e.deltaY > 4 &&
+        Math.abs(e.deltaY) >= Math.abs(e.deltaX)
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        playForward();
       }
     };
 
-    const onTouchStart = (event: TouchEvent) => {
-      const touch = event.touches[0];
-      touchStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      touchStart = t ? { y: t.clientY } : null;
     };
 
-    const onTouchMove = (event: TouchEvent) => {
-      const start = touchStartRef.current;
-      const touch = event.touches[0];
-      if (!start || !touch) return;
-      const dx = touch.clientX - start.x;
-      const dy = touch.clientY - start.y;
-      if (Math.abs(dy) < 24 || Math.abs(dy) < Math.abs(dx)) return;
-      const direction = dy < 0 ? 1 : -1;
-      if (maybeRun(direction)) {
-        event.preventDefault();
-        event.stopPropagation();
-        touchStartRef.current = null;
+    const onTouchMove = (e: TouchEvent) => {
+      if (phaseRef.current === "running") {
+        e.preventDefault();
+        return;
+      }
+      if (phaseRef.current !== "hero") return;
+      const start = touchStart;
+      const t = e.touches[0];
+      if (!start || !t) return;
+      const dy = t.clientY - start.y;
+      // Down-swipe (finger drags up) → dy < 0 → forward
+      if (dy < -22) {
+        e.preventDefault();
+        touchStart = null;
+        playForward();
       }
     };
 
-    document.addEventListener("wheel", onWheel, { capture: true, passive: false });
-    document.addEventListener("touchstart", onTouchStart, { capture: true, passive: true });
-    document.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
+    const onKey = (e: KeyboardEvent) => {
+      if (phaseRef.current === "running") {
+        // Block scroll keys while animation is running.
+        if (
+          e.key === "ArrowDown" ||
+          e.key === "ArrowUp" ||
+          e.key === "PageDown" ||
+          e.key === "PageUp" ||
+          e.key === "Space" ||
+          e.key === " "
+        ) {
+          e.preventDefault();
+        }
+        return;
+      }
+      if (
+        phaseRef.current === "hero" &&
+        (e.key === "ArrowDown" || e.key === "PageDown" || e.key === " ")
+      ) {
+        e.preventDefault();
+        playForward();
+      }
+    };
+
+    document.addEventListener("wheel", onWheel, {
+      capture: true,
+      passive: false,
+    });
+    document.addEventListener("touchstart", onTouchStart, {
+      capture: true,
+      passive: true,
+    });
+    document.addEventListener("touchmove", onTouchMove, {
+      capture: true,
+      passive: false,
+    });
+    document.addEventListener("keydown", onKey, { capture: true });
 
     return () => {
-      stopAnimation();
+      running?.stop();
       document.removeEventListener("wheel", onWheel, { capture: true });
-      document.removeEventListener("touchstart", onTouchStart, { capture: true });
-      document.removeEventListener("touchmove", onTouchMove, { capture: true });
+      document.removeEventListener("touchstart", onTouchStart, {
+        capture: true,
+      });
+      document.removeEventListener("touchmove", onTouchMove, {
+        capture: true,
+      });
+      document.removeEventListener("keydown", onKey, { capture: true });
     };
-  }, [isMobile, reduced]);
+  }, [isMobile, progress, reduced]);
 
   // PLANET — visible early, then zooms past the camera and dissolves.
   const planetScale = useTransform(
-    progress,
+    smoothProgress,
     [0, 0.18, 0.42, 0.6],
     reduced ? [1, 1, 1, 1] : isMobile ? [1, 1.05, 2.0, 4.2] : [1, 1.05, 2.6, 6],
   );
   const planetY = useTransform(
-    progress,
+    smoothProgress,
     [0, 0.5],
     reduced ? ["0%", "0%"] : isMobile ? ["0%", "30%"] : ["0%", "55%"],
   );
   const planetOpacity = useTransform(
-    progress,
+    smoothProgress,
     [0, 0.18, 0.45, 0.6],
     [1, 1, 0.55, 0],
   );
 
   // RINGS — collapse inward then explode outward as the warp ignites.
   const ringScale = useTransform(
-    progress,
+    smoothProgress,
     [0, 0.18, 0.45, 0.7],
     reduced ? [1, 1, 1, 1] : isMobile ? [1, 0.7, 2.6, 4.5] : [1, 0.6, 3.6, 6.5],
   );
   const ringOpacity = useTransform(
-    progress,
+    smoothProgress,
     [0, 0.18, 0.45, 0.7, 0.85],
     [0.9, 0.95, 0.9, 0.4, 0],
   );
-  const ringRot = useTransform(
-    progress,
-    [0, 1],
-    reduced ? [0, 0] : [0, 220],
-  );
+  const ringRot = useTransform(smoothProgress, [0, 1], reduced ? [0, 0] : [0, 220]);
 
   // CORE BLOOM — the heart of the warp. Flares between phase 1 → 2.
   const coreScale = useTransform(
-    progress,
+    smoothProgress,
     [0, 0.2, 0.5, 0.8, 1],
     reduced ? [0, 0, 1, 1, 1] : isMobile ? [0, 0, 1.6, 3.4, 5] : [0, 0, 1.8, 4.2, 7],
   );
   const coreOpacity = useTransform(
-    progress,
+    smoothProgress,
     [0, 0.25, 0.5, 0.78, 1],
     [0, 0, 1, 0.55, 0],
   );
 
   // STREAK FIELD — radial light spokes that accelerate outward.
   const streakScale = useTransform(
-    progress,
+    smoothProgress,
     [0, 0.18, 1],
     reduced ? [1, 1, 1] : isMobile ? [0.7, 1.1, 3.4] : [0.6, 1.1, 4.2],
   );
   const streakOpacity = useTransform(
-    progress,
+    smoothProgress,
     [0, 0.18, 0.4, 0.78, 1],
     [0, 0.4, 1, 0.85, 0.0],
   );
-  const streakRotX = useTransform(
-    progress,
-    [0, 1],
-    reduced ? [0, 0] : [6, -10],
-  );
+  const streakRotX = useTransform(smoothProgress, [0, 1], reduced ? [0, 0] : [6, -10]);
 
-  // DISTANT NEBULA — the destination. Brightens as we arrive, then
-  // fades to 0 at the very end so the section can hand off to the next
-  // chapter without a bright "white-ish" overlay bleeding through.
+  // DISTANT NEBULA — the destination. Brightens as we arrive, then fades to
+  // 0 so the section can hand off to the next chapter cleanly.
   const nebulaOpacity = useTransform(
-    progress,
+    smoothProgress,
     [0, 0.55, 0.78, 0.92, 1],
     [0, 0.2, 0.95, 0.55, 0],
   );
   const nebulaScale = useTransform(
-    progress,
+    smoothProgress,
     [0, 1],
     reduced ? [1, 1] : isMobile ? [1.1, 1] : [1.3, 0.95],
   );
 
-  // KICKER TEXT — sits proudly through phase 0, then accelerates away
-  // into the warp. Scrolling back up reverses this so WELCOME returns.
+  // KICKER TEXT — sits proudly through phase 0, then accelerates away.
   const textY = useTransform(
-    progress,
+    smoothProgress,
     [0, 0.18, 0.4],
     reduced ? ["0%", "0%", "0%"] : isMobile ? ["0%", "-3%", "-12%"] : ["0%", "-6%", "-30%"],
   );
   const textScale = useTransform(
-    progress,
+    smoothProgress,
     [0, 0.18, 0.45],
     reduced ? [1, 1, 1] : isMobile ? [1, 1.02, 1.18] : [1, 1.04, 1.8],
   );
   const textOpacity = useTransform(
-    progress,
+    smoothProgress,
     [0, 0.18, 0.32, 0.42],
     [1, 1, 0.55, 0],
   );
 
   // SCROLL HINT — fades out as soon as the warp begins.
-  const hintOpacity = useTransform(progress, [0, 0.04, 0.12], [1, 0.7, 0]);
+  const hintOpacity = useTransform(smoothProgress, [0, 0.04, 0.12], [1, 0.7, 0]);
 
   // VIGNETTE — slight darken at peak warp keeps the bloom punchy.
-  const vignette = useTransform(
-    progress,
-    [0, 0.45, 0.75, 1],
-    [0, 0.45, 0.25, 0],
-  );
+  const vignette = useTransform(smoothProgress, [0, 0.45, 0.75, 1], [0, 0.45, 0.25, 0]);
 
   // Streak spokes — fewer on mobile keeps the GPU compositing budget sane.
-  const streakCount = isMobile ? 14 : 22;
+  const streakCount = isMobile ? 12 : 18;
   const streaks = Array.from({ length: streakCount }, (_, i) => i * (360 / streakCount));
 
   return (
@@ -368,14 +356,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       ref={sectionRef}
       data-testid="cosmic-journey"
       className="relative w-full"
-      style={{
-        // Shorter total runways keep the arc tight on phones and PCs.
-        // The wheel/touch gate above turns one gesture into the full trip.
-        height: isMobile ? "175svh" : "185svh",
-      }}
+      style={{ height: "100svh" }}
     >
       <div
-        className="sticky top-0 h-[100svh] w-full"
+        className="absolute inset-0 h-full w-full"
         style={{
           // Force a dedicated compositor layer for the entire scene.
           transform: "translate3d(0, 0, 0)",
@@ -547,35 +531,36 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
                 }}
               />
 
-              {/* Orbiting accent moons. */}
-              {[
-                { d: 0, color: "#ffe28a", radiusVmin: 26, dur: 18 },
-                { d: -3, color: "#a78bfa", radiusVmin: 30, dur: 22 },
-                { d: -6, color: "#67e8f9", radiusVmin: 22, dur: 16 },
-                { d: -9, color: "#f472b6", radiusVmin: 34, dur: 26 },
-              ].map((o, i) => (
-                <span
-                  key={i}
-                  aria-hidden="true"
-                  className="absolute left-1/2 top-1/2 block h-0 w-0"
-                  style={{
-                    animation: reduced
-                      ? "none"
-                      : `spin ${o.dur}s linear ${o.d}s infinite`,
-                    transformOrigin: "center",
-                  }}
-                >
+              {/* Orbiting accent moons. (Disabled on mobile to save GPU.) */}
+              {!isMobile &&
+                [
+                  { d: 0, color: "#ffe28a", radiusVmin: 26, dur: 18 },
+                  { d: -3, color: "#a78bfa", radiusVmin: 30, dur: 22 },
+                  { d: -6, color: "#67e8f9", radiusVmin: 22, dur: 16 },
+                  { d: -9, color: "#f472b6", radiusVmin: 34, dur: 26 },
+                ].map((o, i) => (
                   <span
-                    className="absolute block h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                    key={i}
+                    aria-hidden="true"
+                    className="absolute left-1/2 top-1/2 block h-0 w-0"
                     style={{
-                      background: o.color,
-                      boxShadow: `0 0 18px ${o.color}, 0 0 50px ${o.color}`,
-                      top: `-${o.radiusVmin}vmin`,
-                      left: 0,
+                      animation: reduced
+                        ? "none"
+                        : `spin ${o.dur}s linear ${o.d}s infinite`,
+                      transformOrigin: "center",
                     }}
-                  />
-                </span>
-              ))}
+                  >
+                    <span
+                      className="absolute block h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                      style={{
+                        background: o.color,
+                        boxShadow: `0 0 18px ${o.color}, 0 0 50px ${o.color}`,
+                        top: `-${o.radiusVmin}vmin`,
+                        left: 0,
+                      }}
+                    />
+                  </span>
+                ))}
             </motion.div>
           </motion.div>
 

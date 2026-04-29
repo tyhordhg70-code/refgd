@@ -1,180 +1,322 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { motion, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 
 /**
- * PathsHorizontalReveal — one-scroll path card stepper for all screens.
+ * PathsHorizontalReveal — one-scroll path-card stepper for ALL viewports.
  *
- * A wheel flick / vertical phone swipe advances exactly one card and
- * locks until that card lands. This removes the old spring-runway skip
- * where card 1/5 could be missed during a hard scroll. Cards are changed by
- * vertical scroll only; horizontal trackpad motion is ignored. Normal page
- * scroll resumes only before card 1 or after card 5.
+ *   ── How it plays ──────────────────────────────────────────────
+ *   • The 5 cards are stacked. Only the active card is visible; the
+ *     others are off-stage left/right (horizontal slide feel).
+ *   • When the section enters the viewport with its track centered,
+ *     the entire body is hard-locked (position:fixed). The previous
+ *     `setInterval(scrollTo)` "tug-of-war" against native scroll —
+ *     which produced the visible "the page jumps then snaps back"
+ *     glitch — is gone for good.
+ *   • Each wheel flick / phone swipe advances exactly one card.
+ *     There is a short cool-down so a single trackpad gesture cannot
+ *     skip multiple cards.
+ *   • After the LAST card, the next downward wheel releases the lock
+ *     and the user resumes normal page scrolling. Likewise scrolling
+ *     up past the FIRST card releases the lock upwards.
+ *   • Reverse re-engagement: if the user scrolls back up into the
+ *     section after escaping forward (or down after escaping back),
+ *     the lock re-engages with the appropriate card so the stepper
+ *     never feels "broken" on the second pass.
+ *
+ *   `desktopFallback` is no longer used — we keep the prop in the
+ *   signature for backwards compatibility but ignore it. The user
+ *   asked for unified behaviour across viewports.
  */
 export default function PathsHorizontalReveal({
   cards,
-  desktopFallback,
 }: {
-  /** Pre-built card React nodes, in order. Should be 5 for the
-   *  current home page but the component is resilient to any count. */
   cards: ReactNode[];
-  /** What to render on tablet / desktop. Typically the existing grid. */
-  desktopFallback: ReactNode;
+  desktopFallback?: ReactNode;
 }) {
-  const sectionRef = useRef<HTMLDivElement | null>(null);
-  const lockRef = useRef(false);
-  const activeRef = useRef(0);
-  const holdTimerRef = useRef<number | null>(null);
-  const releaseTimerRef = useRef<number | null>(null);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const reduce = useReducedMotion();
   const count = cards.length;
+
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
+
+  const stateRef = useRef<"before" | "locked" | "after">("before");
+  const lockedRef = useRef(false);
+  const activeRef = useRef(0);
+  const touchStartRef = useRef<{ y: number } | null>(null);
+  const firingDisabledRef = useRef(false);
+  const wheelEndTimerRef = useRef<number | null>(null);
+
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isDesktop, setIsDesktop] = useState(false);
 
-  const stopScrollHold = useCallback(() => {
-    if (holdTimerRef.current) window.clearInterval(holdTimerRef.current);
-    holdTimerRef.current = null;
-    if (releaseTimerRef.current) clearTimeout(releaseTimerRef.current);
-    releaseTimerRef.current = null;
+  const setActive = useCallback((i: number) => {
+    const next = Math.max(0, Math.min(count - 1, i));
+    if (next === activeRef.current) return;
+    activeRef.current = next;
+    setActiveIndex(next);
+  }, [count]);
+
+  const lockBody = useCallback(() => {
+    if (lockedRef.current) return;
+    lockedRef.current = true;
+    lockScroll();
   }, []);
 
-  const holdScrollPosition = useCallback((y: number) => {
-    stopScrollHold();
-    const keepStill = () => {
-      window.scrollTo(0, y);
-    };
-    keepStill();
-    holdTimerRef.current = window.setInterval(keepStill, 16);
-  }, [stopScrollHold]);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const sync = () => setIsDesktop(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
+  const unlockBody = useCallback((targetY?: number) => {
+    if (!lockedRef.current) return;
+    lockedRef.current = false;
+    unlockScroll(targetY);
   }, []);
 
-  const goToCard = useCallback(
-    (nextIndex: number) => {
-      const next = Math.max(0, Math.min(count - 1, nextIndex));
-      if (next === activeRef.current || lockRef.current) return false;
-      activeRef.current = next;
-      setActiveIndex(next);
-      lockRef.current = true;
-      const duration = reduce ? 140 : 820;
-      holdScrollPosition(window.scrollY);
-      releaseTimerRef.current = window.setTimeout(() => {
-        lockRef.current = false;
-        stopScrollHold();
-      }, duration);
-      return true;
-    },
-    [count, holdScrollPosition, reduce, stopScrollHold],
-  );
-
+  // Engage lock when the cards-track region first enters the viewport.
+  // We deliberately DO NOT re-engage from `after` / `before` states —
+  // once the user has been through the stepper and released forward
+  // or backward, they get free vertical scrolling through this section.
+  // Re-locking the moment the track briefly appears again was the
+  // source of the "page slightly scrolls then snaps back" glitch.
   useEffect(() => {
-    activeRef.current = activeIndex;
-  }, [activeIndex]);
+    if (count <= 1) return;
+    const track = trackRef.current;
+    if (!track) return;
 
-  useEffect(() => {
-    const section = sectionRef.current;
-    if (!section || count <= 1 || isDesktop) return;
-
-    const syncIndexWhenAway = () => {
-      const rect = section.getBoundingClientRect();
-      if (rect.top > window.innerHeight * 0.95 && activeRef.current !== 0) {
-        activeRef.current = 0;
-        setActiveIndex(0);
-      }
-      if (rect.bottom < window.innerHeight * 0.05 && activeRef.current !== count - 1) {
-        activeRef.current = count - 1;
-        setActiveIndex(count - 1);
-      }
+    const tryEngage = () => {
+      if (lockedRef.current) return;
+      if (stateRef.current !== "before") return;
+      const rect = track.getBoundingClientRect();
+      const viewportH = window.innerHeight;
+      const trackCenter = rect.top + rect.height / 2;
+      const inFocus =
+        trackCenter > viewportH * 0.18 && trackCenter < viewportH * 0.82;
+      if (!inFocus) return;
+      stateRef.current = "locked";
+      activeRef.current = 0;
+      setActive(0);
+      lockBody();
     };
 
-    syncIndexWhenAway();
-    window.addEventListener("scroll", syncIndexWhenAway, { passive: true });
-    window.addEventListener("resize", syncIndexWhenAway);
+    // IntersectionObserver fires the moment the track crosses the
+    // configured threshold — far faster than waiting for the next
+    // scroll event, which previously left a ~250ms window where the
+    // user's wheel input was processed as native scroll instead of
+    // as a card step.
+    const obs = new IntersectionObserver(
+      () => tryEngage(),
+      { threshold: [0, 0.25, 0.5, 0.75, 1] },
+    );
+    obs.observe(track);
 
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        tryEngage();
+      });
+    };
+    tryEngage();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
     return () => {
-      stopScrollHold();
-      window.removeEventListener("scroll", syncIndexWhenAway);
-      window.removeEventListener("resize", syncIndexWhenAway);
+      obs.disconnect();
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
     };
-  }, [count, isDesktop, stopScrollHold]);
+  }, [count, lockBody, setActive]);
 
+  // Wheel + touch + key handling while locked
   useEffect(() => {
-    const section = sectionRef.current;
-    if (!section || count <= 1 || isDesktop) return;
+    if (count <= 1) return;
 
-    const isFocused = () => {
-      const rect = section.getBoundingClientRect();
-      return rect.top < window.innerHeight * 0.82 && rect.bottom > window.innerHeight * 0.18;
+    // Wheel-gesture cooldown.
+    //
+    // We don't fire on a fixed time interval — that previously let a
+    // hard trackpad flick (10 wheel events in 300ms) skip multiple
+    // cards. Instead, we treat any continuous stream of wheel events
+    // as ONE gesture: fire once on the first event, then refuse to
+    // fire again until the user STOPS scrolling for `quietGap` ms.
+    //
+    // The state lives in refs (not closure-local `let`s) so React's
+    // StrictMode double-mount in dev doesn't reset it mid-gesture.
+    const quietGap = reduce ? 80 : 260;
+
+    const armCooldown = () => {
+      firingDisabledRef.current = true;
+      if (wheelEndTimerRef.current) {
+        window.clearTimeout(wheelEndTimerRef.current);
+      }
+      wheelEndTimerRef.current = window.setTimeout(() => {
+        firingDisabledRef.current = false;
+        wheelEndTimerRef.current = null;
+      }, quietGap);
     };
 
-    const maybeStep = (direction: 1 | -1) => {
-      if (!isFocused()) return false;
-      if (lockRef.current) return true;
+    const releaseForward = () => {
+      stateRef.current = "after";
+      const section = sectionRef.current;
+      if (!section) {
+        unlockBody();
+        return;
+      }
+      // Scroll well past the section so the user doesn't immediately
+      // re-engage with another wheel tick.
+      const rect = section.getBoundingClientRect();
+      const targetY =
+        window.scrollY + rect.bottom - window.innerHeight + 80;
+      unlockBody(Math.max(0, targetY));
+    };
+
+    const releaseBackward = () => {
+      stateRef.current = "before";
+      const section = sectionRef.current;
+      if (!section) {
+        unlockBody();
+        return;
+      }
+      const rect = section.getBoundingClientRect();
+      const targetY = window.scrollY + rect.top - 80;
+      unlockBody(Math.max(0, targetY));
+    };
+
+    const tryStep = (direction: 1 | -1): boolean => {
+      if (!lockedRef.current) return false;
+      if (firingDisabledRef.current) return true; // consume but don't act
 
       const current = activeRef.current;
-      if (direction > 0 && current < count - 1) return goToCard(current + 1);
-      if (direction < 0 && current > 0) return goToCard(current - 1);
-      return false;
-    };
-
-    const onWheel = (event: WheelEvent) => {
-      // Only vertical scrolling changes cards. Sideways trackpad motion must
-      // never advance this section or create the feeling of horizontal scroll.
-      if (Math.abs(event.deltaY) < 8 || Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
-      const direction = event.deltaY > 0 ? 1 : -1;
-      if (maybeStep(direction)) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
+      if (direction > 0) {
+        if (current < count - 1) {
+          armCooldown();
+          setActive(current + 1);
+          return true;
+        }
+        armCooldown();
+        releaseForward();
+        return true;
+      } else {
+        if (current > 0) {
+          armCooldown();
+          setActive(current - 1);
+          return true;
+        }
+        armCooldown();
+        releaseBackward();
+        return true;
       }
     };
 
-    const onTouchStart = (event: TouchEvent) => {
-      const touch = event.touches[0];
-      touchStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+    const onWheel = (e: WheelEvent) => {
+      if (!lockedRef.current) return;
+      if (Math.abs(e.deltaY) < 6) return;
+      if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (firingDisabledRef.current) {
+        // Stretch the quiet-gap so a continuous flick keeps the
+        // cooldown alive instead of mid-gesture firing.
+        if (wheelEndTimerRef.current) {
+          window.clearTimeout(wheelEndTimerRef.current);
+        }
+        wheelEndTimerRef.current = window.setTimeout(() => {
+          firingDisabledRef.current = false;
+          wheelEndTimerRef.current = null;
+        }, quietGap);
+        return;
+      }
+      tryStep(e.deltaY > 0 ? 1 : -1);
     };
 
-    const onTouchMove = (event: TouchEvent) => {
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      touchStartRef.current = t ? { y: t.clientY } : null;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!lockedRef.current) return;
       const start = touchStartRef.current;
-      const touch = event.touches[0];
-      if (!start || !touch) return;
-
-      const dx = touch.clientX - start.x;
-      const dy = touch.clientY - start.y;
-      if (Math.abs(dy) < 28 || Math.abs(dy) < Math.abs(dx)) return;
-
-      const direction = dy < 0 ? 1 : -1;
-      if (maybeStep(direction)) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
+      const t = e.touches[0];
+      if (!start || !t) return;
+      const dy = t.clientY - start.y;
+      if (Math.abs(dy) < 28) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const dir: 1 | -1 = dy < 0 ? 1 : -1;
+      if (tryStep(dir)) {
         touchStartRef.current = null;
       }
     };
 
-    document.addEventListener("wheel", onWheel, { capture: true, passive: false });
-    document.addEventListener("touchstart", onTouchStart, { capture: true, passive: true });
-    document.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
+    const onKey = (e: KeyboardEvent) => {
+      if (!lockedRef.current) return;
+      if (
+        e.key === "ArrowDown" ||
+        e.key === "PageDown" ||
+        e.key === " " ||
+        e.key === "Space"
+      ) {
+        e.preventDefault();
+        tryStep(1);
+      } else if (e.key === "ArrowUp" || e.key === "PageUp") {
+        e.preventDefault();
+        tryStep(-1);
+      }
+    };
+
+    document.addEventListener("wheel", onWheel, {
+      capture: true,
+      passive: false,
+    });
+    document.addEventListener("touchstart", onTouchStart, {
+      capture: true,
+      passive: true,
+    });
+    document.addEventListener("touchmove", onTouchMove, {
+      capture: true,
+      passive: false,
+    });
+    document.addEventListener("keydown", onKey, { capture: true });
 
     return () => {
-      stopScrollHold();
+      if (wheelEndTimerRef.current) {
+        window.clearTimeout(wheelEndTimerRef.current);
+        wheelEndTimerRef.current = null;
+      }
       document.removeEventListener("wheel", onWheel, { capture: true });
-      document.removeEventListener("touchstart", onTouchStart, { capture: true });
-      document.removeEventListener("touchmove", onTouchMove, { capture: true });
+      document.removeEventListener("touchstart", onTouchStart, {
+        capture: true,
+      });
+      document.removeEventListener("touchmove", onTouchMove, {
+        capture: true,
+      });
+      document.removeEventListener("keydown", onKey, { capture: true });
     };
-  }, [count, goToCard, isDesktop, stopScrollHold]);
+  }, [count, reduce, setActive, unlockBody]);
 
-  if (isDesktop) {
-    return <DesktopCameraFlyby>{desktopFallback}</DesktopCameraFlyby>;
-  }
+  // Safety net: if the component unmounts (e.g., route change) while
+  // the lock is engaged, release it so the next page is scrollable.
+  useEffect(() => {
+    return () => {
+      if (lockedRef.current) {
+        lockedRef.current = false;
+        unlockScroll();
+      }
+    };
+  }, []);
+
+  const goToCard = useCallback(
+    (i: number) => {
+      if (!lockedRef.current) return;
+      setActive(i);
+    },
+    [setActive],
+  );
 
   return (
     <section
@@ -183,10 +325,11 @@ export default function PathsHorizontalReveal({
       className="relative mx-auto w-full max-w-6xl py-2 sm:py-4"
     >
       <div className="pointer-events-none absolute inset-x-0 top-1/2 h-32 -translate-y-1/2 rounded-full bg-amber-300/10 blur-3xl" />
-      <div className="relative overflow-visible px-1 py-4 sm:px-4 sm:py-6">
-        <motion.div
+      <div className="relative overflow-hidden px-1 py-4 sm:px-4 sm:py-6">
+        <div
+          ref={trackRef}
           data-testid="paths-card-track"
-          className="relative mx-auto flex min-h-[30rem] w-full items-center justify-center sm:min-h-[36rem] lg:min-h-[40rem]"
+          className="relative mx-auto flex min-h-[28rem] w-full items-center justify-center sm:min-h-[34rem] lg:min-h-[40rem]"
           style={{ willChange: "transform, opacity" }}
         >
           {cards.map((card, i) => (
@@ -194,10 +337,13 @@ export default function PathsHorizontalReveal({
               {card}
             </CardSlide>
           ))}
-        </motion.div>
+        </div>
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center justify-center gap-2" data-testid="paths-stepper-controls">
+      <div
+        className="mt-5 flex flex-wrap items-center justify-center gap-2"
+        data-testid="paths-stepper-controls"
+      >
         {cards.map((_, i) => {
           const active = i === activeIndex;
           return (
@@ -212,9 +358,15 @@ export default function PathsHorizontalReveal({
             >
               <span
                 className={`block rounded-full transition-[width,background-color,box-shadow] duration-300 ${
-                  active ? "h-2 w-8 bg-amber-300" : "h-2 w-2 bg-white/35 group-hover:bg-white/65"
+                  active
+                    ? "h-2 w-8 bg-amber-300"
+                    : "h-2 w-2 bg-white/35 group-hover:bg-white/65"
                 }`}
-                style={active ? { boxShadow: "0 0 16px rgba(255,237,180,0.85)" } : undefined}
+                style={
+                  active
+                    ? { boxShadow: "0 0 16px rgba(255,237,180,0.85)" }
+                    : undefined
+                }
               />
             </button>
           );
@@ -231,64 +383,10 @@ export default function PathsHorizontalReveal({
   );
 }
 
-function DesktopCameraFlyby({ children }: { children: ReactNode }) {
-  const sectionRef = useRef<HTMLDivElement | null>(null);
-  const reduce = useReducedMotion();
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start 92%", "end 8%"],
-  });
-  const progress = useSpring(scrollYProgress, {
-    stiffness: reduce ? 900 : 150,
-    damping: reduce ? 90 : 28,
-    mass: reduce ? 0.1 : 0.35,
-  });
-
-  const x = useTransform(progress, [0, 0.5, 1], reduce ? ["0%", "0%", "0%"] : ["-8%", "0%", "7%"]);
-  const y = useTransform(progress, [0, 0.5, 1], reduce ? ["0%", "0%", "0%"] : ["7%", "-1%", "-5%"]);
-  const z = useTransform(progress, [0, 0.52, 1], reduce ? [0, 0, 0] : [-340, 90, -80]);
-  const scale = useTransform(progress, [0, 0.52, 1], reduce ? [1, 1, 1] : [0.78, 0.96, 0.9]);
-  const rotateX = useTransform(progress, [0, 0.52, 1], reduce ? [0, 0, 0] : [12, -1, -7]);
-  const rotateY = useTransform(progress, [0, 0.52, 1], reduce ? [0, 0, 0] : [-18, 2, 16]);
-  const opacity = useTransform(progress, [0, 0.12, 0.9, 1], [0.68, 1, 1, 0.92]);
-
-  return (
-    <section
-      ref={sectionRef}
-      data-testid="paths-desktop-camera-flyby"
-      className="relative mx-auto w-full max-w-[92rem] py-6 md:py-10"
-    >
-      <div className="pointer-events-none absolute inset-x-6 top-1/2 h-40 -translate-y-1/2 rounded-full bg-amber-300/10 blur-3xl" />
-      <div
-        className="relative flex h-[clamp(360px,48svh,460px)] w-full items-center justify-center overflow-visible px-2 md:px-4"
-        style={{ perspective: 1900 }}
-      >
-        <motion.div
-          data-testid="paths-desktop-card-camera"
-          className="w-full"
-          style={{
-            x,
-            y,
-            z,
-            scale,
-            rotateX,
-            rotateY,
-            opacity,
-            transformStyle: "preserve-3d",
-            transformOrigin: "50% 50%",
-            willChange: "transform, opacity",
-          }}
-        >
-          {children}
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
 /**
- * A single full-stage card. Cards change by vertical scroll and cross-fade
- * in place, avoiding the previous sideways carousel movement.
+ * One full-stage card. The active card sits center; the others are
+ * pushed off-stage left or right and faded out — this gives the
+ * "smooth horizontal scrolling" feel the user asked for.
  */
 function CardSlide({
   index,
@@ -306,24 +404,18 @@ function CardSlide({
     <div
       data-testid={`paths-card-slide-${index + 1}`}
       className="absolute inset-0 flex items-center justify-center px-4 sm:px-8 lg:px-14"
-      style={{ perspective: 1400, pointerEvents: active ? "auto" : "none" }}
+      style={{ pointerEvents: active ? "auto" : "none" }}
       aria-hidden={!active}
     >
       <motion.div
-        className="w-full max-w-[24rem] sm:max-w-[28rem] lg:max-w-[31rem]"
+        className="w-full max-w-[24rem] sm:max-w-[28rem] lg:max-w-[32rem]"
         animate={{
           opacity: active ? 1 : 0,
-          scale: active ? 1 : 0.9,
-          y: active ? 0 : offset < 0 ? -42 : 42,
-          rotateY: 0,
-          rotateX: active ? 0 : offset < 0 ? 8 : -8,
+          x: active ? "0%" : offset < 0 ? "-72%" : "72%",
+          scale: active ? 1 : 0.92,
         }}
-        transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1] }}
-        style={{
-          transformStyle: "preserve-3d",
-          transformOrigin: "50% 50%",
-          willChange: "transform, opacity",
-        }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        style={{ willChange: "transform, opacity" }}
       >
         {children}
       </motion.div>

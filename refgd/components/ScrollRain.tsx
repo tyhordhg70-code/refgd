@@ -160,7 +160,7 @@ export default function ScrollRain() {
   if (!mounted) return null;
 
   // Halve the streak count on mobile to protect the GPU compositor.
-  const streaks = buildStreaks(isMobile ? 14 : 28);
+  const streaks = buildStreaks(isMobile ? 8 : 18);
 
   return (
     <div
