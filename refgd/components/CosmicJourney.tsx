@@ -113,9 +113,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
   // One-scroll gate: a hard wheel flick should not jump past the scene.
   // The first down-scroll plays the full WELCOME → arrival arc, then lands
-  // the user directly at the paths section. The first up-scroll from paths
-  // reverses back to WELCOME. Extra wheel/touch events are swallowed while
-  // the controlled scroll is running, so the animation cannot be skipped.
+  // the user directly at the paths section. Extra wheel/touch events are
+  // swallowed while the controlled scroll is running, so the animation
+  // cannot be skipped even by aggressive trackpad momentum.
   useEffect(() => {
     if (!mounted) return;
 
@@ -127,34 +127,50 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       raf = 0;
     };
 
-    const animateTo = (target: number, duration = 980) => {
+    const animateTo = (target: number | (() => number), duration = 980) => {
       stopAnimation();
       scrollLockRef.current = true;
       const start = window.scrollY;
-      const distance = target - start;
+      const getSafeTarget = () => {
+        const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+        const rawTarget = typeof target === "function" ? target() : target;
+        return Math.max(0, Math.min(rawTarget, maxScroll));
+      };
       const startedAt = performance.now();
 
       const step = (now: number) => {
         const t = Math.min(1, (now - startedAt) / duration);
+        const safeTarget = getSafeTarget();
+        const distance = safeTarget - start;
         window.scrollTo(0, start + distance * ease(t));
         if (t < 1) {
           raf = requestAnimationFrame(step);
           return;
         }
+        window.scrollTo(0, safeTarget);
         raf = 0;
         window.setTimeout(() => {
           scrollLockRef.current = false;
-        }, 90);
+        }, 520);
       };
 
       raf = requestAnimationFrame(step);
+    };
+
+    const getHandoffTarget = () => {
+      const section = sectionRef.current;
+      if (!section) return window.scrollY;
+      const paths = document.getElementById("paths");
+      return paths
+        ? window.scrollY + paths.getBoundingClientRect().top
+        : section.offsetTop + section.offsetHeight;
     };
 
     const getBounds = () => {
       const section = sectionRef.current;
       if (!section) return null;
       const top = section.offsetTop;
-      const pathsTop = top + section.offsetHeight;
+      const pathsTop = getHandoffTarget();
       return { top, pathsTop };
     };
 
@@ -163,22 +179,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (!bounds) return false;
 
       const y = window.scrollY;
-      // The hero can sit a little below scrollY=0 because the fixed header
-      // occupies the very top of the document. Treat absolute top as part
-      // of the hero gate too, otherwise a hard wheel over the header can
-      // bypass the one-scroll handoff entirely.
-      const nearHero = y >= Math.max(0, bounds.top - window.innerHeight * 0.3) && y < bounds.pathsTop - 20;
-      const nearPathsStart = y > bounds.top + window.innerHeight * 0.35 && y <= bounds.pathsTop + window.innerHeight * 0.42;
-
+      // Treat the absolute top, fixed-header area, and the entire hero runway
+      // as one locked gateway. The previous range could still miss some
+      // y=0/header wheel events on hard scrolls, allowing native scrolling to
+      // jump straight to lower content.
+      const beforePaths = y <= bounds.pathsTop - 8;
       if (scrollLockRef.current) return true;
 
-      if (direction > 0 && nearHero) {
-        animateTo(bounds.pathsTop, reduced ? 240 : isMobile ? 900 : 1040);
-        return true;
-      }
-
-      if (direction < 0 && nearPathsStart) {
-        animateTo(bounds.top, reduced ? 240 : isMobile ? 900 : 1040);
+      if (direction > 0 && beforePaths) {
+        animateTo(getHandoffTarget, reduced ? 240 : isMobile ? 900 : 1040);
         return true;
       }
 
@@ -188,7 +197,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const onWheel = (event: WheelEvent) => {
       if (Math.abs(event.deltaY) < 6) return;
       const direction = event.deltaY > 0 ? 1 : -1;
-      if (maybeRun(direction)) event.preventDefault();
+      if (maybeRun(direction)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
     };
 
     const onTouchStart = (event: TouchEvent) => {
@@ -206,6 +218,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const direction = dy < 0 ? 1 : -1;
       if (maybeRun(direction)) {
         event.preventDefault();
+        event.stopPropagation();
         touchStartRef.current = null;
       }
     };
