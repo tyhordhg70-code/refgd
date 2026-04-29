@@ -16,21 +16,23 @@ import { motion, useReducedMotion } from "framer-motion";
  *     The grid container itself does a single fade-and-lift on
  *     enter, and each card animates in with a staggered 3D fly-in.
  *
- *   • Mobile (< 768px): a simple vertical stack — one card after
- *     the other — with the same staggered fly-in entrance. The
- *     prior sticky-pinned horizontal-scroll stage was removed
- *     entirely (it was the source of the "scrolling back up breaks
- *     the page" symptom and made the first scroll feel laggy).
+ *   • Mobile (< 768px): native CSS horizontal-scroll carousel.
+ *     Uses `overflow-x-auto` + `scroll-snap-type: x mandatory` —
+ *     NO sticky-pinned scroll-jacking, NO `useScroll`. Vertical
+ *     page scroll passes through naturally; only horizontal
+ *     swipes on the carousel itself move between cards. Each
+ *     card snaps into view, and each one still gets the 3D
+ *     fly-in entrance from `FlyInCard` so it animates in as it
+ *     scrolls into the horizontal viewport (and re-animates on
+ *     scroll back, because `viewport={{ once: false }}`).
  *
  *   ── Persistence on scroll-up & scroll-down ────────────────────
- *   The card entrance now uses `viewport={{ once: false, amount: … }}`
- *   so the 3D fly-in plays EVERY time a card enters the viewport —
- *   not just the first time. Scrolling up to the top of the page
+ *   The card entrance uses `viewport={{ once: false, amount: … }}`
+ *   so the 3D fly-in REPLAYS every time a card enters the viewport
+ *   — not just the first time. Scrolling up to the top of the page
  *   and then back down replays the entrance for the cards that
  *   re-cross the threshold, which is what the user explicitly asked
- *   for. The `amount: 0.15` trigger fires when 15 % of the card is
- *   visible, which is the most reliable cross-browser pattern and
- *   works regardless of any transform on the parent element.
+ *   for.
  */
 export default function PathsHorizontalReveal({
   cards,
@@ -54,7 +56,7 @@ export default function PathsHorizontalReveal({
     return <DesktopGrid cards={cards} desktopFallback={desktopFallback} />;
   }
 
-  return <MobileVerticalStack cards={cards} />;
+  return <MobileHorizontalCarousel cards={cards} />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -107,28 +109,70 @@ function DesktopGrid({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Mobile — simple vertical stack                                    */
+/*  Mobile — native CSS horizontal-scroll carousel                    */
 /* ------------------------------------------------------------------ */
 
-function MobileVerticalStack({ cards }: { cards: ReactNode[] }) {
+/**
+ * Native scroll-snap carousel.
+ *
+ * Why native and not a sticky-pinned scroll-jacked stage?
+ *
+ *   The previous sticky-pin implementation hijacked vertical scroll
+ *   to advance the carousel horizontally, which broke the page in
+ *   several ways: (1) scrolling back up after passing the section
+ *   would land the user mid-stage with the page in an inconsistent
+ *   state, (2) iOS rubber-banding fought the scroll listener, and
+ *   (3) any scroll-event-driven re-paint on a long page felt laggy.
+ *
+ *   Native `overflow-x-auto` + `scroll-snap-type: x mandatory`
+ *   gives the user the same "swipe between cards" UX with zero
+ *   custom JS, zero scroll-jacking and a perfectly natural feel.
+ *   The page's vertical scroll is completely independent of this
+ *   inner horizontal scroller.
+ */
+function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
   return (
     <section
       data-testid="paths-mobile-stage"
-      className="relative w-full px-4 pb-6"
+      className="relative w-full pb-4"
       style={{ perspective: "1400px" }}
     >
       <div className="pointer-events-none absolute inset-x-0 top-1/2 h-40 -translate-y-1/2 bg-amber-300/10 blur-3xl" />
-      <div className="relative mx-auto flex w-full max-w-md flex-col gap-6">
-        {cards.map((card, i) => (
-          <FlyInCard
-            key={i}
-            index={i}
-            data-testid={`paths-card-slide-${i + 1}`}
-          >
-            {card}
-          </FlyInCard>
-        ))}
+
+      {/*
+       * The scroller. Uses negative margin + matching padding so
+       * the snap points sit flush with the viewport edge while
+       * letting card shadows breathe past the container.
+       */}
+      <div
+        data-testid="paths-mobile-scroller"
+        className="relative -mx-4 overflow-x-auto px-4 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{
+          scrollSnapType: "x mandatory",
+          WebkitOverflowScrolling: "touch",
+          overscrollBehaviorX: "contain",
+          scrollPaddingLeft: "1rem",
+        }}
+      >
+        <div className="flex w-max items-stretch gap-4">
+          {cards.map((card, i) => (
+            <FlyInCard
+              key={i}
+              index={i}
+              data-testid={`paths-card-slide-${i + 1}`}
+              className="w-[78vw] max-w-[340px] shrink-0"
+              style={{ scrollSnapAlign: "start" }}
+            >
+              {card}
+            </FlyInCard>
+          ))}
+        </div>
       </div>
+
+      {/* Subtle "swipe" hint — pure decoration, fades out on first interaction */}
+      <p className="heading-display pointer-events-none mt-3 text-center text-[10px] font-semibold uppercase tracking-[0.42em] text-white/55">
+        ← swipe to explore →
+      </p>
     </section>
   );
 }
@@ -148,16 +192,27 @@ function MobileVerticalStack({ cards }: { cards: ReactNode[] }) {
 function FlyInCard({
   children,
   index,
+  className,
+  style,
   ...rest
 }: {
   children: ReactNode;
   index: number;
+  className?: string;
+  style?: React.CSSProperties;
 } & Record<string, unknown>) {
   const reduced = useReducedMotion();
-  if (reduced) return <div {...rest}>{children}</div>;
+  if (reduced) {
+    return (
+      <div className={className} style={style} {...rest}>
+        {children}
+      </div>
+    );
+  }
   return (
     <motion.div
       {...(rest as Record<string, unknown>)}
+      className={className}
       initial={{ opacity: 0, y: 80, scale: 0.85, rotateX: 18 }}
       whileInView={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
       viewport={{ once: false, amount: 0.15 }}
@@ -169,6 +224,7 @@ function FlyInCard({
       style={{
         transformStyle: "preserve-3d",
         willChange: "transform, opacity",
+        ...style,
       }}
     >
       {children}
