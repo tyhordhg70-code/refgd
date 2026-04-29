@@ -92,32 +92,21 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   }, [reduced, isMobile, mx, my]);
 
   // ── Scroll-driven master timeline ─────────────────────────
-  //
-  // CRITICAL: offset is ["start start", "end end"] (not "end start").
-  // That maps progress 0 → 1 across the SCROLL RUNWAY ONLY (the
-  // portion of the section that exceeds the sticky 100svh stage),
-  // not the entire section. With this offset, progress hits 1.0 at
-  // exactly the moment the sticky disengages — i.e. the warp fades
-  // to opacity 0 right before the paths section comes into view,
-  // so there's NO bright nebula/streak overlay bleeding into
-  // "— you have arrived" underneath. Previously progress only
-  // reached ~0.23 when sticky released on mobile, so 77% of the
-  // animation played AFTER the stage unpinned and visibly scrolled
-  // up over the paths section (the "white overlay" complaint).
+  // Progress maps from 0 → 1 across the 200svh section. While the
+  // user is at the very top, progress is 0 → WELCOME stays. As they
+  // scroll, the scene plays through. Scrolling back up reverses it.
   const { scrollYProgress } = useScroll({
     target: sectionRef,
-    offset: ["start start", "end end"],
+    offset: ["start start", "end start"],
   });
-  // Smooth the raw scroll progress so phase transitions feel
-  // cinematic instead of snapping with every scroll tick. On mobile
-  // the spring is aggressive enough that even an iOS inertia flick
-  // tracks through the full timeline (the spring catches up well
-  // before the next paint), so the animation never gets visually
-  // "skipped" — the paths section can't appear until progress=1.
+  // Smooth the raw scroll progress so phase transitions feel cinematic
+  // instead of snapping with every scroll tick. Snappier on mobile so a
+  // fast flick still visibly plays the animation through (it doesn't
+  // get visually "skipped" because the spring catches up in ~200ms).
   const progress = useSpring(scrollYProgress, {
-    stiffness: isMobile ? 420 : 120,
-    damping: isMobile ? 40 : 30,
-    mass: isMobile ? 0.15 : 0.4,
+    stiffness: isMobile ? 260 : 120,
+    damping: isMobile ? 36 : 30,
+    mass: isMobile ? 0.25 : 0.4,
   });
 
   // PLANET — visible early, then zooms past the camera and dissolves.
@@ -235,18 +224,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       data-testid="cosmic-journey"
       className="relative w-full"
       style={{
-        // Mobile: 180svh total = 100svh sticky stage + 80svh of
-        // scroll runway. With offset ["start start", "end end"]
-        // this 80svh runway is exactly when progress 0 → 1 plays,
-        // which is roughly ONE swipe on a phone. After progress=1
-        // the sticky disengages and the paths section flows
-        // straight into view with no warp residue (the "white
-        // overlay" above "you have arrived" complaint).
-        //
-        // Desktop keeps a longer 200svh runway for the cinematic
-        // pacing. Scrolling back up still REVERSES the animation
-        // (scroll-driven), so WELCOME returns at the very top.
-        height: isMobile ? "180svh" : "200svh",
+        // Mobile: short 130svh runway so the entire welcome
+        // animation finishes within roughly ONE swipe and immediately
+        // hands off to the "Choose your path to mastery" section
+        // underneath. Desktop keeps the longer cinematic 200svh
+        // runway. Scrolling back up still REVERSES the animation
+        // (scroll-driven), so WELCOME returns at the top.
+        height: isMobile ? "130svh" : "200svh",
       }}
     >
       <div
