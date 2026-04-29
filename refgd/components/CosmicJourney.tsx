@@ -61,11 +61,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // Mount streaks — desktop 36, mobile 14. Mobile gets just enough
-  // points to read as a "burst" without saturating the rasteriser
-  // during the initial paint.
+  // Mount streaks — desktop 36, mobile 6. Mobile is cut to a token
+  // burst — at 14 the parallel framer-motion animations fight the
+  // initial-paint rasteriser on phones, producing the "laggy first
+  // second" the user complained about.
   const streaks = useMemo(() => {
-    const total = isMobile ? 14 : 36;
+    const total = isMobile ? 6 : 36;
     const colors = ["#ffe28a", "#a78bfa", "#7be7ff", "#f0abfc", "#ffffff"];
     return Array.from({ length: total }, (_, i) => {
       const angle = (i / total) * Math.PI * 2;
@@ -258,23 +259,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     //   • The snap arms exactly once per page load. Returning to y≈0
     //     does NOT re-arm — that prevented an infinite ping-pong loop.
 
+    // Single-fire snap. The previous rAF reassertion loop fought
+    // every browser smooth-scroll for 1.8 s, producing the visible
+    // flicker / "snap doesn't work after going back up" complaints.
+    // The only thing this does now is: the FIRST scroll event that
+    // takes us off the welcome (y > 0) issues exactly ONE smooth
+    // scrollTo to the paths section, then gets out of the way for
+    // the rest of the session. The browser's compositor handles
+    // every frame natively — no JS contention.
     let snapped = window.scrollY >= 60;
-    let armedAt = 0;
-    let rafId = 0;
-    let lastY = -1;
-    let quietFrames = 0;
-    // We re-fire scrollTo for up to 1.8 s after the user touches the
-    // page — that's longer than iOS Safari's typical inertia tail
-    // (~700-1500 ms after touchend). Stopping criteria: we're within
-    // 30 px of the target AND scrollY has been stationary for 6
-    // consecutive rAF frames (~100 ms of zero motion). This is
-    // robust against trackpad inertia AND iOS touch momentum,
-    // because it doesn't depend on the COUNT of scroll events
-    // (which iOS fires at 60 fps for the entire inertia tail) but
-    // on actual elapsed time and on scroll position settling.
-    const MAX_DURATION_MS = 1800;
-    const PROXIMITY_PX = 30;
-    const QUIET_FRAMES_REQUIRED = 6;
 
     function targetY(): number | null {
       const paths = document.getElementById("paths");
@@ -286,58 +279,23 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       );
     }
 
-    function tick() {
-      if (snapped) return;
-      const target = targetY();
-      if (target == null) {
-        rafId = requestAnimationFrame(tick);
-        return;
-      }
-      const y = window.scrollY;
-      const delta = Math.abs(y - target);
-      // Re-issue scrollTo only when we're not already there. Browser
-      // smoothScroll is idempotent; calling it every frame would
-      // start a new animation each time and look choppy. So we only
-      // re-fire if delta has GROWN (= the user / momentum has
-      // pulled us further away).
-      if (delta > 5) {
-        window.scrollTo({ top: target, behavior: "smooth" });
-      }
-      // Quiet detection: if scroll position is unchanged from last
-      // frame, count up. Once we've had several quiet frames in a
-      // row AND we're within tolerance, lock in.
-      if (lastY === y) {
-        quietFrames += 1;
-      } else {
-        quietFrames = 0;
-        lastY = y;
-      }
-      const elapsed = performance.now() - armedAt;
-      const settled = delta < PROXIMITY_PX && quietFrames >= QUIET_FRAMES_REQUIRED;
-      if (settled || elapsed > MAX_DURATION_MS) {
-        snapped = true;
-        rafId = 0;
-        return;
-      }
-      rafId = requestAnimationFrame(tick);
-    }
-
     function onScroll() {
       if (snapped) return;
       const y = window.scrollY;
       if (y < 1) return;
-      if (armedAt === 0) {
-        armedAt = performance.now();
-        lastY = -1;
-        quietFrames = 0;
-        if (!rafId) rafId = requestAnimationFrame(tick);
-      }
+      snapped = true;
+      const target = targetY();
+      if (target == null) return;
+      // Only force a smooth-scroll if the user is meaningfully past
+      // the welcome but not already at/past the target. If they're
+      // mid-scroll near the target, leave them alone.
+      if (Math.abs(window.scrollY - target) < 40) return;
+      window.scrollTo({ top: target, behavior: "smooth" });
     }
 
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
-      if (rafId) cancelAnimationFrame(rafId);
     };
   }, [reduced]);
 

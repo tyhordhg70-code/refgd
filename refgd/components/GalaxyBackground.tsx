@@ -67,8 +67,14 @@ export default function GalaxyBackground() {
       // (the field already saturated past a few thousand points),
       // but the per-frame shader cost is now small enough that even
       // a busy scroll frame has GPU headroom for the page composite.
-      const PARTICLE_COUNT_INNER = isMobile ? 900 : isTablet ? 2200 : 3200;
-      const PARTICLE_COUNT_OUTER = isMobile ? 1300 : isTablet ? 3200 : 4800;
+      // Mobile cut FURTHER to ~600 total points. The user reported
+      // "background animation is laggy" — even 2200 particles with
+      // a custom additive-blend shader is too much for older iOS
+      // GPUs to render alongside the page composite during scroll.
+      // 250 + 380 = 630 points still reads as a star field but
+      // releases enough GPU bandwidth that scroll stays at 60 fps.
+      const PARTICLE_COUNT_INNER = isMobile ? 250 : isTablet ? 2200 : 3200;
+      const PARTICLE_COUNT_OUTER = isMobile ? 380 : isTablet ? 3200 : 4800;
 
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);

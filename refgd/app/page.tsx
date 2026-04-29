@@ -147,7 +147,27 @@ export default async function HomePage() {
             bgClassName="absolute inset-0 grid place-items-center opacity-25"
             bg={<ParallaxIllustration kind="spark" accent="violet" size={620} />}
           >
-            <section className="container-px pb-10 sm:pb-14">
+            {/*
+              Mobile snap target: with native CSS scroll-snap on the
+              <html> element (see globals.css `@media (max-width:
+              767px)` block), this section's `scroll-snap-align:
+              start` makes the browser softly land scroll near the
+              telegram block's top — fixing "scroll past cards skips
+              telegram" without any JS scroll-jacking. Proximity (not
+              mandatory) means the snap only triggers when the user
+              naturally lands close, so it never hijacks scrolling
+              away from where the user actually wants to go.
+
+              `scroll-margin-top: 12vh` shifts the snap landing
+              point so the headline appears below the page header
+              with breathing room. Without it the section's top
+              would snap right under the iOS status bar.
+            */}
+            <section
+              id="telegram"
+              data-telegram-snap
+              className="container-px pb-10 sm:pb-14 [scroll-margin-top:12vh] [scroll-snap-align:start] [scroll-snap-stop:normal]"
+            >
               {/* "Stay up to speed" CTA — wrapped in a 3D distorted-mesh
                   expansion entrance: the box folds out of depth while a
                   wireframe grid detonates outward from its centre,

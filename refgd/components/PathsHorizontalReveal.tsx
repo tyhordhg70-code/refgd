@@ -21,28 +21,46 @@ import { motion, useReducedMotion } from "framer-motion";
  *     The grid container itself does a single fade-and-lift on
  *     enter, and each card animates in with a staggered 3D fly-in.
  *
- *   • Mobile (< 768px): a 3D-CUBE paged carousel.
- *     Each card occupies one face of a cube. Vertical scroll
- *     attempts (wheel / touch) AND horizontal touch swipes both
- *     advance the cube by exactly ONE card per discrete gesture.
- *     The component itself only takes 100 vh of layout — there's
- *     NO 4× viewport-tall scroll buffer underneath the carousel,
- *     so the page can never "overshoot" past the telegram CTA.
+ *   • Mobile (< 768px): NATIVE horizontal scroll-snap carousel.
+ *     One row of cards, swipe left/right to advance — the OS owns
+ *     the gesture, so it's hardware-accelerated, has perfect
+ *     momentum, and never fights iOS Safari.
  *
- *     • One-scroll-one-card  — wheel and touch are debounced
- *       so a single deliberate flick = one cube face turn, even
- *       on a hard fling. No accidental double-skips.
- *     • 3D cube transition   — the cube rotates 90° between cards
- *       with `transform-style: preserve-3d`; cards mount once and
- *       stay mounted (only the cube's rotation changes), so there
- *       is no remount flicker mid-spin.
- *     • Edge release         — when the user is on the last card
- *       and continues to scroll/swipe down, the carousel releases
- *       and lets the page scroll naturally to the next section
- *       (telegram CTA). Same on the first card scrolling up. No
- *       skipping past telegram, no being trapped on card 5.
- *     • Native horizontal swipe — left/right swipes also advance
- *       cards, with the same single-step debounce.
+ *   ── Why no JS scroll-jacking on mobile ───────────────────────
+ *
+ *   The previous mobile implementation pinned the carousel for
+ *   one full viewport, hijacked wheel + touchmove with
+ *   preventDefault, and ran a rAF loop on every scroll-tick. That
+ *   produced every problem the user reported in the latest pass:
+ *
+ *     • Lag — non-passive wheel listeners + per-frame JS scrollTo
+ *       force the browser to wait on JS for every scroll frame
+ *       and starve the GPU compositor.
+ *     • Huge gap — the section was 100 vh tall but only contained
+ *       a centred ~480 px card stack, leaving ~360 px of empty
+ *       space above and below.
+ *     • Huge jump after cards — at the bottom edge the lock
+ *       released by calling `window.scrollTo({behavior:'smooth'})`
+ *       to sectionTop + viewport, a JS-driven teleport.
+ *     • Scroll-up broken — the IntersectionObserver lock didn't
+ *       re-engage after a fast exit, leaving subsequent scrolls
+ *       unrelated.
+ *     • Flicker — every wheel re-pinned scrollY, causing the
+ *       page to oscillate against its own momentum frame.
+ *
+ *   The rewrite removes ALL of that and uses native CSS scroll-
+ *   snap on a horizontal flex container. Browsers do this in the
+ *   compositor without any JS, so it can't lag. The carousel
+ *   section is its own normal-flow block whose height is just
+ *   what the cards need (no 100 vh pin), so vertical scroll
+ *   simply continues into the telegram section beneath it — no
+ *   teleport, no jump, no edge release logic.
+ *
+ *   "One scroll = one card" comes from `scroll-snap-type: x
+ *   mandatory` + `scroll-snap-stop: always` — a single swipe
+ *   lands on exactly one card, even on a hard fling. Pagination
+ *   dots passively follow whichever card is closest to centre via
+ *   IntersectionObserver (read-only, no scroll mutation).
  */
 export default function PathsHorizontalReveal({
   cards,
@@ -66,7 +84,7 @@ export default function PathsHorizontalReveal({
     return <DesktopGrid cards={cards} desktopFallback={desktopFallback} />;
   }
 
-  return <MobileCubeCarousel cards={cards} />;
+  return <MobileSnapCarousel cards={cards} />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -119,427 +137,132 @@ function DesktopGrid({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Mobile — 3D CUBE PAGED CAROUSEL                                   */
+/*  Mobile — NATIVE HORIZONTAL SCROLL-SNAP CAROUSEL                   */
 /* ------------------------------------------------------------------ */
 
-/**
- * Mobile carousel — 3D cube with one card per face, paged
- * advancement.
- *
- * ── Layout (no scroll buffer, no overshoot) ───────────────────
- *
- *   <section style={{ height: '100vh' }}>            // outer
- *     <div className="sticky top-0 h-screen">        // pin
- *       <div ref={cubeRef} className="cube">         // 3D cube
- *         <div className="face">card 1</div>         // 5 faces
- *         <div className="face">card 2</div>
- *         …
- *       </div>
- *     </div>
- *   </section>
- *
- *   • Outer is exactly 100 vh tall. No 400 vh scroll buffer like
- *     the previous sticky-pin design. When the carousel is done,
- *     the very next section (telegram CTA) sits immediately
- *     below in the layout — there's no empty page between them
- *     for momentum to skip through.
- *   • The page only "pauses" while the user is interacting with
- *     the carousel — accomplished by an event-level lock (wheel
- *     and touchmove preventDefault) NOT a layout-level scroll
- *     buffer. When the user reaches the last card and continues
- *     to scroll down, the lock releases and the page scrolls
- *     normally to telegram.
- *
- * ── Why a cube, not a slide ───────────────────────────────────
- *
- *   • Single transform changes between cards (rotateY on the
- *     cube container) — cards mount once and never remount. The
- *     previous slide-track approach kept all 5 cards mounted but
- *     they each lived inside a track that translated on every
- *     scroll-tick — causing per-frame layout work that flickered
- *     on slow phones. A cube needs ONE transform per face
- *     change, period.
- *   • The 3D effect was an explicit user request and reads as
- *     much more intentional than a flat slide.
- *
- * ── One-scroll-one-card ───────────────────────────────────────
- *
- *   • A single discrete gesture = one cube turn. After advancing
- *     the index, we set a 700 ms cooldown during which further
- *     wheel/touch deltas are absorbed (still preventDefault'd
- *     so the page doesn't lurch) but ignored.
- *   • Wheel: each `wheel` event with |deltaY| > 4 advances by 1
- *     and starts the cooldown. Subsequent events during cooldown
- *     are absorbed.
- *   • Touch: track touchstart, then on touchend if the dominant
- *     delta exceeds the threshold (40 px) advance by 1.
- *   • Horizontal swipe: same threshold, axis is whichever
- *     dimension has the larger absolute delta. Right→prev,
- *     left→next, down→next, up→prev.
- *
- * ── Edge release & telegram alignment ─────────────────────────
- *
- *   • currentIndex == numCards-1 + scroll/swipe-down → release.
- *   • currentIndex == 0           + scroll/swipe-up   → release.
- *   • Release means: do NOT preventDefault that wheel/touch
- *     event, let the browser scroll the page to the next/prev
- *     section. No teleport, no jump — the carousel section is
- *     exactly 100 vh, so the next 100 vh of scroll lands the
- *     user on the next section.
- */
-function MobileCubeCarousel({ cards }: { cards: ReactNode[] }) {
-  const sectionRef = useRef<HTMLElement | null>(null);
+function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const cardRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [activeIndex, setActiveIndex] = useState(0);
-  const activeIndexRef = useRef(0);
-  const cooldownRef = useRef(0);
-  const lockedRef = useRef(false);
-  // The page-Y where the carousel section starts. Captured every
-  // time we lock so we can pin scroll exactly there while turning
-  // cards.
-  const sectionTopRef = useRef(0);
-  const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(
-    null,
-  );
 
-  const numCards = cards.length;
-
-  // Keep ref synced for use in event listeners (which capture
-  // closures over their initial values).
+  // Passively observe which card is closest to the viewport centre
+  // and update the dots. Pure read — never scrolls anything itself.
   useEffect(() => {
-    activeIndexRef.current = activeIndex;
-  }, [activeIndex]);
-
-  // Lock detection: ratio >= 0.3 (rather than 0.6) so the lock
-  // engages as soon as the section enters viewport prominently
-  // and stays engaged even as its top edge inches off-screen.
-  // We then pin scroll to sectionTop while consuming wheel events
-  // — the section stays exactly aligned with the viewport.
-  useEffect(() => {
-    const el = sectionRef.current;
-    if (!el) return;
-    const recomputeTop = () => {
-      const r = el.getBoundingClientRect();
-      sectionTopRef.current = Math.round(r.top + window.scrollY);
-    };
-    recomputeTop();
-    window.addEventListener("resize", recomputeTop);
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const wasLocked = lockedRef.current;
-          lockedRef.current = entry.intersectionRatio >= 0.3;
-          if (lockedRef.current && !wasLocked) {
-            recomputeTop();
+    const track = trackRef.current;
+    if (!track) return;
+    const observers: IntersectionObserver[] = [];
+    cardRefs.current.forEach((el, i) => {
+      if (!el) return;
+      const io = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.intersectionRatio >= 0.6) {
+              setActiveIndex(i);
+            }
           }
-        }
-      },
-      { threshold: [0, 0.15, 0.3, 0.5, 0.7, 0.9, 1] },
-    );
-    io.observe(el);
-    return () => {
-      window.removeEventListener("resize", recomputeTop);
-      io.disconnect();
-    };
-  }, []);
-
-  const advance = useCallback(
-    (dir: 1 | -1): boolean => {
-      // Returns true if the gesture was consumed (= lock should
-      // intercept the input). Returns false if the carousel is
-      // at an edge and the gesture should pass through to the
-      // page (= release).
-      const now = performance.now();
-      if (now < cooldownRef.current) {
-        // Inside cooldown — consume but don't advance. This
-        // absorbs trackpad inertia / iOS touch-momentum so a
-        // single user gesture really is a single card turn.
-        return true;
-      }
-      const idx = activeIndexRef.current;
-      const next = idx + dir;
-      if (next < 0 || next >= numCards) {
-        // Edge: release.
-        return false;
-      }
-      activeIndexRef.current = next;
-      setActiveIndex(next);
-      cooldownRef.current = now + 700;
-      return true;
-    },
-    [numCards],
-  );
-
-  // Wheel listener — non-passive so we can preventDefault and
-  // hold the page still while turning cube faces. Critically, we
-  // also pin the body's scrollY back to the section's top after
-  // each consumed wheel event. Without this pin, fast wheel
-  // bursts can drag the section past the lock threshold before
-  // the IntersectionObserver re-fires, breaking subsequent
-  // advances.
-  useEffect(() => {
-    function pinScroll() {
-      if (Math.abs(window.scrollY - sectionTopRef.current) > 1) {
-        window.scrollTo(0, sectionTopRef.current);
-      }
-    }
-    function onWheel(e: WheelEvent) {
-      if (!lockedRef.current) return;
-      // Tiny wheel events are usually trackpad inertia tail —
-      // treat them as belonging to the previous gesture. If we
-      // get one outside cooldown, threshold of 4 px filters out
-      // sub-pixel inertia ticks.
-      const dy = e.deltaY;
-      if (Math.abs(dy) < 4) return;
-      const dir: 1 | -1 = dy > 0 ? 1 : -1;
-      const consumed = advance(dir);
-      if (consumed) {
-        e.preventDefault();
-        // Re-pin to absorb any momentum scroll that already
-        // queued up before this handler ran.
-        pinScroll();
-      } else {
-        // Edge release. We DO preventDefault and place the user
-        // exactly at the next/previous section ourselves. This
-        // matters because a fast wheel burst (deltaY in the
-        // thousands) would otherwise scroll the page far past
-        // the adjacent section — on the down-edge, that means
-        // the user blows straight past the telegram box and
-        // lands at the footer.
-        e.preventDefault();
-        const nextTop =
-          dir === 1
-            ? sectionTopRef.current + window.innerHeight
-            : Math.max(0, sectionTopRef.current - window.innerHeight);
-        window.scrollTo({ top: nextTop, behavior: "smooth" });
-      }
-    }
-    // `passive: false` is required to call preventDefault on wheel.
-    window.addEventListener("wheel", onWheel, { passive: false });
-    return () => {
-      window.removeEventListener("wheel", onWheel);
-    };
-  }, [advance]);
-
-  // Touch listeners — track start, intercept move only when
-  // appropriate, decide on end.
-  useEffect(() => {
-    function onTouchStart(e: TouchEvent) {
-      if (!lockedRef.current) return;
-      const t = e.touches[0];
-      if (!t) return;
-      touchStartRef.current = { x: t.clientX, y: t.clientY, t: performance.now() };
-    }
-
-    function onTouchMove(e: TouchEvent) {
-      if (!lockedRef.current) return;
-      const start = touchStartRef.current;
-      if (!start) return;
-      const t = e.touches[0];
-      if (!t) return;
-      const dx = t.clientX - start.x;
-      const dy = t.clientY - start.y;
-      const adx = Math.abs(dx);
-      const ady = Math.abs(dy);
-      // Decide axis once the gesture has moved a few pixels.
-      if (adx < 6 && ady < 6) return;
-      // Vertical-dominant gesture
-      const idx = activeIndexRef.current;
-      const dirVertical: 1 | -1 = dy < 0 ? 1 : -1; // swipe up = next
-      const dirHorizontal: 1 | -1 = dx < 0 ? 1 : -1; // swipe left = next
-      const wantDir = ady > adx ? dirVertical : dirHorizontal;
-      const next = idx + wantDir;
-      // If we're at an edge and the user is swiping toward release,
-      // do NOT preventDefault — let the page scroll.
-      if (next < 0 || next >= numCards) {
-        // Only release for vertical gestures. Horizontal at edge
-        // we still preventDefault so the page doesn't sideways-
-        // pan into the wrong section.
-        if (ady > adx) return; // vertical → release
-        e.preventDefault();
-        return;
-      }
-      // Otherwise we WILL consume this gesture on touchend, so
-      // start by holding the page still during the move.
-      e.preventDefault();
-    }
-
-    function onTouchEnd(e: TouchEvent) {
-      if (!lockedRef.current) return;
-      const start = touchStartRef.current;
-      touchStartRef.current = null;
-      if (!start) return;
-      const t = e.changedTouches[0];
-      if (!t) return;
-      const dx = t.clientX - start.x;
-      const dy = t.clientY - start.y;
-      const adx = Math.abs(dx);
-      const ady = Math.abs(dy);
-      const THRESHOLD = 40;
-      if (adx < THRESHOLD && ady < THRESHOLD) return;
-      const dirVertical: 1 | -1 = dy < 0 ? 1 : -1;
-      const dirHorizontal: 1 | -1 = dx < 0 ? 1 : -1;
-      const dir = ady > adx ? dirVertical : dirHorizontal;
-      advance(dir);
-    }
-
-    window.addEventListener("touchstart", onTouchStart, { passive: true });
-    window.addEventListener("touchmove", onTouchMove, { passive: false });
-    window.addEventListener("touchend", onTouchEnd, { passive: true });
-    return () => {
-      window.removeEventListener("touchstart", onTouchStart);
-      window.removeEventListener("touchmove", onTouchMove);
-      window.removeEventListener("touchend", onTouchEnd);
-    };
-  }, [advance, numCards]);
+        },
+        {
+          root: track,
+          // Trigger when the card occupies most of the carousel
+          // viewport — i.e. it's the centred / current card.
+          threshold: [0, 0.3, 0.6, 0.9],
+        },
+      );
+      io.observe(el);
+      observers.push(io);
+    });
+    return () => observers.forEach((io) => io.disconnect());
+  }, [cards.length]);
 
   // Tap a dot to jump.
   const goTo = useCallback((i: number) => {
-    if (i < 0 || i >= numCards) return;
-    activeIndexRef.current = i;
-    setActiveIndex(i);
-    cooldownRef.current = performance.now() + 500;
-  }, [numCards]);
-
-  // ── 3D card-flip geometry ─────────────────────────────────────
-  //
-  // We use a stacked-card "3D flip" approach instead of a literal
-  // 4- or 5-faced cube prism, for two reasons:
-  //
-  //   (a) An N-faced prism with N != 4 either requires fractional
-  //       face rotations (72° for 5 cards, breaking the "cube"
-  //       feel) OR causes face-0 and face-N to overlap when N
-  //       isn't a divisor of 360.
-  //   (b) In a literal cube, 4 of the 5 cards sit at oblique
-  //       angles to the camera at any given moment — they project
-  //       as compressed parallelograms which read as broken
-  //       layouts on a phone.
-  //
-  // The flip approach keeps every card flat to the camera at all
-  // times. Cards are stacked on top of each other in a 3D scene
-  // with their own per-card transform:
-  //
-  //   • i  < activeIndex  → rotateY( -90°), translateZ(-150 px),  opacity 0
-  //   • i == activeIndex  → rotateY(   0°), translateZ(   0  ),   opacity 1
-  //   • i  > activeIndex  → rotateY( +90°), translateZ(-150 px),  opacity 0
-  //
-  // Going from card 2 → 3, card 2 flips out (rotateY 0 → -90°,
-  // sliding back into depth) while card 3 flips in (rotateY 90° →
-  // 0°, swinging from off-camera right). Both transforms run on
-  // CSS transitions so the GPU handles every frame; no JS per-
-  // frame work, no remounts (cards mount once and stay mounted),
-  // no flickering.
-
-  const cardWidth = "min(84vw, 360px)";
-  const cardHeight = "min(112vw, 480px)";
+    const el = cardRefs.current[i];
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, []);
 
   return (
     <section
-      data-testid="paths-mobile-stage"
-      ref={sectionRef}
+      data-testid="paths-mobile-carousel"
       className="relative w-full"
-      style={{
-        height: "100vh",
-        // Prevent vertical overscroll on this section from
-        // chaining up into adjacent sections.
-        overscrollBehavior: "contain",
-      }}
     >
+      {/* Edge fade masks — purely visual, hint that more cards are
+          off-screen on either side. */}
+      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-[rgb(5,6,10)] to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-[rgb(5,6,10)] to-transparent" />
+
+      {/* The track. Native horizontal scroll + CSS snap. NO JS
+          scroll handlers, NO preventDefault, NO sticky pinning. */}
       <div
-        className="sticky top-0 flex h-screen w-full flex-col items-center justify-center overflow-hidden"
+        ref={trackRef}
+        data-testid="paths-mobile-track"
+        className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth pb-4 pt-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{
-          background:
-            "radial-gradient(ellipse at 50% 50%, rgba(245,185,69,0.08) 0%, transparent 60%)",
-          perspective: "1600px",
+          // 8 vw of inset on each side centres the first/last card
+          // in the viewport when fully snapped.
+          scrollPaddingLeft: "8vw",
+          scrollPaddingRight: "8vw",
+          // Vertical scroll inside the track does nothing (overflow-
+          // y-hidden); the page's vertical scroll still works because
+          // touch-action allows pan-y to bubble up.
+          touchAction: "pan-x pan-y",
+          WebkitOverflowScrolling: "touch",
         }}
       >
-        {/* 3D CARD-FLIP STACK — every card sits at the same X/Y
-            slot but at a different rotateY/translateZ depending on
-            its position relative to activeIndex. CSS transition
-            handles the in-between frames; no per-frame JS work. */}
-        <div
-          data-testid="paths-cube-container"
-          className="relative grid place-items-center"
-          style={{
-            width: cardWidth,
-            height: cardHeight,
-            transformStyle: "preserve-3d",
-          }}
-        >
-          {cards.map((card, i) => {
-            const renderedCard = isValidElement(card)
-              ? cloneElement(card as ReactElement<{ noReveal?: boolean }>, {
-                  noReveal: true,
-                })
-              : card;
-            const offset = i - activeIndex;
-            // Off-screen cards sit at +/- 90° and ~150 px deeper so
-            // the flip reads as a real 3D rotation, not a flat
-            // crossfade. Faded to opacity 0 while the rotation
-            // happens — this also stops far cards from briefly
-            // appearing as the active card flips past them.
-            const rotateY = offset === 0 ? 0 : offset > 0 ? 90 : -90;
-            const translateZ = offset === 0 ? 0 : -160;
-            const opacity = offset === 0 ? 1 : 0;
-            const pointerEvents = offset === 0 ? "auto" : "none";
-            return (
-              <div
-                key={i}
-                data-testid={`paths-card-face-${i + 1}`}
-                className="absolute inset-0 flex items-center justify-center"
-                style={{
-                  transform: `translateZ(${translateZ}px) rotateY(${rotateY}deg)`,
-                  transformOrigin: "center center",
-                  opacity,
-                  pointerEvents,
-                  transition:
-                    "transform 700ms cubic-bezier(0.65, 0, 0.35, 1)," +
-                    "opacity 500ms ease",
-                  backfaceVisibility: "hidden",
-                  WebkitBackfaceVisibility: "hidden",
-                  willChange: "transform, opacity",
-                }}
-              >
-                <div className="w-full">{renderedCard}</div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Hint above the dots — clarifies the interaction model
-            on first encounter. Fades after the user's first
-            advance. */}
-        <p
-          aria-hidden="true"
-          className={`absolute bottom-16 z-10 heading-display text-center text-[10px] font-semibold uppercase tracking-[0.4em] text-white/60 transition-opacity duration-500 ${
-            activeIndex === 0 ? "opacity-100" : "opacity-0"
-          }`}
-        >
-          Scroll or swipe to turn
-        </p>
-
-        {/* Pagination dots — fixed near the bottom. Tap to jump. */}
-        <div
-          className="absolute bottom-6 left-0 right-0 z-10 flex items-center justify-center gap-2"
-          role="tablist"
-          aria-label="Paths carousel pagination"
-        >
-          {cards.map((_, i) => (
-            <button
+        {/* Leading spacer so the first card snaps to viewport centre. */}
+        <div aria-hidden="true" className="shrink-0" style={{ width: "8vw" }} />
+        {cards.map((card, i) => {
+          const renderedCard = isValidElement(card)
+            ? cloneElement(card as ReactElement<{ noReveal?: boolean }>, {
+                noReveal: true,
+              })
+            : card;
+          return (
+            <div
               key={i}
-              type="button"
-              role="tab"
-              aria-selected={activeIndex === i}
-              aria-label={`Go to card ${i + 1}`}
-              onClick={() => goTo(i)}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                activeIndex === i
-                  ? "w-6 bg-amber-300"
-                  : "w-1.5 bg-white/30 hover:bg-white/50"
-              }`}
-            />
-          ))}
-        </div>
+              ref={(el) => {
+                cardRefs.current[i] = el;
+              }}
+              data-testid={`paths-mobile-slide-${i + 1}`}
+              className="relative shrink-0 snap-center snap-always px-2"
+              style={{ width: "84vw" }}
+            >
+              {renderedCard}
+            </div>
+          );
+        })}
+        {/* Trailing spacer so the last card snaps to viewport centre. */}
+        <div aria-hidden="true" className="shrink-0" style={{ width: "8vw" }} />
       </div>
+
+      {/* Pagination dots — passive read of activeIndex. Tap to jump. */}
+      <div
+        className="mt-2 flex items-center justify-center gap-2"
+        role="tablist"
+        aria-label="Paths carousel pagination"
+      >
+        {cards.map((_, i) => (
+          <button
+            key={i}
+            type="button"
+            role="tab"
+            aria-selected={activeIndex === i}
+            aria-label={`Go to card ${i + 1}`}
+            onClick={() => goTo(i)}
+            className={`h-1.5 rounded-full transition-all duration-300 ${
+              activeIndex === i
+                ? "w-6 bg-amber-300"
+                : "w-1.5 bg-white/30 hover:bg-white/50"
+            }`}
+          />
+        ))}
+      </div>
+      <p
+        aria-hidden="true"
+        className="mt-3 heading-display text-center text-[10px] font-semibold uppercase tracking-[0.4em] text-white/55"
+      >
+        Swipe to choose your door
+      </p>
     </section>
   );
 }
