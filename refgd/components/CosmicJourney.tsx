@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import KineticText from "./KineticText";
 
 /**
- * CosmicJourney — load-once cinematic warp + bidirectional auto-snap
- * to/from the paths section.
+ * CosmicJourney — load-once cinematic warp + INPUT-INTERCEPTING
+ * snap to/from the paths section.
  *
  *   ── On mount (~2.8s timeline) ──────────────────────────────
  *   t=0.00s  nebula backdrop fades up
@@ -16,43 +16,59 @@ import KineticText from "./KineticText";
  *   t=2.60s  scroll hint fades in
  *   t≥2.8s   ambient state — planet softly breathes, scene holds
  *
- *   ── Bidirectional auto-snap on scroll ───────────────────────
- *   Single scroll listener. ANY time the user enters the "dead
- *   zone" between the hero (`scrollY ≈ 0`) and the paths section
- *   (`scrollY ≈ window.innerHeight − 20`), they get smoothly
- *   snap-scrolled to whichever boundary they were heading toward:
- *     • scrolling down  → land at `innerHeight − 20` (kicker line
- *                         "— you have arrived" comfortably visible
- *                         with ~20 px breathing room above it,
- *                         no top-edge text clipping).
- *     • scrolling up    → land at `0` (welcome scene fully back).
- *   This eliminates the "scrolling a few times through empty
- *   space" complaint — one wheel notch is enough to lock you onto
- *   one of the two boundaries. Replays as many times as the user
- *   wants; no consumed flag.
+ *   ── Why we intercept INPUT events, not scroll events ────────
+ *   Previous revisions listened to the `scroll` event and snapped
+ *   from there. That has two unfixable failure modes:
+ *     • HARD scroll → browser scrolls many pixels instantly
+ *       BEFORE the scroll handler runs (one rAF frame later).
+ *       By the time we fire, the user has already overshot the
+ *       snap target, so the snap-then-fight-with-inertia produces
+ *       a jittery half-played animation.
+ *     • LIGHT scroll → browser scrolls a few pixels, then our
+ *       handler kicks in one frame later and starts the smooth
+ *       scroll. The visible "tiny native jump → then a smooth
+ *       scroll starts from the jumped position" is the stutter.
+ *   Solution: hook the INPUT (wheel / touchmove / keydown) with
+ *   `passive: false` + `preventDefault()` while the user is in
+ *   the welcome / boundary zone, so the browser NEVER scrolls
+ *   natively in that range — we own scrollY from the very first
+ *   millisecond of user intent.
+ *
+ *   ── Snap behaviour ──────────────────────────────────────────
+ *   • In welcome zone (`scrollY < pathsTarget − 4`):
+ *       – wheel / swipe / arrow / space → snap to `pathsTarget`
+ *         (= `innerHeight − 20`, kicker line "— you have arrived"
+ *         comfortably visible with 20 px breathing room above).
+ *       – wheel up → snap to `0`.
+ *   • Just past paths boundary, scrolling up
+ *     (`pathsTarget ≤ scrollY < pathsTarget + 12`):
+ *       – snap back to `0`. (One-wheel response, no overshoot.)
+ *   • Past the boundary in the paths / telegram sections:
+ *       – we don't intercept. Native scroll works normally.
+ *   • A 500 ms cooldown after each snap absorbs trackpad inertia
+ *     and iOS rubber-band so a single hard wheel doesn't bounce
+ *     us back the other way.
  *
  *   ── Cinematic 3D warp during the snap ───────────────────────
  *   The whole scene-stage flies away in 3D as a rigid unit
  *   (scale 1 → 0.08, rotateX 0 → −55°, y 0 → −200, opacity 1 → 0)
- *   over a matched 1.4 s. Layered on top during the exit:
+ *   over 1.2 s. Layered on top during the exit:
  *     • A brief WHITE FLASH (peaks at 45 % opacity ~40 % through
- *       the transition, fades by 85 %) — the "camera passes through
- *       the planet" punctuation.
+ *       the transition) — the "camera passes through the planet"
+ *       punctuation.
  *     • 32 RADIAL WARP STREAKS shooting outward from the centre
  *       to ±120 vmin, each scaling 0.5 → 8 → 14 along its length
- *       so they look like jump-to-lightspeed star trails. Mounted
- *       only while `exiting` is true — auto-replay every time the
- *       user re-crosses the threshold.
- *   The exit is REVERSIBLE — scroll back up, the stage rotates,
- *   scales and fades back into rest pose.
+ *       so they look like jump-to-lightspeed star trails.
+ *   Both are mounted only while `exiting` is true — auto-replay
+ *   every time the user re-crosses the threshold. The exit is
+ *   REVERSIBLE — scroll back up, the stage rotates, scales and
+ *   fades back into rest pose.
  */
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
   const [exiting, setExiting] = useState(false);
 
-  // 36 streaks distributed evenly around the circle, deterministic so
-  // SSR + hydration match. These are the MOUNT streaks (radial expand
-  // during the welcome's load-in).
+  // 36 mount streaks — radial expansion during the welcome's load-in.
   const streaks = useMemo(() => {
     const colors = ["#ffe28a", "#a78bfa", "#7be7ff", "#f0abfc", "#ffffff"];
     return Array.from({ length: 36 }, (_, i) => {
@@ -87,15 +103,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     [],
   );
 
-  // ── Unified scroll handler: bidirectional auto-snap + reversible
-  //    exit state. Single listener, single source of truth.
+  // ── Input-intercepting snap controller ─────────────────────
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (reduced) return;
 
     let isAnimating = false;
-    let lastY = window.scrollY;
-    let ticking = false;
     let activeRAF = 0;
 
     function smoothScrollTo(targetY: number, duration: number) {
@@ -107,74 +120,154 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const start = performance.now();
       function step(now: number) {
         const t = Math.min((now - start) / duration, 1);
+        // cubic in-out — feels like a weighty camera move
         const eased =
           t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
         window.scrollTo(0, startY + dist * eased);
         if (t < 1) {
           activeRAF = requestAnimationFrame(step);
         } else {
-          // Settling delay so post-snap inertia / rubber-band doesn't
-          // immediately re-fire the snap in the opposite direction.
+          // Cooldown absorbs trackpad inertia + iOS rubber-band so
+          // a single hard wheel doesn't bounce us back the other way.
           window.setTimeout(() => {
             isAnimating = false;
-            lastY = window.scrollY;
-          }, 220);
+          }, 500);
         }
       }
       activeRAF = requestAnimationFrame(step);
     }
 
-    function update() {
-      ticking = false;
-      const y = window.scrollY;
+    function getTargets() {
       const innerH = window.innerHeight;
-      const paths = innerH - 20; // snap target for "down" — kicker just below viewport top
-      const threshold = Math.max(60, innerH * 0.08);
+      return {
+        pathsTarget: innerH - 20,
+        exitThreshold: Math.max(60, innerH * 0.08),
+      };
+    }
 
-      // Reversible exit state — derived purely from scrollY.
+    // Pure observer — derives reversible exit state from scrollY.
+    function onScroll() {
+      const y = window.scrollY;
+      const { exitThreshold } = getTargets();
       setExiting((prev) => {
-        const next = y > threshold;
+        const next = y > exitThreshold;
         return next === prev ? prev : next;
       });
+    }
 
-      if (isAnimating) {
-        lastY = y;
-        return;
-      }
+    // Wheel — intercept BEFORE the browser scrolls so hard wheels
+    // can't overshoot and light wheels don't cause a tiny native
+    // jump before the smooth scroll starts.
+    function onWheel(e: WheelEvent) {
+      if (e.ctrlKey || e.metaKey) return; // allow pinch-zoom shortcut
+      if (Math.abs(e.deltaY) < 1) return;
+      const y = window.scrollY;
+      const { pathsTarget } = getTargets();
 
-      const direction = y > lastY ? 1 : y < lastY ? -1 : 0;
-      lastY = y;
-
-      // Dead zone — anything between the very top and the paths section.
-      // If the user has crossed into it, snap them out in their direction
-      // of travel so they're never stranded scrolling through empty space.
-      if (y > 12 && y < paths - 4 && direction !== 0) {
-        if (direction === 1) {
-          smoothScrollTo(paths, 1400);
-        } else {
-          smoothScrollTo(0, 1400);
+      if (y < pathsTarget - 4) {
+        // In the welcome / dead zone — own the scroll completely.
+        e.preventDefault();
+        if (isAnimating) return;
+        if (e.deltaY > 0) {
+          smoothScrollTo(pathsTarget, 1100);
+        } else if (e.deltaY < 0 && y > 8) {
+          smoothScrollTo(0, 1100);
         }
+      } else if (y < pathsTarget + 12 && e.deltaY < 0) {
+        // Just past the paths boundary, scrolling up → snap back
+        // to welcome on the very first wheel notch (no waiting for
+        // the user to native-scroll into the dead zone first).
+        e.preventDefault();
+        if (isAnimating) return;
+        smoothScrollTo(0, 1100);
+      }
+      // Otherwise we're past the welcome zone — native scroll
+      // works freely throughout paths / telegram sections.
+    }
+
+    // Touch — same intent as wheel, scoped to touches that BEGIN
+    // in the welcome / boundary zone so swipes started inside the
+    // paths / telegram sections never get hijacked.
+    let touchStartY = 0;
+    let touchActive = false;
+    let touchTriggered = false;
+
+    function onTouchStart(e: TouchEvent) {
+      if (e.touches.length !== 1) return;
+      const y = window.scrollY;
+      const { pathsTarget } = getTargets();
+      touchActive = y < pathsTarget + 12;
+      touchStartY = e.touches[0].clientY;
+      touchTriggered = false;
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (!touchActive || e.touches.length !== 1) return;
+      const y = window.scrollY;
+      const { pathsTarget } = getTargets();
+
+      e.preventDefault();
+      if (isAnimating || touchTriggered) return;
+
+      const currentY = e.touches[0].clientY;
+      const swipeDelta = touchStartY - currentY;
+      if (Math.abs(swipeDelta) < 12) return;
+
+      touchTriggered = true;
+      if (swipeDelta > 0 && y < pathsTarget - 4) {
+        smoothScrollTo(pathsTarget, 1100);
+      } else if (swipeDelta < 0 && y > 8) {
+        smoothScrollTo(0, 1100);
       }
     }
 
-    function onScroll() {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(update);
+    function onTouchEnd() {
+      touchActive = false;
+    }
+
+    // Keyboard — PageDown / ArrowDown / Space / End / Home / PageUp.
+    function onKey(e: KeyboardEvent) {
+      const y = window.scrollY;
+      const { pathsTarget } = getTargets();
+      const isDown =
+        e.key === "PageDown" ||
+        e.key === "ArrowDown" ||
+        e.key === " " ||
+        e.key === "End";
+      const isUp =
+        e.key === "PageUp" || e.key === "ArrowUp" || e.key === "Home";
+
+      if (isDown && y < pathsTarget - 4) {
+        e.preventDefault();
+        if (!isAnimating) smoothScrollTo(pathsTarget, 1100);
+      } else if (isUp && y < pathsTarget + 12 && y > 8) {
+        e.preventDefault();
+        if (!isAnimating) smoothScrollTo(0, 1100);
+      }
     }
 
     window.addEventListener("scroll", onScroll, { passive: true });
-    update();
+    window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("keydown", onKey);
+    onScroll();
+
     return () => {
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("keydown", onKey);
       cancelAnimationFrame(activeRAF);
     };
   }, [reduced]);
 
-  // 3D exit transform applied to the entire scene-stage. Uses
-  // transform-origin near the top of the section so the welcome
-  // appears to lift up & rotate back into space (camera moves past
-  // it), not just shrink in place.
+  // 3D exit transform — applied to the entire scene-stage.
+  // Single-keyframe so it reverses smoothly when scroll returns
+  // toward the top.
   const stageAnimate = exiting
     ? { scale: 0.08, rotateX: -55, y: -200, opacity: 0 }
     : { scale: 1, rotateX: 0, y: 0, opacity: 1 };
@@ -194,13 +287,16 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
        * Scene stage — wraps every animated layer of the welcome
        * composition. When `exiting` flips, the whole stage tilts
        * back & flies up in 3D as a single rigid unit, and reverses
-       * smoothly when scroll returns toward the top.
+       * smoothly when scroll returns toward the top. Duration
+       * matched (1.2 s) to feel cohesive with the 1.1 s smooth
+       * scroll without ending so abruptly that the streaks haven't
+       * finished radiating.
        */}
       <motion.div
         className="absolute inset-0 grid place-items-center"
         animate={stageAnimate}
         transition={{
-          duration: 1.4,
+          duration: 1.2,
           ease: [0.65, 0, 0.35, 1],
         }}
         style={{
@@ -411,7 +507,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
        */}
       {exiting && !reduced && (
         <>
-          {/* Brief white flash — the "camera passes through" punctuation */}
+          {/* Brief white flash — the "camera passes through" beat */}
           <motion.div
             key="exit-flash"
             aria-hidden="true"
@@ -419,7 +515,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: [0, 0.45, 0] }}
             transition={{
-              duration: 0.95,
+              duration: 0.85,
               times: [0, 0.4, 0.9],
               ease: "easeOut",
             }}
@@ -442,7 +538,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
                   scaleX: [0.5, 8, 14],
                 }}
                 transition={{
-                  duration: 1.1,
+                  duration: 1.0,
                   ease: [0.16, 0.9, 0.3, 1],
                   times: [0, 0.5, 1],
                 }}
