@@ -15,36 +15,51 @@ interface Props {
 const DISMISS_KEY = "rg:banner-dismissed";
 const FIRST_SEEN_KEY = "rg:banner-first-seen";
 
+/**
+ * Announcement banner.
+ *
+ * The banner now renders **visible by SSR** and only the *dismissal*
+ * is decided client-side. Previously it started `hidden = true` and
+ * an effect flipped it to false after mount, which produced a visible
+ * pop-in / flicker on first paint (the banner area shifted into view
+ * a beat after the rest of the chrome had laid out, taking the small
+ * pulsing dot — the "star" — with it). Defaulting visible kills the
+ * layout shift entirely; users who have explicitly dismissed it just
+ * see a brief flash before it hides, which is the rarer case.
+ */
 export default function AnnouncementBanner({
   text,
   cta,
   url,
   autoFadeMs = 3 * 60 * 1000,
 }: Props) {
-  const [hidden, setHidden] = useState(true);
+  const [hidden, setHidden] = useState(false);
   const [fading, setFading] = useState(false);
-  // When the admin is editing, force the banner visible so it can be edited
-  // even if it has been auto-faded or dismissed for this device.
   const { isAdmin, editMode } = useEditContext();
   const forceVisible = isAdmin && editMode;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // User-dismissed in this browser? Keep hidden permanently for this device.
-    if (localStorage.getItem(DISMISS_KEY)) return;
+    // Already dismissed on this device? Hide immediately.
+    if (localStorage.getItem(DISMISS_KEY)) {
+      setHidden(true);
+      return;
+    }
 
-    // Track first-seen timestamp across page navigations so the 3-minute
-    // timer is "browsing time on the site", not "time on this page".
+    // Track first-seen timestamp across page navigations so the auto-
+    // fade timer is "browsing time on the site", not "time on this page".
     const now = Date.now();
     const firstSeenStr = localStorage.getItem(FIRST_SEEN_KEY);
     const firstSeen = firstSeenStr ? Number(firstSeenStr) : now;
     if (!firstSeenStr) localStorage.setItem(FIRST_SEEN_KEY, String(firstSeen));
 
     const elapsed = now - firstSeen;
-    if (elapsed >= autoFadeMs) return; // already past the fade window
+    if (elapsed >= autoFadeMs) {
+      setHidden(true);
+      return;
+    }
 
-    setHidden(false);
     const remaining = autoFadeMs - elapsed;
     const t = setTimeout(() => {
       setFading(true);
