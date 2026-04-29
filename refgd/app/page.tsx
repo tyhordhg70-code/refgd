@@ -8,7 +8,6 @@ import HomeCTAButton from "@/components/HomeCTAButton";
 import HomeBackground from "@/components/HomeBackground";
 import CosmicJourney from "@/components/CosmicJourney";
 import PathsHorizontalReveal from "@/components/PathsHorizontalReveal";
-import ScrollRain from "@/components/ScrollRain";
 import ChapterCosmos from "@/components/ChapterCosmos";
 import PathsReveal from "@/components/PathsReveal";
 import { Reveal } from "@/components/Reveal";
@@ -41,47 +40,33 @@ export default async function HomePage() {
 
   return (
     <>
-      {/* Music — only on the home page, scoped to this route. */}
+      {/* Music player. */}
       <MusicPlayer />
 
-      {/* Page-wide animated cosmos — keeps the WELCOME backdrop alive
-          across every chapter. Sits above the global galaxy field but
-          below the page content. */}
+      {/* Page-wide static cosmos backdrop. (`ScrollRain` was removed —
+          it was a global scroll-listener that re-painted hundreds of
+          streak DOM nodes per scroll event and was the single biggest
+          source of the "everything feels laggy" symptom on this page.) */}
       <HomeBackground />
-
-      {/* Scroll-driven streak shower — cosmic light "rains" past the
-          camera and intensifies with scroll velocity. Pure CSS streaks
-          driven by a single scroll listener so it stays cheap. */}
-      <ScrollRain />
 
       <ReorderableContainer pageId="home">
         <ReorderableSection sectionId="hero">
-          {/* Act 1 — sustained 3D storytelling cosmic journey. The whole
-              hero + warp arc is a single scene so the story extends from
-              the very first scroll all the way into chapter 01. */}
+          {/* Act 1 — load-once welcome scene. The warp now plays as a
+              self-contained ~2.4s sequence on mount (no scroll-driven
+              sticky pin), and the very first scroll attempt smooth-
+              scrolls the page directly to the paths section below. */}
           <CosmicJourney kicker={kicker} />
         </ReorderableSection>
 
         <ReorderableSection sectionId="paths" className="relative z-10">
-          {/* Act 2 — Chapter 01 / Path picker. The CosmicJourney above is
-              now a short pinned scene, so a single scroll gesture
-              resolves the warp and immediately reveals this section
-              with no blank pause. */}
           <ParallaxChapter
             intensity={0.5}
             className="pb-20 pt-0"
           >
             <section id="paths" className="relative">
-              {/* Cosmic accent that continues the journey vibe behind
-                  the chapter intro. */}
               <ChapterCosmos />
               <PathsReveal>
                 <div className="container-wide relative">
-                  {/* The headline is rendered "in space" — no opaque
-                      glass card, no border, no backdrop blur. This is
-                      what makes the section read as a continuation of
-                      the warp instead of a separate page with a white
-                      overlay sitting on top. */}
                   <div className="paths-intro mb-14 px-2 sm:mb-16 sm:px-0">
                     <div className="grid items-end gap-8 sm:grid-cols-[1fr_auto]">
                       <div>
@@ -110,25 +95,19 @@ export default async function HomePage() {
                       />
                     </div>
                   </div>
-                  {/* 5 cards.
-                      • Desktop / tablet (≥ 768px): all cards stay
-                        visible together. Each PathCard's built-in
-                        cinematic 3D fly-in handles entrance, and the
-                        `floatSlow` CSS keeps each one gently bobbing.
-                      • Mobile (< 768px): sticky-pinned horizontal
-                        slide stage — one card per scroll. */}
+                  {/* PathsHorizontalReveal:
+                      • desktop / tablet ≥ 768px → responsive grid
+                        (2 → 3 → 5 cols), each card flies in with a
+                        cinematic 3D entrance (FlyInCard).
+                      • mobile < 768px → vertical stack with the same
+                        per-card fly-in entrance. No more sticky-pinned
+                        horizontal scroll (it was the source of the
+                        scroll-up breakage). */}
                   <PathsHorizontalReveal
                     cards={PATHS.map((p, i) => (
                       <PathCard key={p.href} index={i} {...p} />
                     ))}
                     desktopFallback={
-                      // Responsive grid:
-                      //   • <md  : N/A (mobile uses MobileHorizontalStage)
-                      //   • md+  : 3 columns — cards get to actually breathe
-                      //           on tablets / small desktops instead of
-                      //           being squashed to ~150px each.
-                      //   • xl+  : 5 columns — full row, the canonical
-                      //           "all paths visible at a glance" layout.
                       <div className="mx-auto grid w-full max-w-[1500px] grid-cols-2 items-stretch gap-4 sm:grid-cols-3 md:gap-5 xl:grid-cols-5 xl:gap-6">
                         {PATHS.map((p, i) => (
                           <PathCard key={p.href} index={i} {...p} />
@@ -143,10 +122,6 @@ export default async function HomePage() {
         </ReorderableSection>
 
         <ReorderableSection sectionId="telegram">
-          {/* Act 3 — Telegram CTA, animated illustration.
-              No bottom padding + a smooth dark fade-out so the
-              section bleeds straight into the footer with NO visible
-              "bright strip" of cosmic background between them. */}
           <ParallaxChapter
             intensity={0.4}
             className="relative pb-0 sm:pb-0"
@@ -175,9 +150,6 @@ export default async function HomePage() {
                             className="editorial-display mt-3 max-w-2xl text-balance text-white text-3xl uppercase sm:text-5xl md:text-6xl"
                           />
                         </div>
-                        {/* CTA URL + label flow through the EditContext too so an
-                            admin can edit them inline; the magnetic hover
-                            effect is preserved by HomeCTAButton. */}
                         <HomeCTAButton defaultUrl={ctaUrl} defaultLabel={ctaLabel} />
                       </div>
                     </div>
@@ -185,11 +157,6 @@ export default async function HomePage() {
                 </div>
               </Reveal>
             </section>
-            {/* Seamless dark fade into the footer — kills the
-                "bright cosmic strip" that previously appeared between
-                the Telegram CTA and the dark footer. The gradient
-                eases the page-wide galaxy background down to the
-                footer's solid color so the transition is invisible. */}
             <div
               aria-hidden="true"
               className="pointer-events-none relative h-24 w-full sm:h-32"
