@@ -121,6 +121,17 @@ export default function PathCard({
           },
         };
 
+  // floatSlow is only disabled for size === "sm" (small dense
+  // grids look busy when floating). For default `md` cards, the
+  // floating breath animation is RESTORED — including inside the
+  // mobile sticky-pin carousel. The previous code disabled it for
+  // `noReveal` to avoid clipping at the top of an `overflow-y:
+  // hidden` scroller, but the new sticky-pin carousel doesn't
+  // clip vertically (cards are vertically centered with plenty
+  // of room), so the float looks correct and breathes the cards
+  // exactly like the desktop grid.
+  const floatDisabled = size === "sm";
+
   return (
     <motion.div
       data-testid={`path-card-${index + 1}`}
@@ -132,21 +143,16 @@ export default function PathCard({
       data-cursor-label={title}
     >
       {/*
-       * floatSlow is disabled in 3 cases:
-       *   1. size === "sm" — small cards in dense grids look busy when floating.
-       *   2. noReveal === true — used by the mobile horizontal carousel.
-       *      floatSlow is a continuous translateY keyframe that lifts the card
-       *      ~12 px every 7 s. The carousel scroller has overflow-y: hidden
-       *      (required so overflow-x: auto doesn't enable a vertical inner
-       *      scroller), so the lift gets visibly clipped at the top edge of
-       *      every card on every breath — the exact "tops of cards getting
-       *      cut off while floating" complaint. Disabling the float in the
-       *      carousel makes the cards sit completely still inside their
-       *      snap slots with no clipping.
-       *   3. Continuous translateY animations are also wasted compositor
-       *      work on phones, so dropping them improves carousel smoothness.
+       * floatSlow restored for `md` cards (the default and the
+       * mobile carousel size). Only disabled for size === "sm" to
+       * keep dense small-card grids from feeling busy. The mobile
+       * sticky-pin carousel does NOT clip vertically — cards live
+       * inside a position:sticky / overflow:hidden 100vh container
+       * with the cards vertically centered and ample headroom — so
+       * the floatSlow ~12 px lift breathes correctly without ever
+       * touching an edge.
        */}
-      <div style={{ animation: (size === "sm" || noReveal) ? "none" : `floatSlow ${floatDuration} ease-in-out ${floatDelay} infinite` }} className="h-full">
+      <div style={{ animation: floatDisabled ? "none" : `floatSlow ${floatDuration} ease-in-out ${floatDelay} infinite` }} className="h-full">
         <Tilt3D intensity={0.85} className="h-full">
           <Tag
             {...linkProps}

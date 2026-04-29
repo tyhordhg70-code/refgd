@@ -202,34 +202,31 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   //     hot reload mid-scroll, browser back-forward cache restore)
   //     — start in the snapped state so we don't yank the user from
   //     wherever they intentionally landed.
-  // ── Snap-to-paths: DESKTOP-ONLY now ───────────────────────────
+  // ── Snap-to-paths: DESKTOP + MOBILE, single-fire ──────────────
   //
-  // The previous implementation also ran on mobile and used a
-  // 3-step reassertion timer (250 / 550 / 950 ms) to "correct" the
-  // smooth-scroll target after iOS touch inertia fought it. In
-  // practice that reassertion loop was the single biggest source
-  // of the "scroll goes haywire / way past where supposed to" bug
-  // the user reported on phones: every reassertion fired
-  // `scrollTo({behavior: smooth})` on top of the user's still-
-  // active touch-drag, producing a visible snap → jolt → snap loop
-  // that often overshot well past the telegram CTA.
+  // The user explicitly asked for the lock-onto "you have arrived"
+  // scroll-snap to work on mobile too. The previous mobile-skip was
+  // wrong — it stripped a feature the user wanted. The HAYWIRE
+  // problem on mobile was caused by a 3-step reassertion timer
+  // (250/550/950 ms) that fired `scrollTo` again and again on top
+  // of the user's still-active touch-drag — that's gone. The snap
+  // now fires ONCE on the first scroll-down from y≈0 and never
+  // reasserts, on either platform.
   //
-  // The fix is two-fold:
-  //   1. Mobile (≤ 768 px) gets NO snap at all — the user just
-  //      scrolls naturally, the welcome scene flies away on its
-  //      own (handled by the exit observer above).
-  //   2. Desktop fires ONE smooth-scroll on the first scroll-down
-  //      from y≈0 and never reasserts. A wheel notch produces a
-  //      single deliberate scroll event with no inertia stream
-  //      behind it, so the browser's built-in smooth-scroll lands
-  //      cleanly without any follow-up. The snap does not re-arm
-  //      after firing, so users can scroll up/down freely without
-  //      the page snapping back at them on every return to the top.
+  // Mobile-specific notes:
+  //   • iOS Safari may interrupt the smooth-scroll if the user is
+  //     still dragging when we call scrollTo — that's fine, the
+  //     user is in control. The snap is a guarantee for INTENTIONAL
+  //     small flicks ("I want to leave the welcome screen") not for
+  //     a wrestling match against active input.
+  //   • The latch never re-arms — once we've fired, scrolling back
+  //     to the top and forward again behaves like normal native
+  //     scrolling for the rest of the session.
+  //
+  // No reassertion. No mobile bypass. No re-arming. One fire, done.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (reduced) return;
-    // Skip the snap entirely on mobile-sized viewports.
-    if (window.matchMedia("(max-width: 768px)").matches) return;
 
     let snapped = window.scrollY >= 60;
     let lastY = window.scrollY;

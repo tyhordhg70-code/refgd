@@ -34,20 +34,16 @@ export default function MeshExpansionReveal({
   const reduced = useReducedMotion();
   const filterId = useId();
 
-  // ── Mobile bypass ──────────────────────────────────────────
-  // The mesh overlay uses `feTurbulence` + `feDisplacementMap`
-  // animated through a scale 0.1 → 1.6 + opacity pulse over
-  // 1.6 s. SVG turbulence + displacement filters are extremely
-  // expensive on mobile compositors — every animation frame the
-  // browser has to re-rasterise the entire grid (13×13 lines)
-  // through the displacement map, which on a phone GPU produces
-  // a visible scroll stutter the moment the wrapped element
-  // crosses the viewport. Combined with the AnimatedTelegramBox
-  // gradients and box-shadows it wraps, this was the dominant
-  // remaining hitch on the home page on mobile. Mobile simply
-  // gets the children with no entrance overlay — the
-  // AnimatedTelegramBox underneath still has its own visual
-  // life, so the section doesn't feel static.
+  // ── Mobile detection ───────────────────────────────────────
+  // The user wants the telegram-box entrance animation back on
+  // mobile. The mesh entrance is restored — but the heavy SVG
+  // `feTurbulence` + `feDisplacementMap` filter is dropped on
+  // phones. That filter was the actual perf killer on mobile:
+  // every frame the browser had to re-rasterise a 13×13 grid
+  // through the displacement map. Without the filter the grid
+  // lines still expand and fade — a clean wireframe shockwave
+  // — but at near-zero compositor cost. Card-fold-out, opacity
+  // pulse, gradient stroke all stay identical on both platforms.
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -58,7 +54,7 @@ export default function MeshExpansionReveal({
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  if (reduced || isMobile) {
+  if (reduced) {
     return <div className={className}>{children}</div>;
   }
 
@@ -157,13 +153,21 @@ export default function MeshExpansionReveal({
               </linearGradient>
             </defs>
             <g
-              filter={`url(#mesh-distort-${filterId})`}
+              // Mobile: skip the feTurbulence/feDisplacementMap
+              // filter entirely. The grid still expands and fades
+              // (visual entrance) but without per-frame
+              // displacement re-raster which was causing scroll
+              // stutter on phones the moment the wrapped CTA
+              // crossed viewport.
+              filter={isMobile ? undefined : `url(#mesh-distort-${filterId})`}
               stroke={`url(#mesh-stroke-${filterId})`}
               strokeWidth="0.3"
               fill="none"
-              style={{
-                filter: "drop-shadow(0 0 4px rgba(255, 215, 130, 0.6))",
-              }}
+              style={
+                isMobile
+                  ? undefined
+                  : { filter: "drop-shadow(0 0 4px rgba(255, 215, 130, 0.6))" }
+              }
             >
               {/* Vertical grid lines */}
               {Array.from({ length: 13 }, (_, i) => {
