@@ -87,20 +87,31 @@ export default async function HomePage() {
             <section id="paths" className="relative">
               <ChapterCosmos />
               <div className="container-wide relative">
-                <div className="paths-intro mb-14 px-2 sm:mb-16 sm:px-0">
-                  <div className="grid items-end gap-8 sm:grid-cols-[1fr_auto]">
+                {/*
+                  Compact mobile intro: tighter top margin (mb-6),
+                  smaller headline (clamp 1.6rem floor), kicker
+                  bumped down to text-[10px], and the long lead
+                  paragraph hidden on phones. Combined these free
+                  ~180-220 px of vertical space so that after the
+                  welcome→paths snap the FULL carousel + pagination
+                  dots + "Swipe to choose your door" caption all fit
+                  in the viewport. Without this, the lead paragraph
+                  pushed the swipe caption below the iOS Safari fold.
+                */}
+                <div className="paths-intro mb-6 px-2 sm:mb-16 sm:px-0">
+                  <div className="grid items-end gap-4 sm:grid-cols-[1fr_auto] sm:gap-8">
                     <div>
                       <EditableText
                         id="home.paths.kicker"
                         defaultValue={pathsKicker || "— you have arrived"}
                         as="p"
-                        className="heading-display text-xs font-semibold uppercase tracking-[0.45em] text-amber-300 sm:text-sm [text-shadow:0_2px_18px_rgba(0,0,0,0.85),0_0_22px_rgba(255,237,180,0.35)]"
+                        className="heading-display text-[10px] font-semibold uppercase tracking-[0.4em] text-amber-300 sm:text-sm sm:tracking-[0.45em] [text-shadow:0_2px_18px_rgba(0,0,0,0.85),0_0_22px_rgba(255,237,180,0.35)]"
                       />
                       <EditableText
                         id="home.paths.title"
                         defaultValue={pathsTitle || "Choose your path to mastery."}
                         as="h2"
-                        className="editorial-display mt-5 text-balance text-white text-[clamp(2.25rem,7vw,6rem)] uppercase [text-shadow:0_4px_40px_rgba(0,0,0,0.95),0_0_30px_rgba(167,139,250,0.35)]"
+                        className="editorial-display mt-2 text-balance text-white text-[clamp(1.6rem,7vw,6rem)] uppercase leading-[1.05] sm:mt-5 [text-shadow:0_4px_40px_rgba(0,0,0,0.95),0_0_30px_rgba(167,139,250,0.35)]"
                       />
                     </div>
                     <EditableText
@@ -111,7 +122,7 @@ export default async function HomePage() {
                       }
                       as="p"
                       multiline
-                      className="max-w-sm text-base leading-relaxed text-white/90 [text-shadow:0_2px_14px_rgba(0,0,0,0.85)]"
+                      className="hidden max-w-sm text-base leading-relaxed text-white/90 sm:block [text-shadow:0_2px_14px_rgba(0,0,0,0.85)]"
                     />
                   </div>
                 </div>

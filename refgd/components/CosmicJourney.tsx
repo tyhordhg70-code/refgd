@@ -272,7 +272,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     function targetY(): number | null {
       const paths = document.getElementById("paths");
       if (!paths) return null;
-      const headerOffset = 80;
+      // Mobile gets a tighter offset (24 px) so the snap lands the
+      // user with the kicker AND the carousel + "Swipe to choose
+      // your door" caption all visible in the iOS Safari viewport
+      // at once. Desktop keeps the comfortable 80 px header
+      // breathing room. Without this, the lead paragraph used to
+      // push the swipe caption below the fold.
+      const isMobile = window.innerWidth <= 768;
+      const headerOffset = isMobile ? 24 : 80;
       return Math.max(
         0,
         Math.round(paths.getBoundingClientRect().top + window.scrollY - headerOffset),

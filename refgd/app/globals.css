@@ -283,6 +283,32 @@
 }
 .animate-spin { animation: spin 1s linear infinite; }
 
+/* ─── Telegram CTA box — mobile-only compositor animations ──── */
+/* Used by AnimatedTelegramBox on the mobile path so we don't have
+   to wake JS/framer-motion on every animation frame. Both
+   keyframes touch only `opacity` and `transform`, the two
+   compositor-only properties — they will not cause layout or
+   paint, so iOS Safari can run them on the GPU even while the
+   user is scrolling. */
+@keyframes telegramTwinkle {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 0.95; }
+}
+.telegram-star {
+  animation-name: telegramTwinkle;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  will-change: opacity;
+}
+@keyframes telegramRingSpin {
+  to { transform: translateY(-50%) rotate(360deg); }
+}
+.telegram-ring {
+  animation: telegramRingSpin 90s linear infinite;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
 /* scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: rgb(10,12,20); }

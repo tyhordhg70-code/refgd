@@ -11,56 +11,38 @@ import {
   type ReactNode,
 } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
- * PathsHorizontalReveal — responsive path-card stage.
+ * PathsHorizontalReveal — responsive path-card stage with 3D entrances.
  *
  *   ── Layouts ──────────────────────────────────────────────────
- *   • Desktop / tablet (≥ 768px): all cards rendered together in
- *     the responsive grid supplied by the page (`desktopFallback`).
- *     The grid container itself does a single fade-and-lift on
- *     enter, and each card animates in with a staggered 3D fly-in.
- *
- *   • Mobile (< 768px): NATIVE horizontal scroll-snap carousel.
- *     One row of cards, swipe left/right to advance — the OS owns
- *     the gesture, so it's hardware-accelerated, has perfect
- *     momentum, and never fights iOS Safari.
+ *   • Desktop / tablet (≥ 768 px): all cards rendered together in
+ *     a responsive grid. Each card is wrapped in `PathCardCameraFly`,
+ *     a 3D camera-fly-in that flies the card from a far-back, off-
+ *     axis position into its rest pose with rotateX + rotateY. The
+ *     five cards use distinct anchors (left-low, top-mid, far-back-
+ *     center, top-mid-right, right-low) so the group reveal feels
+ *     like one coordinated camera move.
+ *   • Mobile (< 768 px): NATIVE horizontal scroll-snap carousel.
+ *     The OS owns the gesture (no JS scroll-jacking, no sticky pin,
+ *     hardware-accelerated, perfect momentum). Each card animates
+ *     IN with a 3D `cube-flip` reveal the first time it scrolls
+ *     into the carousel viewport — when the user swipes to it, it
+ *     unfolds from `rotateY: -68deg` to flat. After that first
+ *     reveal it stays put, so swiping back doesn't re-trigger.
  *
  *   ── Why no JS scroll-jacking on mobile ───────────────────────
- *
- *   The previous mobile implementation pinned the carousel for
- *   one full viewport, hijacked wheel + touchmove with
- *   preventDefault, and ran a rAF loop on every scroll-tick. That
- *   produced every problem the user reported in the latest pass:
- *
- *     • Lag — non-passive wheel listeners + per-frame JS scrollTo
- *       force the browser to wait on JS for every scroll frame
- *       and starve the GPU compositor.
- *     • Huge gap — the section was 100 vh tall but only contained
- *       a centred ~480 px card stack, leaving ~360 px of empty
- *       space above and below.
- *     • Huge jump after cards — at the bottom edge the lock
- *       released by calling `window.scrollTo({behavior:'smooth'})`
- *       to sectionTop + viewport, a JS-driven teleport.
- *     • Scroll-up broken — the IntersectionObserver lock didn't
- *       re-engage after a fast exit, leaving subsequent scrolls
- *       unrelated.
- *     • Flicker — every wheel re-pinned scrollY, causing the
- *       page to oscillate against its own momentum frame.
- *
- *   The rewrite removes ALL of that and uses native CSS scroll-
- *   snap on a horizontal flex container. Browsers do this in the
- *   compositor without any JS, so it can't lag. The carousel
- *   section is its own normal-flow block whose height is just
- *   what the cards need (no 100 vh pin), so vertical scroll
- *   simply continues into the telegram section beneath it — no
- *   teleport, no jump, no edge release logic.
- *
- *   "One scroll = one card" comes from `scroll-snap-type: x
- *   mandatory` + `scroll-snap-stop: always` — a single swipe
- *   lands on exactly one card, even on a hard fling. Pagination
- *   dots passively follow whichever card is closest to centre via
- *   IntersectionObserver (read-only, no scroll mutation).
+ *   The previous mobile implementation pinned the carousel for one
+ *   full viewport, hijacked wheel + touchmove with preventDefault,
+ *   and ran a rAF loop on every scroll-tick. That produced lag,
+ *   huge gaps, jumps, broken scroll-up, and flicker. The rewrite
+ *   uses native CSS scroll-snap on a horizontal flex container —
+ *   the browser does this in the compositor without any JS, so it
+ *   can never lag. The carousel section is its own normal-flow
+ *   block whose height is just what the cards need (no 100 vh
+ *   pin), so vertical scroll continues into the telegram section
+ *   beneath without any teleport or edge release.
  */
 export default function PathsHorizontalReveal({
   cards,
@@ -122,9 +104,9 @@ function DesktopGrid({
         {desktopFallback ?? (
           <div className="mx-auto grid w-full max-w-[1500px] grid-cols-2 items-stretch gap-4 sm:grid-cols-3 md:gap-5 xl:grid-cols-5 xl:gap-6">
             {cards.map((c, i) => (
-              <FlyInCard key={i} index={i}>
+              <PathCardCameraFly key={i} index={i}>
                 {c}
-              </FlyInCard>
+              </PathCardCameraFly>
             ))}
           </div>
         )}
@@ -141,12 +123,21 @@ function DesktopGrid({
 /* ------------------------------------------------------------------ */
 
 function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
+  const reduced = useReducedMotion();
   const trackRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [activeIndex, setActiveIndex] = useState(0);
+  // `revealed[i]` flips to true the first time card i has been
+  // ≥ 50 % visible inside the carousel track. Once true it never
+  // flips back — the 3D unfold is a one-shot reveal per card so
+  // swiping back to a previous card doesn't replay the animation.
+  const [revealed, setRevealed] = useState<boolean[]>(() =>
+    cards.map((_, i) => i === 0),
+  );
 
-  // Passively observe which card is closest to the viewport centre
-  // and update the dots. Pure read — never scrolls anything itself.
+  // Single observer tracking which card is closest to the viewport
+  // centre AND which cards have been seen at least once. Pure read
+  // — never scrolls anything itself.
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
@@ -156,6 +147,14 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
       const io = new IntersectionObserver(
         (entries) => {
           for (const entry of entries) {
+            if (entry.intersectionRatio >= 0.5) {
+              setRevealed((prev) => {
+                if (prev[i]) return prev;
+                const next = prev.slice();
+                next[i] = true;
+                return next;
+              });
+            }
             if (entry.intersectionRatio >= 0.6) {
               setActiveIndex(i);
             }
@@ -163,9 +162,7 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
         },
         {
           root: track,
-          // Trigger when the card occupies most of the carousel
-          // viewport — i.e. it's the centred / current card.
-          threshold: [0, 0.3, 0.6, 0.9],
+          threshold: [0, 0.3, 0.5, 0.6, 0.9],
         },
       );
       io.observe(el);
@@ -185,6 +182,7 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
     <section
       data-testid="paths-mobile-carousel"
       className="relative w-full"
+      style={{ perspective: "1400px" }}
     >
       {/* Edge fade masks — purely visual, hint that more cards are
           off-screen on either side. */}
@@ -192,21 +190,22 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
       <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-[rgb(5,6,10)] to-transparent" />
 
       {/* The track. Native horizontal scroll + CSS snap. NO JS
-          scroll handlers, NO preventDefault, NO sticky pinning. */}
+          scroll handlers, NO preventDefault, NO sticky pinning.
+          py-4 supplies vertical headroom so the 3D unfold (which
+          briefly tilts the card forward) isn't clipped by the
+          overflow-y-hidden bounds. */}
       <div
         ref={trackRef}
         data-testid="paths-mobile-track"
-        className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth pb-4 pt-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth py-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{
-          // 8 vw of inset on each side centres the first/last card
-          // in the viewport when fully snapped.
           scrollPaddingLeft: "8vw",
           scrollPaddingRight: "8vw",
-          // Vertical scroll inside the track does nothing (overflow-
-          // y-hidden); the page's vertical scroll still works because
-          // touch-action allows pan-y to bubble up.
           touchAction: "pan-x pan-y",
           WebkitOverflowScrolling: "touch",
+          // Preserve 3D so the per-card rotateY actually renders in
+          // perspective rather than flattening to a 2D scaleX.
+          transformStyle: "preserve-3d",
         }}
       >
         {/* Leading spacer so the first card snaps to viewport centre. */}
@@ -217,6 +216,7 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
                 noReveal: true,
               })
             : card;
+          const isRevealed = reduced || revealed[i];
           return (
             <div
               key={i}
@@ -225,9 +225,38 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
               }}
               data-testid={`paths-mobile-slide-${i + 1}`}
               className="relative shrink-0 snap-center snap-always px-2"
-              style={{ width: "84vw" }}
+              style={{
+                width: "84vw",
+                // Each slide its own 3D context so the unfold per
+                // card doesn't drag siblings.
+                perspective: "1400px",
+                transformStyle: "preserve-3d",
+              }}
             >
-              {renderedCard}
+              <motion.div
+                className="h-full"
+                initial={
+                  reduced
+                    ? false
+                    : { rotateY: -68, rotateX: 8, scale: 0.78, opacity: 0 }
+                }
+                animate={
+                  isRevealed
+                    ? { rotateY: 0, rotateX: 0, scale: 1, opacity: 1 }
+                    : { rotateY: -68, rotateX: 8, scale: 0.78, opacity: 0 }
+                }
+                transition={{
+                  duration: 0.85,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+                style={{
+                  transformStyle: "preserve-3d",
+                  transformOrigin: "50% 50%",
+                  willChange: "transform, opacity",
+                }}
+              >
+                {renderedCard}
+              </motion.div>
             </div>
           );
         })}
@@ -264,60 +293,5 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
         Swipe to choose your door
       </p>
     </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  FlyInCard — shared per-card cinematic 3D entrance                 */
-/* ------------------------------------------------------------------ */
-
-function FlyInCard({
-  children,
-  index,
-  isMobile,
-  className,
-  style,
-  ...rest
-}: {
-  children: ReactNode;
-  index: number;
-  isMobile?: boolean;
-  className?: string;
-  style?: React.CSSProperties;
-} & Record<string, unknown>) {
-  const reduced = useReducedMotion();
-  if (reduced) {
-    return (
-      <div className={className} style={style} {...rest}>
-        {children}
-      </div>
-    );
-  }
-  const initial = isMobile
-    ? { opacity: 0, y: 30 }
-    : { opacity: 0, y: 80, scale: 0.85, rotateX: 18 };
-  const inView = isMobile
-    ? { opacity: 1, y: 0 }
-    : { opacity: 1, y: 0, scale: 1, rotateX: 0 };
-  return (
-    <motion.div
-      {...(rest as Record<string, unknown>)}
-      className={className}
-      initial={initial}
-      whileInView={inView}
-      viewport={{ once: true, amount: 0.15 }}
-      transition={{
-        duration: isMobile ? 0.6 : 0.95,
-        delay: index * 0.12,
-        ease: [0.16, 1, 0.3, 1],
-      }}
-      style={{
-        ...(isMobile ? {} : { transformStyle: "preserve-3d" }),
-        willChange: "transform, opacity",
-        ...style,
-      }}
-    >
-      {children}
-    </motion.div>
   );
 }

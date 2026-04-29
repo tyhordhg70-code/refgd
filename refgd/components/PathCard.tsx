@@ -121,16 +121,17 @@ export default function PathCard({
           },
         };
 
-  // floatSlow is only disabled for size === "sm" (small dense
-  // grids look busy when floating). For default `md` cards, the
-  // floating breath animation is RESTORED — including inside the
-  // mobile sticky-pin carousel. The previous code disabled it for
-  // `noReveal` to avoid clipping at the top of an `overflow-y:
-  // hidden` scroller, but the new sticky-pin carousel doesn't
-  // clip vertically (cards are vertically centered with plenty
-  // of room), so the float looks correct and breathes the cards
-  // exactly like the desktop grid.
-  const floatDisabled = size === "sm";
+  // floatSlow is disabled in two cases:
+  //   • size === "sm" — small dense grids look busy when floating.
+  //   • noReveal — used by the mobile horizontal scroll-snap
+  //     carousel. The carousel track has `overflow-y: hidden` so
+  //     a 12 px upward float would clip the top edge of the card
+  //     ("path cards still cut off during floating"). On the
+  //     mobile carousel we keep the cards perfectly still — the
+  //     swipe motion itself supplies all the kinaesthetic
+  //     feedback, and removing the float also frees the GPU from
+  //     animating ten extra translateY keyframes per second.
+  const floatDisabled = size === "sm" || noReveal;
 
   return (
     <motion.div

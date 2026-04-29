@@ -1,7 +1,26 @@
+"use client";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import Logo from "./Logo";
 
+/**
+ * Site-wide footer.
+ *
+ * Hidden on the home page (`/`).
+ *
+ * The home page is a curated cinematic landing experience: warp
+ * intro → path cards → telegram CTA. A standard "Site / More /
+ * Connect" link footer beneath that breaks the storytelling rhythm
+ * — the user explicitly asked for it to be removed there. Every
+ * other page (store-list, mentorships, etc.) still gets the
+ * footer for navigation/SEO. We use `usePathname` so the
+ * conditional happens at render time on the client, which keeps
+ * the layout server component a static include.
+ */
 export default function Footer() {
+  const pathname = usePathname();
+  if (pathname === "/") return null;
+
   return (
     <footer className="relative z-[2] border-t border-white/5 bg-ink-900">
       <div className="container-px grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-4">
