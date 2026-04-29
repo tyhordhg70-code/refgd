@@ -23,7 +23,7 @@ function WastingTimeIllustration({ size }: { size: number }) {
     <motion.div
       initial={{ opacity: 0, scale: 0.92, y: 18 }}
       whileInView={{ opacity: 1, scale: 1, y: 0 }}
-      viewport={{ once: false, margin: "-10% 0px" }}
+      viewport={{ once: true, margin: "-10% 0px" }}
       transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
       style={{
         width: size,
@@ -102,7 +102,7 @@ export default function ServiceSection() {
     <div id="service" className="relative isolate scroll-mt-16">
       {/* ─── Act 1 — "Get rewarded for shopping online." hero ──────── */}
       <section
-        className="relative isolate flex min-h-[100svh] w-full items-center overflow-hidden bg-ink-950"
+        className="relative isolate flex min-h-[100svh] w-full items-center overflow-hidden bg-ink-950 py-10 md:py-0"
         data-cursor="big"
       >
         {/* mesh orbs + gradient ambience */}
@@ -112,15 +112,14 @@ export default function ServiceSection() {
           <div className="orb orb-3 absolute left-[40%] bottom-[10%] h-[50vh] w-[50vh] rounded-full" />
         </div>
 
-        {/* CASHBACK 3D scene — to the right on desktop, above headline on mobile */}
+        {/* CASHBACK 3D scene — desktop only, decorative on the right.
+            On mobile we drop it entirely so the headline always fits
+            in a single viewport frame without being pushed off-screen. */}
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-y-0 right-[2%] z-0 hidden items-center md:flex"
         >
           <CashbackScene size={520} />
-        </div>
-        <div className="pointer-events-none absolute left-1/2 top-[4%] z-0 -translate-x-1/2 md:hidden">
-          <CashbackScene size={260} />
         </div>
 
         {/* interactive particles */}
@@ -138,7 +137,7 @@ export default function ServiceSection() {
         >
           <div className="w-full max-w-3xl text-center md:max-w-[60%] md:text-left">
             <div
-              className="inline-block rounded-[2.5rem] border border-white/15 px-6 py-8 sm:px-12 sm:py-12"
+              className="inline-block rounded-[2rem] border border-white/15 px-4 py-5 sm:px-12 sm:py-12 sm:rounded-[2.5rem]"
               style={{
                 background:
                   "linear-gradient(160deg, rgba(7,6,14,0.78), rgba(7,6,14,0.62) 35%, rgba(7,6,14,0.78))",
@@ -151,8 +150,8 @@ export default function ServiceSection() {
                 as="h1"
                 editId="service.hero.title"
                 text="Get rewarded for shopping online."
-                className="editorial-display max-w-[1500px] text-balance text-white text-[clamp(2.25rem,7vw,7rem)] uppercase"
-                style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)" }}
+                className="editorial-display max-w-[1500px] text-balance text-white text-[clamp(1.75rem,6.5vw,7rem)] uppercase"
+                style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)", lineHeight: 1.05 }}
                 stagger={0.06}
                 delay={0.35}
               />
@@ -166,7 +165,7 @@ export default function ServiceSection() {
                   id="service.hero.eyebrow"
                   defaultValue="— scroll to begin"
                   as="p"
-                  className="heading-display mt-8 text-xs font-semibold uppercase tracking-[0.5em] text-amber-300"
+                  className="heading-display mt-5 text-[10px] font-semibold uppercase tracking-[0.45em] text-amber-300 sm:mt-8 sm:text-xs sm:tracking-[0.5em]"
                   style={{ textShadow: "0 0 22px rgba(245,185,69,0.55)" }}
                 />
               </motion.div>

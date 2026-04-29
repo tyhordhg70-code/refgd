@@ -72,7 +72,7 @@ export default function MeshExpansionReveal({
           rotateY: 0,
           y: 0,
         }}
-        viewport={{ once: false, amount: 0.25 }}
+        viewport={{ once: true, amount: 0.25 }}
         transition={{
           duration: 1.25,
           ease: [0.16, 1, 0.3, 1],
@@ -97,7 +97,7 @@ export default function MeshExpansionReveal({
           style={overlayStyle}
           initial={{ opacity: 0, scale: 0.1 }}
           whileInView={{ opacity: [0, 0.85, 0], scale: 1.6 }}
-          viewport={{ once: false, amount: 0.25 }}
+          viewport={{ once: true, amount: 0.25 }}
           transition={{
             duration: 1.6,
             ease: [0.16, 1, 0.3, 1],

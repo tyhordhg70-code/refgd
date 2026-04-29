@@ -179,7 +179,7 @@ function Row({
                 },
               }
         }
-        viewport={{ once: false, margin: "0px 0px -10% 0px" }}
+        viewport={{ once: true, margin: "0px 0px -10% 0px" }}
         className="group relative isolate"
         suppressHydrationWarning
         data-testid={`bounce-list-item-${index}`}

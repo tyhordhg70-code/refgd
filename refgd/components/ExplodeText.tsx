@@ -149,7 +149,7 @@ export default function ExplodeText({
                     rotate: 0,
                     filter: "blur(0px)",
                   }}
-                  viewport={{ once: false, margin: "-60px" }}
+                  viewport={{ once: true, margin: "-60px" }}
                   transition={{
                     duration: 0.85,
                     delay: g.delay,

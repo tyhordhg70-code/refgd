@@ -329,19 +329,6 @@ export default async function StoreListPage() {
                     />
                   </div>
                 </div>
-                {/* Scrolling-products texture strip */}
-                <div
-                  aria-hidden
-                  className="relative mb-8 hidden h-28 overflow-hidden rounded-[1.4rem] border border-white/10 sm:block"
-                  style={{
-                    backgroundImage:
-                      "linear-gradient(90deg, rgba(8,6,18,1) 0%, rgba(8,6,18,0) 12%, rgba(8,6,18,0) 88%, rgba(8,6,18,1) 100%), url(/uploads/scrolling-products.png)",
-                    backgroundSize: "auto 100%, 200% 100%",
-                    backgroundRepeat: "no-repeat, repeat-x",
-                    backgroundPosition: "center, 0 center",
-                    animation: "scrollProducts 60s linear infinite",
-                  }}
-                />
                 <StoreFilters
                   stores={stores}
                   initialCategories={initialCategories}

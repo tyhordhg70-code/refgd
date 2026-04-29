@@ -122,7 +122,7 @@ export default function GlassCard({
             "30px 26px 28px 32px",
           ],
         }}
-        viewport={{ once: false, margin: "-60px" }}
+        viewport={{ once: true, margin: "-60px" }}
         transition={{
           duration: 1.35,
           delay,
@@ -142,7 +142,7 @@ export default function GlassCard({
     <motion.div
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: false, margin: "-60px" }}
+      viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.7, delay, ease: [0.25, 0.4, 0.25, 1] }}
       suppressHydrationWarning
       className="group"

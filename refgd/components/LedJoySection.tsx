@@ -35,31 +35,7 @@ export default function LedJoySection() {
       ref={ref}
       aria-label="Ahhh, feel the joy of cashback"
       className="relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden"
-      style={{
-        background:
-          "radial-gradient(ellipse at center, rgba(20,12,4,0.92) 0%, rgba(8,5,2,0.98) 60%, rgba(4,3,1,1) 100%)",
-      }}
     >
-      {/* LED dot-matrix scanline overlay — gives the "physical sign"
-          feel without overwhelming the text. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-25 mix-blend-overlay"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle, rgba(245,185,69,0.55) 0.7px, transparent 0.9px)",
-          backgroundSize: "7px 7px",
-        }}
-      />
-      {/* horizontal scan lines */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-15"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(0deg, transparent 0 3px, rgba(0,0,0,0.7) 3px 4px)",
-        }}
-      />
 
       <div className="container-wide relative z-10 grid place-items-center text-center">
         {/* AHHHH — letters fly in horizontally fast */}

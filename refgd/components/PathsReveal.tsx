@@ -46,7 +46,7 @@ export default function PathsReveal({ children }: { children: ReactNode }) {
           : { opacity: 0, y: 50, scale: 0.95, rotateX: 18 }
       }
       whileInView={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
-      viewport={{ once: false, amount: 0.18 }}
+      viewport={{ once: true, amount: 0.18 }}
       transition={{
         duration: reduced ? 0 : 0.85,
         ease: [0.16, 1, 0.3, 1],

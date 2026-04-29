@@ -31,7 +31,7 @@ import { motion, useReducedMotion } from "framer-motion";
  *     scroll back, because `viewport={{ once: false }}`).
  *
  *   ── Persistence on scroll-up & scroll-down ────────────────────
- *   The card entrance uses `viewport={{ once: false, amount: … }}`
+ *   The card entrance uses `viewport={{ once: true, amount: … }}`
  *   so the 3D fly-in REPLAYS every time a card enters the viewport
  *   — not just the first time. Scrolling up to the top of the page
  *   and then back down replays the entrance for the cards that
@@ -88,7 +88,7 @@ function DesktopGrid({
         className="relative px-2 sm:px-4"
         initial={reduced ? { opacity: 1, y: 0 } : { opacity: 0, y: 28 }}
         whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: false, amount: 0.15 }}
+        viewport={{ once: true, amount: 0.15 }}
         transition={
           reduced
             ? { duration: 0 }
@@ -349,7 +349,7 @@ function FlyInCard({
       className={className}
       initial={initial}
       whileInView={inView}
-      viewport={{ once: false, amount: 0.15 }}
+      viewport={{ once: true, amount: 0.15 }}
       transition={{
         duration: isMobile ? 0.6 : 0.95,
         delay: index * 0.12,

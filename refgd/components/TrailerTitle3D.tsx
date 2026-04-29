@@ -28,7 +28,7 @@ export default function TrailerTitle3D({
       style={{ perspective: 900 }}
       initial="hidden"
       whileInView="show"
-      viewport={{ once: false, margin: "-80px" }}
+      viewport={{ once: true, margin: "-80px" }}
       data-testid="trailer-title-3d"
     >
       {/* Subtle glow halo behind the letters — pulses on a slow loop
@@ -111,7 +111,7 @@ export default function TrailerTitle3D({
         }}
         initial={reduce ? { scaleX: 1 } : { scaleX: 0 }}
         whileInView={{ scaleX: 1 }}
-        viewport={{ once: false, margin: "-80px" }}
+        viewport={{ once: true, margin: "-80px" }}
         transition={{ duration: 1.2, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
       />
     </motion.div>
