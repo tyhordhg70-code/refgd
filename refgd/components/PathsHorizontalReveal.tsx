@@ -1,13 +1,9 @@
 "use client";
 
 import {
-  Children,
-  cloneElement,
-  isValidElement,
   useEffect,
   useRef,
   useState,
-  type ReactElement,
   type ReactNode,
 } from "react";
 import {
@@ -22,34 +18,35 @@ import {
  * PathsHorizontalReveal — responsive path-card stage.
  *
  *   ── How it plays ──────────────────────────────────────────────
- *   • Desktop / tablet (≥ 768px): all 5 cards are rendered together
- *     in a 5-column grid. They animate in with a per-card staggered
- *     3D entrance the first time the row enters the viewport. After
- *     that, the page scrolls normally — no scroll hijacking, no
- *     pinning, nothing fighting the user.
+ *   • Desktop / tablet (≥ 768px): all cards render together in a
+ *     5-column grid. Each PathCard's own (md-size) reveal handles the
+ *     cinematic 3D fly-in (opacity + lift + scale + rotateX with a
+ *     per-card stagger), and PathCard's CSS `floatSlow` animation
+ *     keeps every card gently bobbing once it's settled. We just
+ *     provide a wide stage container — no extra wrapper that would
+ *     fight with the per-card animations.
  *
  *   • Mobile (< 768px): the section is a TALL container whose inner
  *     stage is `position: sticky; top: 0; height: 100vh`. As the user
  *     scrolls down, the cards slide horizontally driven by scroll
- *     progress (canonical Framer Motion scroll pattern). Roughly one
- *     viewport-height of vertical scroll advances one card. When the
- *     last card has slid in, the section ends and the page continues
+ *     progress (canonical Framer Motion scroll pattern). One viewport
+ *     of vertical scroll advances roughly one card. When the last
+ *     card has slid in, the section ends and the page continues
  *     vertically into the next section — natural, smooth, no body-
- *     lock, no snap-back, no jump.
+ *     lock, no snap-back, no jump. Each mobile card sits inside a
+ *     subtle floating wrapper so the visual matches desktop.
  *
- *   Both modes use only `transform` and `opacity` (GPU-accelerated)
+ *   Both modes use `transform` and `opacity` only (GPU-accelerated)
  *   and rely on the browser's native scroll loop. No wheel hijacking,
- *   no `position: fixed` body, no JavaScript polling — so there's no
- *   way for the page to "snap back to the top" or stutter.
+ *   no `position: fixed` body, no JavaScript polling.
  *
  *   Props:
- *     • `cards` — array of card nodes used for the mobile slide stage
- *       and the SSR fallback.
- *     • `desktopFallback` — a single grid element (e.g. the 5-col
- *       grid) used for the desktop layout. Each direct child of the
- *       grid receives its own staggered 3D entrance animation. If the
- *       consumer doesn't provide this, the component renders `cards`
- *       in a default 5-col grid.
+ *     • `cards` — full-size card nodes used for the mobile slide
+ *       stage. Also used as the SSR / no-JS desktop fallback if no
+ *       `desktopFallback` is supplied.
+ *     • `desktopFallback` — a pre-built grid (typically 5 small
+ *       cards) used for the desktop layout. Rendered as-is so its
+ *       child PathCards keep their built-in entrance + float anims.
  */
 export default function PathsHorizontalReveal({
   cards,
@@ -74,13 +71,8 @@ export default function PathsHorizontalReveal({
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // Server / first paint: render the desktop layout so even before
-  // hydration all five cards appear together on wide screens. The
-  // mobile JS then takes over if needed.
   if (!mounted || !isMobile) {
-    return (
-      <DesktopGrid cards={cards} desktopFallback={desktopFallback} />
-    );
+    return <DesktopGrid cards={cards} desktopFallback={desktopFallback} />;
   }
 
   return <MobileHorizontalStage cards={cards} />;
@@ -90,17 +82,6 @@ export default function PathsHorizontalReveal({
 /*  Desktop                                                           */
 /* ------------------------------------------------------------------ */
 
-const cardVariants = {
-  hidden: { opacity: 0, y: 60, rotateY: -18, scale: 0.9 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    rotateY: 0,
-    scale: 1,
-    transition: { duration: 0.85, ease: [0.16, 1, 0.3, 1] },
-  },
-};
-
 function DesktopGrid({
   cards,
   desktopFallback,
@@ -108,79 +89,27 @@ function DesktopGrid({
   cards: ReactNode[];
   desktopFallback?: ReactNode;
 }) {
-  const reduce = useReducedMotion();
-
-  // Build the staggered children. If the consumer passed a
-  // `desktopFallback` that is a single element with children (the
-  // expected pattern: a `<div className="grid grid-cols-5 …">`), we
-  // wrap each direct child of that grid in a motion variant so every
-  // card gets its own entrance. Otherwise we fall back to a default
-  // 5-col grid built from `cards`.
-  let stage: ReactNode;
-  if (isValidElement(desktopFallback)) {
-    const fallbackEl = desktopFallback as ReactElement<{
-      children?: ReactNode;
-    }>;
-    const gridKids = Children.toArray(fallbackEl.props.children);
-    stage = cloneElement(
-      fallbackEl,
-      undefined,
-      gridKids.map((child, i) => (
-        <motion.div
-          key={(child as { key?: string }).key ?? i}
-          variants={reduce ? undefined : cardVariants}
-          style={{
-            transformStyle: "preserve-3d",
-            willChange: "transform, opacity",
-          }}
-        >
-          {child}
-        </motion.div>
-      )),
-    );
-  } else {
-    stage = (
-      <div className="grid grid-cols-5 items-stretch gap-3 md:gap-4 xl:gap-5">
-        {cards.map((c, i) => (
-          <motion.div
-            key={i}
-            variants={reduce ? undefined : cardVariants}
-            style={{
-              transformStyle: "preserve-3d",
-              willChange: "transform, opacity",
-            }}
-          >
-            {c}
-          </motion.div>
-        ))}
-      </div>
-    );
-  }
-
   return (
     <section
       data-testid="paths-desktop-grid"
-      className="relative mx-auto w-full max-w-7xl py-6"
-      style={{ perspective: "1400px" }}
+      className="relative mx-auto w-full py-6"
+      style={{ perspective: "1600px" }}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-32 -translate-y-1/2 rounded-full bg-amber-300/10 blur-3xl" />
-      <motion.div
-        className="relative px-2 sm:px-4"
-        initial={reduce ? false : "hidden"}
-        whileInView={reduce ? undefined : "visible"}
-        viewport={{ once: true, amount: 0.2 }}
-        variants={{
-          hidden: {},
-          visible: {
-            transition: { staggerChildren: 0.12, delayChildren: 0.05 },
-          },
-        }}
-      >
-        {stage}
-        <p className="heading-display mt-6 text-center text-[10px] font-semibold uppercase tracking-[0.38em] text-white/55 sm:text-xs">
+      {/* Soft amber backdrop glow. */}
+      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-40 -translate-y-1/2 rounded-full bg-amber-300/10 blur-3xl" />
+
+      <div className="relative px-2 sm:px-4">
+        {desktopFallback ?? (
+          <div className="grid grid-cols-5 items-stretch gap-4 md:gap-5 xl:gap-6">
+            {cards.map((c, i) => (
+              <div key={i}>{c}</div>
+            ))}
+          </div>
+        )}
+        <p className="heading-display mt-8 text-center text-[10px] font-semibold uppercase tracking-[0.38em] text-white/55 sm:text-xs">
           Choose your door
         </p>
-      </motion.div>
+      </div>
     </section>
   );
 }
@@ -196,8 +125,8 @@ function MobileHorizontalStage({ cards }: { cards: ReactNode[] }) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   // Total scroll runway: roughly one viewport per card. The browser
-  // handles all the scrolling natively — no JS lock, no wheel
-  // hijacking, no body fixed.
+  // handles all scrolling natively — no JS lock, no wheel hijacking,
+  // no body fixed.
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ["start start", "end end"],
@@ -253,10 +182,7 @@ function MobileHorizontalStage({ cards }: { cards: ReactNode[] }) {
         <motion.div
           data-testid="paths-card-track"
           className="flex h-full w-full items-center"
-          style={{
-            x,
-            willChange: "transform",
-          }}
+          style={{ x, willChange: "transform" }}
         >
           {cards.map((card, i) => (
             <div
@@ -265,7 +191,9 @@ function MobileHorizontalStage({ cards }: { cards: ReactNode[] }) {
               className="flex h-full flex-shrink-0 items-center justify-center px-5"
               style={{ width: "100%" }}
             >
-              <div className="w-full max-w-[26rem]">{card}</div>
+              <FloatingCard index={i}>
+                <div className="w-full max-w-[26rem]">{card}</div>
+              </FloatingCard>
             </div>
           ))}
         </motion.div>
@@ -322,5 +250,37 @@ function MobileHorizontalStage({ cards }: { cards: ReactNode[] }) {
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * Subtle vertical bob applied to each mobile card. PathCard already
+ * runs a `floatSlow` CSS animation for `md`-size cards, so on mobile
+ * we just stagger the phase a little so adjacent cards don't bob in
+ * lockstep when they peek in from the side.
+ */
+function FloatingCard({
+  children,
+  index,
+}: {
+  children: ReactNode;
+  index: number;
+}) {
+  const reduce = useReducedMotion();
+  if (reduce) return <>{children}</>;
+  return (
+    <motion.div
+      animate={{ y: [0, -10, 0] }}
+      transition={{
+        duration: 7 + (index % 3) * 0.6,
+        delay: index * 0.55,
+        repeat: Infinity,
+        ease: "easeInOut",
+      }}
+      style={{ willChange: "transform" }}
+      className="w-full"
+    >
+      {children}
+    </motion.div>
   );
 }
