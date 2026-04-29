@@ -15,26 +15,30 @@ import LiquidGlassOrbs from "./LiquidGlassOrbs";
  * CosmicJourney — the master 3D welcome scene.
  *
  *   ── How it plays ──────────────────────────────────────────────
- *   • The section is a TALL container (200vh) whose inner stage is
- *     `position: sticky; top: 0; height: 100vh`. As the user scrolls
- *     through the section, the stage stays pinned to the viewport
- *     and the animation progresses 0 → 1 in lock-step with the scroll
- *     position. NO body-lock, NO wheel hijacking, NO time-based
- *     playback fighting against the user.
- *   • Every visible layer (planet, rings, streaks, nebula, kicker)
- *     is driven by a spring-smoothed `progress` value derived from
- *     scroll. This is the canonical Framer Motion pattern and it is
- *     hardware-accelerated (transform / opacity only) on every device.
- *   • When `progress` reaches 1, the section ends and the next
- *     section ("paths") flows in immediately underneath — no jump,
- *     no blank pause, no cut-off content.
+ *   • The section is just `100svh` of pinned content with a small
+ *     `~30svh` scroll runway on top of it (130svh total). One short
+ *     scroll gesture is enough to drive `progress` 0 → 1 across the
+ *     entire warp; immediately after that the page exits the sticky
+ *     pin and the next section ("paths") flows in directly underneath.
+ *     There is no long dead zone where the warp is over but the page
+ *     is still scrolling through empty space.
+ *
+ *   • Animation progress is tied 1:1 to scroll position via Framer
+ *     Motion's `useScroll` (canonical pattern). NO body-lock, NO
+ *     wheel hijacking, NO time-based playback fighting against the
+ *     user. All visible layers animate via `transform` / `opacity`
+ *     only, so the work runs entirely on the GPU compositor thread.
+ *
+ *   • To keep first-paint cheap (the user reported initial lag), the
+ *     sparse decorations (orbs + radial streak count) are kept low
+ *     and the heavier 3D layers don't mount until the second paint.
  *
  *   Phase 0   0.00 → 0.18  •  WELCOME holds. Planet glows. Stars drift.
  *   Phase 1   0.18 → 0.45  •  Camera punches forward. Planet zooms past,
  *                             orbital rings race outward.
  *   Phase 2   0.45 → 0.72  •  Tunnel travel. Warp speed, deep core bloom.
  *   Phase 3   0.72 → 1.00  •  Emergence. Streaks slow, nebula resolves
- *                             then dissolves so paths can take over.
+ *                             and softly fades into the next section.
  */
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
@@ -42,6 +46,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
+  // `decorReady` is a deliberate second-paint flag: it stays false on
+  // the first paint and flips true on the next animation frame so the
+  // heavier decorative layers (rings, streaks, planet) don't fight the
+  // initial layout for compositor budget. This noticeably reduces the
+  // "first scroll feels laggy" symptom on mid-range devices.
+  const [decorReady, setDecorReady] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -49,7 +59,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const sync = () => setIsMobile(mq.matches);
     sync();
     mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
+    const raf = requestAnimationFrame(() => setDecorReady(true));
+    return () => {
+      mq.removeEventListener("change", sync);
+      cancelAnimationFrame(raf);
+    };
   }, []);
 
   // Scroll progress 0 → 1 across the entire section (top hits viewport
@@ -61,12 +75,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   });
 
   // Spring-smooth the raw scroll progress so the warp feels cinematic
-  // rather than 1:1 with the wheel ticks. Spring runs on the compositor
-  // thread so it costs almost nothing.
+  // rather than 1:1 with wheel ticks. Spring runs on the compositor
+  // thread so it costs almost nothing per-frame.
   const progress = useSpring(scrollYProgress, {
-    stiffness: 140,
+    stiffness: 160,
     damping: 28,
-    mass: 0.3,
+    mass: 0.28,
   });
 
   // ── Mouse parallax (desktop only) ─────────────────────────
@@ -167,11 +181,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const streakRotX = useTransform(progress, [0, 1], reduced ? [0, 0] : [6, -10]);
 
   // DISTANT NEBULA — the destination. Brightens as we arrive, then
-  // fades to 0 so the section can hand off to the next chapter cleanly.
+  // remains as a soft glow through to the end of the section so the
+  // user never sees a blank stage between the end of the warp and the
+  // paths section taking over.
   const nebulaOpacity = useTransform(
     progress,
-    [0, 0.55, 0.78, 0.92, 1],
-    [0, 0.2, 0.95, 0.55, 0],
+    [0, 0.55, 0.78, 1],
+    [0, 0.2, 0.95, 0.55],
   );
   const nebulaScale = useTransform(
     progress,
@@ -202,8 +218,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // VIGNETTE — slight darken at peak warp keeps the bloom punchy.
   const vignette = useTransform(progress, [0, 0.45, 0.75, 1], [0, 0.45, 0.25, 0]);
 
-  // Streak spokes — fewer on mobile keeps the GPU compositing budget sane.
-  const streakCount = isMobile ? 12 : 18;
+  // Streak spokes — counts trimmed to keep first-paint cheap.
+  const streakCount = isMobile ? 8 : 12;
   const streaks = Array.from({ length: streakCount }, (_, i) => i * (360 / streakCount));
 
   return (
@@ -211,11 +227,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       ref={sectionRef}
       data-testid="cosmic-journey"
       className="relative w-full"
-      // 200vh on desktop, 180vh on mobile — gives the warp enough
-      // scroll runway to read as a sustained scene without feeling
-      // like dead space. The inner stage is `sticky`, so what the user
-      // SEES is always exactly one viewport of cosmic content.
-      style={{ height: reduced ? "100svh" : "200svh" }}
+      // 130svh: just enough scroll runway (~30svh) for one comfortable
+      // scroll gesture to drive the entire warp 0 → 1, after which the
+      // section ends and paths takes over with no blank pause.
+      style={{ height: reduced ? "100svh" : "130svh" }}
     >
       <div
         ref={sceneRef}
@@ -229,8 +244,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         data-cursor="big"
         data-cursor-label="explore"
       >
-        {/* Layer 0 — sparse glassy orbs as ambient depth. */}
-        <LiquidGlassOrbs count={isMobile ? 3 : 5} className="z-[1]" />
+        {/* Layer 0 — sparse glassy orbs as ambient depth.
+            Mounted only after first paint to keep TTI snappy. */}
+        {decorReady && (
+          <LiquidGlassOrbs count={isMobile ? 2 : 3} className="z-[1]" />
+        )}
 
         {/* Layer 1 — distant nebula (far). Gradients only, very cheap. */}
         <motion.div
@@ -262,65 +280,69 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         />
 
         {/* Layer 3 — radial streak field (warp). 3D tilted plane. */}
-        <motion.div
-          className="absolute inset-0 z-[4] grid place-items-center"
-          style={
-            mounted
-              ? {
-                  opacity: streakOpacity,
-                  scale: streakScale,
-                  rotateX: streakRotX,
-                  transformStyle: "preserve-3d",
-                }
-              : { opacity: 0 }
-          }
-          suppressHydrationWarning
-        >
-          <div className="relative h-[140vmin] w-[140vmin]">
-            {streaks.map((deg, i) => (
-              <span
-                key={i}
-                className="absolute left-1/2 top-1/2 block h-[60vmin] w-[2px] origin-top"
+        {decorReady && (
+          <motion.div
+            className="absolute inset-0 z-[4] grid place-items-center"
+            style={
+              mounted
+                ? {
+                    opacity: streakOpacity,
+                    scale: streakScale,
+                    rotateX: streakRotX,
+                    transformStyle: "preserve-3d",
+                  }
+                : { opacity: 0 }
+            }
+            suppressHydrationWarning
+          >
+            <div className="relative h-[140vmin] w-[140vmin]">
+              {streaks.map((deg, i) => (
+                <span
+                  key={i}
+                  className="absolute left-1/2 top-1/2 block h-[60vmin] w-[2px] origin-top"
+                  style={{
+                    transform: `translate(-50%, 0) rotate(${deg}deg)`,
+                    background:
+                      i % 3 === 0
+                        ? "linear-gradient(to bottom, rgba(255,237,180,0), rgba(255,237,180,0.95) 30%, rgba(167,139,250,0.6) 75%, transparent)"
+                        : i % 3 === 1
+                        ? "linear-gradient(to bottom, rgba(123,231,255,0), rgba(123,231,255,0.85) 26%, rgba(123,231,255,0.4) 80%, transparent)"
+                        : "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.85) 28%, rgba(244,114,182,0.5) 80%, transparent)",
+                    filter: "blur(0.5px)",
+                  }}
+                />
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Layer 4 — orbital rings expanding outward. */}
+        {decorReady && (
+          <motion.div
+            className="absolute inset-0 z-[5] grid place-items-center"
+            style={
+              mounted
+                ? { scale: ringScale, opacity: ringOpacity, rotate: ringRot }
+                : { opacity: 0 }
+            }
+            suppressHydrationWarning
+          >
+            {[1, 2, 3, 4, 5].map((n) => (
+              <div
+                key={n}
+                className="absolute rounded-full"
                 style={{
-                  transform: `translate(-50%, 0) rotate(${deg}deg)`,
-                  background:
-                    i % 3 === 0
-                      ? "linear-gradient(to bottom, rgba(255,237,180,0), rgba(255,237,180,0.95) 30%, rgba(167,139,250,0.6) 75%, transparent)"
-                      : i % 3 === 1
-                      ? "linear-gradient(to bottom, rgba(123,231,255,0), rgba(123,231,255,0.85) 26%, rgba(123,231,255,0.4) 80%, transparent)"
-                      : "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.85) 28%, rgba(244,114,182,0.5) 80%, transparent)",
-                  filter: "blur(0.5px)",
+                  width: `${n * 16}vmin`,
+                  height: `${n * 16}vmin`,
+                  border: `1px solid rgba(255,225,140,${0.55 - n * 0.08})`,
+                  boxShadow: `inset 0 0 ${n * 14}px rgba(245,185,69,${
+                    0.18 - n * 0.025
+                  }), 0 0 ${n * 18}px rgba(167,139,250,${0.2 - n * 0.03})`,
                 }}
               />
             ))}
-          </div>
-        </motion.div>
-
-        {/* Layer 4 — orbital rings expanding outward. */}
-        <motion.div
-          className="absolute inset-0 z-[5] grid place-items-center"
-          style={
-            mounted
-              ? { scale: ringScale, opacity: ringOpacity, rotate: ringRot }
-              : { opacity: 0 }
-          }
-          suppressHydrationWarning
-        >
-          {[1, 2, 3, 4, 5].map((n) => (
-            <div
-              key={n}
-              className="absolute rounded-full"
-              style={{
-                width: `${n * 16}vmin`,
-                height: `${n * 16}vmin`,
-                border: `1px solid rgba(255,225,140,${0.55 - n * 0.08})`,
-                boxShadow: `inset 0 0 ${n * 14}px rgba(245,185,69,${
-                  0.18 - n * 0.025
-                }), 0 0 ${n * 18}px rgba(167,139,250,${0.2 - n * 0.03})`,
-              }}
-            />
-          ))}
-        </motion.div>
+          </motion.div>
+        )}
 
         {/* Layer 5 — the planet itself, with full mouse parallax. */}
         <motion.div
@@ -351,7 +373,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             {/* Living planet body — slow auto-rotation. */}
             <motion.div
               className="absolute inset-[18%] rounded-full"
-              animate={reduced ? {} : { rotate: 360 }}
+              animate={reduced || !decorReady ? {} : { rotate: 360 }}
               transition={
                 reduced
                   ? {}
@@ -367,25 +389,28 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
               }}
             />
             {/* Solar flare highlight */}
-            <motion.div
-              className="absolute inset-[18%] rounded-full"
-              animate={
-                reduced ? {} : { opacity: [0.5, 0.95, 0.5], scale: [1, 1.05, 1] }
-              }
-              transition={
-                reduced
-                  ? {}
-                  : { duration: 6, repeat: Infinity, ease: "easeInOut" }
-              }
-              style={{
-                background:
-                  "radial-gradient(circle at 32% 26%, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.0) 28%)",
-                mixBlendMode: "screen",
-              }}
-            />
+            {decorReady && (
+              <motion.div
+                className="absolute inset-[18%] rounded-full"
+                animate={
+                  reduced ? {} : { opacity: [0.5, 0.95, 0.5], scale: [1, 1.05, 1] }
+                }
+                transition={
+                  reduced
+                    ? {}
+                    : { duration: 6, repeat: Infinity, ease: "easeInOut" }
+                }
+                style={{
+                  background:
+                    "radial-gradient(circle at 32% 26%, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.0) 28%)",
+                  mixBlendMode: "screen",
+                }}
+              />
+            )}
 
-            {/* Orbiting accent moons. (Disabled on mobile to save GPU.) */}
-            {!isMobile &&
+            {/* Orbiting accent moons. (Disabled on mobile to save GPU,
+                and deferred to the second paint on desktop.) */}
+            {decorReady && !isMobile &&
               [
                 { d: 0, color: "#ffe28a", radiusVmin: 26, dur: 18 },
                 { d: -3, color: "#a78bfa", radiusVmin: 30, dur: 22 },
