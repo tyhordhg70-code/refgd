@@ -15,14 +15,36 @@ import { useEffect, useState } from "react";
  * The whole composition is more dimensional & alive than the previous
  * version, which only had a single ring + planet.
  *
- * ── Mobile mode ───────────────────────────────────────────────────
- * On viewports ≤ 768 px the busy decorations (chat bubbles, paper
- * planes, ambient sweep, mix-blend highlight, full star field) are
- * skipped. Mobile sees: backdrop + 12 twinkle stars + 1 outer ring
- * + central planet. That's a steep drop from ~52 simultaneous
- * framer-motion infinite loops down to ~14, which is the difference
- * between "footer feels laggy when it scrolls into view" and "no
- * detectable cost". The desktop visual is unchanged.
+ * ── Mobile mode (rewritten — was "super laggy" per the user) ─────
+ *
+ * Every framer-motion animation runs through React on the JS main
+ * thread, schedules a transform mutation per frame, and (because of
+ * `repeat: Infinity`) NEVER stops — even when the box is off-screen.
+ * On a phone GPU that's a real cost, especially when stacked behind
+ * a fixed `mix-blend-screen` overlay or large `box-shadow` blur.
+ *
+ * The previous "lite" mode still ran 14+ infinite framer animations
+ * AND kept the planet's two huge box-shadows (90 px / 36 px spread,
+ * 160 px / 70 px spread). Both shadows force the compositor to
+ * re-rasterise a ~360 px region every frame the planet's transform
+ * changes — i.e. every frame, forever, because of the planet's
+ * `scale` pulse loop. That was the lag.
+ *
+ * The new mobile mode:
+ *   • Renders zero framer-motion animations. Stars are static
+ *     positioned dots. Rings render but don't rotate. Planet has
+ *     no scale loop. No ambient sweep, no chat bubbles, no paper
+ *     planes, no mix-blend highlight.
+ *   • Replaces the planet's two large box-shadows with a single
+ *     sized, lower-spread shadow that the compositor can cache
+ *     once and reuse — no per-frame recompute because the planet
+ *     no longer animates.
+ *   • Star count drops from 12 to 8 plain DOM nodes with no
+ *     animation prop at all (each star was previously running an
+ *     infinite scale + opacity loop).
+ *
+ * The desktop visual is unchanged — `lite` only fires when isMobile
+ * or prefers-reduced-motion.
  */
 export default function AnimatedTelegramBox() {
   const reduced = useReducedMotion();
@@ -38,7 +60,7 @@ export default function AnimatedTelegramBox() {
   }, []);
 
   const lite = reduced || isMobile;
-  const starCount = isMobile ? 12 : 36;
+  const starCount = isMobile ? 8 : 36;
 
   return (
     <div
@@ -52,12 +74,36 @@ export default function AnimatedTelegramBox() {
           "linear-gradient(135deg, #08080f 0%, #1a1228 60%, #08080f 100%)",
       }}
     >
-      {/* ───── 1. TWINKLE STAR FIELD ───── */}
+      {/* ───── 1. TWINKLE STAR FIELD ─────
+           In `lite` mode (mobile / reduced motion) every star is
+           a plain static DOM node with no animation prop at all.
+           Previously each of the 12 mobile stars ran an infinite
+           opacity + scale loop through framer-motion — 12 React-
+           driven per-frame DOM mutations forever, which the
+           compositor then had to re-rasterise around the planet's
+           huge box-shadow. That was a measurable slice of the
+           "telegram boxcard is super laggy" complaint. */}
       {Array.from({ length: starCount }).map((_, i) => {
         const left = (i * 37) % 100;
         const top = (i * 53) % 100;
         const size = 1 + (i % 3);
         const dur = 2 + (i % 5) * 0.6;
+        if (lite) {
+          return (
+            <span
+              key={`star-${i}`}
+              className="absolute rounded-full bg-white"
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: size,
+                height: size,
+                opacity: 0.65,
+                boxShadow: `0 0 ${size * 4}px rgba(255,255,255,0.55)`,
+              }}
+            />
+          );
+        }
         return (
           <motion.span
             key={`star-${i}`}
@@ -69,8 +115,8 @@ export default function AnimatedTelegramBox() {
               height: size,
               boxShadow: `0 0 ${size * 5}px rgba(255,255,255,0.7)`,
             }}
-            animate={reduced ? {} : { opacity: [0.2, 0.95, 0.2], scale: [0.6, 1.3, 0.6] }}
-            transition={reduced ? {} : { duration: dur, repeat: Infinity, delay: (i % 7) * 0.3, ease: "easeInOut" }}
+            animate={{ opacity: [0.2, 0.95, 0.2], scale: [0.6, 1.3, 0.6] }}
+            transition={{ duration: dur, repeat: Infinity, delay: (i % 7) * 0.3, ease: "easeInOut" }}
           />
         );
       })}
@@ -141,42 +187,96 @@ export default function AnimatedTelegramBox() {
         </div>
       )}
 
-      {/* ───── 4. OUTER ORBITAL RING — clockwise ───── */}
-      <motion.div
-        className="absolute right-[6%] top-[68%] h-[80%] w-[80%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[10%] sm:top-1/2 sm:h-[100%] sm:w-[100%]"
-        style={{ aspectRatio: "1/1", maxHeight: "560px", maxWidth: "560px" }}
-        animate={reduced ? {} : { rotate: 360 }}
-        transition={reduced ? {} : { duration: 60, repeat: Infinity, ease: "linear" }}
-      >
-        <span className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 shadow-[0_0_30px_#67e8f9]" />
-        <span className="absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 translate-x-1/2 rounded-full bg-violet-300 shadow-[0_0_22px_#a78bfa]" />
-        <span className="absolute bottom-0 left-1/2 h-2.5 w-2.5 -translate-x-1/2 translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_24px_#ffd06b]" />
-        <span className="absolute left-0 top-1/2 h-2 w-2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-fuchsia-300 shadow-[0_0_22px_#f0abfc]" />
-      </motion.div>
+      {/* ───── 4. OUTER ORBITAL RING — clockwise ─────
+           In `lite` mode the rotate is dropped. The visual is a
+           static ring with its bead positions fixed — costs the
+           compositor nothing per frame, vs. the previous infinite
+           60 s rotate which scheduled a transform mutation every
+           single frame. */}
+      {lite ? (
+        <div
+          className="absolute right-[6%] top-[68%] h-[80%] w-[80%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[10%] sm:top-1/2 sm:h-[100%] sm:w-[100%]"
+          style={{ aspectRatio: "1/1", maxHeight: "560px", maxWidth: "560px" }}
+        >
+          <span className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 shadow-[0_0_30px_#67e8f9]" />
+          <span className="absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 translate-x-1/2 rounded-full bg-violet-300 shadow-[0_0_22px_#a78bfa]" />
+          <span className="absolute bottom-0 left-1/2 h-2.5 w-2.5 -translate-x-1/2 translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_24px_#ffd06b]" />
+          <span className="absolute left-0 top-1/2 h-2 w-2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-fuchsia-300 shadow-[0_0_22px_#f0abfc]" />
+        </div>
+      ) : (
+        <motion.div
+          className="absolute right-[6%] top-[68%] h-[80%] w-[80%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[10%] sm:top-1/2 sm:h-[100%] sm:w-[100%]"
+          style={{ aspectRatio: "1/1", maxHeight: "560px", maxWidth: "560px" }}
+          animate={{ rotate: 360 }}
+          transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+        >
+          <span className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 shadow-[0_0_30px_#67e8f9]" />
+          <span className="absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 translate-x-1/2 rounded-full bg-violet-300 shadow-[0_0_22px_#a78bfa]" />
+          <span className="absolute bottom-0 left-1/2 h-2.5 w-2.5 -translate-x-1/2 translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_24px_#ffd06b]" />
+          <span className="absolute left-0 top-1/2 h-2 w-2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-fuchsia-300 shadow-[0_0_22px_#f0abfc]" />
+        </motion.div>
+      )}
 
-      {/* ───── INNER ORBITAL RING — counter-clockwise ───── */}
-      <motion.div
-        className="absolute right-[12%] top-[68%] h-[52%] w-[52%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[16%] sm:top-1/2 sm:h-[64%] sm:w-[64%]"
-        style={{ aspectRatio: "1/1", maxHeight: "360px", maxWidth: "360px" }}
-        animate={reduced ? {} : { rotate: -360 }}
-        transition={reduced ? {} : { duration: 38, repeat: Infinity, ease: "linear" }}
-      >
-        <span className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-200 shadow-[0_0_18px_#ffe28a]" />
-        <span className="absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 translate-x-1/2 rounded-full bg-cyan-200 shadow-[0_0_18px_#7be7ff]" />
-      </motion.div>
+      {/* ───── INNER ORBITAL RING — counter-clockwise ─────
+           Lite mode gets a static ring (same as the outer).
+           Desktop continues to spin at the original 38 s rate. */}
+      {lite ? (
+        <div
+          className="absolute right-[12%] top-[68%] h-[52%] w-[52%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[16%] sm:top-1/2 sm:h-[64%] sm:w-[64%]"
+          style={{ aspectRatio: "1/1", maxHeight: "360px", maxWidth: "360px" }}
+        >
+          <span className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-200 shadow-[0_0_18px_#ffe28a]" />
+          <span className="absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 translate-x-1/2 rounded-full bg-cyan-200 shadow-[0_0_18px_#7be7ff]" />
+        </div>
+      ) : (
+        <motion.div
+          className="absolute right-[12%] top-[68%] h-[52%] w-[52%] -translate-y-1/2 rounded-full border border-white/10 sm:right-[16%] sm:top-1/2 sm:h-[64%] sm:w-[64%]"
+          style={{ aspectRatio: "1/1", maxHeight: "360px", maxWidth: "360px" }}
+          animate={{ rotate: -360 }}
+          transition={{ duration: 38, repeat: Infinity, ease: "linear" }}
+        >
+          <span className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-200 shadow-[0_0_18px_#ffe28a]" />
+          <span className="absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 translate-x-1/2 rounded-full bg-cyan-200 shadow-[0_0_18px_#7be7ff]" />
+        </motion.div>
+      )}
 
-      {/* ───── 5. CENTRAL PLANET — pulses + holds steady ───── */}
-      <motion.div
-        className="absolute right-[12%] top-[68%] h-32 w-32 -translate-y-1/2 rounded-full sm:right-[16%] sm:top-1/2 sm:h-44 sm:w-44 md:h-56 md:w-56"
-        animate={reduced ? {} : { scale: [1, 1.07, 1], opacity: [0.85, 1, 0.85] }}
-        transition={reduced ? {} : { duration: 5, repeat: Infinity, ease: "easeInOut" }}
-        style={{
-          background:
-            "radial-gradient(circle at 30% 28%, rgba(255,255,255,0.95), rgba(167,139,250,0.62) 40%, rgba(34,211,238,0.40) 75%, transparent 100%)",
-          boxShadow:
-            "0 0 90px 36px rgba(167,139,250,0.40), 0 0 160px 70px rgba(34,211,238,0.22), inset 0 0 50px rgba(255,255,255,0.5)",
-        }}
-      />
+      {/* ───── 5. CENTRAL PLANET ─────
+           CRITICAL CHANGE: in `lite` mode the planet is a plain
+           static `<div>` with a single, smaller box-shadow.
+           Previously the planet ran an infinite `scale: [1, 1.07,
+           1]` + opacity loop, AND rendered two heavy box-shadows
+           (90 px / 36 px spread plus 160 px / 70 px spread). Every
+           frame of the scale loop forced the compositor to re-
+           rasterise both shadow regions (~360 px radius). On a
+           phone this single layer was the dominant per-frame cost
+           in the entire CTA — measurable directly in the user's
+           "super laggy" complaint. The new mobile shadow has half
+           the spread and the planet doesn't animate, so the
+           compositor caches the rasterisation once and reuses it
+           for every subsequent frame. */}
+      {lite ? (
+        <div
+          className="absolute right-[12%] top-[68%] h-32 w-32 -translate-y-1/2 rounded-full sm:right-[16%] sm:top-1/2 sm:h-44 sm:w-44 md:h-56 md:w-56"
+          style={{
+            background:
+              "radial-gradient(circle at 30% 28%, rgba(255,255,255,0.95), rgba(167,139,250,0.62) 40%, rgba(34,211,238,0.40) 75%, transparent 100%)",
+            boxShadow:
+              "0 0 60px 18px rgba(167,139,250,0.32), inset 0 0 30px rgba(255,255,255,0.4)",
+          }}
+        />
+      ) : (
+        <motion.div
+          className="absolute right-[12%] top-[68%] h-32 w-32 -translate-y-1/2 rounded-full sm:right-[16%] sm:top-1/2 sm:h-44 sm:w-44 md:h-56 md:w-56"
+          animate={{ scale: [1, 1.07, 1], opacity: [0.85, 1, 0.85] }}
+          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+          style={{
+            background:
+              "radial-gradient(circle at 30% 28%, rgba(255,255,255,0.95), rgba(167,139,250,0.62) 40%, rgba(34,211,238,0.40) 75%, transparent 100%)",
+            boxShadow:
+              "0 0 90px 36px rgba(167,139,250,0.40), 0 0 160px 70px rgba(34,211,238,0.22), inset 0 0 50px rgba(255,255,255,0.5)",
+          }}
+        />
+      )}
       {/* highlight — uses mix-blend-screen which is expensive on
            mobile compositors, so we drop it on small screens. */}
       {!lite && (

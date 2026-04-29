@@ -184,30 +184,60 @@ function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
        * Safari. Combined with overscrollBehaviorX: contain, the
        * page scroll is now completely insulated from this widget.
        */}
+      {/*
+       * Mobile carousel — important behavior notes:
+       *
+       *   • `scroll-snap-stop: always` on every card forces the
+       *     browser to STOP at every card regardless of swipe
+       *     velocity, even if the user flicks hard. That's the
+       *     "one card per scroll" feel the user asked for: a
+       *     swipe in either direction always lands on the
+       *     immediately-next card, never skips. Native CSS,
+       *     compositor-driven, zero JS in the animation loop.
+       *
+       *   • `overflowY: "hidden"` is critical. With
+       *     `overflow-x: auto` the spec forces overflow-y to
+       *     also be auto, which in turn allowed vertical
+       *     scrolling inside the carousel and created a
+       *     scrollHeight > clientHeight layout (≈64 px of
+       *     vertical overflow). Forcing it to hidden eliminates
+       *     the inner vertical scroll entirely, while still
+       *     allowing horizontal scrolling. Cards never get
+       *     vertically clipped or shifted by an inner
+       *     scrollTop.
+       *
+       *   • No FlyInCard wrapper on mobile cards — see the long
+       *     comment above the mobile branch in this component
+       *     for why entrance animations on a horizontally-
+       *     scrolling carousel are pathological under framer
+       *     `whileInView`.
+       */}
       <div
         ref={scrollerRef}
         data-testid="paths-mobile-scroller"
-        className="relative -mx-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="relative -mx-4 overflow-x-auto px-4 pt-2 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{
           scrollSnapType: "x mandatory",
           WebkitOverflowScrolling: "touch",
           overscrollBehaviorX: "contain",
+          overflowY: "hidden",
           scrollPaddingLeft: "1rem",
           touchAction: "pan-x",
         }}
       >
         <div className="flex w-max items-stretch gap-3">
           {cards.map((card, i) => (
-            <FlyInCard
+            <div
               key={i}
-              index={i}
-              isMobile
               data-testid={`paths-card-slide-${i + 1}`}
               className="w-[70vw] max-w-[300px] shrink-0"
-              style={{ scrollSnapAlign: "start" }}
+              style={{
+                scrollSnapAlign: "start",
+                scrollSnapStop: "always",
+              }}
             >
               {card}
-            </FlyInCard>
+            </div>
           ))}
         </div>
       </div>
