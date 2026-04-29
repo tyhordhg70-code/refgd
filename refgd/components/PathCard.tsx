@@ -73,6 +73,14 @@ export default function PathCard({
   const floatDelay = `${(index * 0.55).toFixed(2)}s`;
   const floatDuration = `${7 + (index % 3) * 0.6}s`;
   const aspect = size === "lg" ? "aspect-[4/5]" : size === "sm" ? "aspect-[3/4]" : "aspect-[3/4]";
+  const radius = size === "sm" ? "rounded-[1.25rem]" : "rounded-[2rem]";
+  const titleClass =
+    size === "sm"
+      ? "text-base md:text-lg lg:text-xl xl:text-2xl"
+      : "text-2xl sm:text-3xl";
+  const labelClass = size === "sm" ? "mt-2 text-[9px] tracking-[0.22em]" : "mt-3 text-[10px] tracking-[0.3em]";
+  const chipClass = size === "sm" ? "px-2 py-0.5 text-[9px] tracking-[0.18em]" : "px-3 py-1 text-[11px] tracking-[0.25em]";
+  const textPad = size === "sm" ? "p-3 md:p-4 xl:p-5" : "p-6";
 
   return (
     <motion.div
@@ -96,7 +104,7 @@ export default function PathCard({
           <Tag
             {...linkProps}
             data-testid={`path-card-${index + 1}-link`}
-            className={`relative block h-full overflow-hidden rounded-[2rem] glass-strong transition-all duration-500 ${ACCENT_GLOW[accent]} ${ACCENT_PULSE[accent]}`}
+            className={`relative block h-full overflow-hidden ${radius} glass-strong transition-all duration-500 ${ACCENT_GLOW[accent]} ${ACCENT_PULSE[accent]}`}
             style={{
               // Slightly more opaque base — keeps the glass character
               // but stops the cards from looking like ghostly outlines
@@ -108,12 +116,12 @@ export default function PathCard({
             {/* Animated gradient ring */}
             <div
               aria-hidden="true"
-              className={`pointer-events-none absolute inset-0 rounded-[2rem] bg-gradient-to-br ${ACCENT_RING[accent]} opacity-60 transition-opacity duration-500 group-hover:opacity-100`}
+              className={`pointer-events-none absolute inset-0 ${radius} bg-gradient-to-br ${ACCENT_RING[accent]} opacity-60 transition-opacity duration-500 group-hover:opacity-100`}
               style={{ padding: "1px", WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)", WebkitMaskComposite: "xor", maskComposite: "exclude" }}
             />
 
             <div
-              className={`relative ${aspect} overflow-hidden rounded-[2rem]`}
+              className={`relative ${aspect} overflow-hidden ${radius}`}
               style={{ transform: "translateZ(28px)", transformStyle: "preserve-3d" }}
             >
               {/* Vector illustration backdrop — renders inline SVG with
@@ -142,19 +150,19 @@ export default function PathCard({
                 className="absolute left-5 top-5"
                 style={{ transform: "translateZ(40px)" }}
               >
-                <span data-testid={`path-card-${index + 1}-number`} className={`heading-display rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] ring-1 backdrop-blur-md ${ACCENT_CHIP[accent]}`}>
+                <span data-testid={`path-card-${index + 1}-number`} className={`heading-display rounded-full ${chipClass} font-semibold uppercase ring-1 backdrop-blur-md ${ACCENT_CHIP[accent]}`}>
                   {String(index + 1).padStart(2, "0")}
                 </span>
               </div>
               {/* Label */}
               <div
-                className="absolute inset-x-0 bottom-0 p-6"
+                className={`absolute inset-x-0 bottom-0 ${textPad}`}
                 style={{ transform: "translateZ(56px)" }}
               >
-                <h3 data-testid={`path-card-${index + 1}-title`} className="heading-display text-balance text-2xl font-bold uppercase leading-tight tracking-tight text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.85)] sm:text-3xl">
+                <h3 data-testid={`path-card-${index + 1}-title`} className={`heading-display text-balance ${titleClass} font-bold uppercase leading-tight text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.85)]`}>
                   {title}
                 </h3>
-                <div data-testid={`path-card-${index + 1}-enter-label`} className="mt-3 inline-flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.3em] text-white/70 transition-all duration-300 group-hover:gap-3 group-hover:text-white">
+                <div data-testid={`path-card-${index + 1}-enter-label`} className={`${labelClass} inline-flex items-center justify-center gap-1.5 font-semibold uppercase text-white/70 transition-all duration-300 group-hover:gap-3 group-hover:text-white`}>
                   Enter
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                     <path d="M5 12h14" />

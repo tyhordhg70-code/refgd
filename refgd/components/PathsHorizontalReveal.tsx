@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion";
 
 /**
  * PathsHorizontalReveal — one-scroll path card stepper for all screens.
@@ -14,7 +14,7 @@ import { motion, useReducedMotion } from "framer-motion";
  */
 export default function PathsHorizontalReveal({
   cards,
-  desktopFallback: _desktopFallback,
+  desktopFallback,
 }: {
   /** Pre-built card React nodes, in order. Should be 5 for the
    *  current home page but the component is resilient to any count. */
@@ -29,6 +29,15 @@ export default function PathsHorizontalReveal({
   const reduce = useReducedMotion();
   const count = cards.length;
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const sync = () => setIsDesktop(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   const goToCard = useCallback(
     (nextIndex: number) => {
@@ -51,7 +60,7 @@ export default function PathsHorizontalReveal({
 
   useEffect(() => {
     const section = sectionRef.current;
-    if (!section || count <= 1) return;
+    if (!section || count <= 1 || isDesktop) return;
 
     const syncIndexWhenAway = () => {
       const rect = section.getBoundingClientRect();
@@ -73,11 +82,11 @@ export default function PathsHorizontalReveal({
       window.removeEventListener("scroll", syncIndexWhenAway);
       window.removeEventListener("resize", syncIndexWhenAway);
     };
-  }, [count]);
+  }, [count, isDesktop]);
 
   useEffect(() => {
     const section = sectionRef.current;
-    if (!section || count <= 1) return;
+    if (!section || count <= 1 || isDesktop) return;
 
     const isFocused = () => {
       const rect = section.getBoundingClientRect();
@@ -136,7 +145,11 @@ export default function PathsHorizontalReveal({
       document.removeEventListener("touchstart", onTouchStart, { capture: true });
       document.removeEventListener("touchmove", onTouchMove, { capture: true });
     };
-  }, [count, goToCard]);
+  }, [count, goToCard, isDesktop]);
+
+  if (isDesktop) {
+    return <DesktopCameraFlyby>{desktopFallback}</DesktopCameraFlyby>;
+  }
 
   return (
     <section
@@ -189,6 +202,61 @@ export default function PathsHorizontalReveal({
       >
         Scroll down once to change path
       </p>
+    </section>
+  );
+}
+
+function DesktopCameraFlyby({ children }: { children: ReactNode }) {
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+  const reduce = useReducedMotion();
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start 92%", "end 8%"],
+  });
+  const progress = useSpring(scrollYProgress, {
+    stiffness: reduce ? 900 : 150,
+    damping: reduce ? 90 : 28,
+    mass: reduce ? 0.1 : 0.35,
+  });
+
+  const x = useTransform(progress, [0, 0.5, 1], reduce ? ["0%", "0%", "0%"] : ["-8%", "0%", "7%"]);
+  const y = useTransform(progress, [0, 0.5, 1], reduce ? ["0%", "0%", "0%"] : ["7%", "-1%", "-5%"]);
+  const z = useTransform(progress, [0, 0.52, 1], reduce ? [0, 0, 0] : [-340, 90, -80]);
+  const scale = useTransform(progress, [0, 0.52, 1], reduce ? [1, 1, 1] : [0.82, 1.04, 0.94]);
+  const rotateX = useTransform(progress, [0, 0.52, 1], reduce ? [0, 0, 0] : [12, -1, -7]);
+  const rotateY = useTransform(progress, [0, 0.52, 1], reduce ? [0, 0, 0] : [-18, 2, 16]);
+  const opacity = useTransform(progress, [0, 0.12, 0.9, 1], [0.68, 1, 1, 0.92]);
+
+  return (
+    <section
+      ref={sectionRef}
+      data-testid="paths-desktop-camera-flyby"
+      className="relative mx-auto w-full max-w-[92rem] py-6 md:py-10"
+    >
+      <div className="pointer-events-none absolute inset-x-6 top-1/2 h-40 -translate-y-1/2 rounded-full bg-amber-300/10 blur-3xl" />
+      <div
+        className="relative flex min-h-[min(78svh,760px)] w-full items-center justify-center overflow-visible px-2 md:px-4"
+        style={{ perspective: 1900 }}
+      >
+        <motion.div
+          data-testid="paths-desktop-card-camera"
+          className="w-full"
+          style={{
+            x,
+            y,
+            z,
+            scale,
+            rotateX,
+            rotateY,
+            opacity,
+            transformStyle: "preserve-3d",
+            transformOrigin: "50% 50%",
+            willChange: "transform, opacity",
+          }}
+        >
+          {children}
+        </motion.div>
+      </div>
     </section>
   );
 }

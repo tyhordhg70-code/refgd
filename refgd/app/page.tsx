@@ -7,7 +7,6 @@ import EditableText from "@/components/EditableText";
 import HomeCTAButton from "@/components/HomeCTAButton";
 import HomeBackground from "@/components/HomeBackground";
 import CosmicJourney from "@/components/CosmicJourney";
-import PathCardCameraFly from "@/components/PathCardCameraFly";
 import PathsHorizontalReveal from "@/components/PathsHorizontalReveal";
 import ScrollRain from "@/components/ScrollRain";
 import ChapterCosmos from "@/components/ChapterCosmos";
@@ -113,28 +112,19 @@ export default async function HomePage() {
                     </div>
                   </div>
                   {/* 5 cards.
-                      • Desktop / tablet (≥ 768px): 1 / 2 / 3 / 5 grid
-                        with each card wrapped in a 3D camera fly-by
-                        (diagonal zoom + sideways motion from its own
-                        anchor) so the row reveals like a coordinated
-                        camera move.
-                      • Mobile (< 768px): the row pins inside a tall
-                        scroll runway and translates HORIZONTALLY as
-                        the user scrolls vertically — a cinematic
-                        sideways camera track that exposes one card
-                        at a time. After the last card the runway ends
-                        and vertical scroll resumes for the next
-                        section. See PathsHorizontalReveal. */}
+                      • Desktop / tablet (≥ 768px): all cards stay visible
+                        together while the camera flies diagonally through
+                        the row on scroll.
+                      • Mobile (< 768px): keep the locked one-card stepper
+                        exactly as-is. */}
                   <PathsHorizontalReveal
                     cards={PATHS.map((p, i) => (
                       <PathCard key={p.href} index={i} {...p} />
                     ))}
                     desktopFallback={
-                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-5">
+                      <div className="grid grid-cols-5 items-stretch gap-3 md:gap-4 xl:gap-5">
                         {PATHS.map((p, i) => (
-                          <PathCardCameraFly key={p.href} index={i}>
-                            <PathCard index={i} {...p} />
-                          </PathCardCameraFly>
+                          <PathCard key={p.href} index={i} size="sm" {...p} />
                         ))}
                       </div>
                     }
