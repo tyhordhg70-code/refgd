@@ -1,33 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { motion, useScroll, useSpring, useTransform } from "framer-motion";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 
 /**
- * PathsHorizontalReveal — MOBILE ONLY scroll-jacking layout for the
- * five path cards.
+ * PathsHorizontalReveal — one-scroll path card stepper for all screens.
  *
- * On mobile we don't have horizontal screen real-estate to fan five
- * cards out diagonally, so we fake a cinematic "camera tracks
- * sideways" reveal:
- *
- *   • The whole component takes a tall vertical scroll runway
- *     (≈ 5 × 100svh) and pins a 100svh sticky stage inside.
- *   • As the user scrolls vertically, the row of cards translates
- *     horizontally (right → left), each card sliding in from off-
- *     screen with a slight diagonal zoom and tilt.
- *   • Once the runway is exhausted (all 5 cards revealed), the
- *     section unpins and normal vertical scroll resumes for whatever
- *     comes next.
- *
- * On desktop and tablet (≥ 768px) we fall back to rendering the
- * children in the parent grid — this component returns null then so
- * the existing `<div className="grid grid-cols-… xl:grid-cols-5">`
- * picks up the cards directly.
+ * A wheel flick / vertical phone swipe advances exactly one card and
+ * locks until that card lands. This removes the old spring-runway skip
+ * where card 1/5 could be missed during a hard scroll. Normal page scroll
+ * resumes only before card 1 or after card 5.
  */
 export default function PathsHorizontalReveal({
   cards,
-  desktopFallback,
+  desktopFallback: _desktopFallback,
 }: {
   /** Pre-built card React nodes, in order. Should be 5 for the
    *  current home page but the component is resilient to any count. */
@@ -35,83 +21,145 @@ export default function PathsHorizontalReveal({
   /** What to render on tablet / desktop. Typically the existing grid. */
   desktopFallback: ReactNode;
 }) {
-  const [isMobile, setIsMobile] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    const mq = window.matchMedia("(max-width: 768px)");
-    const sync = () => setIsMobile(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-
   const sectionRef = useRef<HTMLDivElement | null>(null);
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start start", "end end"],
-  });
-  // Snappy spring so a fast swipe still tracks scroll closely (no
-  // visual lag where the user has scrolled but the cards are still
-  // catching up — that's what made card 5 appear "skipped" before).
-  const progress = useSpring(scrollYProgress, {
-    stiffness: 280,
-    damping: 36,
-    mass: 0.2,
-  });
-
+  const lockRef = useRef(false);
+  const activeRef = useRef(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const reduce = useReducedMotion();
   const count = cards.length;
-  // Total horizontal distance: shift the row left by (count - 1)
-  // viewport widths so the last card lands centred. We park the row
-  // at its FINAL position by progress 0.92 — the remaining 8% of
-  // runway is "settle time" so the user can actually see card 5
-  // centred before the sticky disengages and vertical scroll resumes.
-  const x = useTransform(
-    progress,
-    [0, 0.08, 0.92, 1],
-    [
-      `0vw`,
-      `0vw`,
-      `-${(count - 1) * 100}vw`,
-      `-${(count - 1) * 100}vw`,
-    ],
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const goToCard = useCallback(
+    (nextIndex: number) => {
+      const next = Math.max(0, Math.min(count - 1, nextIndex));
+      if (next === activeRef.current || lockRef.current) return false;
+      activeRef.current = next;
+      setActiveIndex(next);
+      lockRef.current = true;
+      window.setTimeout(() => {
+        lockRef.current = false;
+      }, reduce ? 120 : 760);
+      return true;
+    },
+    [count, reduce],
   );
 
-  // SSR / desktop / tablet: render the desktop grid as-is.
-  if (!mounted || !isMobile) {
-    return <>{desktopFallback}</>;
-  }
+  useEffect(() => {
+    activeRef.current = activeIndex;
+  }, [activeIndex]);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section || count <= 1) return;
+
+    const isFocused = () => {
+      const rect = section.getBoundingClientRect();
+      return rect.top < window.innerHeight * 0.78 && rect.bottom > window.innerHeight * 0.22;
+    };
+
+    const maybeStep = (direction: 1 | -1) => {
+      if (!isFocused()) return false;
+      if (lockRef.current) return true;
+
+      const current = activeRef.current;
+      if (direction > 0 && current < count - 1) return goToCard(current + 1);
+      if (direction < 0 && current > 0) return goToCard(current - 1);
+      return false;
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      const primaryDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+      if (Math.abs(primaryDelta) < 8) return;
+      const direction = primaryDelta > 0 ? 1 : -1;
+      if (maybeStep(direction)) event.preventDefault();
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      touchStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      const start = touchStartRef.current;
+      const touch = event.touches[0];
+      if (!start || !touch) return;
+
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+      const dominant = Math.abs(dy) >= Math.abs(dx) ? -dy : -dx;
+      if (Math.abs(dominant) < 28) return;
+
+      const direction = dominant > 0 ? 1 : -1;
+      if (maybeStep(direction)) {
+        event.preventDefault();
+        touchStartRef.current = null;
+      }
+    };
+
+    section.addEventListener("wheel", onWheel, { passive: false });
+    section.addEventListener("touchstart", onTouchStart, { passive: true });
+    section.addEventListener("touchmove", onTouchMove, { passive: false });
+
+    return () => {
+      section.removeEventListener("wheel", onWheel);
+      section.removeEventListener("touchstart", onTouchStart);
+      section.removeEventListener("touchmove", onTouchMove);
+    };
+  }, [count, goToCard]);
 
   return (
     <section
       ref={sectionRef}
-      data-testid="paths-horizontal-reveal"
-      className="relative w-full"
-      style={{
-        // Runway height ≈ 0.7 viewports per card + a small buffer so
-        // ONE swipe advances roughly one card and the user actually
-        // sees every card in turn (the previous 1.0 vh-per-card
-        // runway took 5+ swipes and made it feel like cards were
-        // being skipped).
-        height: `${(count * 0.7 + 0.5) * 100}svh`,
-      }}
+      data-testid="paths-scroll-stepper"
+      className="relative mx-auto w-full max-w-6xl py-2 sm:py-4"
     >
-      <div className="sticky top-0 flex h-[100svh] w-full items-center overflow-hidden">
+      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-32 -translate-y-1/2 rounded-full bg-amber-300/10 blur-3xl" />
+      <div className="relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-black/10 px-1 py-4 shadow-[0_40px_140px_-70px_rgba(245,185,69,0.75)] sm:px-4 sm:py-6">
         <motion.div
-          className="flex h-full flex-row items-center"
-          style={{
-            x,
-            willChange: "transform",
-          }}
+          data-testid="paths-card-track"
+          className="flex items-stretch"
+          animate={{ x: `-${activeIndex * 100}%` }}
+          transition={reduce ? { duration: 0 } : { duration: 0.72, ease: [0.16, 1, 0.3, 1] }}
+          style={{ willChange: "transform" }}
         >
           {cards.map((card, i) => (
-            <CardSlide key={i} index={i} progress={progress} count={count}>
+            <CardSlide key={i} index={i} activeIndex={activeIndex}>
               {card}
             </CardSlide>
           ))}
         </motion.div>
       </div>
+
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2" data-testid="paths-stepper-controls">
+        {cards.map((_, i) => {
+          const active = i === activeIndex;
+          return (
+            <button
+              key={i}
+              type="button"
+              data-testid={`paths-stepper-dot-${i + 1}`}
+              aria-label={`Show path card ${i + 1}`}
+              aria-current={active ? "true" : undefined}
+              onClick={() => goToCard(i)}
+              className="group rounded-full p-2 focus:outline-none focus:ring-2 focus:ring-amber-200/80"
+            >
+              <span
+                className={`block rounded-full transition-[width,background-color,box-shadow] duration-300 ${
+                  active ? "h-2 w-8 bg-amber-300" : "h-2 w-2 bg-white/35 group-hover:bg-white/65"
+                }`}
+                style={active ? { boxShadow: "0 0 16px rgba(255,237,180,0.85)" } : undefined}
+              />
+            </button>
+          );
+        })}
+      </div>
+
+      <p
+        data-testid="paths-stepper-hint"
+        className="heading-display mt-3 text-center text-[10px] font-semibold uppercase tracking-[0.38em] text-white/55 sm:text-xs"
+      >
+        Scroll once to change path
+      </p>
     </section>
   );
 }
@@ -124,100 +172,34 @@ export default function PathsHorizontalReveal({
  */
 function CardSlide({
   index,
-  count,
-  progress,
+  activeIndex,
   children,
 }: {
   index: number;
-  count: number;
-  progress: ReturnType<typeof useSpring>;
+  activeIndex: number;
   children: ReactNode;
 }) {
-  // The horizontal track starts at x=0vw and parks at -(count-1)*100vw
-  // by progress 0.92 (see x mapping in the parent). Each card "owns"
-  // a centred window inside that travel:
-  //
-  //   centre_i = 0.08 + (0.92 - 0.08) * (i / (count - 1))
-  //
-  // so card 0 peaks at 0.08 (start of runway, with a small 8%
-  // pre-roll where it sits centred and fully visible) and card N-1
-  // peaks at 0.92 (then sits there for the closing 8% so the user
-  // actually sees the last card before the section unpins).
-  const SETTLE_IN = 0.08;
-  const SETTLE_OUT = 0.92;
-  const travelSpan = SETTLE_OUT - SETTLE_IN;
-  const centre =
-    count > 1 ? SETTLE_IN + travelSpan * (index / (count - 1)) : 0.5;
-  const span = count > 1 ? travelSpan / (count - 1) : 1;
-
-  // First card holds visible from progress 0; last card holds visible
-  // through progress 1. Middle cards fade between their neighbours.
-  const enter = index === 0 ? 0 : Math.max(0, centre - span);
-  const leave = index === count - 1 ? 1 : Math.min(1, centre + span);
-
-  // Use 5-stop interpolation (enter, justBeforePeak, peak, justAfterPeak,
-  // leave) so the boundary cards keep a stable "fully visible" plateau
-  // around the peak instead of starting to fade immediately.
-  const peakHoldL = index === 0 ? 0 : Math.max(enter, centre - span * 0.15);
-  const peakHoldR = index === count - 1 ? 1 : Math.min(leave, centre + span * 0.15);
-
-  const opacity = useTransform(
-    progress,
-    [enter, peakHoldL, centre, peakHoldR, leave],
-    [
-      index === 0 ? 1 : 0.15,
-      1,
-      1,
-      1,
-      index === count - 1 ? 1 : 0.35,
-    ],
-  );
-  const scale = useTransform(
-    progress,
-    [enter, peakHoldL, centre, peakHoldR, leave],
-    [
-      index === 0 ? 1 : 0.82,
-      1,
-      1,
-      1,
-      index === count - 1 ? 1 : 0.86,
-    ],
-  );
-  const rotateY = useTransform(
-    progress,
-    [enter, peakHoldL, centre, peakHoldR, leave],
-    [
-      index === 0 ? 0 : 22,
-      0,
-      0,
-      0,
-      index === count - 1 ? 0 : -16,
-    ],
-  );
-  const liftY = useTransform(
-    progress,
-    [enter, peakHoldL, centre, peakHoldR, leave],
-    [
-      index === 0 ? "0%" : "6%",
-      "0%",
-      "0%",
-      "0%",
-      index === count - 1 ? "0%" : "-4%",
-    ],
-  );
+  const offset = index - activeIndex;
+  const active = offset === 0;
 
   return (
     <div
-      className="flex h-full w-screen shrink-0 items-center justify-center px-6"
+      data-testid={`paths-card-slide-${index + 1}`}
+      className="flex w-full shrink-0 items-center justify-center px-4 sm:px-8 lg:px-14"
       style={{ perspective: 1400 }}
     >
       <motion.div
-        className="w-full max-w-[26rem]"
+        className="w-full max-w-[24rem] sm:max-w-[28rem] lg:max-w-[31rem]"
+        animate={{
+          opacity: active ? 1 : 0.38,
+          scale: active ? 1 : 0.78,
+          x: active ? 0 : offset < 0 ? -110 : 110,
+          y: active ? 0 : offset < 0 ? -34 : 34,
+          rotateY: active ? 0 : offset < 0 ? -22 : 22,
+          rotateX: active ? 0 : offset < 0 ? 8 : -8,
+        }}
+        transition={{ duration: 0.72, ease: [0.16, 1, 0.3, 1] }}
         style={{
-          opacity,
-          scale,
-          rotateY,
-          y: liftY,
           transformStyle: "preserve-3d",
           transformOrigin: "50% 50%",
           willChange: "transform, opacity",

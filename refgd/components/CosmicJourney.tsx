@@ -38,6 +38,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
   const sectionRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<HTMLDivElement | null>(null);
+  const scrollLockRef = useRef(false);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -92,22 +94,129 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   }, [reduced, isMobile, mx, my]);
 
   // ── Scroll-driven master timeline ─────────────────────────
-  // Progress maps from 0 → 1 across the 200svh section. While the
-  // user is at the very top, progress is 0 → WELCOME stays. As they
-  // scroll, the scene plays through. Scrolling back up reverses it.
+  // Progress maps from 0 → 1 across only the sticky runway. That means
+  // the bright warp layers reach opacity 0 before the next chapter rises
+  // into view, which prevents the pale overlay above "you have arrived".
   const { scrollYProgress } = useScroll({
     target: sectionRef,
-    offset: ["start start", "end start"],
+    offset: ["start start", "end end"],
   });
   // Smooth the raw scroll progress so phase transitions feel cinematic
   // instead of snapping with every scroll tick. Snappier on mobile so a
   // fast flick still visibly plays the animation through (it doesn't
   // get visually "skipped" because the spring catches up in ~200ms).
   const progress = useSpring(scrollYProgress, {
-    stiffness: isMobile ? 260 : 120,
-    damping: isMobile ? 36 : 30,
-    mass: isMobile ? 0.25 : 0.4,
+    stiffness: isMobile ? 430 : 240,
+    damping: isMobile ? 42 : 34,
+    mass: isMobile ? 0.14 : 0.24,
   });
+
+  // One-scroll gate: a hard wheel flick should not jump past the scene.
+  // The first down-scroll plays the full WELCOME → arrival arc, then lands
+  // the user directly at the paths section. The first up-scroll from paths
+  // reverses back to WELCOME. Extra wheel/touch events are swallowed while
+  // the controlled scroll is running, so the animation cannot be skipped.
+  useEffect(() => {
+    if (!mounted) return;
+
+    let raf = 0;
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+
+    const stopAnimation = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+    };
+
+    const animateTo = (target: number, duration = 980) => {
+      stopAnimation();
+      scrollLockRef.current = true;
+      const start = window.scrollY;
+      const distance = target - start;
+      const startedAt = performance.now();
+
+      const step = (now: number) => {
+        const t = Math.min(1, (now - startedAt) / duration);
+        window.scrollTo(0, start + distance * ease(t));
+        if (t < 1) {
+          raf = requestAnimationFrame(step);
+          return;
+        }
+        raf = 0;
+        window.setTimeout(() => {
+          scrollLockRef.current = false;
+        }, 90);
+      };
+
+      raf = requestAnimationFrame(step);
+    };
+
+    const getBounds = () => {
+      const section = sectionRef.current;
+      if (!section) return null;
+      const top = section.offsetTop;
+      const pathsTop = top + section.offsetHeight;
+      return { top, pathsTop };
+    };
+
+    const maybeRun = (direction: 1 | -1) => {
+      const bounds = getBounds();
+      if (!bounds) return false;
+
+      const y = window.scrollY;
+      const nearHero = y >= bounds.top - 12 && y < bounds.pathsTop - 20;
+      const nearPathsStart = y > bounds.top + window.innerHeight * 0.35 && y <= bounds.pathsTop + window.innerHeight * 0.42;
+
+      if (scrollLockRef.current) return true;
+
+      if (direction > 0 && nearHero) {
+        animateTo(bounds.pathsTop, reduced ? 240 : isMobile ? 900 : 1040);
+        return true;
+      }
+
+      if (direction < 0 && nearPathsStart) {
+        animateTo(bounds.top, reduced ? 240 : isMobile ? 900 : 1040);
+        return true;
+      }
+
+      return false;
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) < 6) return;
+      const direction = event.deltaY > 0 ? 1 : -1;
+      if (maybeRun(direction)) event.preventDefault();
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      touchStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      const start = touchStartRef.current;
+      const touch = event.touches[0];
+      if (!start || !touch) return;
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+      if (Math.abs(dy) < 24 || Math.abs(dy) < Math.abs(dx)) return;
+      const direction = dy < 0 ? 1 : -1;
+      if (maybeRun(direction)) {
+        event.preventDefault();
+        touchStartRef.current = null;
+      }
+    };
+
+    document.addEventListener("wheel", onWheel, { capture: true, passive: false });
+    document.addEventListener("touchstart", onTouchStart, { capture: true, passive: true });
+    document.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
+
+    return () => {
+      stopAnimation();
+      document.removeEventListener("wheel", onWheel, { capture: true });
+      document.removeEventListener("touchstart", onTouchStart, { capture: true });
+      document.removeEventListener("touchmove", onTouchMove, { capture: true });
+    };
+  }, [isMobile, mounted, reduced]);
 
   // PLANET — visible early, then zooms past the camera and dissolves.
   const planetScale = useTransform(
@@ -224,13 +333,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       data-testid="cosmic-journey"
       className="relative w-full"
       style={{
-        // Mobile: short 130svh runway so the entire welcome
-        // animation finishes within roughly ONE swipe and immediately
-        // hands off to the "Choose your path to mastery" section
-        // underneath. Desktop keeps the longer cinematic 200svh
-        // runway. Scrolling back up still REVERSES the animation
-        // (scroll-driven), so WELCOME returns at the top.
-        height: isMobile ? "130svh" : "200svh",
+        // Shorter total runways keep the arc tight on phones and PCs.
+        // The wheel/touch gate above turns one gesture into the full trip.
+        height: isMobile ? "175svh" : "185svh",
       }}
     >
       <div
