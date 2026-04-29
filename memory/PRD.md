@@ -45,6 +45,11 @@ Latest desktop/mobile refinement request:
 - 2026-04-29: Preserved mobile one-card stepper behavior and scroll lock.
 - 2026-04-29: Added graceful empty-store fallback for `/store-list` when preview/dev database env vars are absent, preventing the linked path card from opening a 500 page.
 - 2026-04-29: Fixed FactoryIllustration SVG coordinate hydration mismatch by rounding generated gear coordinates.
+- 2026-04-29: Smoothed the first homepage scroll gate with a controlled ease-in-out handoff and header-aware landing offset so Path to Mastery no longer opens with the headline cut off.
+- 2026-04-29: Added reverse one-scroll handoff from Path to Mastery back to the WELCOME hero.
+- 2026-04-29: Locked mobile card-step scrolling to the current scrollY so card changes no longer drag the page down at the same time.
+- 2026-04-29: Reduced heavy home animation costs by lowering WebGL particle counts/pixel ratio, capping galaxy render rate, reducing scroll rain density, and simplifying desktop card motion.
+- 2026-04-29: Fixed intermittent HomeCTAButton hydration mismatch by separating editable/non-editable label rendering and adding stable CTA test IDs.
 
 ## Verification
 - `npx tsc --noEmit` passes.
@@ -59,15 +64,20 @@ Latest desktop/mobile refinement request:
 - 2026-04-29: Self-tested mobile homepage: desktop fly-by is hidden, `paths-scroll-stepper` remains active, and card 1 starts visible.
 - 2026-04-29: Testing agent iteration 3 verified requested desktop/mobile animation behavior; reported `/store-list` 500 was fixed afterward and self-tested.
 - 2026-04-29: Rechecked `/exclusive-mentorships` scroll logs after SVG fix; hydration error is gone, only browser WebGL performance warnings remain.
+- 2026-04-29: `npx tsc --noEmit` passes after scroll-smoothing, card-lock, performance, and CTA hydration fixes.
+- 2026-04-29: Self-tested desktop hard wheel: lands with Path to Mastery visible and all five desktop cards visible; wheel-up returns to the hero in one controlled scroll.
+- 2026-04-29: Self-tested mobile hard wheel: lands with intro visible and card 1 active; four downward card steps advance to card 5 with zero `window.scrollY` delta.
+- 2026-04-29: Testing agent iteration 4 passed all requested desktop/mobile core scroll flows; it found an intermittent HomeCTAButton hydration warning, which was fixed and self-verified with a clean console check.
 
 ## Backlog
 ### P0
 - None remaining for the reported homepage scroll/card issue or latest desktop fly-by request after iteration 3 + self-tests.
+- None remaining for the follow-up laggy/skip/cut-off/card-scroll report after iteration 4 + self-tests.
 
 ### P1
-- Remove unrelated existing hydration warning in EditableText/HomeCTAButton flow.
 - Add automated regression script for hero hard-scroll and path stepper.
 - Add automated regression coverage for desktop camera fly-by and mobile stepper breakpoint split.
+- Re-run a production-build console check for the homepage hydration fix before launch.
 
 ### P2
 - Tune visual pacing/spacing of the large desktop card stepper if the client wants a denser layout.

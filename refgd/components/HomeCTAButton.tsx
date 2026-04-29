@@ -66,24 +66,36 @@ export default function HomeCTAButton({
         external={!editing}
         variant="primary"
         pull={editing ? 0 : 0.5}
+        data-testid="home-telegram-cta-link"
       >
-        <span
-          ref={labelRef}
-          contentEditable={editing}
-          suppressContentEditableWarning
-          spellCheck={editing}
-          onBlur={editing ? onLabelBlur : undefined}
-          onKeyDown={(e) => {
-            if (!editing) return;
-            if (e.key === "Enter") {
-              e.preventDefault();
-              (e.currentTarget as HTMLElement).blur();
-            }
-          }}
-          className={editing ? "outline-none ring-1 ring-amber-300/0 focus:ring-amber-300" : undefined}
-        >
-          {label}
-        </span>
+        {editing ? (
+          <span
+            ref={labelRef}
+            contentEditable
+            suppressContentEditableWarning
+            spellCheck
+            onBlur={onLabelBlur}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                (e.currentTarget as HTMLElement).blur();
+              }
+            }}
+            className="outline-none ring-1 ring-amber-300/0 focus:ring-amber-300"
+            data-testid="home-telegram-cta-label-editor"
+          >
+            {label}
+          </span>
+        ) : (
+          <span
+            ref={labelRef}
+            suppressHydrationWarning
+            style={{ caretColor: "transparent" }}
+            data-testid="home-telegram-cta-label"
+          >
+            {label}
+          </span>
+        )}
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
           <path d="m12 19 7-7-7-7" />
           <path d="M5 12h14" />
@@ -100,6 +112,7 @@ export default function HomeCTAButton({
           className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full border border-amber-300/50 bg-amber-400/15 text-xs text-amber-200 hover:bg-amber-400/30"
           title="Edit CTA URL"
           aria-label="Edit CTA URL"
+          data-testid="home-telegram-cta-edit-url-button"
         >
           🔗
         </button>
@@ -123,12 +136,14 @@ export default function HomeCTAButton({
             className="w-full rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-white outline-none focus:border-amber-300/60"
             autoFocus
             spellCheck={false}
+            data-testid="home-telegram-cta-url-input"
           />
           <div className="mt-2 flex justify-end gap-2">
             <button
               type="button"
               onClick={() => setPopOpen(false)}
               className="rounded-md px-2 py-1 text-white/55 hover:text-white"
+            data-testid="home-telegram-cta-url-cancel-button"
             >
               Cancel
             </button>
@@ -136,6 +151,7 @@ export default function HomeCTAButton({
               type="button"
               onClick={commitUrl}
               className="rounded-md bg-amber-400 px-3 py-1 font-semibold text-ink-950 hover:brightness-110"
+            data-testid="home-telegram-cta-url-apply-button"
             >
               Apply
             </button>

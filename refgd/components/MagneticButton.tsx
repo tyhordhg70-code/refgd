@@ -13,6 +13,7 @@ export default function MagneticButton({
   variant = "primary",
   className = "",
   pull = 0.4,
+  "data-testid": testId,
 }: {
   href: string;
   external?: boolean;
@@ -20,6 +21,7 @@ export default function MagneticButton({
   variant?: "primary" | "ghost" | "outline";
   className?: string;
   pull?: number;
+  "data-testid"?: string;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const reduced = useReducedMotion();
@@ -65,6 +67,7 @@ export default function MagneticButton({
         href={href}
         target={external ? "_blank" : undefined}
         rel={external ? "noopener noreferrer" : undefined}
+        data-testid={testId}
         className={`${base} ${variantCls}`}
       >
         <span className="relative z-10 flex items-center gap-2">{children}</span>
