@@ -54,9 +54,19 @@ export default async function HomePage() {
         </ReorderableSection>
 
         <ReorderableSection sectionId="paths" className="relative z-10">
+          {/*
+            Mobile note: paths section uses a tighter pb-8 on phones
+            because the carousel + pagination dots already supply
+            ample bottom padding. The previous pb-20 stacked with the
+            telegram aspect-[4/5] box height (~447 px) and the bottom
+            gradient bar (h-24) to make the page feel ~300 px longer
+            than the user expected, with a noticeable empty void
+            between the path cards and the "Stay up to speed" CTA.
+            Desktop keeps pb-20 for comfortable rhythm at wider sizes.
+          */}
           <ParallaxChapter
             intensity={0.5}
-            className="pb-20 pt-0"
+            className="pb-8 pt-0 sm:pb-20"
           >
             {/*
              * The paths section. There is NO PathsReveal wrapper here
@@ -171,9 +181,14 @@ export default async function HomePage() {
                 </div>
               </MeshExpansionReveal>
             </section>
+            {/* Decorative fade-to-footer gradient. On mobile h-12
+                (was h-24) — the gradient itself is decorative, and a
+                tall version of it on mobile contributed visible empty
+                vertical space below the telegram CTA, making the page
+                feel longer than necessary. Desktop keeps h-32. */}
             <div
               aria-hidden="true"
-              className="pointer-events-none relative h-24 w-full sm:h-32"
+              className="pointer-events-none relative h-12 w-full sm:h-32"
               style={{
                 background:
                   "linear-gradient(to bottom, rgba(5,6,10,0) 0%, rgba(5,6,10,0.6) 45%, rgb(10,12,20) 100%)",

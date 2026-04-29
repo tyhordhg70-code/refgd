@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -131,17 +132,48 @@ function DesktopGrid({
  *   inner horizontal scroller.
  */
 function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // Track which card is closest to the snap origin so we can
+  // light up the matching dot. Uses scroll events (passive) and a
+  // simple math computation — no IntersectionObserver overhead.
+  useEffect(() => {
+    const sc = scrollerRef.current;
+    if (!sc) return;
+    const onScroll = () => {
+      const cardWidth = sc.scrollWidth / cards.length;
+      const idx = Math.round(sc.scrollLeft / cardWidth);
+      setActiveIndex(Math.max(0, Math.min(cards.length - 1, idx)));
+    };
+    sc.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => sc.removeEventListener("scroll", onScroll);
+  }, [cards.length]);
+
+  const goTo = (i: number) => {
+    const sc = scrollerRef.current;
+    if (!sc) return;
+    const cardWidth = sc.scrollWidth / cards.length;
+    sc.scrollTo({ left: cardWidth * i, behavior: "smooth" });
+  };
+
   return (
     <section
       data-testid="paths-mobile-stage"
-      className="relative w-full pb-4"
+      className="relative w-full pb-2"
     >
       <div className="pointer-events-none absolute inset-x-0 top-1/2 h-40 -translate-y-1/2 bg-amber-300/10 blur-3xl" />
 
       {/*
-       * The scroller. Uses negative margin + matching padding so
-       * the snap points sit flush with the viewport edge while
-       * letting card shadows breathe past the container.
+       * The scroller.
+       *
+       * Card width is 70vw (capped at 300px). On a 390 px iPhone
+       * viewport that's ~273 px, so ~85 px of the next card peeks
+       * past the right edge — a clear visual signal that there's
+       * more to swipe to. Previously cards were 78vw which left
+       * only ~54 px of peek; users couldn't tell at a glance that
+       * 4 more cards existed.
        *
        * touchAction: "pan-x" tells the browser this scroller is
        * for HORIZONTAL swipes only — vertical swipes pass straight
@@ -153,8 +185,9 @@ function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
        * page scroll is now completely insulated from this widget.
        */}
       <div
+        ref={scrollerRef}
         data-testid="paths-mobile-scroller"
-        className="relative -mx-4 overflow-x-auto px-4 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="relative -mx-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{
           scrollSnapType: "x mandatory",
           WebkitOverflowScrolling: "touch",
@@ -163,14 +196,14 @@ function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
           touchAction: "pan-x",
         }}
       >
-        <div className="flex w-max items-stretch gap-4">
+        <div className="flex w-max items-stretch gap-3">
           {cards.map((card, i) => (
             <FlyInCard
               key={i}
               index={i}
               isMobile
               data-testid={`paths-card-slide-${i + 1}`}
-              className="w-[78vw] max-w-[340px] shrink-0"
+              className="w-[70vw] max-w-[300px] shrink-0"
               style={{ scrollSnapAlign: "start" }}
             >
               {card}
@@ -179,10 +212,36 @@ function MobileHorizontalCarousel({ cards }: { cards: ReactNode[] }) {
         </div>
       </div>
 
-      {/* Subtle "swipe" hint — pure decoration, fades out on first interaction */}
-      <p className="heading-display pointer-events-none mt-3 text-center text-[10px] font-semibold uppercase tracking-[0.42em] text-white/55">
-        ← swipe to explore →
-      </p>
+      {/*
+       * Pagination dots — single strongest visual signal that there
+       * are N cards and the user is on card K. Tappable so the user
+       * can jump directly to any card without swiping. The text
+       * "swipe to explore" hint is gone now that the dots speak for
+       * themselves and to save vertical space (the page was scrolling
+       * further than expected on mobile, partly because of paddings
+       * like this one stacking up below an already tall section).
+       */}
+      <div
+        className="mt-3 flex items-center justify-center gap-2"
+        role="tablist"
+        aria-label="Paths carousel pagination"
+      >
+        {cards.map((_, i) => (
+          <button
+            key={i}
+            type="button"
+            role="tab"
+            aria-selected={activeIndex === i}
+            aria-label={`Go to card ${i + 1}`}
+            onClick={() => goTo(i)}
+            className={`h-1.5 rounded-full transition-all duration-300 ${
+              activeIndex === i
+                ? "w-6 bg-amber-300"
+                : "w-1.5 bg-white/30 hover:bg-white/50"
+            }`}
+          />
+        ))}
+      </div>
     </section>
   );
 }
