@@ -14,22 +14,23 @@ import { motion, useReducedMotion } from "framer-motion";
  *   • Desktop / tablet (≥ 768px): all cards rendered together in
  *     the responsive grid supplied by the page (`desktopFallback`).
  *     The grid container itself does a single fade-and-lift on
- *     enter, and each card animates in with a staggered 3D fly-in
- *     so the entrance is unmistakeable.
+ *     enter, and each card animates in with a staggered 3D fly-in.
  *
  *   • Mobile (< 768px): a simple vertical stack — one card after
  *     the other — with the same staggered fly-in entrance. The
  *     prior sticky-pinned horizontal-scroll stage was removed
- *     entirely: it was the source of the "scrolling back up breaks
- *     the page" symptom and made the first scroll feel laggy.
+ *     entirely (it was the source of the "scrolling back up breaks
+ *     the page" symptom and made the first scroll feel laggy).
  *
- *   Both layouts use `whileInView` with `amount: 0.15` (no negative
- *   margin), which is the most reliable trigger across browsers
- *   regardless of the parent element's transform context.
- *
- *   Both layouts use only `transform` and `opacity` (GPU-accelerated)
- *   and rely entirely on the browser's native scroll loop. No wheel
- *   hijacking, no `position: sticky`, no JavaScript scroll polling.
+ *   ── Persistence on scroll-up & scroll-down ────────────────────
+ *   The card entrance now uses `viewport={{ once: false, amount: … }}`
+ *   so the 3D fly-in plays EVERY time a card enters the viewport —
+ *   not just the first time. Scrolling up to the top of the page
+ *   and then back down replays the entrance for the cards that
+ *   re-cross the threshold, which is what the user explicitly asked
+ *   for. The `amount: 0.15` trigger fires when 15 % of the card is
+ *   visible, which is the most reliable cross-browser pattern and
+ *   works regardless of any transform on the parent element.
  */
 export default function PathsHorizontalReveal({
   cards,
@@ -81,7 +82,7 @@ function DesktopGrid({
         className="relative px-2 sm:px-4"
         initial={reduced ? { opacity: 1, y: 0 } : { opacity: 0, y: 28 }}
         whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.15 }}
+        viewport={{ once: false, amount: 0.15 }}
         transition={
           reduced
             ? { duration: 0 }
@@ -114,6 +115,7 @@ function MobileVerticalStack({ cards }: { cards: ReactNode[] }) {
     <section
       data-testid="paths-mobile-stage"
       className="relative w-full px-4 pb-6"
+      style={{ perspective: "1400px" }}
     >
       <div className="pointer-events-none absolute inset-x-0 top-1/2 h-40 -translate-y-1/2 bg-amber-300/10 blur-3xl" />
       <div className="relative mx-auto flex w-full max-w-md flex-col gap-6">
@@ -132,17 +134,16 @@ function MobileVerticalStack({ cards }: { cards: ReactNode[] }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  FlyInCard — shared per-card cinematic entrance                    */
+/*  FlyInCard — shared per-card cinematic 3D entrance                 */
 /* ------------------------------------------------------------------ */
 
 /**
- * Wraps each card with a one-shot 3D fly-in entrance — fires the
- * moment 15% of the card has entered the viewport. Index-based delay
- * stages adjacent cards into a visible cascade.
- *
- * Rendered ON TOP of any animation PathCard does internally; both
- * are pure transform/opacity work and they read as a single layered
- * effect, not as fighting animations.
+ * Wraps each card with a 3D fly-in entrance. Initial state has the
+ * card lifted 80 px below, scaled to 85 %, rotated 18° on the X axis
+ * (perspective is supplied by the parent grid section). The entrance
+ * fires whenever 15 % of the card is in view — `once: false`, so it
+ * REPLAYS when the user scrolls past it and returns. Index-based 120
+ * ms stagger keeps adjacent cards from popping in lockstep.
  */
 function FlyInCard({
   children,
@@ -159,7 +160,7 @@ function FlyInCard({
       {...(rest as Record<string, unknown>)}
       initial={{ opacity: 0, y: 80, scale: 0.85, rotateX: 18 }}
       whileInView={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
-      viewport={{ once: true, amount: 0.15 }}
+      viewport={{ once: false, amount: 0.15 }}
       transition={{
         duration: 0.95,
         delay: index * 0.12,
