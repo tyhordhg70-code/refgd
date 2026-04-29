@@ -163,7 +163,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (!bounds) return false;
 
       const y = window.scrollY;
-      const nearHero = y >= bounds.top - 12 && y < bounds.pathsTop - 20;
+      // The hero can sit a little below scrollY=0 because the fixed header
+      // occupies the very top of the document. Treat absolute top as part
+      // of the hero gate too, otherwise a hard wheel over the header can
+      // bypass the one-scroll handoff entirely.
+      const nearHero = y >= Math.max(0, bounds.top - window.innerHeight * 0.3) && y < bounds.pathsTop - 20;
       const nearPathsStart = y > bounds.top + window.innerHeight * 0.35 && y <= bounds.pathsTop + window.innerHeight * 0.42;
 
       if (scrollLockRef.current) return true;
