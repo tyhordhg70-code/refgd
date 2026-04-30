@@ -82,8 +82,8 @@ export default function GalaxyBackground() {
       // GPUs to render alongside the page composite during scroll.
       // 250 + 380 = 630 points still reads as a star field but
       // releases enough GPU bandwidth that scroll stays at 60 fps.
-      const PARTICLE_COUNT_INNER = isMobile ? 400 : isTablet ? 2200 : 4500;
-      const PARTICLE_COUNT_OUTER = isMobile ? 380 : isTablet ? 3200 : 4800;
+      const PARTICLE_COUNT_INNER = isMobile ? 80 : isTablet ? 2200 : 4500;
+      const PARTICLE_COUNT_OUTER = isMobile ? 80 : isTablet ? 3200 : 4800;
 
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
