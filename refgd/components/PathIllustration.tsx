@@ -540,23 +540,22 @@ function MasteryScene({ c, kind }: { c: any; kind: string }) {
 export default function PathIllustration(props: {
   kind: PathIllustrationKind;
   accent: keyof typeof ACCENT_TO_HEX;
+  /** Pass false for non-active Swiper slides to freeze their animations.
+   *  Only the visible/active slide should have live framer-motion animations —
+   *  running 25 infinite animations × 5 slides = 125 concurrent rAF callbacks
+   *  was the dominant remaining mobile lag source. Default: true. */
+  animated?: boolean;
 }) {
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(max-width: 768px)");
-    const sync = () => setIsMobile(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-
-  // `reducedMotion="always"` on mobile, "user" everywhere else
-  // (which honours the OS setting normally). This single wrapper
-  // neutralises all 24 infinite animations on mobile in one shot.
+  // `reducedMotion="always"` for non-active slides: framer-motion
+  // jumps all nested motion.* to their final values, exits the rAF
+  // loop for those elements, and costs zero JS per frame.
+  // Active slide (animated=true, the default) runs normally.
+  // On desktop all slides are animated (slide visibility handled by
+  // the desktop grid layout, not a stacked cube with 5 live cards).
+  const freeze = props.animated === false;
   return (
-    <MotionConfig reducedMotion={isMobile ? "always" : "user"}>
-      <PathIllustrationContent {...props} />
+    <MotionConfig reducedMotion={freeze ? "always" : "user"}>
+      <PathIllustrationContent kind={props.kind} accent={props.accent} />
     </MotionConfig>
   );
 }
