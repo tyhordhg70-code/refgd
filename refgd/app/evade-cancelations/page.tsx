@@ -220,7 +220,7 @@ export default function EvadePage() {
             divider is rendered with `transparent` so no halo wash sits
             behind it — the lock floats cleanly over the page galaxy. */}
         <EvadeIllustrationDivider
-          src="/uploads/evade-vault.png"
+          src="/uploads/evade-vault.webp"
           alt="Stealth-vault illustration — the gateway between the public web and your anonymous setup."
           align="center"
           glow="cyan"
@@ -395,6 +395,21 @@ export default function EvadePage() {
             </div>
           </div>
         </ParallaxChapter>
+      </ReorderableSection>
+
+      <ReorderableSection sectionId="trust-divider">
+        {/* Trust illustration divider — transparent reviews image floats
+            with parallax between the trust cards and the pricing section,
+            giving a visual break and reinforcing credibility. */}
+        <EvadeIllustrationDivider
+          src="/uploads/trust-reviews.webp"
+          alt="Star reviews — clients trust RefundGod."
+          align="center"
+          glow="violet"
+          height={280}
+          caption="— trusted worldwide · 5-star reviews"
+          transparent
+        />
       </ReorderableSection>
 
       <ReorderableSection sectionId="pricing">
