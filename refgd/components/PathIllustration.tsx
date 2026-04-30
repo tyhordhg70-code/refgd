@@ -1,5 +1,4 @@
 "use client";
-import { motion } from "framer-motion";
 
 export type PathIllustrationKind =
   | "store"
@@ -17,7 +16,6 @@ const ACCENT_TO_HEX: Record<string, { primary: string; secondary: string; soft: 
   orange:  { primary: "#f97316", secondary: "#fdba74", soft: "rgba(249,115,22,0.30)" },
 };
 
-
 /* shorthand for inline animation style */
 const a = (name: string, dur: string, ease = "ease-in-out", delay = "0s") =>
   ({ animation: `${name} ${dur} ${ease} ${delay} infinite` }) as React.CSSProperties;
@@ -33,25 +31,31 @@ const self = (name: string, dur: string, ease = "ease-in-out", delay = "0s") =>
 function PathIllustrationContent({ kind, accent, animated }: { kind: PathIllustrationKind; accent: keyof typeof ACCENT_TO_HEX; animated: boolean }) {
   const c = ACCENT_TO_HEX[accent];
   /*
-   * pi-paused class moved DIRECTLY onto the <svg>. Previously a wrapper
-   * <div> sat between PathCard's `relative` container and the absolute
-   * <svg>. The wrapper had `display: block` with no positioning, which
-   * is harmless in most contexts — but inside the mobile Swiper cube
-   * slide (`position: absolute` + transform: rotate3d), some browsers
-   * computed the inner stacking context such that the SVG was clipped
-   * away or rendered behind the slide background. Putting the
-   * pause-state class on the SVG itself preserves the descendant
-   * pause behaviour with zero structural change.
+   * Plain <svg> instead of framer-motion <motion.svg> with whileInView.
+   *
+   * Root cause of "illustrations missing on home page":
+   *   framer-motion's whileInView uses IntersectionObserver (IO), which
+   *   is a 2D API. IO does NOT fire correctly when the observed element
+   *   sits inside a CSS 3D-transform stacking context (transform-style:
+   *   preserve-3d + translateZ). PathCardCameraFly wraps every card in
+   *   two preserve-3d layers, and PathCard adds a third (translateZ 28px).
+   *   Result: IO reported the SVG as never entering the viewport → the
+   *   SVG stayed at initial opacity:0 forever, making all illustrations
+   *   permanently invisible.
+   *
+   * Fix: remove whileInView. Use a one-shot CSS keyframe (pi-enter)
+   * instead. CSS animations are not affected by the 3D stacking context
+   * — they fire unconditionally on mount regardless of IO. The card's
+   * existing camera-fly entrance (PathCardCameraFly) already handles
+   * the theatrical reveal; the SVG just needs to be visible once the
+   * card lands.
    */
   return (
-    <motion.svg
+    <svg
       viewBox="0 0 400 500"
       className={`absolute inset-0 h-full w-full ${animated ? "pi-animated" : "pi-paused"}`}
+      style={{ animation: "pi-enter 1.1s cubic-bezier(0.25,0.4,0.25,1) forwards" }}
       preserveAspectRatio="xMidYMid slice"
-      initial={{ opacity: 0, scale: 0.96 }}
-      whileInView={{ opacity: 1, scale: 1 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 1.1, ease: [0.25, 0.4, 0.25, 1] }}
       aria-hidden="true"
     >
       <defs>
@@ -78,9 +82,7 @@ function PathIllustrationContent({ kind, accent, animated }: { kind: PathIllustr
       {/* Background wash */}
       <rect x="0" y="0" width="400" height="500" fill={`url(#pi-bg-${kind})`} style={a("pi-breathe","6s")} />
 
-      {/* Aurora halo behind the main subject — pulses in scale + opacity
-          so every illustration always has a visible "ahh" glow even on
-          static iOS Safari snapshots. */}
+      {/* Aurora halo */}
       <ellipse cx="200" cy="250" rx="170" ry="170"
         fill={`url(#pi-aurora-${kind})`}
         style={{ transformBox: "fill-box", transformOrigin: "center", ...a("pi-halo","5.5s") }} />
@@ -110,7 +112,7 @@ function PathIllustrationContent({ kind, accent, animated }: { kind: PathIllustr
             style={{...a("pi-pulse",`${3+(i%4)}s`,"ease-in-out",`${i*0.4}s`)}} />
         </g>
       ))}
-    </motion.svg>
+    </svg>
   );
 }
 
@@ -282,7 +284,6 @@ function MasteryScene({c,kind}:{c:any;kind:string}) {
         <line x1="-70" y1="0" x2="-70" y2="20"/>
         <line x1="70" y1="0" x2="70" y2="20"/>
       </g>
-      {/* Gem: float + spin via separate CSS animations */}
       <g transform="translate(200,250)"
         style={{transformBox:"view-box",transformOrigin:"200px 250px"}}>
         <g style={a("pi-float10","4s")}>
@@ -293,7 +294,6 @@ function MasteryScene({c,kind}:{c:any;kind:string}) {
           </g>
         </g>
       </g>
-      {/* Crown float */}
       <g transform="translate(200,180)" style={a("pi-float8","5s")}>
         <rect x="-40" y="20" width="80" height="14" rx="3" fill={c.primary} stroke={c.secondary} strokeWidth="2"/>
         <path d="M-40,20 L-25,-10 L-10,12 L0,-22 L10,12 L25,-10 L40,20 Z"
@@ -321,18 +321,12 @@ function MasteryScene({c,kind}:{c:any;kind:string}) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────
+/**
  * Public wrapper.
  *
- * `animated=false` → puts .pi-paused class directly on the <svg> so
- * CSS pauses ALL descendant animations instantly without any React
- * re-render and without inserting an extra wrapper element that can
- * confuse Swiper's 3D cube slide stacking context.
- *
- * Active slide (animated=true, default) gets .pi-animated marker
- * (used by the prefers-reduced-motion @media rule in globals.css to
- * disable looping animations for users who request reduced motion).
- * ───────────────────────────────────────────────────────────────── */
+ * animated=false → .pi-paused class pauses all CSS animations (inactive Swiper slides).
+ * animated=true  → .pi-animated (reduced-motion guard in globals.css sets animation:none).
+ */
 export default function PathIllustration(props: {
   kind: PathIllustrationKind;
   accent: keyof typeof ACCENT_TO_HEX;
