@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Props = {
   text: string;
@@ -43,6 +43,24 @@ export default function ExplodeText({
   const ref = useRef<HTMLDivElement | null>(null);
   const Tag = motion[as] as typeof motion.h2;
 
+  // Mobile-aware scatter: glyphs flying in from 420px on a 360px
+  // viewport push the entire row off-screen, breaking the assemble
+  // animation. Halve the radius below 640px so the explosion fits
+  // inside the headline's actual line-box.
+  const [responsiveScatter, setResponsiveScatter] = useState(scatter);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const apply = () => {
+      const w = window.innerWidth;
+      if (w < 480) setResponsiveScatter(Math.min(scatter, 120));
+      else if (w < 768) setResponsiveScatter(Math.min(scatter, 200));
+      else setResponsiveScatter(scatter);
+    };
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, [scatter]);
+
   // Build glyph data deterministically (SSR-safe).
   const glyphs = useMemo<Glyph[]>(() => {
     return text.split("").map((ch, i) => {
@@ -52,7 +70,7 @@ export default function ExplodeText({
       const r3 = ((s * 13) % 233280) / 233280;
       const r4 = ((s * 19) % 233280) / 233280;
       const angle = r1 * Math.PI * 2;
-      const dist = scatter * (0.4 + r2 * 0.6);
+      const dist = responsiveScatter * (0.4 + r2 * 0.6);
       return {
         ch,
         x: Math.cos(angle) * dist,
@@ -61,7 +79,7 @@ export default function ExplodeText({
         delay: r3 * 0.18,
       };
     });
-  }, [text, scatter]);
+  }, [text, responsiveScatter]);
 
   // Group glyphs into word-runs separated by spaces. Each run renders
   // inside a `whiteSpace: nowrap` wrapper so the line break only ever
@@ -90,7 +108,13 @@ export default function ExplodeText({
       className={className}
       style={{
         ...style,
-        display: "inline-block",
+        // display:block so the headline takes full container width and
+        // wraps NATURALLY at the word-group boundaries on narrow
+        // viewports. Previously inline-block let the title grow as
+        // wide as its content and the right-side glyphs slid under
+        // the viewport edge on mobile, cutting "earning." in half.
+        display: "block",
+        textAlign: (style as any)?.textAlign ?? "center",
         textShadow: style?.textShadow ?? `0 0 30px rgba(${hue},0.45), 0 4px 40px rgba(0,0,0,0.95)`,
       }}
       suppressHydrationWarning
