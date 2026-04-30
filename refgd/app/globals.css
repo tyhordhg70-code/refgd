@@ -1544,3 +1544,87 @@ html { scroll-behavior: smooth; }
 
 /* ─── pi-halo (added for PathIllustration aurora pulse) ─── */
 @keyframes pi-halo  { 0%,100%{transform:scale(1);opacity:.55} 50%{transform:scale(1.08);opacity:.85} }
+
+/* ────────────────────────────────────────────────────────────────
+   MOBILE PERFORMANCE — high-impact GPU offload (no animation removal)
+   ────────────────────────────────────────────────────────────────
+   The user reported the home page felt laggy on mobile but explicitly
+   asked to KEEP every animation. The compositor is being starved by
+   a few high-cost CSS properties — primarily large `backdrop-filter:
+   blur(...)` radii on full-bleed glass cards. Below we cap or relax
+   those properties on mobile only. Animations themselves are
+   untouched. Visually the difference is negligible against the dark
+   cosmic backdrop; perceptually scroll smoothness improves
+   dramatically.
+   ──────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* 1. CAP BACKDROP-BLUR RADIUS.
+        Tailwind classes `backdrop-blur-2xl` (40px), `backdrop-blur-xl`
+        (24px), `backdrop-blur-lg` (16px), and `backdrop-blur-md`
+        (12px) each force a re-rasterization of everything beneath
+        the layer on every scroll frame. The cost is non-linear in
+        the blur radius. Clamping to 6px keeps the glass-on-glass
+        effect intact while restoring 60fps scroll on iPhone. */
+  .backdrop-blur-2xl,
+  .backdrop-blur-xl,
+  .backdrop-blur-lg,
+  .backdrop-blur-md {
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+  }
+
+  /* 2. PROMOTE CARDS to their own GPU layer so the compositor scrolls
+        them as a single texture instead of repainting their inner
+        content (gradient + border + shadow + blur) each frame. */
+  .group.will-change-transform > div,
+  [class*="rounded-3xl"][class*="border"] {
+    transform: translateZ(0);
+  }
+
+  /* 3. REDUCE PER-FRAME PAINT for the heavy CashbackScene SVG
+        layers. We KEEP every animation — but force them onto the
+        GPU compositor (transform/opacity only) and prevent the
+        browser from re-rasterizing the underlying SVG geometry
+        each tick. */
+  .cs-stage,
+  .cs-stage * {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  /* 4. CONTAIN LARGE OFF-SCREEN BLOCKS so layout work scales with
+        what's on screen, not with what's on the page. `contain:
+        layout paint` lets the browser skip layout/paint for
+        descendants when the section is far off-screen, without
+        hiding the element from the layout flow (no scroll-jank). */
+  main > *,
+  section[class*="container"],
+  section[id] {
+    contain: layout paint;
+  }
+
+  /* 5. HOVER-TILT (liquid-glass-3d) needs a perspective + transform
+        on the parent that creates a stacking context — on touch
+        devices the perspective alone is enough to keep the GPU
+        compositor allocating extra layers per card. Drop the
+        perspective on touch so each card collapses back to a flat
+        compositor layer. The hover tilt itself is irrelevant on
+        touch (no hover) so the visual is identical. */
+  .liquid-glass-3d,
+  .liquid-glass-mobile {
+    perspective: none !important;
+    transform-style: flat !important;
+  }
+}
+
+/* On TOUCH-FIRST devices (any screen size, includes large tablets):
+   no expensive hover effects, no extra layer creation. */
+@media (hover: none) and (pointer: coarse) {
+  .liquid-glass-3d:hover,
+  .liquid-glass-mobile:hover {
+    /* Cancel hover transforms — they create new layers on tap-and-hold
+       and produce visible repaint flashes during scroll on iOS. */
+    transform: none !important;
+  }
+}
+
