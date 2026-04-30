@@ -93,7 +93,7 @@ function DesktopGrid({
   return (
     <section
       data-testid="paths-desktop-grid"
-      className="relative mx-auto w-full py-6"
+      className="relative mx-auto w-full py-2"
       style={{ perspective: "1600px" }}
     >
       <div className="pointer-events-none absolute inset-x-0 top-1/2 h-40 -translate-y-1/2 rounded-full bg-amber-300/10 blur-3xl" />
@@ -111,7 +111,7 @@ function DesktopGrid({
             ))}
           </div>
         )}
-        <p className="heading-display mt-8 text-center text-[10px] font-semibold uppercase tracking-[0.38em] text-white/55 sm:text-xs">
+        <p className="heading-display mt-4 text-center text-[10px] font-semibold uppercase tracking-[0.38em] text-white/55 sm:text-xs">
           Choose your door
         </p>
       </motion.div>
@@ -252,9 +252,11 @@ function MobileFloatOrbs() {
  */
 function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
   return (
-    <div
+    <motion.div
       data-testid="paths-mobile-track"
       className="mx-auto"
+      animate={{ y: [0, -10, 0] }}
+      transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
       style={{
         width: "min(92vw, 440px)",
         // Reserve a tall stage so the cube has room to rotate.
@@ -272,8 +274,8 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         grabCursor
         speed={550}
         cubeEffect={{
-          shadow: true,
-          slideShadows: true,
+          shadow: false,
+          slideShadows: false,
           shadowOffset: 24,
           shadowScale: 0.92,
         }}
@@ -298,6 +300,6 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
           );
         })}
       </Swiper>
-    </div>
+    </motion.div>
   );
 }
