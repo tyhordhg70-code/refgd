@@ -185,7 +185,7 @@ export default async function HomePage() {
                   ripples through a turbulence filter and fades away.
                   Replays every time the section re-enters view. */}
               <MeshExpansionReveal borderRadius="2.5rem">
-                <div className="relative overflow-hidden rounded-[2.5rem] border border-white/[0.10] pulse-glow-violet">
+                <div className="relative overflow-hidden rounded-[2.5rem] border border-white/[0.10] sm:pulse-glow-violet">
                   <div className="relative aspect-[4/5] sm:aspect-[16/6]">
                     <AnimatedTelegramBox />
                     <div className="container-px absolute inset-0 grid items-center">
