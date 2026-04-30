@@ -2,6 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Swiper carousel + 3D cube effect (used by mobile path-card carousel). */
+@import "swiper/css";
+@import "swiper/css/effect-cube";
+@import "swiper/css/pagination";
+
+/* Override Swiper pagination bullets to match the page palette. */
+.swiper-pagination-bullet {
+  background: rgba(255, 255, 255, 0.35) !important;
+  opacity: 1 !important;
+  width: 8px !important;
+  height: 8px !important;
+}
+.swiper-pagination-bullet-active {
+  background: rgb(255, 215, 130) !important;
+  width: 22px !important;
+  border-radius: 9999px !important;
+  transition: width 200ms ease;
+}
+/* Soft cube-face shadow tweaks: lighter so card content stays readable. */
+.swiper-cube-shadow {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 0, 0, 0.55),
+    transparent 70%
+  ) !important;
+}
+
 @layer base {
   :root {
     --bg: 5 6 10;

@@ -3,14 +3,14 @@
 import {
   cloneElement,
   isValidElement,
-  useCallback,
   useEffect,
-  useRef,
   useState,
   type ReactElement,
   type ReactNode,
 } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { Swiper, SwiperSlide } from "swiper/react";
+import { EffectCube, Pagination } from "swiper/modules";
 import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
@@ -152,156 +152,103 @@ function DesktopGrid({
  * interpolation can happen, so nothing can look broken. The
  * "which card is active" feedback is provided exclusively by
  * the pagination dots at the bottom of the carousel. */
+/* Mobile carousel — Swiper 11 with the 3D CUBE effect.
+ *
+ * Why Swiper instead of native scroll-snap?
+ *
+ *   • The user explicitly asked for a 3D cube animation when
+ *     swiping between cards. Native horizontal scroll-snap
+ *     can't render that; you'd have to compute per-frame
+ *     transforms in JS, which is exactly what was causing the
+ *     "laggy / distorted / cut off mid-swipe" reports earlier.
+ *
+ *   • Swiper renders the cube faces with pre-baked CSS 3D
+ *     transforms that the browser composites entirely on the
+ *     GPU thread. There is no per-frame JS work during the
+ *     swipe — the touch position drives a single transform on
+ *     the cube container, and each face stays at a fixed
+ *     orientation relative to that container. This is the
+ *     same technique used by Apple's first-party iOS UIs.
+ *
+ *   • At rest exactly ONE card face is visible, filling the
+ *     viewport edge-to-edge. There is no neighbour-peek and
+ *     therefore no "card cut off at the edge" issue.
+ *
+ *   • Swiper handles touch gestures natively with iOS-grade
+ *     deceleration, snap, and rubber-band — battle-tested on
+ *     hundreds of millions of phones. */
 function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
-  const trackRef = useRef<HTMLDivElement | null>(null);
-  const slideRefs = useRef<Array<HTMLDivElement | null>>([]);
-  const [activeIndex, setActiveIndex] = useState(0);
-
-  /* ── Active-card detection ──────────────────────────────────
-   * Use ONE IntersectionObserver per slide, with the carousel
-   * track as the root and a rootMargin that shrinks the
-   * intersection box to a narrow vertical band in the centre.
-   * A slide is "intersecting" only when its centre is inside
-   * that band, which means it's the currently-snapped card.
-   * The observer callback runs at most a few times per swipe
-   * (when a card enters/leaves the centre band) — never per
-   * frame, never per scroll event.
-   */
-  useEffect(() => {
-    const track = trackRef.current;
-    if (!track) return;
-    // Centre band = inner 1% of the track. Only one card centre
-    // can fit in there at a time, so we always identify exactly
-    // one active card.
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            const idx = Number(
-              (entry.target as HTMLElement).dataset.slideIndex,
-            );
-            if (Number.isFinite(idx)) {
-              setActiveIndex(idx);
-            }
-          }
-        }
-      },
-      {
-        root: track,
-        // shrink left/right by 49.5% each → 1% wide centre band
-        rootMargin: "0px -49.5% 0px -49.5%",
-        threshold: 0,
-      },
-    );
-    for (const el of slideRefs.current) {
-      if (el) observer.observe(el);
-    }
-    return () => observer.disconnect();
-  }, [cards.length]);
-
-  // Tap a dot to jump.
-  const goTo = useCallback((i: number) => {
-    const el = slideRefs.current[i];
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-  }, []);
-
   return (
     <section
       data-testid="paths-mobile-carousel"
-      className="relative w-full"
-      style={{ perspective: "1400px", perspectiveOrigin: "50% 50%" }}
+      className="relative w-full overflow-hidden py-4"
     >
-      {/* Wide edge masks (14vw each) that hard-fade the peek of any
-          neighbouring card to the page background. Combined with
-          the 96vw slide width below, this means at any scroll
-          position the user only ever SEES one card; whatever sliver
-          of the neighbour reaches into the viewport is faded out
-          before it's perceptible. This is the actual fix for the
-          "still gets cut off when scrolling" report. */}
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-[14vw] bg-gradient-to-r from-[rgb(5,6,10)] via-[rgba(5,6,10,0.85)] to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-[14vw] bg-gradient-to-l from-[rgb(5,6,10)] via-[rgba(5,6,10,0.85)] to-transparent" />
-
-      {/* The track. Native horizontal scroll + CSS snap-mandatory.
-          touch-action: pan-x → iOS only routes horizontal touches
-          to this element; vertical drags bubble up to the document
-          (fixes "can't scroll down on path cards"). */}
-      <div
-        ref={trackRef}
-        data-testid="paths-mobile-track"
-        className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth py-8 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{
-          scrollPaddingLeft: "2vw",
-          scrollPaddingRight: "2vw",
-          touchAction: "pan-x",
-          WebkitOverflowScrolling: "touch",
-          overscrollBehaviorX: "contain",
-          overscrollBehaviorY: "auto",
-          transformStyle: "preserve-3d",
-        }}
+      <SwiperCubeStage cards={cards} />
+      <p
+        aria-hidden="true"
+        className="mt-4 heading-display text-center text-[10px] font-semibold uppercase tracking-[0.4em] text-white/55"
       >
-        {/* Leading spacer so the first card snaps to viewport centre. */}
-        <div aria-hidden="true" className="shrink-0" style={{ width: "2vw" }} />
+        Swipe to rotate the cube
+      </p>
+    </section>
+  );
+}
+
+/* ── SwiperCubeStage ─────────────────────────────────────────────
+ * Wraps Swiper with EffectCube + Pagination modules. Each slide
+ * is one path card, rendered in noReveal mode (flat, no extra
+ * motion wrappers). The cube container is sized to the viewport
+ * minus side padding; cubeEffect.shadow=true adds a soft floor
+ * shadow that reads as the cube sitting on a surface.
+ */
+function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
+  return (
+    <div
+      data-testid="paths-mobile-track"
+      className="mx-auto"
+      style={{
+        width: "min(92vw, 440px)",
+        // Reserve a tall stage so the cube has room to rotate.
+        // 1:1.42 aspect roughly matches the path-card aspect.
+        aspectRatio: "1 / 1.42",
+        // GPU layer for the whole stage; nothing outside is
+        // affected by the cube's 3D context.
+        transform: "translateZ(0)",
+      }}
+    >
+      <Swiper
+        effect="cube"
+        modules={[EffectCube, Pagination]}
+        loop
+        grabCursor
+        speed={550}
+        cubeEffect={{
+          shadow: true,
+          slideShadows: true,
+          shadowOffset: 24,
+          shadowScale: 0.92,
+        }}
+        pagination={{ clickable: true }}
+        className="h-full w-full"
+      >
         {cards.map((card, i) => {
           const renderedCard = isValidElement(card)
             ? cloneElement(card as ReactElement<{ noReveal?: boolean }>, {
                 noReveal: true,
               })
             : card;
-          const isActive = i === activeIndex;
           return (
-            <div
+            <SwiperSlide
               key={i}
-              ref={(el) => {
-                slideRefs.current[i] = el;
-              }}
-              data-slide-index={i}
               data-testid={`paths-mobile-slide-${i + 1}`}
-              data-active={isActive ? "true" : "false"}
-              // 96vw slide + 14vw edge fade on each side = the next
-              // card is always faded to background before any
-              // meaningful part of it enters the viewport. No
-              // active-class transition: cards stay flat (scale 1,
-              // opacity 1) so nothing can interpolate mid-swipe.
-              className="relative shrink-0 snap-center snap-always px-2"
-              style={{ width: "96vw" }}
+              className="!h-full !w-full"
+              style={{ borderRadius: 18, overflow: "hidden" }}
             >
               {renderedCard}
-            </div>
+            </SwiperSlide>
           );
         })}
-        {/* Trailing spacer so the last card snaps to viewport centre. */}
-        <div aria-hidden="true" className="shrink-0" style={{ width: "2vw" }} />
-      </div>
-
-      {/* Pagination dots — passive read of activeIndex. Tap to jump. */}
-      <div
-        className="mt-2 flex items-center justify-center gap-2"
-        role="tablist"
-        aria-label="Paths carousel pagination"
-      >
-        {cards.map((_, i) => (
-          <button
-            key={i}
-            type="button"
-            role="tab"
-            aria-selected={activeIndex === i}
-            aria-label={`Go to card ${i + 1}`}
-            onClick={() => goTo(i)}
-            className={`h-1.5 rounded-full transition-all duration-300 ${
-              activeIndex === i
-                ? "w-6 bg-amber-300"
-                : "w-1.5 bg-white/30 hover:bg-white/50"
-            }`}
-          />
-        ))}
-      </div>
-      <p
-        aria-hidden="true"
-        className="mt-3 heading-display text-center text-[10px] font-semibold uppercase tracking-[0.4em] text-white/55"
-      >
-        Swipe to choose your door
-      </p>
-    </section>
+      </Swiper>
+    </div>
   );
 }
