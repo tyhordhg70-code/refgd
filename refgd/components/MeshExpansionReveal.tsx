@@ -252,4 +252,3 @@ export default function MeshExpansionReveal({
   );
 }
 
-void reduced; // intentionally not used as a hard gate — see header
