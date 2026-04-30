@@ -36,15 +36,15 @@ const ANCHORS: Array<{
   s: number;
 }> = [
   // Card 1 — flies in from far left, deep
-  { x: -420, y:  60, z: -520, ry:  28, rx:  -8, s: 0.55 },
+  { x: -160, y:  20, z: -220, ry:  14, rx:  -4, s: 0.7 },
   // Card 2 — flies down from above-left, mid-depth
-  { x: -180, y: -260, z: -340, ry:  14, rx:  18, s: 0.62 },
+  { x:  -80, y: -100, z: -160, ry:   8, rx:  10, s: 0.75 },
   // Card 3 — center punch-in from far back
-  { x:    0, y: 120, z: -640, ry:  -6, rx: -10, s: 0.48 },
+  { x:    0, y:  50, z: -280, ry:  -3, rx:  -6, s: 0.65 },
   // Card 4 — drops in from above-right
-  { x:  220, y: -240, z: -300, ry: -16, rx:  20, s: 0.62 },
+  { x:   90, y: -100, z: -140, ry:  -9, rx:  12, s: 0.75 },
   // Card 5 — wide swing from far right
-  { x:  460, y:  90, z: -540, ry: -30, rx:  -6, s: 0.55 },
+  { x:  170, y:  30, z: -230, ry: -16, rx:  -3, s: 0.7 },
 ];
 
 type Props = {
@@ -98,10 +98,10 @@ export default function PathCardCameraFly({ index, children }: Props) {
             : undefined
         }
         transition={{
-          duration: 1.4,
-          delay: index * 0.12,
+          duration: 0.38,
+          delay: 0,
           ease: [0.16, 1, 0.3, 1], // smooth-out cubic — lands like a camera settle
-          opacity: { duration: 0.6, delay: index * 0.12 },
+          opacity: { duration: 0.22, delay: 0 },
         }}
         style={{
           transformStyle: "preserve-3d",
