@@ -84,7 +84,7 @@ export default async function HomePage() {
              * own via FlyInCard (3D fly-in, viewport: { once: false }
              * so it REPLAYS on scroll up + scroll down).
              */}
-            <section id="paths" className="relative overflow-x-clip">
+            <section id="paths" className="relative">
               <ChapterCosmos />
               <div className="container-wide relative">
                 {/*
