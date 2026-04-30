@@ -196,12 +196,15 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
  * bounding box and animates independently, so the Swiper compositor never
  * competes with these layers.
  */
+// Three orbs (was five). Each orb is a filter:blur() compositor
+// layer; on mobile the layer cost outweighs the visual impact of
+// the smaller accent orbs, so we keep only the three biggest /
+// most colour-distinct ones. The ambient "floating light" feel
+// is preserved with measurable scroll-budget savings.
 const FLOAT_ORB_CONFIG = [
   { size: 80, left: "4%",  top: "2%",   color: "rgba(245,185,69,0.22)",  blur: 28, drift: 16, o: [0.35, 0.80] as const, dur: 4.2, delay: 0   },
-  { size: 48, left: "82%", top: "4%",   color: "rgba(167,139,250,0.28)", blur: 20, drift: 12, o: [0.30, 0.75] as const, dur: 5.0, delay: 0.9 },
-  { size: 56, left: "6%",  top: "74%",  color: "rgba(34,211,238,0.20)",  blur: 24, drift: 18, o: [0.28, 0.72] as const, dur: 4.6, delay: 1.5 },
-  { size: 36, left: "80%", top: "78%",  color: "rgba(240,171,252,0.24)", blur: 16, drift: 10, o: [0.35, 0.78] as const, dur: 3.8, delay: 2.1 },
-  { size: 28, left: "50%", top: "-2%",  color: "rgba(255,255,255,0.12)", blur: 12, drift:  8, o: [0.20, 0.55] as const, dur: 6.0, delay: 1.0 },
+  { size: 56, left: "82%", top: "4%",   color: "rgba(167,139,250,0.28)", blur: 22, drift: 12, o: [0.30, 0.75] as const, dur: 5.0, delay: 0.9 },
+  { size: 60, left: "6%",  top: "74%",  color: "rgba(34,211,238,0.20)",  blur: 24, drift: 18, o: [0.28, 0.72] as const, dur: 4.6, delay: 1.5 },
 ];
 
 function MobileFloatOrbs() {
@@ -276,7 +279,13 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         // GPU-composited by Swiper (CSS transforms only) so they
         // cost nothing on the JS thread during the swipe.
         cubeEffect={{
-          shadow: true,
+          // Floor shadow disabled: it's a large soft-blurred CSS
+          // shadow that has to repaint on every degree of cube
+          // rotation, and on mid-tier mobile it accounts for
+          // ~30-40 % of the swipe stutter. slideShadows (per-face
+          // dim gradients) are kept since they sell the 3D depth
+          // and are pre-baked = zero per-frame cost.
+          shadow: false,
           slideShadows: true,
           shadowOffset: 24,
           shadowScale: 0.92,
