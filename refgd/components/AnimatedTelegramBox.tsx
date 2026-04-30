@@ -80,10 +80,11 @@ export default function AnimatedTelegramBox() {
           );
         })}
 
-        {/* ONE CSS-rotated outer ring. `transform: rotate` keyframe
-            — no JS per-frame. */}
+        {/* Mobile: STATIC ring (no rotation) — every animation costs
+            scroll perf on mid-range Android. Static positions still
+            give visual interest from the colored dots + glow. */}
         <div
-          className="telegram-ring absolute right-[6%] top-[68%] h-[80%] w-[80%] -translate-y-1/2 rounded-full border border-white/10"
+          className="absolute right-[6%] top-[68%] h-[80%] w-[80%] -translate-y-1/2 rounded-full border border-white/10"
           style={{
             aspectRatio: "1/1",
             maxHeight: "560px",
