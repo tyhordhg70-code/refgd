@@ -47,6 +47,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // end-state from the previous exit.
   const [exitKey, setExitKey] = useState(0);
   const exitingRef = useRef(false);
+  // Ref to the welcome <section>. Used to pin the section to
+  // `position: fixed` during exit so the cinematic exit animation
+  // is visible IN the viewport while the page scrolls underneath.
+  const sectionRef = useRef<HTMLElement>(null);
 
   // Mobile detection — used to thin out the per-frame DOM work in
   // the streak fields. Mobile GPUs / CPUs choke on dozens of
@@ -387,16 +391,43 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     : { duration: 0.7, ease: [0.16, 1, 0.3, 1] as const };
 
   return (
-    <section
-      data-testid="cosmic-journey"
-      className="relative grid w-full place-items-center overflow-hidden"
-      style={{
-        height: "100svh",
-        contain: "layout paint",
-        perspective: "1400px",
-        transform: "translate3d(0,0,0)",
-      }}
-    >
+    <>
+      {/* Phantom placeholder — only takes up space while the welcome
+          is pinned (`exiting` true), so the document layout below
+          (paths, telegram, etc.) stays exactly where it was. Without
+          this, switching the welcome to position:fixed would remove
+          its 100svh from flow and the rest of the page would jump
+          up by 100svh on the same frame as exit triggers. */}
+      <div aria-hidden="true" style={{ height: exiting ? "100svh" : 0 }} />
+      <section
+        ref={sectionRef}
+        data-testid="cosmic-journey"
+        className="relative grid w-full place-items-center overflow-hidden"
+        style={{
+          height: "100svh",
+          contain: "layout paint",
+          perspective: "1400px",
+          transform: "translate3d(0,0,0)",
+          ...(exiting
+            ? {
+                // Pin to viewport so the 1.2 s framer-motion exit
+                // animation plays IN view while the document scrolls
+                // to the paths section beneath. Without this, the
+                // native compositor smooth-scroll (~500 ms) drags
+                // the welcome out of the viewport before its exit
+                // is even half done.
+                position: "fixed" as const,
+                top: 0,
+                left: 0,
+                right: 0,
+                zIndex: 30,
+                // Don't intercept clicks while pinned — let scroll +
+                // tap pass through to the paths section underneath.
+                pointerEvents: "none" as const,
+              }
+            : {}),
+        }}
+      >
       {/* Scene stage */}
       <motion.div
         className="absolute inset-0 grid place-items-center"
@@ -657,5 +688,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         </div>
       </div>
     </section>
+    </>
   );
 }
