@@ -30,16 +30,27 @@ const orbit = (cx: number, cy: number, dur: string, delay = "0s") =>
 const self = (name: string, dur: string, ease = "ease-in-out", delay = "0s") =>
   ({ transformBox: "fill-box", transformOrigin: "center", ...a(name, dur, ease, delay) }) as React.CSSProperties;
 
-function PathIllustrationContent({ kind, accent }: { kind: PathIllustrationKind; accent: keyof typeof ACCENT_TO_HEX }) {
+function PathIllustrationContent({ kind, accent, animated }: { kind: PathIllustrationKind; accent: keyof typeof ACCENT_TO_HEX; animated: boolean }) {
   const c = ACCENT_TO_HEX[accent];
+  /*
+   * pi-paused class moved DIRECTLY onto the <svg>. Previously a wrapper
+   * <div> sat between PathCard's `relative` container and the absolute
+   * <svg>. The wrapper had `display: block` with no positioning, which
+   * is harmless in most contexts — but inside the mobile Swiper cube
+   * slide (`position: absolute` + transform: rotate3d), some browsers
+   * computed the inner stacking context such that the SVG was clipped
+   * away or rendered behind the slide background. Putting the
+   * pause-state class on the SVG itself preserves the descendant
+   * pause behaviour with zero structural change.
+   */
   return (
     <motion.svg
       viewBox="0 0 400 500"
-      className="absolute inset-0 h-full w-full"
+      className={`absolute inset-0 h-full w-full ${animated ? "pi-animated" : "pi-paused"}`}
       preserveAspectRatio="xMidYMid slice"
       initial={{ opacity: 0, scale: 0.96 }}
       whileInView={{ opacity: 1, scale: 1 }}
-      viewport={{ once: true }}
+      viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 1.1, ease: [0.25, 0.4, 0.25, 1] }}
       aria-hidden="true"
     >
@@ -53,6 +64,11 @@ function PathIllustrationContent({ kind, accent }: { kind: PathIllustrationKind;
           <stop offset="0%"   stopColor={c.secondary} stopOpacity="0.95" />
           <stop offset="100%" stopColor={c.primary}   stopOpacity="0.7" />
         </linearGradient>
+        <radialGradient id={`pi-aurora-${kind}`} cx="50%" cy="50%" r="55%">
+          <stop offset="0%"  stopColor={c.secondary} stopOpacity="0.55" />
+          <stop offset="60%" stopColor={c.primary}   stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#05060a"    stopOpacity="0" />
+        </radialGradient>
         <filter id={`pi-glow-${kind}`} x="-30%" y="-30%" width="160%" height="160%">
           <feGaussianBlur stdDeviation="6" result="b" />
           <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
@@ -61,6 +77,13 @@ function PathIllustrationContent({ kind, accent }: { kind: PathIllustrationKind;
 
       {/* Background wash */}
       <rect x="0" y="0" width="400" height="500" fill={`url(#pi-bg-${kind})`} style={a("pi-breathe","6s")} />
+
+      {/* Aurora halo behind the main subject — pulses in scale + opacity
+          so every illustration always has a visible "ahh" glow even on
+          static iOS Safari snapshots. */}
+      <ellipse cx="200" cy="250" rx="170" ry="170"
+        fill={`url(#pi-aurora-${kind})`}
+        style={{ transformBox: "fill-box", transformOrigin: "center", ...a("pi-halo","5.5s") }} />
 
       {/* Dotted grid */}
       <g opacity="0.18">
@@ -300,11 +323,15 @@ function MasteryScene({c,kind}:{c:any;kind:string}) {
 
 /* ─────────────────────────────────────────────────────────────────
  * Public wrapper.
- * 
- * `animated=false` → adds .pi-paused class which CSS-pauses all
- * descendant animations instantly without any React re-render.
- * Active slide (animated=true, default) runs all CSS animations.
- * Reduced-motion users see static SVG via @media query in KEYFRAMES.
+ *
+ * `animated=false` → puts .pi-paused class directly on the <svg> so
+ * CSS pauses ALL descendant animations instantly without any React
+ * re-render and without inserting an extra wrapper element that can
+ * confuse Swiper's 3D cube slide stacking context.
+ *
+ * Active slide (animated=true, default) gets .pi-animated marker
+ * (used by the prefers-reduced-motion @media rule in globals.css to
+ * disable looping animations for users who request reduced motion).
  * ───────────────────────────────────────────────────────────────── */
 export default function PathIllustration(props: {
   kind: PathIllustrationKind;
@@ -312,8 +339,10 @@ export default function PathIllustration(props: {
   animated?: boolean;
 }) {
   return (
-    <div className={props.animated === false ? "pi-paused" : "pi-animated"}>
-      <PathIllustrationContent kind={props.kind} accent={props.accent} />
-    </div>
+    <PathIllustrationContent
+      kind={props.kind}
+      accent={props.accent}
+      animated={props.animated !== false}
+    />
   );
 }
