@@ -27,6 +27,8 @@ interface PathCardProps {
    * dependency on viewport observation.
    */
   noReveal?: boolean;
+  /** Forward to PathIllustration — false freezes animations on hidden slides. */
+  animated?: boolean;
 }
 
 const ACCENT_GLOW: Record<PathCardProps["accent"], string> = {
@@ -80,6 +82,7 @@ export default function PathCard({
   accent,
   size = "md",
   noReveal = false,
+  animated = true,
 }: PathCardProps) {
   const Tag: any = external ? "a" : Link;
   const linkProps = external
@@ -192,7 +195,7 @@ export default function PathCard({
           />
           <div className={`relative ${aspect} overflow-hidden ${radius}`}>
             <div className={`absolute inset-0 bg-gradient-to-br ${BG_TINT[accent]}`} />
-            <PathIllustration kind={illustration} accent={accent} />
+            <PathIllustration kind={illustration} accent={accent} animated={animated} />
             <div
               aria-hidden="true"
               className="absolute inset-0"
@@ -282,7 +285,7 @@ export default function PathCard({
                   scene-specific shapes, gradients and floating accents. No
                   raster image (so no visible photo borders / pixel edges). */}
               <div className={`absolute inset-0 bg-gradient-to-br ${BG_TINT[accent]}`} />
-              <PathIllustration kind={illustration} accent={accent} />
+              <PathIllustration kind={illustration} accent={accent} animated={animated} />
               <div
                 aria-hidden="true"
                 className="absolute inset-0"
