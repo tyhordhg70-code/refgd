@@ -1315,3 +1315,33 @@ html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
   .shape-cube, .shape-gyro, .shape-pyr, .shape-3d-stage { animation: none; }
 }
+
+/* ── PathIllustration CSS animations ──────────────────────────────
+ * All 24 previously-framer-motion infinite loops. Transform+opacity
+ * only — pure compositor thread, zero JS per frame.
+ * .pi-paused * → pauses inactive Swiper slides via CSS class (no JS).
+ * ──────────────────────────────────────────────────────────────── */
+@keyframes pi-breathe  { 0%,100%{opacity:.85} 50%{opacity:1} }
+@keyframes pi-dim      { 0%,100%{opacity:.7}  50%{opacity:1} }
+@keyframes pi-pulse    { 0%,100%{opacity:.4}  50%{opacity:1} }
+@keyframes pi-beam     { 0%,100%{opacity:.08} 50%{opacity:.22} }
+@keyframes pi-win-a    { 0%,100%{opacity:.6}  50%{opacity:1} }
+@keyframes pi-win-b    { 0%,100%{opacity:1}   50%{opacity:.6} }
+@keyframes pi-float4   { 0%,100%{transform:translateY(0)}    50%{transform:translateY(-4px)} }
+@keyframes pi-float6   { 0%,100%{transform:translateY(0)}    50%{transform:translateY(-6px)} }
+@keyframes pi-float8   { 0%,100%{transform:translateY(0)}    50%{transform:translateY(-8px)} }
+@keyframes pi-float10  { 0%,100%{transform:translateY(0)}    50%{transform:translateY(-10px)} }
+@keyframes pi-scale-sm { 0%,100%{transform:scale(1)}         50%{transform:scale(1.04)} }
+@keyframes pi-scale-lg { 0%,100%{transform:scale(1)}         50%{transform:scale(1.05)} }
+@keyframes pi-spin     { to{transform:rotate(360deg)} }
+@keyframes pi-twinkle  { 0%,100%{transform:scale(.6);opacity:.4} 50%{transform:scale(1.2);opacity:1} }
+@keyframes pi-sale     { 0%,100%{transform:rotate(-4deg) translateY(0)} 50%{transform:rotate(6deg) translateY(-3px)} }
+@keyframes pi-arrow    { 0%,100%{transform:translateX(-30px);opacity:0} 8%{opacity:.85} 50%{transform:translateX(0);opacity:.85} 92%{opacity:0} }
+@keyframes pi-bag      { 0%,100%{transform:translateY(0) rotate(-3deg)} 50%{transform:translateY(-10px) rotate(3deg)} }
+@keyframes pi-sparkle  { 0%,100%{transform:scale(.8);opacity:.6} 50%{transform:scale(1.2);opacity:1} }
+
+.pi-paused * { animation-play-state: paused !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pi-animated * { animation: none !important; }
+}
