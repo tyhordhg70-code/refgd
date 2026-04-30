@@ -14,6 +14,8 @@ import LiquidParticles from "@/components/LiquidParticles";
 import EmotionChips from "@/components/EmotionChips";
 import EditableText from "@/components/EditableText";
 import GlassCard from "@/components/GlassCard";
+import VanishWrapper from "@/components/VanishWrapper";
+import ExplodeText from "@/components/ExplodeText";
 
 export const metadata = {
   title: "Exclusive Mentorships — RefundGod",
@@ -165,7 +167,7 @@ export default function MentorshipsPage() {
       </section>
 
       {/* ─── Act 2b — COVID / oversaturation, with cubic 3D parallax ─ */}
-      <CubicParallax axis="x" amount={18} className="relative py-16 sm:py-20">
+      <CubicParallax axis="x" amount={60} className="relative py-16 sm:py-20">
         <div className="container-wide">
           <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-14">
             <div className="lg:order-2 lg:col-span-5">
@@ -218,9 +220,9 @@ export default function MentorshipsPage() {
           <div className="grid gap-10 lg:grid-cols-12 lg:gap-14">
             <CubicParallax
               axis="y"
-              amount={56}
-              rotate={6}
-              depth={120}
+              amount={140}
+              rotate={12}
+              depth={220}
               className="lg:col-span-7"
             >
               <Reveal>
@@ -369,9 +371,9 @@ export default function MentorshipsPage() {
                 "creative 3D text animation to this entire section" ask. */}
             <CubicParallax
               axis="y"
-              amount={48}
-              rotate={5}
-              depth={100}
+              amount={130}
+              rotate={10}
+              depth={200}
               className="mt-10 space-y-6 text-left text-base leading-relaxed text-white/85 sm:text-lg"
             >
               <TextReveal variant="wordBlur" editId="ment.pullquote.body">
@@ -444,6 +446,7 @@ export default function MentorshipsPage() {
                 />
               </Reveal>
 
+              <VanishWrapper drift={50} minScale={0.92}>
               <BounceList
                 items={REFUND_FEATURES}
                 detailsEditIdPrefix="ment.refund.feature.detail"
@@ -460,6 +463,7 @@ export default function MentorshipsPage() {
                   7: "Lifetime updates and a private chat where the meta is rewritten every week.",
                 }}
               />
+              </VanishWrapper>
 
               <div className="mt-10 space-y-6 text-base leading-relaxed text-white/85 sm:text-lg">
                 <TextReveal variant="wordSlide" editId="ment.refund.guarantee">
@@ -670,6 +674,7 @@ export default function MentorshipsPage() {
                 />
               </Reveal>
 
+              <VanishWrapper drift={50} minScale={0.92}>
               <BounceList
                 items={SE_FEATURES}
                 accent="cyan"
@@ -686,6 +691,7 @@ export default function MentorshipsPage() {
                   7: "Stack additional replacements on a single successful SE, target high-value SKUs, and learn the drop-off pipeline pros use.",
                 }}
               />
+              </VanishWrapper>
             </div>
           </div>
         </div>
@@ -763,14 +769,22 @@ export default function MentorshipsPage() {
           reads as one cohesive block instead of two separated chunks. */}
       <section className="relative overflow-x-clip pb-12 pt-6 text-center sm:pb-16 sm:pt-8">
         <div className="container-wide relative">
-          {/* Same readability fix as the BS pull-quote — render as a
-              single flowing block with heavy outline + drop-shadow so
-              the closing CTA is sharp instead of glitchy / clipping. */}
-          <ImpactHeadline
+          {/* Reverse-explosion CTA: each character flies in from a
+              scattered 3D position and assembles into the headline.
+              Large scatter radius so the effect is dramatic. */}
+          <ExplodeText
             as="h2"
             text="Stop watching. Start earning."
-            className="editorial-display mx-auto text-white text-[clamp(2rem,7vw,6rem)] uppercase"
-            style={{ paddingLeft: "0.3em", paddingRight: "0.3em" }}
+            scatter={420}
+            hue="167,139,250"
+            className="editorial-display mx-auto text-white text-[clamp(2rem,7vw,6rem)] font-black uppercase"
+            style={{
+              paddingLeft: "0.3em",
+              paddingRight: "0.3em",
+              WebkitTextStroke: "1.2px rgba(0,0,0,0.55)",
+              textShadow:
+                "0 4px 24px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.95), 0 0 50px rgba(167,139,250,0.45)",
+            }}
           />
           <Reveal delay={0.5}>
             <div className="mt-5 sm:mt-6">
