@@ -311,40 +311,23 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       );
     }
 
-    // Custom 1500 ms rAF scroll that runs IN SYNC with the 1.2 s
-    // exit animation. Browser native smooth-scroll completes in
-    // ~300-500 ms — too fast for the user to actually see the
-    // planet flying away. With a 1500 ms scroll, the welcome
-    // section is still partially in the viewport while the
-    // exit animation plays through, so the user can SEE the
-    // cinematic fly-away as the page scrolls down to "you have
-    // arrived". The scroll is interruptable: any user wheel /
-    // touchstart aborts it so we never fight the user.
-    let activeScroll: { abort: boolean } | null = null;
-    function animateScrollTo(target: number, duration = 1500) {
-      if (activeScroll) activeScroll.abort = true;
-      const token = { abort: false };
-      activeScroll = token;
-      const startY = window.scrollY;
-      const distance = target - startY;
-      if (Math.abs(distance) < 8) return;
-      const startTime = performance.now();
-      function tick(now: number) {
-        if (token.abort) return;
-        const elapsed = now - startTime;
-        const t = Math.min(1, elapsed / duration);
-        // ease-out cubic — fast start, gentle stop
-        const eased = 1 - Math.pow(1 - t, 3);
-        window.scrollTo(0, Math.round(startY + distance * eased));
-        if (t < 1) requestAnimationFrame(tick);
-        else if (activeScroll === token) activeScroll = null;
-      }
-      requestAnimationFrame(tick);
-    }
-    function abortScroll() { if (activeScroll) { activeScroll.abort = true; activeScroll = null; } }
-    window.addEventListener("wheel", abortScroll, { passive: true });
-    window.addEventListener("touchstart", abortScroll, { passive: true });
-
+    // Native compositor-driven smooth-scroll snap.
+    //
+    // The previous incarnation ran a custom 1500 ms requestAnimationFrame
+    // `window.scrollTo(0, …)` loop in parallel with the welcome's
+    // framer-motion exit animation. Both fought for the same frame
+    // budget on the main thread — a JS-driven scrollTo CANNOT be
+    // composited on the compositor thread, every frame triggers a
+    // layout flush, so the result was a visible stutter as the page
+    // scrolled away from welcome (the symptom the user kept reporting).
+    //
+    // Switching to the browser's native smooth-scroll moves the scroll
+    // animation onto the compositor thread; the welcome's exit
+    // animation no longer competes for the same paint frames. The
+    // native smooth-scroll lasts ~400-600 ms instead of 1500 ms, but
+    // the welcome exit (1.2 s) keeps playing AFTER the scroll has
+    // settled — so the cinematic fly-away is still visible, just
+    // layered above the now-stationary paths section as it fades.
     function onScroll() {
       const y = window.scrollY;
       // Re-arm when user returns to welcome
@@ -361,18 +344,19 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const target = targetY();
       if (target == null) return;
       if (Math.abs(window.scrollY - target) < 40) return;
-      // Custom slow scroll — runs alongside the 1.2 s exit
-      // animation so the user actually sees the planet warp
-      // away instead of being teleported instantly.
-      animateScrollTo(target, 1500);
+      // Native smooth-scroll. Auto-aborts on user input so the user
+      // always retains control. Compositor-driven, no main-thread
+      // contention with the exit animation.
+      try {
+        window.scrollTo({ top: target, behavior: "smooth" });
+      } catch {
+        window.scrollTo(0, target);
+      }
     }
 
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("wheel", abortScroll);
-      window.removeEventListener("touchstart", abortScroll);
-      if (activeScroll) activeScroll.abort = true;
     };
   }, [reduced]);
 
@@ -390,7 +374,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // for free and stays in lock-step with native scroll.
   const stageAnimate = exiting
     ? isMobile
-      ? { opacity: 0, y: -80, scale: 0.92 }
+      ? { opacity: 0, scale: 0.94 }
       : { scale: 0.08, rotateX: -55, y: -200, opacity: 0 }
     : isMobile
       ? { opacity: 1, y: 0, scale: 1 }
