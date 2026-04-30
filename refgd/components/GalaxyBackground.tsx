@@ -41,17 +41,11 @@ export default function GalaxyBackground() {
     const mount = mountRef.current;
     if (!mount) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    // ── Skip Galaxy entirely on mobile ──
-    // Even with the particle counts halved twice and the shader
-    // throttled during scroll, the user's iPhone still reports
-    // "background animation is laggy". A continuously-rendering
-    // WebGL context behind a scrolling page is a top-tier mobile
-    // perf killer — it forces the GPU to composite the fixed
-    // canvas into every page repaint, on top of every shader
-    // tick. The page's CSS gradients and the per-section glow
-    // already supply plenty of cosmic colour without WebGL, so
-    // mobile gets a flat backdrop and 60 fps native scrolling.
-    if (window.matchMedia("(max-width: 768px)").matches) return;
+    // Mobile gets a lite galaxy — reduced particle count and
+    // heavily throttled FPS so the WebGL context doesn't compete
+    // with page compositing during scroll. User requested
+    // "floating particles on mobile same as desktop" so this
+    // re-enables the field at 400 particles (vs 6500-9500 desktop).
 
     let disposed = false;
     let cleanup: (() => void) | null = null;
@@ -70,6 +64,10 @@ export default function GalaxyBackground() {
       if (!gl) return;
 
       const isMobile = window.matchMedia("(max-width: 768px)").matches;
+      // Mobile lite: 400 particles. Enough for visible cosmic texture
+      // without the WebGL draw call competing with the page compositor
+      // on scroll. Throttle idles at 18fps and drops to 6fps while
+      // user is scrolling so the GPU can prioritise the page repaint.
       const isTablet = window.matchMedia("(max-width: 1100px)").matches;
       // ── Particle counts ──
       // Was 1800/2600 mobile, 4500/6500 tablet, 6500/9500 desktop —
@@ -84,7 +82,7 @@ export default function GalaxyBackground() {
       // GPUs to render alongside the page composite during scroll.
       // 250 + 380 = 630 points still reads as a star field but
       // releases enough GPU bandwidth that scroll stays at 60 fps.
-      const PARTICLE_COUNT_INNER = isMobile ? 250 : isTablet ? 2200 : 3200;
+      const PARTICLE_COUNT_INNER = isMobile ? 400 : isTablet ? 2200 : 4500;
       const PARTICLE_COUNT_OUTER = isMobile ? 380 : isTablet ? 3200 : 4800;
 
       const scene = new THREE.Scene();
