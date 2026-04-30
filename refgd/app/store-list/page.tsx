@@ -64,28 +64,29 @@ export default async function StoreListPage() {
 
   return (
     <>
-      {/* Galaxy backdrop is mounted site-wide in layout.tsx — no
-          per-page canvases. The previous fixed shopping-furniture
-          atmosphere image was removed at the user's request. The
-          ScrollCameraTilt wrapper was also removed because its
-          mouse-driven yaw made the page feel constantly sideways. */}
-
       <ReorderableContainer pageId="store-list">
 
-        <ReorderableSection sectionId="service-intro">
-          {/* Multi-act intro — Get rewarded → Stop wasting time → How it
-              works → Why choose us → secure-lock centerpiece → Awarded CTA */}
-          <ServiceSection />
+        {/* Act 1 — "Get rewarded for shopping online." HERO ONLY.
+            Shrunk so the headline + scene fit comfortably in a single
+            desktop viewport. The rest of the ServiceSection acts (Stop
+            wasting time → How it works → Why choose us → Lock → Awarded
+            CTA) are mounted further down via slice="rest" so the LED
+            joy moment can sit DIRECTLY between them. */}
+        <ReorderableSection sectionId="service-intro-hero">
+          <ServiceSection slice="hero" />
         </ReorderableSection>
 
-        {/* The "Ahhh, feel the joy of cashback" digital LED moment. Sits
-            DIRECTLY after the "Get rewarded" hero in scroll order — it's
-            triggered by scroll-into-view inside the section, regardless
-            of where it lands in the chapter sequence. We keep it here
-            (mid-page) so it acts as a punchy interlude instead of an
-            on-load surprise. */}
+        {/* "Ahhh, feel the joy of cashback" — the LED beat is now
+            literally between the hero and Act 2, exactly where the
+            scroll narrative wants it. */}
         <ReorderableSection sectionId="led-joy">
           <LedJoySection />
+        </ReorderableSection>
+
+        {/* Acts 2-5 + Lock centerpiece — "Stop wasting time" → "How it
+            works" → "Why choose us" → Lock → Awarded CTA. */}
+        <ReorderableSection sectionId="service-intro-rest">
+          <ServiceSection slice="rest" />
         </ReorderableSection>
 
         <ReorderableSection sectionId="led-ticker">
@@ -161,7 +162,10 @@ export default async function StoreListPage() {
         </ReorderableSection>
 
         <ReorderableSection sectionId="rules">
-          {/* Rules — glass cards in 4-up grid, parallax 3D scroll depth */}
+          {/* Rules — glass cards in 4-up grid, parallax 3D scroll depth.
+              Cards now reveal Lusion-style: 100px translate-up + scale
+              0.92→1 + opacity 0→1 with 1.2s lusion ease and 0.12s
+              stagger between cards. */}
           <ParallaxChapter intensity={0.35} className="py-8">
             <section className="relative">
               <div className="container-wide relative">
@@ -178,7 +182,7 @@ export default async function StoreListPage() {
                     <GlassCard
                       key={b.n}
                       tint={b.tint}
-                      delay={i * 0.08}
+                      delay={i * 0.12}
                       className="liquid-glass w-full max-w-md"
                     >
                       <div className="p-6 sm:p-7">
@@ -229,11 +233,8 @@ export default async function StoreListPage() {
                     />
                   </div>
                 </GlassCard>
-                <GlassCard tint="emerald">
+                <GlassCard tint="emerald" delay={0.15}>
                   <div className="relative grid items-center gap-6 overflow-hidden p-8 sm:p-10 sm:grid-cols-[auto_1fr]">
-                    {/* Animated PAY illustration replaces the previous coin
-                        flip — softly bobbing transparent PNG provided by
-                        the user. Floats on a 3.6s loop. */}
                     <div className="hidden sm:block">
                       <img
                         src="/uploads/payment-pay.png"
@@ -269,7 +270,6 @@ export default async function StoreListPage() {
                         className="relative mt-3 text-base leading-relaxed text-white/95"
                       />
                     </div>
-                    {/* Mobile-only PAY illustration under the copy */}
                     <div className="mt-6 flex justify-center sm:hidden">
                       <img
                         src="/uploads/payment-pay.png"
