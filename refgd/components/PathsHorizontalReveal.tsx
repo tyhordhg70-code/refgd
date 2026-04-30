@@ -176,8 +176,6 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
       data-testid="paths-mobile-carousel"
       className="relative w-full overflow-hidden py-4"
     >
-      {/* Ambient floating orbs — CSS-animation-driven, never touch swiper state */}
-      <MobileFloatOrbs />
       <SwiperCubeStage cards={cards} />
       <p
         aria-hidden="true"
@@ -252,11 +250,9 @@ function MobileFloatOrbs() {
  */
 function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
   return (
-    <motion.div
+    <div
       data-testid="paths-mobile-track"
       className="mx-auto"
-      animate={{ y: [0, -10, 0] }}
-      transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
       style={{
         width: "min(92vw, 440px)",
         // Reserve a tall stage so the cube has room to rotate.
@@ -300,6 +296,6 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
           );
         })}
       </Swiper>
-    </motion.div>
+    </div>
   );
 }
