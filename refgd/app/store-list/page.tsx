@@ -123,7 +123,7 @@ export default async function StoreListPage() {
             <section id="storelist" className="relative">
               <div className="container-wide relative">
                 <div
-                  className="mx-auto max-w-5xl rounded-[2.5rem] border border-white/15 px-8 py-12 text-center sm:px-14 sm:py-16"
+                  className="mx-auto max-w-2xl rounded-[2.5rem] border border-white/15 px-6 py-8 text-center sm:px-10 sm:py-10"
                   style={{
                     background:
                       "linear-gradient(160deg, rgba(15,10,30,0.95), rgba(8,6,18,0.98))",
