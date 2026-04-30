@@ -36,20 +36,11 @@ export default function ChapterCosmos() {
     >
       <motion.div
         className="absolute left-1/2 top-1/2 h-[120vmin] w-[120vmin] -translate-x-1/2 -translate-y-1/2"
-        initial={
-          mounted
-            ? stable
-              ? { opacity: 0 }
-              : { opacity: 0, rotate: 0, y: "6%" }
-            : { opacity: 0 }
-        }
-        whileInView={
-          stable
-            ? { opacity: 1 }
-            : { opacity: 1, rotate: 35, y: "-6%" }
-        }
-        viewport={{ once: true, margin: "-10% 0px -10% 0px" }}
-        transition={{ duration: stable ? 1.2 : 1.6, ease: [0.22, 1, 0.36, 1] }}
+        // Always visible from the first paint — the cosmic
+        // backdrop is a CONSTANT, not an entrance animation.
+        // Per user request: "it should already be there".
+        initial={{ opacity: 1 }}
+        animate={{ opacity: 1 }}
         suppressHydrationWarning
       >
         {/* Faint orbital rings */}
@@ -83,12 +74,12 @@ export default function ChapterCosmos() {
               boxShadow: `0 0 14px ${p.c}, 0 0 30px ${p.c}`,
             }}
             animate={
-              reduced
+              reduced || isMobile
                 ? {}
                 : { opacity: [0.4, 1, 0.4], scale: [0.8, 1.4, 0.8] }
             }
             transition={
-              reduced
+              reduced || isMobile
                 ? {}
                 : {
                     duration: 3 + i * 0.6,
