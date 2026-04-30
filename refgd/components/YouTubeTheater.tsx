@@ -202,30 +202,7 @@ export default function YouTubeTheater({
             </>
           )}
         </div>
-
-        {/* "On air" badge that appears while the player is engaged */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-white/90 backdrop-blur-md transition-opacity duration-300"
-          style={{ opacity: inView ? 1 : 0 }}
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-pulse" />
-          theater mode · lights dimmed
-        </div>
       </div>
-
-      {/* Dim-the-lights overlay. Fixed full-screen, but pointer-events
-          NONE so the user can still scroll, click links and interact
-          with the page. Pure visual effect that frames the video. */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 z-[40] transition-opacity duration-500 ease-out"
-        style={{
-          background:
-            "radial-gradient(ellipse 70% 60% at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.92) 100%)",
-          opacity: inView ? 1 : 0,
-        }}
-      />
     </>
   );
 }
