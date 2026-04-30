@@ -380,12 +380,26 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   //   Exit  → cinematic slow build (cubic-in-out, 1.2 s)
   //   Return → eager rush back (cubic-out, 0.7 s) so the hero is
   //            fully visible within ~150 ms of scroll-up, not blank.
+  // Mobile gets a stripped-down exit: just opacity + a small
+  // y-slide. The desktop stage is built around scale-0.08 +
+  // rotateX -55deg, both of which force the GPU to re-rasterise
+  // the planet's giant box-shadow every frame at progressively
+  // smaller sizes — fine on a desktop GPU but a top-tier
+  // stutter source on iOS Safari while the rAF scroll is
+  // running in parallel. The simpler mobile exit composites
+  // for free and stays in lock-step with native scroll.
   const stageAnimate = exiting
-    ? { scale: 0.08, rotateX: -55, y: -200, opacity: 0 }
-    : { scale: 1, rotateX: 0, y: 0, opacity: 1 };
+    ? isMobile
+      ? { opacity: 0, y: -80, scale: 0.92 }
+      : { scale: 0.08, rotateX: -55, y: -200, opacity: 0 }
+    : isMobile
+      ? { opacity: 1, y: 0, scale: 1 }
+      : { scale: 1, rotateX: 0, y: 0, opacity: 1 };
 
   const stageTransition = exiting
-    ? { duration: 1.2, ease: [0.65, 0, 0.35, 1] as const }
+    ? isMobile
+      ? { duration: 0.75, ease: [0.4, 0, 0.2, 1] as const }
+      : { duration: 1.2, ease: [0.65, 0, 0.35, 1] as const }
     : { duration: 0.7, ease: [0.16, 1, 0.3, 1] as const };
 
   return (
