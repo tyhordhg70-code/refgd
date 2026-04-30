@@ -23,7 +23,7 @@ function WastingTimeIllustration({ size }: { size: number }) {
     <motion.div
       initial={{ opacity: 0, scale: 0.92, y: 18 }}
       whileInView={{ opacity: 1, scale: 1, y: 0 }}
-      viewport={{ once: true, margin: "-10% 0px" }}
+      viewport={{ once: false, margin: "-10% 0px" }}
       transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
       style={{
         width: size,
@@ -266,8 +266,10 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
                 className=""
               >
                 <div className="relative overflow-hidden p-8 sm:p-10">
-                  <div className="pointer-events-none absolute -right-8 -top-8 opacity-30">
-                    <ParallaxIllustration kind={s.illust} accent={s.tint as any} size={180} />
+                  <div className="pointer-events-none absolute -right-4 -top-4 h-[170px] w-[170px]">
+                    {s.n === "01" && <img src="/images/step-place-order.webp" alt="" loading="eager" decoding="async" className="h-full w-full object-contain" style={{ mixBlendMode:"screen", opacity:0.85 }} />}
+                    {s.n === "02" && <img src="/images/step-submit-order.webp" alt="" loading="eager" decoding="async" className="h-full w-full object-contain" style={{ mixBlendMode:"screen", opacity:0.85 }} />}
+                    {s.n === "03" && <img src="/images/step-enjoy-order.webp" alt="" loading="eager" decoding="async" className="h-full w-full object-contain" style={{ mixBlendMode:"screen", opacity:0.85 }} />}
                   </div>
                   <div className="relative">
                     <div className="heading-display text-aurora text-[7rem] font-bold leading-none tracking-tighter opacity-30">
