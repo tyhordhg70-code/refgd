@@ -17,33 +17,31 @@ import PathCardCameraFly from "./PathCardCameraFly";
  * PathsHorizontalReveal — responsive path-card stage with 3D entrances.
  *
  *   ── Layouts ──────────────────────────────────────────────────
- *   • Desktop / tablet (≥ 768 px): all cards rendered together in
- *     a responsive grid. Each card is wrapped in `PathCardCameraFly`,
- *     a 3D camera-fly-in that flies the card from a far-back, off-
- *     axis position into its rest pose with rotateX + rotateY. The
- *     five cards use distinct anchors so the group reveal feels
- *     like one coordinated camera move.
+ *   • Desktop / tablet (≥ 768 px): all cards in a responsive grid,
+ *     each wrapped in `PathCardCameraFly` for a 3D camera-fly-in.
  *
- *   • Mobile (< 768 px): NATIVE horizontal scroll-snap carousel.
- *     The OS owns the gesture (no JS scroll-jacking, no sticky
- *     pin, hardware-accelerated, perfect momentum). All cards
- *     animate in TOGETHER with a 0.12 s stagger the FIRST time
- *     the carousel section enters the viewport — by the time the
- *     user starts swiping, every card is already in its flat rest
- *     pose. Previously the reveal was per-card-IO at 50 % visibility
- *     which produced two real bugs the user reported:
- *       • "Scrolling right has to appear faster — blank screen": a
- *         freshly-swiped card was still rotated -68° / opacity 0
- *         until it crossed the 50 % threshold, so the user saw an
- *         empty slot for ~150 ms.
- *       • "Scrolling left breaks the card, half distorted and cut
- *         off": cards the user briefly swiped past without ever
- *         hitting 50 % visibility were stuck in their distorted
- *         start pose, so swiping back showed a half-rotated card.
- *     The single-trigger stagger eliminates both — all five cards
- *     reach their flat pose within ~1.3 s of the section entering
- *     view (which is roughly the same time the snap finishes), so
- *     subsequent swipes always show fully-revealed cards.
+ *   • Mobile (< 768 px): NATIVE horizontal scroll-snap carousel
+ *     with a SCROLL-DRIVEN coverflow effect. Each card's rotateY,
+ *     scale and opacity are continuously updated based on its
+ *     distance from the centre of the track, so:
+ *       • Every swipe produces visible animation in real time
+ *         (cards tilt away, the centred card stays flat) — the
+ *         user's "animation is gone" complaint.
+ *       • Edge cards stay in their natural bounding box (we only
+ *         tilt + lightly scale, never opacity:0 / scale:0.78), so
+ *         no card ever appears half-cut-off mid-scroll — the
+ *         "half the card cuts off" complaint.
+ *       • Updates are rAF-throttled and use direct DOM transform
+ *         writes (no framer-motion per-frame work), so this is
+ *         very cheap on mobile compositors.
+ *
+ *     The track uses `touch-action: pan-x` so iOS only routes
+ *     HORIZONTAL touch movement to the carousel; vertical drags
+ *     bubble straight up to the document scroller. This fixes
+ *     the intermittent "can't scroll up from telegram box"
+ *     complaint that came from iOS axis-locking the gesture to
+ *     the carousel's horizontal axis the moment the touch had
+ *     any horizontal component.
  */
 export default function PathsHorizontalReveal({
   cards,
@@ -120,72 +118,88 @@ function DesktopGrid({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Mobile — NATIVE HORIZONTAL SCROLL-SNAP CAROUSEL                   */
+/*  Mobile — NATIVE HORIZONTAL SCROLL-SNAP CAROUSEL with COVERFLOW    */
 /* ------------------------------------------------------------------ */
 
 function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
   const reduced = useReducedMotion();
   const sectionRef = useRef<HTMLElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const cardRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const cardWrapRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const cardInnerRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // ALL cards reveal together when the carousel section first
-  // enters the viewport. One observer, one boolean flip, and then
-  // we never animate the cards again. This cures both:
-  //   • "swipe right is blank" — by the time the user even starts
-  //     swiping, all cards have already played their stagger and
-  //     are sitting flat.
-  //   • "swipe left distorts the card" — there's no per-card IO
-  //     state to get stuck in a half-rotated pose for cards the
-  //     user briefly swiped past.
-  const [revealed, setRevealed] = useState(reduced);
-  useEffect(() => {
-    if (revealed) return;
-    const sec = sectionRef.current;
-    if (!sec) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.1) {
-            setRevealed(true);
-            io.disconnect();
-            return;
-          }
-        }
-      },
-      { threshold: [0, 0.1, 0.3] },
-    );
-    io.observe(sec);
-    return () => io.disconnect();
-  }, [revealed]);
+  // ── Coverflow update ────────────────────────────────────────
+  // For each card, compute its centre's signed distance from the
+  // track's centre, normalise by card width, then map to a
+  // rotateY / scale / opacity. Adjacent cards tilt away in 3D,
+  // the centred card sits flat. Active dot is whichever card has
+  // the smallest absolute distance.
+  const updateTransforms = useCallback(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const trackRect = track.getBoundingClientRect();
+    const trackCenter = trackRect.left + trackRect.width / 2;
+    let bestIndex = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < cardInnerRefs.current.length; i++) {
+      const inner = cardInnerRefs.current[i];
+      const wrap = cardWrapRefs.current[i];
+      if (!inner || !wrap) continue;
+      const r = wrap.getBoundingClientRect();
+      const cardCenter = r.left + r.width / 2;
+      const distPx = cardCenter - trackCenter;
+      const distNorm = r.width > 0 ? distPx / r.width : 0;
+      const clamped = Math.max(-1.4, Math.min(1.4, distNorm));
+      if (reduced) {
+        // Reduced motion → flat, no transform changes per frame.
+        inner.style.transform = "none";
+        inner.style.opacity = "1";
+      } else {
+        const rotateY = clamped * -32;
+        const scale = 1 - Math.min(0.18, Math.abs(clamped) * 0.18);
+        const opacity = Math.max(0.45, 1 - Math.abs(clamped) * 0.55);
+        inner.style.transform = `perspective(1400px) rotateY(${rotateY.toFixed(
+          2,
+        )}deg) scale(${scale.toFixed(3)})`;
+        inner.style.opacity = opacity.toFixed(3);
+      }
+      const absDist = Math.abs(distPx);
+      if (absDist < bestDist) {
+        bestDist = absDist;
+        bestIndex = i;
+      }
+    }
+    setActiveIndex((prev) => (prev === bestIndex ? prev : bestIndex));
+  }, [reduced]);
 
-  // Active-dot tracking. Pure read — never scrolls anything itself.
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
-    const observers: IntersectionObserver[] = [];
-    cardRefs.current.forEach((el, i) => {
-      if (!el) return;
-      const io = new IntersectionObserver(
-        (entries) => {
-          for (const entry of entries) {
-            if (entry.intersectionRatio >= 0.6) {
-              setActiveIndex(i);
-            }
-          }
-        },
-        { root: track, threshold: [0, 0.6, 0.9] },
-      );
-      io.observe(el);
-      observers.push(io);
-    });
-    return () => observers.forEach((io) => io.disconnect());
-  }, [cards.length]);
+    let rafId: number | null = null;
+    const onScroll = () => {
+      if (rafId != null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        updateTransforms();
+      });
+    };
+    track.addEventListener("scroll", onScroll, { passive: true });
+    // Initial paint.
+    updateTransforms();
+    // Re-measure on viewport resize / orientation change.
+    const ro = new ResizeObserver(() => updateTransforms());
+    ro.observe(track);
+    return () => {
+      track.removeEventListener("scroll", onScroll);
+      if (rafId != null) cancelAnimationFrame(rafId);
+      ro.disconnect();
+    };
+  }, [updateTransforms]);
 
   // Tap a dot to jump.
   const goTo = useCallback((i: number) => {
-    const el = cardRefs.current[i];
+    const el = cardWrapRefs.current[i];
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   }, []);
@@ -197,23 +211,20 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
       className="relative w-full"
       style={{ perspective: "1400px" }}
     >
-      {/* Edge fade masks — purely visual, hint that more cards are
-          off-screen on either side. */}
+      {/* Edge fade masks — visual hint that more cards are off-screen. */}
       <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-[rgb(5,6,10)] to-transparent" />
       <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-[rgb(5,6,10)] to-transparent" />
 
-      {/* The track. Native horizontal scroll + CSS snap. NO JS
-          scroll handlers, NO preventDefault, NO sticky pinning.
-          py-8 supplies vertical headroom so:
-            • the 3D unfold (which briefly tilts the card forward)
-              isn't clipped by overflow-y-hidden
-            • the static box-shadow glow on each card (defined by
-              the .pulse-glow-* classes, mobile-overridden in
-              globals.css to a 22 px reach) isn't cut off at the
-              top or bottom edge of the track.
-          (Desktop pulse-glow keyframes have ~130 px reach, but
-          they're disabled on mobile — see globals.css mobile
-          override.) */}
+      {/* The track. Native horizontal scroll + CSS snap.
+          py-8 supplies vertical headroom so the static box-shadow
+          glow on each card (mobile-overridden in globals.css to a
+          22 px reach) isn't cut off at the top or bottom.
+
+          touch-action: pan-x means iOS only routes horizontal pans
+          to this element; vertical drags bubble up to the document.
+          That eliminates the iOS axis-lock that was occasionally
+          eating vertical scroll attempts and producing the "can't
+          scroll up from telegram box sometimes" complaint. */}
       <div
         ref={trackRef}
         data-testid="paths-mobile-track"
@@ -221,11 +232,10 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
         style={{
           scrollPaddingLeft: "8vw",
           scrollPaddingRight: "8vw",
-          touchAction: "pan-x pan-y",
+          touchAction: "pan-x",
           WebkitOverflowScrolling: "touch",
-          // Preserve 3D so the per-card rotateY actually renders in
-          // perspective rather than flattening to a 2D scaleX.
           transformStyle: "preserve-3d",
+          overscrollBehaviorX: "contain",
         }}
       >
         {/* Leading spacer so the first card snaps to viewport centre. */}
@@ -240,43 +250,31 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
             <div
               key={i}
               ref={(el) => {
-                cardRefs.current[i] = el;
+                cardWrapRefs.current[i] = el;
               }}
               data-testid={`paths-mobile-slide-${i + 1}`}
               className="relative shrink-0 snap-center snap-always px-2"
               style={{
                 width: "84vw",
-                // Each slide has its own 3D context so the unfold
-                // per card doesn't drag siblings.
                 perspective: "1400px",
                 transformStyle: "preserve-3d",
               }}
             >
-              <motion.div
-                className="h-full"
-                initial={
-                  reduced
-                    ? false
-                    : { rotateY: -68, rotateX: 8, scale: 0.78, opacity: 0 }
-                }
-                animate={
-                  revealed
-                    ? { rotateY: 0, rotateX: 0, scale: 1, opacity: 1 }
-                    : { rotateY: -68, rotateX: 8, scale: 0.78, opacity: 0 }
-                }
-                transition={{
-                  duration: 0.85,
-                  delay: revealed ? i * 0.12 : 0,
-                  ease: [0.16, 1, 0.3, 1],
+              <div
+                ref={(el) => {
+                  cardInnerRefs.current[i] = el;
                 }}
+                className="h-full"
                 style={{
                   transformStyle: "preserve-3d",
                   transformOrigin: "50% 50%",
                   willChange: "transform, opacity",
+                  transform: "perspective(1400px) rotateY(0deg) scale(1)",
+                  opacity: 1,
                 }}
               >
                 {renderedCard}
-              </motion.div>
+              </div>
             </div>
           );
         })}
