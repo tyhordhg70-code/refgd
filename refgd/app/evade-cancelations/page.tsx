@@ -11,6 +11,7 @@ import PixelRainCosmic from "@/components/PixelRainCosmic";
 import EvadeIllustrationDivider from "@/components/EvadeIllustrationDivider";
 import TrailerTitle3D from "@/components/TrailerTitle3D";
 import ChapterHeader from "@/components/ChapterHeader";
+import FloatingArt from "@/components/FloatingArt";
 
 export const metadata = {
   title: "Evade Cancelations — RefundGod",
@@ -186,7 +187,19 @@ export default function EvadePage() {
               titleDefault="Evade like a PRO."
               accent="cyan"
             />
-            <div className="mt-10 grid gap-6 md:grid-cols-2">
+            {/* Floating lock illustration relocated INSIDE this section
+                per request — sits between the title and the intro cards,
+                bobbing gently with parallax depth. */}
+            <div className="mt-10 mb-2 flex justify-center">
+              <FloatingArt
+                src="/uploads/evade-vault.webp"
+                alt="Stealth-vault — the gateway to your anonymous setup."
+                size={300}
+                bobAmplitude={20}
+                spin={4}
+              />
+            </div>
+            <div className="mt-6 grid gap-6 md:grid-cols-2">
               <GlassCard tint="cyan" className="pulse-glow-cyan">
                 <div className="relative p-8">
                   <EditableText
@@ -213,19 +226,18 @@ export default function EvadePage() {
           </div>
         </ParallaxChapter>
 
-        {/* Between-section illustration band — the "vault" hero artwork
-            that previously washed out behind the cards now lives here
-            as its own visible divider. The lock PNG has had its
-            background removed (see /uploads/evade-vault.png) and the
-            divider is rendered with `transparent` so no halo wash sits
-            behind it — the lock floats cleanly over the page galaxy. */}
+        {/* Between-section illustration band — replaced the previous
+            vault-only image with a richer security-infrastructure
+            illustration (servers + shield + key + monitor) that fills
+            the divider band. The vault lock PNG was relocated INSIDE
+            the "Evade like a PRO" section above, where it visually
+            belongs with the chapter copy. */}
         <EvadeIllustrationDivider
-          src="/uploads/evade-vault.webp"
-          alt="Stealth-vault illustration — the gateway between the public web and your anonymous setup."
+          src="/uploads/sec-shield.webp"
+          alt="Anti-fraud security infrastructure — servers, shields, encrypted keys."
           align="center"
           glow="cyan"
-          height={320}
-          caption="— the gateway · stealth in motion"
+          height={380}
           transparent
         />
 
@@ -244,7 +256,19 @@ export default function EvadePage() {
               titleDefault="Our comprehensive solutions."
               accent="violet"
             />
-            <div className="mt-14 grid gap-5 lg:grid-cols-3">
+            {/* Solutions floating illustration — transparent man+shield
+                +locks artwork sits inside this chapter, animated with
+                bob + scroll parallax for visual energy. */}
+            <div className="mt-10 mb-4 flex justify-center">
+              <FloatingArt
+                src="/uploads/sol-locks.webp"
+                alt="Comprehensive security solutions — checklist, shields, locks."
+                size={360}
+                bobAmplitude={22}
+                spin={3}
+              />
+            </div>
+            <div className="mt-8 grid gap-5 lg:grid-cols-3">
               {[
                 { id: "evade.solution.0", body: "Avoid account bans and cancellations by learning how to properly and efficiently place large orders without account aging.", tint: "amber" as const,  illo: "spark"      as const, glow: "pulse-glow"        },
                 { id: "evade.solution.1", body: "Gain insights into avoiding rebills or winning against an existing rebill, plus understanding anti-fraud systems, user behaviour analysis, order fraud scores, and the latest algorithms used by online stores.", tint: "cyan"  as const, illo: "encryption" as const, glow: "pulse-glow-cyan"   },
@@ -406,8 +430,7 @@ export default function EvadePage() {
           alt="Star reviews — clients trust RefundGod."
           align="center"
           glow="violet"
-          height={280}
-          caption="— trusted worldwide · 5-star reviews"
+          height={460}
           transparent
         />
       </ReorderableSection>
