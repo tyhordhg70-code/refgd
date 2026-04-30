@@ -263,7 +263,7 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
                 key={s.n}
                 tint={s.tint}
                 delay={i * 0.12}
-                className={`pulse-glow float-card ${i === 1 ? "float-card-2" : ""}`}
+                className=""
               >
                 <div className="relative overflow-hidden p-8 sm:p-10">
                   <div className="pointer-events-none absolute -right-8 -top-8 opacity-30">
@@ -325,49 +325,64 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
                 key={w.h}
                 tint={w.tint}
                 delay={i * 0.1}
-                className={`pulse-glow float-card ${i % 2 === 1 ? "float-card-2" : ""}`}
+                className=""
               >
                 <div className="relative overflow-hidden p-8">
-                  <div className="pointer-events-none absolute -right-6 -top-6 opacity-25">
-                    <ParallaxIllustration kind={w.illust} accent={w.tint as any} size={150} />
+                  {/* Per-card decorative illustration */}
+                  {i === 0 && (
+                    <div className="pointer-events-none absolute inset-0">
+                      <img
+                        src="/images/five-years-deep.webp"
+                        alt=""
+                        className="absolute right-0 bottom-0 h-[90%] w-[90%] object-contain object-right-bottom opacity-35"
+                        style={{ mixBlendMode: "screen" }}
+                      />
+                    </div>
+                  )}
+                  {i === 1 && (
+                    <div className="pointer-events-none absolute inset-0">
+                      <img
+                        src="/uploads/secure-lock.png"
+                        alt=""
+                        className="absolute right-[-10%] bottom-[-10%] h-[85%] w-[85%] object-contain object-right-bottom opacity-30"
+                        style={{ mixBlendMode: "screen" }}
+                      />
+                    </div>
+                  )}
+                  {i === 2 && (
+                    <div className="pointer-events-none absolute inset-0">
+                      <img
+                        src="/images/stores-nobody-has.webp"
+                        alt=""
+                        className="absolute right-[-5%] bottom-[-5%] h-[90%] w-[90%] object-contain object-right-bottom opacity-35"
+                        style={{ mixBlendMode: "screen" }}
+                      />
+                    </div>
+                  )}
+                  <div className="relative">
+                    <EditableText
+                      id={`service.why.${i}.h`}
+                      defaultValue={w.h}
+                      as="h3"
+                      className="relative heading-display text-xl font-bold uppercase tracking-tight text-white"
+                    />
+                    <EditableText
+                      id={`service.why.${i}.body`}
+                      defaultValue={w.body}
+                      as="p"
+                      multiline
+                      className="relative mt-4 text-base leading-relaxed text-white/95"
+                    />
                   </div>
-                  <EditableText
-                    id={`service.why.${i}.h`}
-                    defaultValue={w.h}
-                    as="h3"
-                    className="relative heading-display text-xl font-bold uppercase tracking-tight text-white"
-                  />
-                  <EditableText
-                    id={`service.why.${i}.body`}
-                    defaultValue={w.body}
-                    as="p"
-                    multiline
-                    className="relative mt-4 text-base leading-relaxed text-white/95"
-                  />
                 </div>
               </GlassCard>
+            ))}
             ))}
           </div>
         </div>
       </section>
 
-      {/* ────────── Lock + Shield centerpiece (after "Why choose us") ────────── */}
-      <section className="relative py-20">
-        <div className="container-wide grid place-items-center">
-          <Reveal>
-            <SecureLockCenterpiece size={360} />
-          </Reveal>
-          <Reveal delay={0.2}>
-            <EditableText
-              id="service.lock.caption"
-              defaultValue="— end-to-end encrypted · isolated · zero-knowledge"
-              as="p"
-              className="heading-display mt-8 text-center text-xs font-semibold uppercase tracking-[0.5em] text-violet-200"
-              style={{ textShadow: "0 0 22px rgba(167,139,250,0.55)" }}
-            />
-          </Reveal>
-        </div>
-      </section>
+            {/* Lock centerpiece removed — illustration is now inside E2E encrypted card */}
 
       {/* ────────── Act 5 — Awarded CTA banner ────────── */}
       {/* Reduced spark backdrop opacity (was 0.25 → 0.10) and bumped the
