@@ -13,14 +13,17 @@ import {
  * MeshExpansionReveal — wraps a card with a distorted wireframe
  * shockwave that detonates outward from the centre of the card.
  *
- * Trigger: fires the burst only when BOTH the card is ≥ 35 % in
- * the viewport AND the page has been scroll-idle for ≥ 220 ms.
- * That way the user has actually settled on the card before the
- * cinematic burst plays, instead of the burst firing while they
- * are still tracking the scroll past it.
+ * Trigger: fires the burst the first time ≥ 50 % of the card is
+ * in the viewport. Re-arms when the card fully leaves view so
+ * scrolling back replays it.
  *
- * Re-arms when the card leaves the viewport entirely so a return
- * scroll plays the burst again.
+ * Earlier iterations gated the burst on a 220 ms scroll-idle
+ * window, but that gate was incompatible with iOS Safari touch-
+ * inertia (scroll events keep firing for 1-2 s after the finger
+ * lifts), so the burst effectively never fired on mobile and
+ * often missed the scroll-by window on desktop touchpads. The
+ * simpler "fire on first in-view, re-arm on exit" model works on
+ * every device.
  *
  * The wrapped children render statically at their rest position —
  * no fold-in entrance for the card itself. Only the overlay
@@ -30,19 +33,19 @@ export default function MeshExpansionReveal({
   children,
   className,
   borderRadius = "2.5rem",
-  /** ms of scroll idleness required before the burst fires. */
-  idleDelay = 220,
-  /** how much of the card must be in view to count as "settled". */
-  viewportAmount = 0.35,
+  /** how much of the card must be in view to fire the burst. */
+  viewportAmount = 0.5,
 }: {
   children: ReactNode;
   className?: string;
   borderRadius?: string;
-  idleDelay?: number;
   viewportAmount?: number;
 }) {
   const reduced = useReducedMotion();
-  const filterId = useId();
+  // useId() returns colons (e.g. ":r1:") which break SVG IRI
+  // references in Safari < 17 — sanitise so url(#mesh-distort-...)
+  // always resolves.
+  const filterId = useId().replace(/:/g, "");
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [isMobile, setIsMobile] = useState(false);
@@ -65,66 +68,44 @@ export default function MeshExpansionReveal({
     const el = containerRef.current;
     if (!el) return;
 
-    let inView = false;
-    let scrollIdle = false;
-    let scrollTimer = 0;
     let cancelled = false;
+    let doneTimer = 0;
 
-    const tryFire = () => {
+    const fire = () => {
       if (cancelled) return;
-      if (inView && scrollIdle) {
-        setPhase((current) => {
-          if (current !== "idle") return current;
-          setBurstKey((k) => k + 1);
-          // Burst lasts 2.4 s + 0.15 s lead — unmount overlay just
-          // after to free GPU layers.
-          window.setTimeout(() => {
-            if (!cancelled) setPhase("done");
-          }, 2700);
-          return "playing";
-        });
-      }
+      setPhase((current) => {
+        if (current !== "idle") return current;
+        setBurstKey((k) => k + 1);
+        // Burst lasts 2.4 s + 0.15 s lead — unmount overlay just
+        // after to free GPU layers.
+        doneTimer = window.setTimeout(() => {
+          if (!cancelled) setPhase("done");
+        }, 2700);
+        return "playing";
+      });
     };
 
     const io = new IntersectionObserver(
       (entries) => {
         const e = entries[0];
         if (!e) return;
-        inView = e.isIntersecting && e.intersectionRatio >= viewportAmount;
-        if (e.intersectionRatio === 0) {
-          // Re-arm when card fully exits viewport.
+        if (e.intersectionRatio >= viewportAmount) {
+          fire();
+        } else if (e.intersectionRatio <= 0.02) {
+          // Re-arm when card has fully left viewport.
           setPhase((current) => (current === "done" ? "idle" : current));
-        } else if (inView) {
-          tryFire();
         }
       },
-      { threshold: [0, 0.2, viewportAmount, 0.6, 1] },
+      { threshold: [0, 0.02, viewportAmount, 1] },
     );
     io.observe(el);
-
-    const onScroll = () => {
-      scrollIdle = false;
-      window.clearTimeout(scrollTimer);
-      scrollTimer = window.setTimeout(() => {
-        scrollIdle = true;
-        tryFire();
-      }, idleDelay);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-
-    // Bootstrap idle for deep-link case (no scroll event fires).
-    scrollTimer = window.setTimeout(() => {
-      scrollIdle = true;
-      tryFire();
-    }, idleDelay);
 
     return () => {
       cancelled = true;
       io.disconnect();
-      window.removeEventListener("scroll", onScroll);
-      window.clearTimeout(scrollTimer);
+      window.clearTimeout(doneTimer);
     };
-  }, [reduced, idleDelay, viewportAmount]);
+  }, [reduced, viewportAmount]);
 
   if (reduced) {
     return (
@@ -139,6 +120,11 @@ export default function MeshExpansionReveal({
     transformOrigin: "50% 50%",
     borderRadius,
     overflow: "hidden",
+    // Insurance: explicit z-index + screen blend so the burst pops
+    // visually above ANYTHING inside the card (CTA button, stars,
+    // text), against the dark violet backdrop.
+    zIndex: 40,
+    mixBlendMode: "screen",
   };
 
   return (
@@ -153,9 +139,6 @@ export default function MeshExpansionReveal({
             className="pointer-events-none absolute inset-0"
             style={overlayStyle}
             initial={{ opacity: 0, scale: 0.1 }}
-            // Slow, deliberate detonation. Opacity holds at peak from
-            // 18-60 % of the burst so the user has clearly more than
-            // a single frame to register the wireframe distortion.
             animate={{
               opacity: [0, 1, 1, 0],
               scale: [0.1, 0.7, 1.25, 1.7],
@@ -198,8 +181,6 @@ export default function MeshExpansionReveal({
                   y1="0"
                   y2="1"
                 >
-                  {/* Brighter, more saturated stops so the wireframe
-                      reads against the violet card background. */}
                   <stop offset="0%" stopColor="rgba(255, 220, 130, 1)" />
                   <stop offset="50%" stopColor="rgba(192, 132, 252, 1)" />
                   <stop offset="100%" stopColor="rgba(56, 232, 255, 0.95)" />
