@@ -127,7 +127,7 @@ export default function PixelRainCosmic({
         visibleRef.current = e.isIntersecting;
         if (visibleRef.current) loop();
       },
-      { rootMargin: "120px" }
+      { rootMargin: "400px 0px 400px 0px" }
     );
     io.observe(W);
 
