@@ -5,6 +5,7 @@ import {
   isValidElement,
   useEffect,
   useState,
+  useState,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -252,6 +253,7 @@ function MobileFloatOrbs() {
  * shadow that reads as the cube sitting on a surface.
  */
 function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
+  const [activeIndex, setActiveIndex] = useState(0);
   return (
     <div
       data-testid="paths-mobile-track"
@@ -272,6 +274,8 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         loop
         grabCursor
         speed={550}
+        onSwiper={(s) => setActiveIndex(s.realIndex)}
+        onSlideChange={(s) => setActiveIndex(s.realIndex)}
         // Cube depth — slideShadows give each face a subtle dark
         // sheen as it rotates away from the camera, which is what
         // sells the "this is a 3D cube" gesture. shadow draws the
@@ -295,8 +299,13 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
       >
         {cards.map((card, i) => {
           const renderedCard = isValidElement(card)
-            ? cloneElement(card as ReactElement<{ noReveal?: boolean }>, {
+            ? cloneElement(card as ReactElement<{ noReveal?: boolean; animated?: boolean }>, {
                 noReveal: true,
+                // Only the currently visible slide gets live animations.
+                // Others are frozen by PathIllustration's MotionConfig gate,
+                // reducing concurrent framer-motion rAF callbacks from
+                // ~125 (5 slides × 25 animations) to ~25 (1 active slide).
+                animated: i === activeIndex,
               })
             : card;
           return (
