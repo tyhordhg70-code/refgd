@@ -64,30 +64,17 @@ export default function ChapterCosmos() {
           { x: "30%", y: "78%", c: "#f472b6" },
           { x: "55%", y: "55%", c: "#ffe28a" },
         ].map((p, i) => (
-          <motion.span
+          <span
             key={i}
-            className="absolute block h-2 w-2 rounded-full"
+            className={reduced ? "absolute block h-2 w-2 rounded-full" : "constellation-dot absolute block h-2 w-2 rounded-full"}
             style={{
               left: p.x,
               top: p.y,
               background: p.c,
               boxShadow: `0 0 14px ${p.c}, 0 0 30px ${p.c}`,
+              animationDuration: `${3 + i * 0.6}s`,
+              animationDelay: `${i * 0.4}s`,
             }}
-            animate={
-              reduced || isMobile
-                ? {}
-                : { opacity: [0.4, 1, 0.4], scale: [0.8, 1.4, 0.8] }
-            }
-            transition={
-              reduced || isMobile
-                ? {}
-                : {
-                    duration: 3 + i * 0.6,
-                    repeat: Infinity,
-                    delay: i * 0.4,
-                    ease: "easeInOut",
-                  }
-            }
           />
         ))}
       </motion.div>
