@@ -346,6 +346,24 @@ export default function ChipScroll({
     ro.observe(cnv);
     resize();
 
+    // ── PRELOAD: first paint immediately on mount so the canvas
+    //    isn't a blank rectangle until the user scrolls. Without this
+    //    the procedural scene only draws once scrollYProgress fires a
+    //    "change" event, which doesn't happen until the first scroll —
+    //    so users on the evade page saw a black canvas for a beat
+    //    after the loading screen lifted ("the scene loading takes
+    //    too long"). Now the scene is rendered at progress=0 the
+    //    instant the component mounts.
+    paint(0);
+
+    // Tell the LoadingScreen the cinematic scene is warm and ready.
+    // LoadingScreen waits for this event (with a short timeout) so
+    // the loading overlay doesn't fade out before the scene's first
+    // pixels exist. Window-event so it works across components.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("refgd:scene-ready"));
+    }
+
     // Repaint whenever scroll progress changes.
     const unsub = scrollYProgress.on("change", (v) => {
       lastProgressRef.current = v;
