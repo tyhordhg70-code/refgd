@@ -6,6 +6,7 @@ import AnnouncementBanner from "@/components/AnnouncementBanner";
 import CustomCursor from "@/components/CustomCursor";
 import PulsatingOverlay from "@/components/PulsatingOverlay";
 import GalaxyBackground from "@/components/GalaxyBackground";
+import LoadingScreen from "@/components/LoadingScreen";
 import EditProvider from "@/lib/edit-context";
 import EditorToolbar from "@/components/EditorToolbar";
 import AutoEditWrapper from "@/components/AutoEditWrapper";
@@ -81,6 +82,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="min-h-screen bg-ink-950 text-white antialiased">
+        {/* Cinematic boot overlay — locks the page for ~2.4 s while
+            the React tree mounts behind it so all GPU layers, fonts
+            and images are warm before the user can scroll. */}
+        <LoadingScreen />
         <EditProvider initialAdmin={initialAdmin} initialContent={initialContent}>
           {/* Site-wide continuous WebGL galaxy field — every page scrolls
               over the same scene so transitions feel like one journey. */}
