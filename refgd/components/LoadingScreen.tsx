@@ -241,6 +241,35 @@ export default function LoadingScreen() {
         ? document.fonts.ready
         : Promise.resolve();
 
+    // ── Scene-ready promise: any cinematic scene component
+    //    (ChipScroll on the evade page, etc.) dispatches a
+    //    `refgd:scene-ready` window event once its canvas/3D scene
+    //    has actually painted its first frame. We wait for it here
+    //    so the loading overlay never fades out exposing a blank
+    //    canvas. If no such scene is on the current page (home,
+    //    mentorships, etc.), the timeout below resolves immediately
+    //    after a short grace window so it doesn't extend page loads
+    //    that don't need it.
+    const sceneReadyPromise = new Promise<void>((resolve) => {
+      let resolved = false;
+      const finish = () => {
+        if (resolved) return;
+        resolved = true;
+        window.removeEventListener(
+          "refgd:scene-ready",
+          finish as EventListener,
+        );
+        resolve();
+      };
+      window.addEventListener("refgd:scene-ready", finish as EventListener, {
+        once: true,
+      });
+      // Pages without a heavy scene should not be held back. Resolve
+      // after 1500ms if no scene-ready fires, which still gives any
+      // mounting scene a real chance to signal first.
+      window.setTimeout(finish, 1500);
+    });
+
     // ── Image promise: resolves when ALL images have either loaded
     //    or hit the 4.5 s grace fallback above ──
     const imagesPromise = new Promise<void>((resolve) => {
@@ -270,6 +299,7 @@ export default function LoadingScreen() {
       minStallPromise,
       paintWaiter,
       imagesPromise,
+      sceneReadyPromise,
     ]).then(() => {
       if (cancelled) return;
       state.everythingResolved = true;
