@@ -225,7 +225,6 @@ function MobileFloatOrbs() {
             left: orb.left,
             top: orb.top,
             background: orb.color,
-            filter: `blur(${orb.blur}px)`,
             animationDuration: `${orb.dur}s`,
             animationDelay: `${orb.delay}s`,
             // Per-orb keyframe variables (read by the .float-orb @keyframes
