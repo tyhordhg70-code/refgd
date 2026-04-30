@@ -589,6 +589,23 @@ export default function MentorshipsPage() {
                   still in warranty, companies ship out brand-new product
                   replacements for FREE.
                 </TextReveal>
+                {/* Puppet-brain illustration relocated per user request:
+                    now follows p6 ("Social Engineering — SE — is the next
+                    big thing closest to refunding…") instead of p7. The
+                    image acts as a visual punctuation for the "next big
+                    thing" beat, then narrative continues with p7. */}
+                <div className="my-10 sm:my-14 grid place-items-center">
+                  <ScrollImage
+                    src="/illustrations/puppet-brain.png"
+                    alt=""
+                    side="left"
+                    glow="cyan"
+                    inline
+                    width="w-full max-w-[440px]"
+                    height="h-[260px] sm:h-[340px] lg:h-[420px]"
+                    tilt={8}
+                  />
+                </div>
                 <TextReveal variant="wordBlur" editId="ment.se.p7">
                   However, it&apos;s not that easy. A lot of companies expect
                   the product to be sent back to them — which obviously you
@@ -601,23 +618,6 @@ export default function MentorshipsPage() {
                 </TextReveal>
               </div>
 
-              {/* Puppet-brain illustration was previously rendered in
-                  the left column (2-col grid) — moved here per
-                  request to act as the visual punctuation for the
-                  "That is the main difference between SE and
-                  Refunding" sentence. */}
-              <div className="mt-12 sm:mt-16">
-                <ScrollImage
-                  src="/illustrations/puppet-brain.png"
-                  alt=""
-                  side="left"
-                  glow="cyan"
-                  inline
-                  width="w-full max-w-[440px]"
-                  height="h-[280px] sm:h-[360px] lg:h-[440px]"
-                  tilt={8}
-                />
-              </div>
             </div>
           </div>
         </div>
