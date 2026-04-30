@@ -132,7 +132,7 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
           aria-hidden="true"
           className="pointer-events-none absolute inset-y-0 right-[2%] z-0 hidden items-center md:flex"
         >
-          <CashbackScene size={380} />
+          <CashbackScene size={520} />
         </div>
 
         {/* interactive particles */}
