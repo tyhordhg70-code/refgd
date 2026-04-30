@@ -100,14 +100,7 @@ function DesktopGrid({
 
       <motion.div
         className="relative px-2 sm:px-4"
-        initial={reduced ? { opacity: 1, y: 0 } : { opacity: 0, y: 28 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.15 }}
-        transition={
-          reduced
-            ? { duration: 0 }
-            : { duration: 0.7, ease: [0.16, 1, 0.3, 1] }
-        }
+        initial={{ opacity: 1, y: 0 }}
       >
         {desktopFallback ?? (
           <div className="mx-auto grid w-full max-w-[1500px] grid-cols-2 items-stretch gap-4 sm:grid-cols-3 md:gap-5 xl:grid-cols-5 xl:gap-6">
@@ -183,6 +176,8 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
       data-testid="paths-mobile-carousel"
       className="relative w-full overflow-hidden py-4"
     >
+      {/* Ambient floating orbs — CSS-animation-driven, never touch swiper state */}
+      <MobileFloatOrbs />
       <SwiperCubeStage cards={cards} />
       <p
         aria-hidden="true"
@@ -191,6 +186,60 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
         Swipe to rotate the cube
       </p>
     </section>
+  );
+}
+
+
+/* ── MobileFloatOrbs ─────────────────────────────────────────────────────────
+ * Pure framer-motion looping animations — zero per-frame JS during Swiper
+ * swipe gestures. Each orb is positioned at a fixed spot outside the cube
+ * bounding box and animates independently, so the Swiper compositor never
+ * competes with these layers.
+ */
+const FLOAT_ORB_CONFIG = [
+  { size: 80, left: "4%",  top: "2%",   color: "rgba(245,185,69,0.22)",  blur: 28, drift: 16, o: [0.35, 0.80] as const, dur: 4.2, delay: 0   },
+  { size: 48, left: "82%", top: "4%",   color: "rgba(167,139,250,0.28)", blur: 20, drift: 12, o: [0.30, 0.75] as const, dur: 5.0, delay: 0.9 },
+  { size: 56, left: "6%",  top: "74%",  color: "rgba(34,211,238,0.20)",  blur: 24, drift: 18, o: [0.28, 0.72] as const, dur: 4.6, delay: 1.5 },
+  { size: 36, left: "80%", top: "78%",  color: "rgba(240,171,252,0.24)", blur: 16, drift: 10, o: [0.35, 0.78] as const, dur: 3.8, delay: 2.1 },
+  { size: 28, left: "50%", top: "-2%",  color: "rgba(255,255,255,0.12)", blur: 12, drift:  8, o: [0.20, 0.55] as const, dur: 6.0, delay: 1.0 },
+];
+
+function MobileFloatOrbs() {
+  const reduced = useReducedMotion();
+  if (reduced) return null;
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 overflow-hidden"
+    >
+      {FLOAT_ORB_CONFIG.map((orb, i) => (
+        <motion.div
+          key={i}
+          className="absolute rounded-full"
+          style={{
+            width: orb.size,
+            height: orb.size,
+            left: orb.left,
+            top: orb.top,
+            background: orb.color,
+            filter: `blur(${orb.blur}px)`,
+            willChange: "transform, opacity",
+          }}
+          animate={{
+            y: [0, -orb.drift, 0, orb.drift * 0.4, 0],
+            x: [0, orb.drift * 0.3, 0, -orb.drift * 0.2, 0],
+            opacity: [orb.o[0], orb.o[1], orb.o[0], orb.o[1], orb.o[0]],
+          }}
+          transition={{
+            duration: orb.dur,
+            repeat: Infinity,
+            delay: orb.delay,
+            ease: "easeInOut",
+            times: [0, 0.25, 0.5, 0.75, 1],
+          }}
+        />
+      ))}
+    </div>
   );
 }
 
