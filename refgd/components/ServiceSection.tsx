@@ -377,7 +377,6 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
                 </div>
               </GlassCard>
             ))}
-            ))}
           </div>
         </div>
       </section>
