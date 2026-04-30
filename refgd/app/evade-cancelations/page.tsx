@@ -65,7 +65,7 @@ const PRICING = [
       "For those who want a serious long-term solution and to hit big ordering from multiple accounts at once before the store has a chance to detect and ban you. Stay under the radar, pass through account reviews and more. 45 pages with no filler content.",
     url: "https://refundgod.bgng.io/product/evade1",
     tint: "amber" as const,
-    img: "/uploads/evasion-l1.png",
+    img: "/uploads/evasion-l1.webp",
   },
   {
     title: "Evasion Book — Level 2",
@@ -234,10 +234,13 @@ export default function EvadePage() {
             belongs with the chapter copy. */}
         <EvadeIllustrationDivider
           src="/uploads/sec-shield.webp"
+          /* user request: enlarge sec-shield divider so the illustration
+             reads as a real visual moment, not just a spacer. Bumped
+             height to 520 from 380. */
           alt="Anti-fraud security infrastructure — servers, shields, encrypted keys."
           align="center"
           glow="cyan"
-          height={380}
+          height={520}
           transparent
         />
 
@@ -380,7 +383,12 @@ export default function EvadePage() {
         {/* Act 5 — Trust / chapter 03 — parallax depth */}
         <ParallaxChapter
           intensity={0.5}
-          className="py-24"
+          /* User request: reduce vertical space between Trust section
+             end and the trust-reviews divider. Was py-24 (96px each
+             side); now keep top padding for breathing room above and
+             collapse bottom to pb-6 so the next divider follows
+             immediately after "and how their algorithms work as well." */
+          className="pt-24 pb-6"
           bgClassName="absolute right-[2%] top-[8%] hidden lg:block"
           bg={<ParallaxIllustration kind="globe" accent="amber" size={380} />}
         >
