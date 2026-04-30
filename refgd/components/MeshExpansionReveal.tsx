@@ -70,6 +70,22 @@ export default function MeshExpansionReveal({
   if (reduced) {
     return <div className={className}>{children}</div>;
   }
+  // Mobile: skip feTurbulence+feDisplacementMap (most expensive SVG filter chain).
+  // Render children with a plain fast fade instead.
+  if (isMobile) {
+    return (
+      <motion.div
+        className={className}
+        initial={{ opacity: 0, y: 16 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.15 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      >
+        {children}
+      </motion.div>
+    );
+  }
+
 
   const wrapperStyle: CSSProperties = {
     perspective: "1600px",
