@@ -143,17 +143,17 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     offset: ["start start", "end start"],
   });
 
-  // Desktop: dramatic fly-into-cosmos (scale 1→0.08, rotateX 0→-55, y 0→-200)
-  const dtScale    = useTransform(scrollYProgress, [0, 1], [1, 0.08]);
-  const dtRotateX  = useTransform(scrollYProgress, [0, 1], [0, -55]);
-  const dtY        = useTransform(scrollYProgress, [0, 1], [0, -200]);
-  const dtOpacity  = useTransform(scrollYProgress, [0.55, 1], [1, 0]);
+  // Exit during scrollYProgress 0→0.5 (first 100svh, while sticky is active)
+  const dtScale    = useTransform(scrollYProgress, [0, 0.5], [1, 0.08]);
+  const dtRotateX  = useTransform(scrollYProgress, [0, 0.5], [0, -55]);
+  const dtY        = useTransform(scrollYProgress, [0, 0.5], [0, -200]);
+  const dtOpacity  = useTransform(scrollYProgress, [0.28, 0.5], [1, 0]);
 
-  // Mobile: cinematic but not extreme (scale 1→0.5, rotateX 0→-22, y 0→-100)
-  const mbScale    = useTransform(scrollYProgress, [0, 1], [1, 0.5]);
-  const mbRotateX  = useTransform(scrollYProgress, [0, 1], [0, -22]);
-  const mbY        = useTransform(scrollYProgress, [0, 1], [0, -100]);
-  const mbOpacity  = useTransform(scrollYProgress, [0.6, 1], [1, 0]);
+  // Mobile: cinematic but lighter
+  const mbScale    = useTransform(scrollYProgress, [0, 0.5], [1, 0.5]);
+  const mbRotateX  = useTransform(scrollYProgress, [0, 0.5], [0, -22]);
+  const mbY        = useTransform(scrollYProgress, [0, 0.5], [0, -100]);
+  const mbOpacity  = useTransform(scrollYProgress, [0.3, 0.5], [1, 0]);
 
   const stageScale   = isMobile ? mbScale   : dtScale;
   const stageRotateX = isMobile ? mbRotateX : dtRotateX;
@@ -161,11 +161,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const stageOpacity = isMobile ? mbOpacity : dtOpacity;
 
   // Scroll indicator fades out once user starts scrolling.
-  const scrollIndicatorOpacity = useTransform(scrollYProgress, [0, 0.12], [1, 0]);
+  const scrollIndicatorOpacity = useTransform(scrollYProgress, [0, 0.06], [1, 0]);
 
   // Mid-flight warp effects — desktop only, show in the 35-90% scroll range.
   useMotionValueEvent(scrollYProgress, "change", (v) => {
-    setShowMidFlight(v > 0.35 && v < 0.9 && !reduced && !isMobile);
+    setShowMidFlight(v > 0.18 && v < 0.44 && !reduced && !isMobile);
   });
 
   return (
@@ -183,7 +183,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         ref={sectionRef}
         data-testid="cosmic-journey"
         className="relative w-full"
-        style={{ height: isMobile ? "150svh" : "200svh" }}
+        style={{ height: isMobile ? "180svh" : "215svh" }}
       >
         {/* Sticky viewport — the scene lives here and stays pinned to
             the top of the viewport while the user scrolls through the
@@ -451,6 +451,79 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         </div>
       </div>
     </div>
+
+        {/* Warp filler — fills blank space after welcome exits.
+            On scroll-down: visible between planet-fade and paths.
+            On scroll-up: first content seen when approaching from below,
+            eliminating the "welcome breaks on scroll-up" blank. CSS-only. */}
+        <div
+          aria-hidden="true"
+          className="relative flex flex-col items-center justify-center"
+          style={{
+            height: isMobile ? "80svh" : "115svh",
+            background: "linear-gradient(to bottom, #05060a 0%, #080b14 55%, #05060a 100%)",
+            overflow: "hidden",
+          }}
+        >
+          <style>{`
+            @keyframes cj-shoot {
+              0%   { transform: translateX(0) translateY(0) scaleX(0.3); opacity: 0; }
+              10%  { opacity: 1; }
+              100% { transform: translateX(-140vw) translateY(60vh) scaleX(1); opacity: 0; }
+            }
+            @keyframes cj-pulse-text {
+              0%, 100% { opacity: 0.35; letter-spacing: 0.3em; }
+              50%       { opacity: 0.75; letter-spacing: 0.45em; }
+            }
+            @keyframes cj-dest {
+              from { opacity: 0; transform: translateY(14px); }
+              to   { opacity: 1; transform: translateY(0); }
+            }
+          `}</style>
+          {[
+            { top: "16%", left: "92%", w: 160, delay: "0s",   dur: "2.4s" },
+            { top: "32%", left: "98%", w: 220, delay: "0.7s", dur: "2.1s" },
+            { top: "50%", left: "88%", w: 140, delay: "1.3s", dur: "2.8s" },
+            { top: "68%", left: "96%", w: 180, delay: "0.3s", dur: "2.2s" },
+            { top: "80%", left: "91%", w: 130, delay: "1.8s", dur: "2.6s" },
+            { top: "7%",  left: "95%", w: 200, delay: "2.2s", dur: "2.0s" },
+            { top: "58%", left: "94%", w: 110, delay: "0.9s", dur: "3.1s" },
+            { top: "24%", left: "89%", w: 250, delay: "1.6s", dur: "1.9s" },
+          ].map((s, i) => (
+            <div
+              key={i}
+              className="absolute rounded-full"
+              style={{
+                top: s.top,
+                left: s.left,
+                width: s.w,
+                height: 1.5,
+                background: "linear-gradient(to left, rgba(255,237,180,0.85) 0%, transparent 100%)",
+                boxShadow: "0 0 6px rgba(255,237,180,0.45)",
+                animation: `cj-shoot ${s.dur} ${s.delay} ease-in infinite`,
+                willChange: "transform, opacity",
+              }}
+            />
+          ))}
+          <div className="relative z-10 text-center select-none pointer-events-none">
+            <p style={{
+              fontFamily: "Clash Display, system-ui",
+              fontWeight: 700,
+              fontSize: "clamp(10px, 2vw, 12px)",
+              color: "rgba(255,210,120,0.55)",
+              animation: "cj-pulse-text 3.2s ease-in-out infinite",
+              marginBottom: "1rem",
+            }}>ENTERING ORBIT</p>
+            <p style={{
+              fontFamily: "Clash Display, system-ui",
+              fontWeight: 300,
+              fontSize: "clamp(18px, 4vw, 28px)",
+              color: "rgba(255,255,255,0.65)",
+              letterSpacing: "0.12em",
+              animation: "cj-dest 1.2s ease-out both",
+            }}>choose your path</p>
+          </div>
+        </div>
 
     </section>
     </>
