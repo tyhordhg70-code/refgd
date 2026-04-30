@@ -53,6 +53,7 @@ export default function PixelRainCosmic({
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const progressRef = useRef(0);
+  const timeRef = useRef(0);
   const rafRef = useRef<number | null>(null);
   const visibleRef = useRef(false);
 
@@ -90,6 +91,7 @@ export default function PixelRainCosmic({
     let columns: Col[] = [];
 
     function rebuildColumns() {
+      timeRef.current = 0;
       cols = Math.max(8, Math.ceil(cssW / cellW));
       columns = new Array(cols).fill(0).map(() => {
         const depth = Math.pow(Math.random(), 1.6); // skew toward far
@@ -127,7 +129,7 @@ export default function PixelRainCosmic({
         visibleRef.current = e.isIntersecting;
         if (visibleRef.current) loop();
       },
-      { rootMargin: "400px 0px 400px 0px" }
+      { rootMargin: "600px 0px 1200px 0px" }
     );
     io.observe(W);
 
@@ -149,18 +151,23 @@ export default function PixelRainCosmic({
       // Glyph drawing — opaque on top of whatever's left.
       ctx!.globalCompositeOperation = "source-over";
 
-      // Active rows-window scales with progress.
+      // Active rows-window scales with progress (density control).
       const aliveRows = (h / cellH) * (0.15 + 0.85 * p);
 
       ctx!.font = "600 14px JetBrains Mono, ui-monospace, SFMono-Regular, monospace";
       ctx!.textBaseline = "top";
 
+      // timeRef advances every rAF tick — decoupled from scroll so rain
+      // keeps falling at natural speed even when the user stops scrolling.
+      const tf = timeRef.current;
+
       for (let i = 0; i < cols; i++) {
         const c = columns[i];
         const x = i * cellW + cellW * 0.5;
 
-        // Per-column rain head advances proportionally to global p.
-        const headRow = (p * (h / cellH + 30) * c.speed) - 20 + c.flicker * 4;
+        // Head position is TIME-driven (tf) + per-column speed variance.
+        // p only modulates alpha/density (0 = invisible, 1 = full rain).
+        const headRow = (tf * c.speed * 0.45) + c.flicker * 4;
 
         const trailLen = Math.max(8, Math.floor(aliveRows));
         for (let k = 0; k < trailLen; k++) {
@@ -171,8 +178,9 @@ export default function PixelRainCosmic({
           const t = 1 - k / trailLen;
           const a =
             c.alphaPeak *
+            p *                 // p=0 → invisible; p=1 → full density
             t *
-            (0.6 + 0.4 * Math.sin((c.flicker + k) * 1.7 + p * 6));
+            (0.6 + 0.4 * Math.sin((c.flicker + k) * 1.7 + tf * 0.02));
 
           const isHead = k === 0;
           const hue = (hsl.h + c.hueShift + 360) % 360;
@@ -196,6 +204,8 @@ export default function PixelRainCosmic({
         rafRef.current = null;
         return;
       }
+      // Advance time every frame — rain always falls regardless of scroll.
+      timeRef.current += 1;
       draw();
       rafRef.current = requestAnimationFrame(loop);
     }
