@@ -176,6 +176,8 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
       data-testid="paths-mobile-carousel"
       className="relative w-full overflow-hidden py-4"
     >
+      {/* Ambient floating orbs — pure CSS keyframes, zero JS cost during swipe */}
+      <MobileFloatOrbs />
       <SwiperCubeStage cards={cards} />
       <p
         aria-hidden="true"
@@ -211,9 +213,9 @@ function MobileFloatOrbs() {
       className="pointer-events-none absolute inset-0 overflow-hidden"
     >
       {FLOAT_ORB_CONFIG.map((orb, i) => (
-        <motion.div
+        <div
           key={i}
-          className="absolute rounded-full"
+          className="float-orb absolute rounded-full"
           style={{
             width: orb.size,
             height: orb.size,
@@ -221,20 +223,18 @@ function MobileFloatOrbs() {
             top: orb.top,
             background: orb.color,
             filter: `blur(${orb.blur}px)`,
-            willChange: "transform, opacity",
-          }}
-          animate={{
-            y: [0, -orb.drift, 0, orb.drift * 0.4, 0],
-            x: [0, orb.drift * 0.3, 0, -orb.drift * 0.2, 0],
-            opacity: [orb.o[0], orb.o[1], orb.o[0], orb.o[1], orb.o[0]],
-          }}
-          transition={{
-            duration: orb.dur,
-            repeat: Infinity,
-            delay: orb.delay,
-            ease: "easeInOut",
-            times: [0, 0.25, 0.5, 0.75, 1],
-          }}
+            animationDuration: `${orb.dur}s`,
+            animationDelay: `${orb.delay}s`,
+            // Per-orb keyframe variables (read by the .float-orb @keyframes
+            // in globals.css). Drift signs alternate so each orb travels in
+            // a slightly different orbit.
+            ["--orb-min" as any]: orb.o[0],
+            ["--orb-max" as any]: orb.o[1],
+            ["--orb-dy-up" as any]: `${-orb.drift}px`,
+            ["--orb-dy-down" as any]: `${orb.drift * 0.4}px`,
+            ["--orb-dx" as any]: `${orb.drift * 0.3}px`,
+            ["--orb-dx-neg" as any]: `${-orb.drift * 0.2}px`,
+          } as React.CSSProperties}
         />
       ))}
     </div>
@@ -252,7 +252,7 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
   return (
     <div
       data-testid="paths-mobile-track"
-      className="mx-auto"
+      className="cube-float mx-auto"
       style={{
         width: "min(92vw, 440px)",
         // Reserve a tall stage so the cube has room to rotate.
