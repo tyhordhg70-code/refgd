@@ -1002,6 +1002,78 @@ html { scroll-behavior: smooth; }
   font-feature-settings: "tnum" 1, "kern" 1;
 }
 
+/* ── Path-card carousel slide focus animation ──
+   The mobile carousel toggles `data-active="true"` on the
+   currently-centred slide via a single IntersectionObserver
+   callback (no per-frame JS). The CSS transition below is the
+   ONLY animation trigger when the user swipes — it runs
+   entirely on the GPU compositor with consistent transform
+   state, so reversing direction (left → right) never produces
+   the "half the card breaks and distorts" effect that
+   per-frame style.transform writes were causing on iOS. */
+.path-card-slide {
+  transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 280ms ease,
+              filter 280ms ease;
+  transform: scale(0.92);
+  opacity: 0.6;
+  filter: saturate(0.85);
+  will-change: transform, opacity;
+}
+.path-card-slide[data-active="true"] {
+  transform: scale(1);
+  opacity: 1;
+  filter: saturate(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .path-card-slide {
+    transition: none;
+    transform: none;
+    opacity: 1;
+    filter: none;
+  }
+}
+
+/* ─── MOBILE PERFORMANCE KILL-SWITCH ──────────────────────────
+ * The user reported the page feels laggy on iPhone. The home
+ * page runs >15 simultaneous infinite CSS animations across
+ * background overlays, glow rings, marquees, prismatic spins,
+ * etc. Each one continuously triggers paint or composite work
+ * on the mobile GPU. Together with native scroll-snapping they
+ * starve the compositor and produce the "everything is laggy"
+ * symptom.
+ *
+ * On viewports ≤ 768px we pause every infinite background
+ * animation outright. Visual hierarchy is preserved (gradients,
+ * static glows, colour cast) — only the perpetual motion is
+ * removed. This gives the mobile compositor enough headroom to
+ * keep scroll at 60 fps and render the carousel focus
+ * transition smoothly. */
+@media (max-width: 768px) {
+  .orb,
+  .pulsating-overlay-a,
+  .pulsating-overlay-b,
+  .telegram-ring-spin,
+  .float-card,
+  .chess-float,
+  .prismatic-glow::before,
+  .prismatic-glow::after,
+  .marquee,
+  .marquee-reverse,
+  .led-track,
+  .pulse-glow-shadow,
+  .prism-bg::before,
+  .prism-bg::after,
+  .aurora-bg::before,
+  .aurora-bg::after {
+    animation: none !important;
+  }
+  /* Marquee tracks: when paused they need to stay readable. */
+  .marquee, .marquee-reverse {
+    transform: none !important;
+  }
+}
+
 /* ── No vertical scroll-snap on mobile ──
    We previously set `scroll-snap-type: y proximity` on <html> with
    `scroll-snap-align: start` on the telegram <section>. In theory
