@@ -378,7 +378,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // for free and stays in lock-step with native scroll.
   const stageAnimate = exiting
     ? isMobile
-      ? { opacity: 0, scale: 0.94 }
+      ? // Restored ORIGINAL mobile exit: quick fade + small upward
+        // slide + gentle scale, so the welcome appears to "lift up
+        // and away" as it scrolls out of view naturally (no
+        // pinning on mobile — see the section style below).
+        { opacity: 0, y: -80, scale: 0.92 }
       : { scale: 0.08, rotateX: -55, y: -200, opacity: 0 }
     : isMobile
       ? { opacity: 1, y: 0, scale: 1 }
@@ -386,19 +390,19 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
   const stageTransition = exiting
     ? isMobile
-      ? { duration: 0.75, ease: [0.4, 0, 0.2, 1] as const }
+      ? { duration: 1.0, ease: [0.4, 0, 0.2, 1] as const }
       : { duration: 1.2, ease: [0.65, 0, 0.35, 1] as const }
     : { duration: 0.7, ease: [0.16, 1, 0.3, 1] as const };
 
   return (
     <>
       {/* Phantom placeholder — only takes up space while the welcome
-          is pinned (`exiting` true), so the document layout below
-          (paths, telegram, etc.) stays exactly where it was. Without
-          this, switching the welcome to position:fixed would remove
+          is pinned to position:fixed during exit (DESKTOP ONLY).
+          Without this, switching the welcome to fixed would remove
           its 100svh from flow and the rest of the page would jump
-          up by 100svh on the same frame as exit triggers. */}
-      <div aria-hidden="true" style={{ height: exiting ? "100svh" : 0 }} />
+          up by 100svh on the same frame as exit triggers. On
+          mobile we don't pin (see below) so no phantom is needed. */}
+      <div aria-hidden="true" style={{ height: exiting && !isMobile ? "100svh" : 0 }} />
       <section
         ref={sectionRef}
         data-testid="cosmic-journey"
@@ -408,21 +412,25 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           contain: "layout paint",
           perspective: "1400px",
           transform: "translate3d(0,0,0)",
-          ...(exiting
+          ...(exiting && !isMobile
             ? {
-                // Pin to viewport so the 1.2 s framer-motion exit
-                // animation plays IN view while the document scrolls
-                // to the paths section beneath. Without this, the
-                // native compositor smooth-scroll (~500 ms) drags
-                // the welcome out of the viewport before its exit
-                // is even half done.
+                // DESKTOP-ONLY pinning. The 1.2 s cinematic exit
+                // animation (scale 0.08 + rotateX -55 + y -200)
+                // would otherwise complete off-screen because the
+                // native compositor smooth-scroll only takes
+                // ~500 ms to drag the welcome out of viewport.
+                //
+                // Mobile: NO pinning. The welcome scrolls out
+                // naturally and its lighter exit animation
+                // ({opacity:0, y:-80, scale:0.92} over 1.0 s)
+                // plays partially in view as the section
+                // translates up — exactly the pre-Round-10
+                // behaviour the user wants restored.
                 position: "fixed" as const,
                 top: 0,
                 left: 0,
                 right: 0,
                 zIndex: 30,
-                // Don't intercept clicks while pinned — let scroll +
-                // tap pass through to the paths section underneath.
                 pointerEvents: "none" as const,
               }
             : {}),
