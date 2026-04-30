@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from "react-dom";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
@@ -56,6 +58,8 @@ export default function YouTubeTheater({
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [inView, setInView] = useState(false);
   const [activated, setActivated] = useState(false); // mounts iframe after first reveal
+  const [mounted, setMounted] = useState(false); // for portal SSR-safety
+  useEffect(() => { setMounted(true); }, []);
 
   // ── Visibility gate ───────────────────────────────────────────
   useEffect(() => {
@@ -146,16 +150,61 @@ export default function YouTubeTheater({
         </div>
       ) : null}
 
-      <div
+      {/* Distorted-mesh expansion entrance: the wrapper starts as a
+          tiny, irregular polygon (clip-path) with a heavy scale + skew
+          + blur filter, and "expands" into its proper rectangle as
+          the user scrolls it into view. Combined with feTurbulence
+          displacement on the SVG mesh below, the entrance reads as a
+          warped surface unwrinkling itself into a flat screen. */}
+      <motion.div
         ref={wrapRef}
+        initial={{
+          opacity: 0,
+          scale: 0.55,
+          rotateX: 22,
+          rotateZ: -3,
+          filter: "blur(14px) url(#refgd-yt-mesh)",
+          clipPath:
+            "polygon(18% 22%, 82% 8%, 96% 78%, 12% 92%, 2% 50%)",
+        }}
+        whileInView={{
+          opacity: 1,
+          scale: 1,
+          rotateX: 0,
+          rotateZ: 0,
+          filter: "blur(0px) url(#refgd-yt-mesh)",
+          clipPath:
+            "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%)",
+        }}
+        viewport={{ once: true, margin: "-12% 0px -12% 0px" }}
+        transition={{
+          duration: 1.4,
+          ease: [0.16, 1, 0.3, 1],
+        }}
         className={`relative z-[60] overflow-hidden rounded-3xl border border-white/10 ${className}`}
         style={{
+          transformOrigin: "50% 50%",
+          perspective: 1400,
           boxShadow: inView
             ? "0 50px 140px -30px rgba(124,58,237,0.7), 0 0 0 1px rgba(167,139,250,0.35) inset"
             : "0 30px 80px -30px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.04) inset",
           transition: "box-shadow .45s ease",
         }}
       >
+        {/* SVG filter that the entrance clip-path/filter references. */}
+        <svg
+          aria-hidden
+          width="0"
+          height="0"
+          style={{ position: "absolute", inset: 0 }}
+        >
+          <defs>
+            <filter id="refgd-yt-mesh" x="-20%" y="-20%" width="140%" height="140%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="7" />
+              <feDisplacementMap in="SourceGraphic" scale="60" />
+            </filter>
+          </defs>
+        </svg>
         <div className="relative aspect-video w-full overflow-hidden bg-black">
           {activated ? (
             <iframe
@@ -202,7 +251,36 @@ export default function YouTubeTheater({
             </>
           )}
         </div>
-      </div>
+      </motion.div>
+      {/* GLOBAL DIM OVERLAY — rendered to body via portal so it covers
+          the ENTIRE viewport (header, footer, every section), not just
+          the parent. Active for ALL device sizes (mobile + tablet +
+          desktop) when the player is inView. pointer-events:none so
+          it never blocks scrolling or interaction. */}
+      {mounted &&
+        createPortal(
+          <AnimatePresence>
+            {inView ? (
+              <motion.div
+                key="yt-dim"
+                aria-hidden
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  pointerEvents: "none",
+                  zIndex: 50,
+                  background:
+                    "radial-gradient(ellipse 75% 55% at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.45) 55%, rgba(0,0,0,0.85) 100%)",
+                }}
+              />
+            ) : null}
+          </AnimatePresence>,
+          document.body,
+        )}
     </>
   );
 }
