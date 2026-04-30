@@ -10,7 +10,7 @@ import {
 } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { EffectCube, Pagination } from "swiper/modules";
+import { EffectCube, EffectFade, Pagination } from "swiper/modules";
 import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
@@ -178,7 +178,7 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
     >
       {/* Ambient floating orbs — pure CSS keyframes, zero JS cost during swipe */}
       <MobileFloatOrbs />
-      <SwiperCubeStage cards={cards} />
+      <SwiperCubeStage cards={cards} isMobile={isMobile} />
       <p
         aria-hidden="true"
         className="mt-4 heading-display text-center text-[10px] font-semibold uppercase tracking-[0.4em] text-white/55"
@@ -251,7 +251,7 @@ function MobileFloatOrbs() {
  * minus side padding; cubeEffect.shadow=true adds a soft floor
  * shadow that reads as the cube sitting on a surface.
  */
-function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
+function SwiperCubeStage({ cards, isMobile }: { cards: ReactNode[]; isMobile: boolean }) {
   const [activeIndex, setActiveIndex] = useState(0);
   return (
     <div
@@ -268,8 +268,8 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
       }}
     >
       <Swiper
-        effect="cube"
-        modules={[EffectCube, Pagination]}
+        effect={isMobile ? "fade" : "cube"}
+        modules={isMobile ? [EffectFade, Pagination] : [EffectCube, Pagination]}
         loop
         grabCursor
         speed={550}
@@ -281,18 +281,14 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         // soft floor shadow under the rotating cube. Both are
         // GPU-composited by Swiper (CSS transforms only) so they
         // cost nothing on the JS thread during the swipe.
-        cubeEffect={{
-          // Floor shadow disabled: it's a large soft-blurred CSS
-          // shadow that has to repaint on every degree of cube
-          // rotation, and on mid-tier mobile it accounts for
-          // ~30-40 % of the swipe stutter. slideShadows (per-face
-          // dim gradients) are kept since they sell the 3D depth
-          // and are pre-baked = zero per-frame cost.
-          shadow: false,
-          slideShadows: true,
-          shadowOffset: 24,
-          shadowScale: 0.92,
-        }}
+        {...(!isMobile && {
+          cubeEffect: {
+            shadow: false,
+            slideShadows: true,
+            shadowOffset: 24,
+            shadowScale: 0.92,
+          },
+        })}
         pagination={{ clickable: true }}
         className="h-full w-full"
       >
