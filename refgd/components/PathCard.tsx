@@ -133,6 +133,95 @@ export default function PathCard({
   //     animating ten extra translateY keyframes per second.
   const floatDisabled = size === "sm" || noReveal;
 
+  /* ── Mobile carousel path: render a flat, layer-light card ──
+   * The mobile horizontal carousel passes `noReveal: true`. On
+   * iOS we then skip:
+   *   • framer-motion `motion.div` wrapper (it forces a separate
+   *     compositor layer for transform animation),
+   *   • Tilt3D (4 springs + nested motion.div + preserve-3d
+   *     wrapper per card — wasted on a touch-only device that
+   *     can't tilt with the cursor),
+   *   • the outer perspective:1200px / preserve-3d 3D context,
+   *   • the floatSlow keyframe (already gated by floatDisabled).
+   * What's left is a plain anchor with the visual styling intact
+   * (gradient ring, illustration, chip, title). One DOM tree, no
+   * extra compositor layers, no per-frame work — this is the
+   * cheapest the card can possibly be while still looking the
+   * same. Combined with the carousel's flat (no scale/opacity)
+   * rendering, this removes all the GPU pressure that was
+   * causing the "path cards still laggy and cut off both
+   * directions swipe" report. */
+  if (noReveal) {
+    return (
+      <div
+        data-testid={`path-card-${index + 1}`}
+        className="group relative h-full"
+        data-cursor="hover"
+        data-cursor-label={title}
+      >
+        <Tag
+          {...linkProps}
+          data-testid={`path-card-${index + 1}-link`}
+          className={`relative block h-full overflow-hidden ${radius} glass-strong ${ACCENT_PULSE[accent]}`}
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(18,16,30,0.55), rgba(8,8,16,0.78))",
+          }}
+        >
+          <div
+            aria-hidden="true"
+            className={`pointer-events-none absolute inset-0 ${radius} bg-gradient-to-br ${ACCENT_RING[accent]} opacity-60`}
+            style={{
+              padding: "1px",
+              WebkitMask:
+                "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+              WebkitMaskComposite: "xor",
+              maskComposite: "exclude",
+            }}
+          />
+          <div className={`relative ${aspect} overflow-hidden ${radius}`}>
+            <div className={`absolute inset-0 bg-gradient-to-br ${BG_TINT[accent]}`} />
+            <PathIllustration kind={illustration} accent={accent} />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0"
+              style={{
+                background:
+                  "linear-gradient(180deg, transparent 30%, rgba(5,6,10,0.55) 70%, rgba(5,6,10,0.92) 100%)",
+              }}
+            />
+            <div className="absolute left-5 top-5">
+              <span
+                data-testid={`path-card-${index + 1}-number`}
+                className={`heading-display rounded-full ${chipClass} font-semibold uppercase ring-1 ${ACCENT_CHIP[accent]}`}
+              >
+                {String(index + 1).padStart(2, "0")}
+              </span>
+            </div>
+            <div className={`absolute inset-x-0 bottom-0 ${textPad}`}>
+              <h3
+                data-testid={`path-card-${index + 1}-title`}
+                className={`heading-display text-balance ${titleClass} font-bold uppercase leading-tight text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.85)]`}
+              >
+                {title}
+              </h3>
+              <div
+                data-testid={`path-card-${index + 1}-enter-label`}
+                className={`${labelClass} inline-flex items-center justify-center gap-1.5 font-semibold uppercase text-white/70`}
+              >
+                Enter
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M5 12h14" />
+                  <path d="m12 5 7 7-7 7" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </Tag>
+      </div>
+    );
+  }
+
   return (
     <motion.div
       data-testid={`path-card-${index + 1}`}

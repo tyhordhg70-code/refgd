@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 /**
  * Page-wide animated cosmic background for the home page.
@@ -62,6 +62,55 @@ export default function HomeBackground() {
           <div className="orb orb-3 absolute left-[30%] top-[55%] h-[48vh] w-[48vh] rounded-full" />
           <div className="orb orb-4 absolute right-[24%] top-[78%] h-[40vh] w-[40vh] rounded-full" />
         </>
+      )}
+
+      {/* ── Mobile lightweight star field ──
+          Replaces the WebGL Galaxy + the heavy orb stack for the
+          phone. ~24 absolutely-positioned 1-3 px white dots, each
+          one running a SLOW opacity twinkle keyframe (`.lite-star`).
+          Opacity is a compositor-only property — the GPU advances
+          the keyframe value on its own thread without ever
+          waking up the main thread or triggering paint. Total
+          per-frame cost: roughly the same as 24 static divs.
+          Distributes across the full document height (350vh) so
+          the field follows the user as they scroll the page. */}
+      {isMobile && (
+        <div className="absolute inset-x-0 top-0" style={{ height: "350vh" }}>
+          {Array.from({ length: 24 }).map((_, i) => {
+            // Deterministic pseudo-random distribution.
+            const seed = i * 9301 + 49297;
+            const left = (seed * 13) % 100;
+            const topPct = (seed * 7) % 100;
+            const sizeRaw = (seed * 3) % 30;
+            const size = 1 + (sizeRaw % 3); // 1-3 px
+            const dur = 4 + ((seed >> 3) % 5); // 4-8 s
+            const delay = ((seed >> 5) % 50) / 10; // 0-5 s
+            const tint =
+              i % 5 === 0
+                ? "rgba(255, 215, 130, 0.95)"  // warm gold accent
+                : i % 7 === 0
+                  ? "rgba(180, 200, 255, 0.95)" // cool blue accent
+                  : "#ffffff";
+            return (
+              <span
+                key={i}
+                className="lite-star"
+                style={
+                  {
+                    left: `${left}%`,
+                    top: `${topPct}%`,
+                    width: `${size}px`,
+                    height: `${size}px`,
+                    background: tint,
+                    boxShadow: `0 0 ${size * 3}px ${tint}`,
+                    "--lite-star-dur": `${dur}s`,
+                    "--lite-star-delay": `${delay}s`,
+                  } as CSSProperties
+                }
+              />
+            );
+          })}
+        </div>
       )}
     </div>
   );

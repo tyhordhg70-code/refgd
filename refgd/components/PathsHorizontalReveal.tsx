@@ -128,9 +128,30 @@ function DesktopGrid({
 
 /* ------------------------------------------------------------------ */
 /*  Mobile — NATIVE HORIZONTAL SCROLL-SNAP CAROUSEL                   */
-/*  Compositor-only focus animation, ZERO per-frame JS during scroll  */
+/*  ABSOLUTELY FLAT cards. ZERO transitions during swipe. Native only.*/
 /* ------------------------------------------------------------------ */
 
+/* Why no card animation at all on mobile?
+ *
+ * The user's last report: "Path cards still laggy and cut off both
+ * directions swipe." The previous iteration ran a CSS transition
+ * (scale/opacity) on the active class flip. The transition lasted
+ * 280 ms — but the snap-scroll itself also takes ~250-400 ms. So
+ * during the snap, the leaving card was scaling DOWN from 1.0 to
+ * 0.92 while the arriving card was scaling UP from 0.92 to 1.0,
+ * and BOTH were partially visible at the viewport edge (because
+ * the next card peeks ~8 vw past the snap point). Visually that
+ * reads as "two half-sized, half-faded cards drifting across the
+ * screen", which the user experienced as cards being "cut off
+ * and broken" mid-swipe.
+ *
+ * The bullet-proof fix: don't animate the cards at all on
+ * mobile. Cards stay at scale(1) opacity(1) for their entire
+ * lifetime. The browser does pure native scroll-snap with zero
+ * CSS transitions on the slide elements — no in-flight visual
+ * interpolation can happen, so nothing can look broken. The
+ * "which card is active" feedback is provided exclusively by
+ * the pagination dots at the bottom of the carousel. */
 function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const slideRefs = useRef<Array<HTMLDivElement | null>>([]);
@@ -229,11 +250,11 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
               data-slide-index={i}
               data-testid={`paths-mobile-slide-${i + 1}`}
               data-active={isActive ? "true" : "false"}
-              // `path-card-slide` carries the CSS transition for the
-              // focus animation. The class flip when activeIndex
-              // changes is the ONLY animation trigger on swipe — no
-              // per-frame JS, no fighting the snap compositor.
-              className="path-card-slide relative shrink-0 snap-center snap-always px-2"
+              // No `path-card-slide` class, no CSS transition: the
+              // slides are visually inert. Cards stay at scale(1),
+              // opacity(1) regardless of position. activeIndex is
+              // ONLY used to highlight the right pagination dot.
+              className="relative shrink-0 snap-center snap-always px-2"
               style={{ width: "84vw" }}
             >
               {renderedCard}

@@ -1002,36 +1002,26 @@ html { scroll-behavior: smooth; }
   font-feature-settings: "tnum" 1, "kern" 1;
 }
 
-/* ── Path-card carousel slide focus animation ──
-   The mobile carousel toggles `data-active="true"` on the
-   currently-centred slide via a single IntersectionObserver
-   callback (no per-frame JS). The CSS transition below is the
-   ONLY animation trigger when the user swipes — it runs
-   entirely on the GPU compositor with consistent transform
-   state, so reversing direction (left → right) never produces
-   the "half the card breaks and distorts" effect that
-   per-frame style.transform writes were causing on iOS. */
-.path-card-slide {
-  transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1),
-              opacity 280ms ease,
-              filter 280ms ease;
-  transform: scale(0.92);
-  opacity: 0.6;
-  filter: saturate(0.85);
-  will-change: transform, opacity;
+/* ── Lightweight mobile star field ──
+ * Compositor-only background animation for mobile. Each star is
+ * a 2-3 px white dot with a slow opacity twinkle. Opacity
+ * animations are GPU-only (no paint), so 12 stars cost
+ * effectively nothing per frame — completely different from the
+ * WebGL Galaxy or the 120-px-blur orbs we removed. */
+.lite-star {
+  position: absolute;
+  border-radius: 9999px;
+  background: #ffffff;
+  animation: liteStarTwinkle var(--lite-star-dur, 5s) ease-in-out infinite;
+  animation-delay: var(--lite-star-delay, 0s);
+  will-change: opacity;
 }
-.path-card-slide[data-active="true"] {
-  transform: scale(1);
-  opacity: 1;
-  filter: saturate(1);
+@keyframes liteStarTwinkle {
+  0%, 100% { opacity: 0.18; }
+  50%      { opacity: 0.85; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .path-card-slide {
-    transition: none;
-    transform: none;
-    opacity: 1;
-    filter: none;
-  }
+  .lite-star { animation: none; opacity: 0.4; }
 }
 
 /* ─── MOBILE PERFORMANCE KILL-SWITCH ──────────────────────────
@@ -1053,7 +1043,8 @@ html { scroll-behavior: smooth; }
   .orb,
   .pulsating-overlay-a,
   .pulsating-overlay-b,
-  .telegram-ring-spin,
+  .telegram-ring,
+  .telegram-star,
   .float-card,
   .chess-float,
   .prismatic-glow::before,
@@ -1065,12 +1056,18 @@ html { scroll-behavior: smooth; }
   .prism-bg::before,
   .prism-bg::after,
   .aurora-bg::before,
-  .aurora-bg::after {
+  .aurora-bg::after,
+  [class*="animate-spin"] {
     animation: none !important;
   }
   /* Marquee tracks: when paused they need to stay readable. */
   .marquee, .marquee-reverse {
     transform: none !important;
+  }
+  /* Static fallback opacity for telegram stars — keep them visible
+     after the twinkle is removed. */
+  .telegram-star {
+    opacity: 0.55;
   }
 }
 
