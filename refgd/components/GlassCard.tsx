@@ -87,14 +87,58 @@ export default function GlassCard({
   }
 
   // Layer 1 (entrance) → Layer 2 (float) → Layer 3 (surface / hover tilt)
+  // ─────────────────────────────────────────────────────────────────
+  // LUSION-AUTHENTIC ENTRANCE (round 5):
+  //   Lusion.co's signature card reveal is a CURTAIN-RISE MASK, not
+  //   a scale-up. The card emerges from below a clip-path mask,
+  //   rising into place with a long exponential ease-out and a faint
+  //   rotateX tilt that flattens as it lands. There is NO scale —
+  //   that's what made our previous version read as generic
+  //   framer-motion instead of Lusion.
+  //
+  //   Initial state:
+  //     • clip-path inset(100% 0 0 0) — top inset 100% means the
+  //       full visible area is clipped away from the top down,
+  //       leaving 0px of card visible. The reveal then animates
+  //       the top inset back to 0%, "lifting the curtain" UPWARD
+  //       and exposing the card from BOTTOM to top — the
+  //       characteristic Lusion rise.
+  //     • y: 140 — substantial slide-up so the rise has runway.
+  //     • rotateX: 8 — subtle 3D tilt back, then flattens.
+  //     • opacity: 0 → fades in alongside the mask reveal.
+  //
+  //   Transition: 1.55s with [0.16, 1, 0.3, 1] (power4.out).
+  //
+  //   The viewport.once stays false so cards REPLAY this entrance
+  //   every time they re-enter the viewport — matching the
+  //   "vanish/reappear" rhythm the user requested for the SE/refund
+  //   what's-included blocks (which is also Lusion's behaviour).
   return (
     <motion.div
-      initial={{ opacity: 0, y: 100, scale: 0.92 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      initial={{
+        opacity: 0,
+        y: 140,
+        rotateX: 8,
+        clipPath: "inset(100% 0% 0% 0%)",
+      }}
+      whileInView={{
+        opacity: 1,
+        y: 0,
+        rotateX: 0,
+        clipPath: "inset(0% 0% 0% 0%)",
+      }}
       viewport={{ once: false, amount: 0.12 }}
-      transition={{ duration: 1.2, delay, ease: LUSION_EASE }}
+      transition={{
+        duration: 1.55,
+        delay,
+        ease: LUSION_EASE,
+      }}
       suppressHydrationWarning
       className="group will-change-transform"
+      style={{
+        transformPerspective: 1500,
+        transformOrigin: "50% 100%",
+      }}
     >
       {floatClasses ? (
         <div className={floatClasses}>{surface}</div>
