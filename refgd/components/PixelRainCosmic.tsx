@@ -174,6 +174,7 @@ export default function PixelRainCosmic({
         // cycles 0 → screenRows → 0 → … continuously.
         const cycleLen = screenRows + trailBuf + 4;
         const headRow = ((tf * c.speed * 0.45 + c.flicker * cycleLen) % cycleLen);
+        const trailLen = trailBuf;
 
         for (let k = 0; k < trailLen; k++) {
           const row = headRow - k;
