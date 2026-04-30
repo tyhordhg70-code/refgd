@@ -283,6 +283,59 @@
 }
 .animate-spin { animation: spin 1s linear infinite; }
 
+/* ─── Mobile: kill infinite box-shadow paint animations ────────
+ * `pulse-glow-*` and friends animate `box-shadow` from a low to a
+ * high blur radius on a 5 s loop. Box-shadow is NOT a compositor-
+ * only property — every keyframe forces a paint pass for the
+ * affected element. On mobile that's enough to choke the
+ * compositor while the user is scrolling, which is the actual
+ * source of the "telegram box still laggy" complaint (the
+ * telegram CTA card uses `pulse-glow-violet`). It also explains
+ * the "glow for each box on top is cut off" report — the desktop
+ * keyframes peak at ~130 px of shadow reach, way more than the
+ * carousel track's vertical headroom can fit, so the glow gets
+ * clipped by `overflow-y-hidden`.
+ *
+ * Mobile fix: stop the animation outright and substitute a static
+ * 22 px-reach glow that stays inside the carousel track headroom
+ * and costs the GPU nothing per frame. The colour cast per
+ * pulse-glow-* class is preserved so the visual hierarchy of the
+ * cards (gold / cyan / violet / orange / fuchsia) stays intact.
+ */
+@media (max-width: 768px) {
+  .pulse-glow-violet,
+  .pulse-glow-cyan,
+  .pulse-glow-gold,
+  .pulse-glow-orange,
+  .pulse-glow-fuchsia,
+  .pulse-glow-shadow {
+    animation: none !important;
+  }
+  .pulse-glow-violet {
+    box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.40),
+                0 0 22px rgba(167, 139, 250, 0.30);
+  }
+  .pulse-glow-cyan {
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.40),
+                0 0 22px rgba(34, 211, 238, 0.30);
+  }
+  .pulse-glow-gold {
+    box-shadow: 0 0 0 1px rgba(255, 225, 140, 0.40),
+                0 0 22px rgba(255, 225, 140, 0.30);
+  }
+  .pulse-glow-orange {
+    box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.40),
+                0 0 22px rgba(251, 146, 60, 0.30);
+  }
+  .pulse-glow-fuchsia {
+    box-shadow: 0 0 0 1px rgba(244, 114, 182, 0.40),
+                0 0 22px rgba(244, 114, 182, 0.30);
+  }
+  .pulse-glow-shadow {
+    box-shadow: 0 0 22px rgba(255, 255, 255, 0.20);
+  }
+}
+
 /* ─── Telegram CTA box — mobile-only compositor animations ──── */
 /* Used by AnimatedTelegramBox on the mobile path so we don't have
    to wake JS/framer-motion on every animation frame. Both

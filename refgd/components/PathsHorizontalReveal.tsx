@@ -21,28 +21,29 @@ import PathCardCameraFly from "./PathCardCameraFly";
  *     a responsive grid. Each card is wrapped in `PathCardCameraFly`,
  *     a 3D camera-fly-in that flies the card from a far-back, off-
  *     axis position into its rest pose with rotateX + rotateY. The
- *     five cards use distinct anchors (left-low, top-mid, far-back-
- *     center, top-mid-right, right-low) so the group reveal feels
+ *     five cards use distinct anchors so the group reveal feels
  *     like one coordinated camera move.
- *   • Mobile (< 768 px): NATIVE horizontal scroll-snap carousel.
- *     The OS owns the gesture (no JS scroll-jacking, no sticky pin,
- *     hardware-accelerated, perfect momentum). Each card animates
- *     IN with a 3D `cube-flip` reveal the first time it scrolls
- *     into the carousel viewport — when the user swipes to it, it
- *     unfolds from `rotateY: -68deg` to flat. After that first
- *     reveal it stays put, so swiping back doesn't re-trigger.
  *
- *   ── Why no JS scroll-jacking on mobile ───────────────────────
- *   The previous mobile implementation pinned the carousel for one
- *   full viewport, hijacked wheel + touchmove with preventDefault,
- *   and ran a rAF loop on every scroll-tick. That produced lag,
- *   huge gaps, jumps, broken scroll-up, and flicker. The rewrite
- *   uses native CSS scroll-snap on a horizontal flex container —
- *   the browser does this in the compositor without any JS, so it
- *   can never lag. The carousel section is its own normal-flow
- *   block whose height is just what the cards need (no 100 vh
- *   pin), so vertical scroll continues into the telegram section
- *   beneath without any teleport or edge release.
+ *   • Mobile (< 768 px): NATIVE horizontal scroll-snap carousel.
+ *     The OS owns the gesture (no JS scroll-jacking, no sticky
+ *     pin, hardware-accelerated, perfect momentum). All cards
+ *     animate in TOGETHER with a 0.12 s stagger the FIRST time
+ *     the carousel section enters the viewport — by the time the
+ *     user starts swiping, every card is already in its flat rest
+ *     pose. Previously the reveal was per-card-IO at 50 % visibility
+ *     which produced two real bugs the user reported:
+ *       • "Scrolling right has to appear faster — blank screen": a
+ *         freshly-swiped card was still rotated -68° / opacity 0
+ *         until it crossed the 50 % threshold, so the user saw an
+ *         empty slot for ~150 ms.
+ *       • "Scrolling left breaks the card, half distorted and cut
+ *         off": cards the user briefly swiped past without ever
+ *         hitting 50 % visibility were stuck in their distorted
+ *         start pose, so swiping back showed a half-rotated card.
+ *     The single-trigger stagger eliminates both — all five cards
+ *     reach their flat pose within ~1.3 s of the section entering
+ *     view (which is roughly the same time the snap finishes), so
+ *     subsequent swipes always show fully-revealed cards.
  */
 export default function PathsHorizontalReveal({
   cards,
@@ -124,20 +125,42 @@ function DesktopGrid({
 
 function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
   const reduced = useReducedMotion();
+  const sectionRef = useRef<HTMLElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [activeIndex, setActiveIndex] = useState(0);
-  // `revealed[i]` flips to true the first time card i has been
-  // ≥ 50 % visible inside the carousel track. Once true it never
-  // flips back — the 3D unfold is a one-shot reveal per card so
-  // swiping back to a previous card doesn't replay the animation.
-  const [revealed, setRevealed] = useState<boolean[]>(() =>
-    cards.map((_, i) => i === 0),
-  );
 
-  // Single observer tracking which card is closest to the viewport
-  // centre AND which cards have been seen at least once. Pure read
-  // — never scrolls anything itself.
+  // ALL cards reveal together when the carousel section first
+  // enters the viewport. One observer, one boolean flip, and then
+  // we never animate the cards again. This cures both:
+  //   • "swipe right is blank" — by the time the user even starts
+  //     swiping, all cards have already played their stagger and
+  //     are sitting flat.
+  //   • "swipe left distorts the card" — there's no per-card IO
+  //     state to get stuck in a half-rotated pose for cards the
+  //     user briefly swiped past.
+  const [revealed, setRevealed] = useState(reduced);
+  useEffect(() => {
+    if (revealed) return;
+    const sec = sectionRef.current;
+    if (!sec) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.1) {
+            setRevealed(true);
+            io.disconnect();
+            return;
+          }
+        }
+      },
+      { threshold: [0, 0.1, 0.3] },
+    );
+    io.observe(sec);
+    return () => io.disconnect();
+  }, [revealed]);
+
+  // Active-dot tracking. Pure read — never scrolls anything itself.
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
@@ -147,23 +170,12 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
       const io = new IntersectionObserver(
         (entries) => {
           for (const entry of entries) {
-            if (entry.intersectionRatio >= 0.5) {
-              setRevealed((prev) => {
-                if (prev[i]) return prev;
-                const next = prev.slice();
-                next[i] = true;
-                return next;
-              });
-            }
             if (entry.intersectionRatio >= 0.6) {
               setActiveIndex(i);
             }
           }
         },
-        {
-          root: track,
-          threshold: [0, 0.3, 0.5, 0.6, 0.9],
-        },
+        { root: track, threshold: [0, 0.6, 0.9] },
       );
       io.observe(el);
       observers.push(io);
@@ -180,6 +192,7 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
 
   return (
     <section
+      ref={sectionRef}
       data-testid="paths-mobile-carousel"
       className="relative w-full"
       style={{ perspective: "1400px" }}
@@ -191,13 +204,20 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
 
       {/* The track. Native horizontal scroll + CSS snap. NO JS
           scroll handlers, NO preventDefault, NO sticky pinning.
-          py-4 supplies vertical headroom so the 3D unfold (which
-          briefly tilts the card forward) isn't clipped by the
-          overflow-y-hidden bounds. */}
+          py-8 supplies vertical headroom so:
+            • the 3D unfold (which briefly tilts the card forward)
+              isn't clipped by overflow-y-hidden
+            • the static box-shadow glow on each card (defined by
+              the .pulse-glow-* classes, mobile-overridden in
+              globals.css to a 22 px reach) isn't cut off at the
+              top or bottom edge of the track.
+          (Desktop pulse-glow keyframes have ~130 px reach, but
+          they're disabled on mobile — see globals.css mobile
+          override.) */}
       <div
         ref={trackRef}
         data-testid="paths-mobile-track"
-        className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth py-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth py-8 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{
           scrollPaddingLeft: "8vw",
           scrollPaddingRight: "8vw",
@@ -216,7 +236,6 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
                 noReveal: true,
               })
             : card;
-          const isRevealed = reduced || revealed[i];
           return (
             <div
               key={i}
@@ -227,8 +246,8 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
               className="relative shrink-0 snap-center snap-always px-2"
               style={{
                 width: "84vw",
-                // Each slide its own 3D context so the unfold per
-                // card doesn't drag siblings.
+                // Each slide has its own 3D context so the unfold
+                // per card doesn't drag siblings.
                 perspective: "1400px",
                 transformStyle: "preserve-3d",
               }}
@@ -241,12 +260,13 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
                     : { rotateY: -68, rotateX: 8, scale: 0.78, opacity: 0 }
                 }
                 animate={
-                  isRevealed
+                  revealed
                     ? { rotateY: 0, rotateX: 0, scale: 1, opacity: 1 }
                     : { rotateY: -68, rotateX: 8, scale: 0.78, opacity: 0 }
                 }
                 transition={{
                   duration: 0.85,
+                  delay: revealed ? i * 0.12 : 0,
                   ease: [0.16, 1, 0.3, 1],
                 }}
                 style={{

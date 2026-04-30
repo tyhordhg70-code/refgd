@@ -136,8 +136,31 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     if (typeof window === "undefined") return;
     if (reduced) return;
 
+    // The previous threshold was max(60, vh * 0.08) ≈ 70 px. Anything
+    // past 70 px set the welcome stage to opacity:0 / scale:0.08
+    // (the cinematic fly-away pose). The welcome SECTION itself is
+    // 100 svh tall, so it stays in the viewport from scrollY 0 →
+    // ~700 px. That created a "dead zone" of ~630 px where the
+    // welcome section was clearly visible in the viewport but its
+    // CONTENT (planet, headline, halo) was invisible — exactly
+    // what the user was reporting as "scrolling up from telegram
+    // box causes welcome to vanish": as they scroll up from
+    // telegram and the welcome section re-enters the viewport from
+    // above, they see blank space instead of the welcome scene
+    // because exitingRef is still stuck at true.
+    //
+    // The fix: bind exit to "welcome is mostly off-screen". Use a
+    // threshold of 70 % of the viewport height so the cinematic
+    // fly-away only triggers AFTER the user has nearly fully
+    // scrolled past the section, AND the welcome reappears as
+    // soon as it scrolls back into view from above. With the snap
+    // landing at the paths section (~700–800 px down), exit
+    // triggers cleanly during the snap. Returning from telegram
+    // (scrollY shrinks past 0.7 × vh) brings the welcome stage
+    // back to visible while it's still entering view from above —
+    // no dead zone, no vanish.
     function getExitThreshold() {
-      return Math.max(60, window.innerHeight * 0.08);
+      return Math.max(60, window.innerHeight * 0.7);
     }
 
     function onScroll() {
@@ -272,14 +295,16 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     function targetY(): number | null {
       const paths = document.getElementById("paths");
       if (!paths) return null;
-      // Mobile gets a tighter offset (24 px) so the snap lands the
-      // user with the kicker AND the carousel + "Swipe to choose
-      // your door" caption all visible in the iOS Safari viewport
-      // at once. Desktop keeps the comfortable 80 px header
-      // breathing room. Without this, the lead paragraph used to
-      // push the swipe caption below the fold.
-      const isMobile = window.innerWidth <= 768;
-      const headerOffset = isMobile ? 24 : 80;
+      // Mobile snap offset: 80 px on both platforms. The earlier
+      // 24 px attempt put the kicker behind the iOS Safari URL
+      // bar / dynamic island ("you have arrived text is now cut
+      // off"). With the lead paragraph hidden on mobile and the
+      // headline clamped down to 1.6 rem, the full carousel +
+      // pagination dots + swipe caption STILL fit in the viewport
+      // at the comfortable 80 px offset, so we keep the kicker
+      // safely below the URL bar without sacrificing the swipe
+      // caption.
+      const headerOffset = 80;
       return Math.max(
         0,
         Math.round(paths.getBoundingClientRect().top + window.scrollY - headerOffset),
