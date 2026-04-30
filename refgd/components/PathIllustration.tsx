@@ -17,36 +17,6 @@ const ACCENT_TO_HEX: Record<string, { primary: string; secondary: string; soft: 
   orange:  { primary: "#f97316", secondary: "#fdba74", soft: "rgba(249,115,22,0.30)" },
 };
 
-/* ─────────────────────────────────────────────────────────────────
- * CSS keyframes — all animations are transform/opacity only
- * so they run on the GPU compositor thread with zero JS per frame.
- * 24 framer-motion infinite rAF callbacks eliminated.
- * ───────────────────────────────────────────────────────────────── */
-const KEYFRAMES = `
-  @keyframes pi-breathe  { 0%,100%{opacity:.85} 50%{opacity:1} }
-  @keyframes pi-dim      { 0%,100%{opacity:.7}  50%{opacity:1} }
-  @keyframes pi-pulse    { 0%,100%{opacity:.4}  50%{opacity:1} }
-  @keyframes pi-beam     { 0%,100%{opacity:.08} 50%{opacity:.22} }
-  @keyframes pi-win-a    { 0%,100%{opacity:.6}  50%{opacity:1}  }
-  @keyframes pi-win-b    { 0%,100%{opacity:1}   50%{opacity:.6} }
-  @keyframes pi-float4   { 0%,100%{transform:translateY(0)}    50%{transform:translateY(-4px)} }
-  @keyframes pi-float6   { 0%,100%{transform:translateY(0)}    50%{transform:translateY(-6px)} }
-  @keyframes pi-float8   { 0%,100%{transform:translateY(0)}    50%{transform:translateY(-8px)} }
-  @keyframes pi-float10  { 0%,100%{transform:translateY(0)}    50%{transform:translateY(-10px)} }
-  @keyframes pi-scale-sm { 0%,100%{transform:scale(1)}         50%{transform:scale(1.04)} }
-  @keyframes pi-scale-lg { 0%,100%{transform:scale(1)}         50%{transform:scale(1.05)} }
-  @keyframes pi-spin     { to{transform:rotate(360deg)} }
-  @keyframes pi-twinkle  { 0%,100%{transform:scale(.6);opacity:.4} 50%{transform:scale(1.2);opacity:1} }
-  @keyframes pi-sale     { 0%,100%{transform:rotate(-4deg) translateY(0)} 50%{transform:rotate(6deg) translateY(-3px)} }
-  @keyframes pi-arrow    { 0%,100%{transform:translateX(-30px);opacity:0} 8%{opacity:.85} 50%{transform:translateX(0);opacity:.85} 92%{opacity:0} }
-  @keyframes pi-bag      { 0%,100%{transform:translateY(0) rotate(-3deg)} 50%{transform:translateY(-10px) rotate(3deg)} }
-  @keyframes pi-sparkle  { 0%,100%{transform:scale(.8);opacity:.6} 50%{transform:scale(1.2);opacity:1} }
-  @keyframes pi-gem      { 0%,100%{transform:translateY(0) rotate(0deg)} 100%{transform:translateY(0) rotate(360deg)} }
-  /* pause all animations on inactive slides */
-  .pi-paused * { animation-play-state: paused !important; }
-  /* respect system reduced-motion */
-  @media (prefers-reduced-motion: reduce) { .pi-animated * { animation: none !important; } }
-`;
 
 /* shorthand for inline animation style */
 const a = (name: string, dur: string, ease = "ease-in-out", delay = "0s") =>
@@ -343,7 +313,6 @@ export default function PathIllustration(props: {
 }) {
   return (
     <div className={props.animated === false ? "pi-paused" : "pi-animated"}>
-      <style suppressHydrationWarning>{KEYFRAMES}</style>
       <PathIllustrationContent kind={props.kind} accent={props.accent} />
     </div>
   );
