@@ -97,12 +97,25 @@ const WHY = [
   },
 ];
 
-export default function ServiceSection() {
+/**
+ * ServiceSection slice prop:
+ *   undefined  → renders all acts (default, used everywhere except store-list)
+ *   "hero"     → renders only Act 1 (the "Get rewarded" full-screen hero)
+ *   "rest"     → renders Acts 2-5 + Lock centerpiece
+ *
+ * The store-list page splits the section so the LedJoySection ("AHHHH …
+ * feel the joy of cashback") can sit DIRECTLY between Act 1 and Act 2.
+ */
+export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = {}) {
+  const showHero = !slice || slice === "hero";
+  const showRest = !slice || slice === "rest";
   return (
     <div id="service" className="relative isolate scroll-mt-16">
+      {showHero && (
+      <>
       {/* ─── Act 1 — "Get rewarded for shopping online." hero ──────── */}
       <section
-        className="relative isolate flex min-h-[100svh] w-full items-center overflow-hidden bg-ink-950 py-10 md:py-0"
+        className="relative isolate flex min-h-[88svh] w-full items-center overflow-hidden bg-ink-950 py-8 md:py-0 md:min-h-[92svh]"
         data-cursor="big"
       >
         {/* mesh orbs + gradient ambience */}
@@ -119,7 +132,7 @@ export default function ServiceSection() {
           aria-hidden="true"
           className="pointer-events-none absolute inset-y-0 right-[2%] z-0 hidden items-center md:flex"
         >
-          <CashbackScene size={520} />
+          <CashbackScene size={380} />
         </div>
 
         {/* interactive particles */}
@@ -135,9 +148,9 @@ export default function ServiceSection() {
           className="container-wide pointer-events-none relative z-10 grid w-full place-items-center md:place-items-start"
           suppressHydrationWarning
         >
-          <div className="w-full max-w-3xl text-center md:max-w-[60%] md:text-left">
+          <div className="w-full max-w-3xl text-center md:max-w-[58%] md:text-left">
             <div
-              className="inline-block rounded-[2rem] border border-white/15 px-4 py-5 sm:px-12 sm:py-12 sm:rounded-[2.5rem]"
+              className="inline-block rounded-[2rem] border border-white/15 px-4 py-5 sm:px-9 sm:py-7 sm:rounded-[2.5rem]"
               style={{
                 background:
                   "linear-gradient(160deg, rgba(7,6,14,0.78), rgba(7,6,14,0.62) 35%, rgba(7,6,14,0.78))",
@@ -150,7 +163,7 @@ export default function ServiceSection() {
                 as="h1"
                 editId="service.hero.title"
                 text="Get rewarded for shopping online."
-                className="editorial-display max-w-[1500px] text-balance text-white text-[clamp(1.75rem,6.5vw,7rem)] uppercase"
+                className="editorial-display max-w-[1500px] text-balance text-white text-[clamp(1.5rem,4.4vw,4.5rem)] uppercase"
                 style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)", lineHeight: 1.05 }}
                 stagger={0.06}
                 delay={0.35}
@@ -165,7 +178,7 @@ export default function ServiceSection() {
                   id="service.hero.eyebrow"
                   defaultValue="— scroll to begin"
                   as="p"
-                  className="heading-display mt-5 text-[10px] font-semibold uppercase tracking-[0.45em] text-amber-300 sm:mt-8 sm:text-xs sm:tracking-[0.5em]"
+                  className="heading-display mt-3 text-[10px] font-semibold uppercase tracking-[0.45em] text-amber-300 sm:mt-5 sm:text-xs sm:tracking-[0.5em]"
                   style={{ textShadow: "0 0 22px rgba(245,185,69,0.55)" }}
                 />
               </motion.div>
@@ -174,10 +187,14 @@ export default function ServiceSection() {
         </motion.div>
       </section>
 
-      {/* Act 1.5 — "AHHHH … feel the joy of cashback" LED beat is mounted
-          by the parent page (store-list/page.tsx) immediately after this
-          section so it can be reordered independently in the admin UI. */}
+      {/* Act 1.5 — "AHHHH … feel the joy of cashback" LED beat is
+          mounted by the parent page IN BETWEEN the hero and Act 2 via
+          slice="hero" / slice="rest". */}
+      </>
+      )}
 
+      {showRest && (
+      <>
       {/* Act 2 — Editorial sub-statement + 3D money-time scene */}
       <section className="relative py-32">
         <div className="container-wide relative grid items-center gap-12 sm:grid-cols-12">
@@ -419,6 +436,8 @@ export default function ServiceSection() {
           </Reveal>
         </section>
       </ParallaxChapter>
+      </>
+      )}
     </div>
   );
 }
