@@ -10,7 +10,7 @@ import {
 } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { EffectCube, EffectFade, Pagination } from "swiper/modules";
+import { EffectCube, Pagination } from "swiper/modules";
 import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
@@ -276,8 +276,8 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
       }}
     >
       <Swiper
-        effect={isMobile ? "fade" : "cube"}
-        modules={isMobile ? [EffectFade, Pagination] : [EffectCube, Pagination]}
+        effect="cube"
+        modules={[EffectCube, Pagination]}
         loop
         grabCursor
         speed={550}
@@ -289,14 +289,12 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         // soft floor shadow under the rotating cube. Both are
         // GPU-composited by Swiper (CSS transforms only) so they
         // cost nothing on the JS thread during the swipe.
-        {...(!isMobile && {
-          cubeEffect: {
-            shadow: false,
-            slideShadows: true,
-            shadowOffset: 24,
-            shadowScale: 0.92,
-          },
-        })}
+        cubeEffect={{
+          shadow: false,
+          slideShadows: !isMobile,
+          shadowOffset: 24,
+          shadowScale: 0.92,
+        }}
         pagination={{ clickable: true }}
         className="h-full w-full"
       >
