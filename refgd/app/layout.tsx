@@ -8,6 +8,7 @@ import PulsatingOverlay from "@/components/PulsatingOverlay";
 import GalaxyBackground from "@/components/GalaxyBackground";
 import Cosmic3DShapes from "@/components/Cosmic3DShapes";
 import LoadingScreen from "@/components/LoadingScreen";
+import SmoothScroll from "@/components/SmoothScroll";
 import EditProvider from "@/lib/edit-context";
 import EditorToolbar from "@/components/EditorToolbar";
 import AutoEditWrapper from "@/components/AutoEditWrapper";
@@ -83,6 +84,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="min-h-screen bg-ink-950 text-white antialiased">
+        {/* Lenis-powered smooth scroll for the entire site (no-op for
+            users with prefers-reduced-motion). */}
+        <SmoothScroll />
         {/* Cinematic boot overlay — locks the page for ~2.4 s while
             the React tree mounts behind it so all GPU layers, fonts
             and images are warm before the user can scroll. */}
