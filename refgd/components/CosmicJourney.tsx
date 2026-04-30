@@ -390,7 +390,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
   const stageTransition = exiting
     ? isMobile
-      ? { duration: 1.0, ease: [0.4, 0, 0.2, 1] as const }
+      ? // Snappy mobile exit (was 1.0 s). With pinning re-enabled
+        // below the welcome stays in viewport for the whole
+        // animation, but a 1.0 s pin felt stuck. 0.55 s is just
+        // long enough to read the lift-up motion clearly while
+        // landing the user on the paths section in well under a
+        // second of total transition.
+        { duration: 0.55, ease: [0.4, 0, 0.2, 1] as const }
       : { duration: 1.2, ease: [0.65, 0, 0.35, 1] as const }
     : { duration: 0.7, ease: [0.16, 1, 0.3, 1] as const };
 
@@ -402,7 +408,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           its 100svh from flow and the rest of the page would jump
           up by 100svh on the same frame as exit triggers. On
           mobile we don't pin (see below) so no phantom is needed. */}
-      <div aria-hidden="true" style={{ height: exiting && !isMobile ? "100svh" : 0 }} />
+      <div aria-hidden="true" style={{ height: exiting ? "100svh" : 0 }} />
       <section
         ref={sectionRef}
         data-testid="cosmic-journey"
@@ -412,20 +418,22 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           contain: "layout paint",
           perspective: "1400px",
           transform: "translate3d(0,0,0)",
-          ...(exiting && !isMobile
+          ...(exiting
             ? {
-                // DESKTOP-ONLY pinning. The 1.2 s cinematic exit
-                // animation (scale 0.08 + rotateX -55 + y -200)
-                // would otherwise complete off-screen because the
-                // native compositor smooth-scroll only takes
-                // ~500 ms to drag the welcome out of viewport.
+                // Pinning is now active on BOTH desktop AND mobile.
                 //
-                // Mobile: NO pinning. The welcome scrolls out
-                // naturally and its lighter exit animation
-                // ({opacity:0, y:-80, scale:0.92} over 1.0 s)
-                // plays partially in view as the section
-                // translates up — exactly the pre-Round-10
-                // behaviour the user wants restored.
+                // Desktop: 1.2 s cinematic exit (scale 0.08 +
+                // rotateX -55 + y -200) plays fully in view.
+                //
+                // Mobile: 0.55 s snappy exit ({opacity:0, y:-80,
+                // scale:0.92}) plays fully in view too. Without
+                // pinning the native compositor was dragging the
+                // welcome offscreen in ~250 ms, before the animation
+                // could even finish — which is why the user said
+                // "still no welcome animation on mobile". With the
+                // duration cut to 0.55 s the pin feels snappy not
+                // sticky, and the lift-up-and-away motion is now
+                // actually visible.
                 position: "fixed" as const,
                 top: 0,
                 left: 0,
