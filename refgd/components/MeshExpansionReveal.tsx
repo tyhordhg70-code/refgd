@@ -13,56 +13,27 @@ import {
  * MeshExpansionReveal — wraps a card with a distorted wireframe
  * shockwave that detonates outward from the centre of the card.
  *
- * ── Trigger ───────────────────────────────────────────────────
- * Earlier versions used framer-motion's `whileInView`, which fired
- * the burst the instant the card crossed 25 % into the viewport.
- * The user reported (correctly) that the burst then plays while
- * their eye is still tracking the scroll past it — they barely
- * register that anything happened.
+ * Trigger: fires the burst only when BOTH the card is ≥ 35 % in
+ * the viewport AND the page has been scroll-idle for ≥ 220 ms.
+ * That way the user has actually settled on the card before the
+ * cinematic burst plays, instead of the burst firing while they
+ * are still tracking the scroll past it.
  *
- * The new trigger fires the burst only when BOTH:
+ * Re-arms when the card leaves the viewport entirely so a return
+ * scroll plays the burst again.
  *
- *   • The card is ≥ 50 % visible in the viewport
- *     (IntersectionObserver, threshold list).
- *
- *   • The page has been scroll-idle for ≥ 400 ms
- *     (debounced `scroll` listener).
- *
- * In other words, the burst waits until the user has actually
- * SETTLED on the card — they have stopped scrolling, the card is
- * centred in their view, and only then does the shockwave fire.
- *
- * After the burst plays, the overlay unmounts and stays unmounted
- * until the card leaves the viewport entirely (intersectionRatio
- * → 0). When the user later scrolls back to the card, the trigger
- * re-arms and the burst plays again on next settle.
- *
- * ── Card pose ─────────────────────────────────────────────────
- * The wrapped children render statically at their rest position
- * from the very first paint. There is NO fold-in / scale-up
- * entrance for the card itself — only the overlay animates. This
- * means the card is always visible and never appears "missing"
- * before the burst fires.
- *
- * ── Mobile ────────────────────────────────────────────────────
- * Mobile gets the same burst with cheaper SVG params:
- *   • baseFrequency 0.06 (was 0.035) — smaller noise cells
- *   • numOctaves 1 (was 2) — halves displacement compute cost
- *   • feDisplacementMap scale 3 (was 6)
- *   • 8×8 grid lines (was 13×13) — 60 % fewer line segments
- *   • drop-shadow filter disabled (gradient stroke already glows)
- *
- * Honours `prefers-reduced-motion` (renders a plain wrapper, no
- * overlay).
+ * The wrapped children render statically at their rest position —
+ * no fold-in entrance for the card itself. Only the overlay
+ * animates. Honours `prefers-reduced-motion`.
  */
 export default function MeshExpansionReveal({
   children,
   className,
   borderRadius = "2.5rem",
-  /** ms of scroll idleness required before the burst is allowed to fire. */
-  idleDelay = 400,
-  /** how much of the card must be in view to count as "settled" (0-1). */
-  viewportAmount = 0.5,
+  /** ms of scroll idleness required before the burst fires. */
+  idleDelay = 220,
+  /** how much of the card must be in view to count as "settled". */
+  viewportAmount = 0.35,
 }: {
   children: ReactNode;
   className?: string;
@@ -85,13 +56,7 @@ export default function MeshExpansionReveal({
   }, []);
 
   // Phase machine for the burst overlay.
-  //   idle    — overlay invisible, waiting for trigger conditions
-  //   playing — burst is currently animating
-  //   done    — burst finished; overlay stays unmounted until the
-  //             card leaves view, at which point we re-arm to idle
   const [phase, setPhase] = useState<"idle" | "playing" | "done">("idle");
-  // Bump key on every replay so framer re-runs the keyframes from
-  // the start instead of holding the previous end-state.
   const [burstKey, setBurstKey] = useState(0);
 
   useEffect(() => {
@@ -108,15 +73,14 @@ export default function MeshExpansionReveal({
     const tryFire = () => {
       if (cancelled) return;
       if (inView && scrollIdle) {
-        // Use functional update to avoid stale closure on `phase`.
         setPhase((current) => {
           if (current !== "idle") return current;
           setBurstKey((k) => k + 1);
-          // After the burst plays out (~1.6 s + 0.15 s delay), mark
-          // it done so the overlay unmounts and stops costing paint.
+          // Burst lasts 2.4 s + 0.15 s lead — unmount overlay just
+          // after to free GPU layers.
           window.setTimeout(() => {
             if (!cancelled) setPhase("done");
-          }, 1900);
+          }, 2700);
           return "playing";
         });
       }
@@ -128,14 +92,13 @@ export default function MeshExpansionReveal({
         if (!e) return;
         inView = e.isIntersecting && e.intersectionRatio >= viewportAmount;
         if (e.intersectionRatio === 0) {
-          // Card has fully left the viewport — re-arm so the next
-          // return scroll plays the burst again.
+          // Re-arm when card fully exits viewport.
           setPhase((current) => (current === "done" ? "idle" : current));
         } else if (inView) {
           tryFire();
         }
       },
-      { threshold: [0, 0.25, viewportAmount, 0.75, 1] },
+      { threshold: [0, 0.2, viewportAmount, 0.6, 1] },
     );
     io.observe(el);
 
@@ -149,10 +112,7 @@ export default function MeshExpansionReveal({
     };
     window.addEventListener("scroll", onScroll, { passive: true });
 
-    // Bootstrap: if the user is already idle when the component
-    // mounts (e.g. they scrolled directly to a deep link), the
-    // `scroll` event will never fire — kick off an idle timer
-    // immediately so the burst can still play once it's in view.
+    // Bootstrap idle for deep-link case (no scroll event fires).
     scrollTimer = window.setTimeout(() => {
       scrollIdle = true;
       tryFire();
@@ -166,7 +126,6 @@ export default function MeshExpansionReveal({
     };
   }, [reduced, idleDelay, viewportAmount]);
 
-  // Reduced-motion users get a plain wrapper, no overlay ever.
   if (reduced) {
     return (
       <div ref={containerRef} className={className}>
@@ -187,9 +146,6 @@ export default function MeshExpansionReveal({
       <div className="relative">
         {children}
 
-        {/* Distorted mesh overlay — only mounted while phase ===
-            "playing". After the burst settles it unmounts entirely
-            so it never costs a single paint frame of overhead. */}
         {phase === "playing" && (
           <motion.div
             key={burstKey}
@@ -197,12 +153,18 @@ export default function MeshExpansionReveal({
             className="pointer-events-none absolute inset-0"
             style={overlayStyle}
             initial={{ opacity: 0, scale: 0.1 }}
-            animate={{ opacity: [0, 0.85, 0], scale: 1.6 }}
+            // Slow, deliberate detonation. Opacity holds at peak from
+            // 18-60 % of the burst so the user has clearly more than
+            // a single frame to register the wireframe distortion.
+            animate={{
+              opacity: [0, 1, 1, 0],
+              scale: [0.1, 0.7, 1.25, 1.7],
+            }}
             transition={{
-              duration: 1.6,
+              duration: 2.4,
               ease: [0.16, 1, 0.3, 1],
               delay: 0.15,
-              times: [0, 0.45, 1],
+              times: [0, 0.18, 0.6, 1],
             }}
           >
             <svg
@@ -213,20 +175,20 @@ export default function MeshExpansionReveal({
               <defs>
                 <filter
                   id={`mesh-distort-${filterId}`}
-                  x="-25%"
-                  y="-25%"
-                  width="150%"
-                  height="150%"
+                  x="-30%"
+                  y="-30%"
+                  width="160%"
+                  height="160%"
                 >
                   <feTurbulence
                     type="fractalNoise"
-                    baseFrequency={isMobile ? "0.06" : "0.035"}
+                    baseFrequency={isMobile ? "0.06" : "0.04"}
                     numOctaves={isMobile ? "1" : "2"}
                     seed="7"
                   />
                   <feDisplacementMap
                     in="SourceGraphic"
-                    scale={isMobile ? "3" : "6"}
+                    scale={isMobile ? "4" : "8"}
                   />
                 </filter>
                 <linearGradient
@@ -236,24 +198,26 @@ export default function MeshExpansionReveal({
                   y1="0"
                   y2="1"
                 >
-                  <stop offset="0%" stopColor="rgba(255, 215, 130, 0.95)" />
-                  <stop offset="55%" stopColor="rgba(167, 139, 250, 0.85)" />
-                  <stop offset="100%" stopColor="rgba(34, 211, 238, 0.75)" />
+                  {/* Brighter, more saturated stops so the wireframe
+                      reads against the violet card background. */}
+                  <stop offset="0%" stopColor="rgba(255, 220, 130, 1)" />
+                  <stop offset="50%" stopColor="rgba(192, 132, 252, 1)" />
+                  <stop offset="100%" stopColor="rgba(56, 232, 255, 0.95)" />
                 </linearGradient>
               </defs>
               <g
                 filter={`url(#mesh-distort-${filterId})`}
                 stroke={`url(#mesh-stroke-${filterId})`}
-                strokeWidth={isMobile ? "0.4" : "0.3"}
+                strokeWidth={isMobile ? "0.55" : "0.42"}
                 fill="none"
                 style={
                   isMobile
-                    ? undefined
-                    : { filter: "drop-shadow(0 0 4px rgba(255, 215, 130, 0.6))" }
+                    ? { filter: "drop-shadow(0 0 2px rgba(255, 220, 130, 0.7))" }
+                    : { filter: "drop-shadow(0 0 6px rgba(255, 220, 130, 0.85))" }
                 }
               >
                 {(() => {
-                  const N = isMobile ? 8 : 13;
+                  const N = isMobile ? 9 : 14;
                   const last = N - 1;
                   const verticals = Array.from({ length: N }, (_, i) => {
                     const x = (i / last) * 100;
