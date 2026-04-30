@@ -28,12 +28,64 @@ export default function ChapterCosmos() {
 
   const stable = reduced || isMobile;
 
+  // Twinkle starfield positions — deterministic so SSR/CSR match.
+  // Spread across the FULL section (incl. behind cards & beyond) so
+  // the cosmic backdrop is continuous between "Choose your path"
+  // and the telegram CTA below. Pure CSS keyframe, zero JS cost.
+  const STARS = Array.from({ length: 24 }, (_, i) => {
+    const angle = (i * 137.508) % 360; // golden angle
+    const r = 12 + ((i * 53) % 80);
+    return {
+      left: `${50 + r * Math.cos((angle * Math.PI) / 180) * 0.55}%`,
+      top: `${50 + r * Math.sin((angle * Math.PI) / 180) * 0.55}%`,
+      size: 1 + (i % 3),
+      dur: 4 + (i % 5),
+      delay: (i % 6) * 0.5,
+      tint: i % 5 === 0 ? "rgba(255,237,180,0.95)"
+          : i % 5 === 1 ? "rgba(167,139,250,0.95)"
+          : i % 5 === 2 ? "rgba(103,232,249,0.9)"
+          : i % 5 === 3 ? "rgba(244,114,182,0.85)"
+          : "rgba(255,255,255,0.95)",
+    };
+  });
+
   return (
     <div
       aria-hidden="true"
       data-testid="chapter-cosmos"
-      className="pointer-events-none absolute inset-0 overflow-hidden"
+      className="pointer-events-none absolute inset-0"
+      style={{
+        // overflow-visible so the orbital rings spill seamlessly
+        // into the surrounding gap (was getting cut off by the
+        // section bounds at desktop sizes where 120vmin > section
+        // height). The page wrapper still clips horizontal overflow.
+        overflow: "visible",
+      }}
     >
+      {/* Twinkle starfield — covers the full section so the cosmic
+          backdrop is visible from "Choose your path" onward, and
+          continues seamlessly into the telegram section's own
+          stars. Each star is a single CSS @keyframes opacity
+          tween — entirely compositor-thread. */}
+      <div className="absolute inset-0 pointer-events-none">
+        {STARS.map((s, i) => (
+          <span
+            key={`cc-star-${i}`}
+            className="telegram-star absolute rounded-full"
+            style={{
+              left: s.left,
+              top: s.top,
+              width: s.size,
+              height: s.size,
+              background: s.tint,
+              boxShadow: `0 0 ${s.size * 5}px ${s.tint}`,
+              animationDuration: `${s.dur}s`,
+              animationDelay: `${s.delay}s`,
+            }}
+          />
+        ))}
+      </div>
+
       <motion.div
         className="absolute left-1/2 top-1/2 h-[120vmin] w-[120vmin] -translate-x-1/2 -translate-y-1/2"
         // Always visible from the first paint — the cosmic
