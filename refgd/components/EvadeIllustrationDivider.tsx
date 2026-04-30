@@ -86,7 +86,7 @@ export default function EvadeIllustrationDivider({
           <motion.img
             src={src}
             alt={alt}
-            loading="lazy"
+            loading="eager"
             decoding="async"
             style={{ y, scale, rotate, height }}
             className="relative z-10 w-auto max-w-[80vw] object-contain drop-shadow-[0_30px_60px_rgba(0,0,0,0.55)]"
