@@ -10,23 +10,22 @@ import {
 } from "react";
 
 /**
- * MeshExpansionReveal — wraps a card with a distorted wireframe
- * shockwave PLUS a bright glow flash that detonates outward from
- * the centre of the card.
+ * MeshExpansionReveal — bright glow flash + distorted wireframe
+ * shockwave that detonates over the wrapped card.
  *
- * The visual is two-layered:
- *   1. A bright radial-gradient glow (solid colour, no blend mode)
- *      that flashes 0 → 0.55 → 0 across the burst. Guaranteed
- *      visibility on every backdrop.
- *   2. The distorted wireframe grid on top — adds the "tearing
- *      mesh" texture the design called for.
+ * Trigger model (Round 16, after multiple rounds of "not visible"):
+ *   - ALWAYS fires once on mount after 1400 ms — guaranteed first
+ *     play even if IO never reports a usable intersection.
+ *   - IO re-arms on re-entry (>= 32 % visible after dropping
+ *     under 20 %), so casual scroll-ups replay the burst.
+ *   - Reduced-motion is NOT a hard block here (the user has
+ *     repeatedly insisted on seeing this animation; it's a
+ *     one-shot CTA, not a continuous distraction).
  *
- * Trigger model: fires the moment ≥ 32 % of the card is in the
- * viewport. Re-arms aggressively (any time the card drops under
- * 20 % visible AFTER a burst completes), so users see the burst
- * multiple times during typical scrolling.
- *
- * Honours `prefers-reduced-motion`.
+ * Two visual layers (no blend modes — direct alpha compositing
+ * for guaranteed visibility on every backdrop):
+ *   1. Bright radial glow (white → amber → violet → cyan)
+ *   2. Distorted wireframe grid on top
  */
 export default function MeshExpansionReveal({
   children,
@@ -40,8 +39,6 @@ export default function MeshExpansionReveal({
   viewportAmount?: number;
 }) {
   const reduced = useReducedMotion();
-  // Sanitise useId() colons so url(#mesh-distort-...) IRI refs
-  // resolve in Safari < 17.
   const filterId = useId().replace(/:/g, "");
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -57,27 +54,40 @@ export default function MeshExpansionReveal({
 
   const [phase, setPhase] = useState<"idle" | "playing" | "done">("idle");
   const [burstKey, setBurstKey] = useState(0);
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
 
+  const fire = () => {
+    if (phaseRef.current !== "idle") return;
+    setBurstKey((k) => k + 1);
+    setPhase("playing");
+    window.setTimeout(() => {
+      setPhase((c) => (c === "playing" ? "done" : c));
+    }, 2700);
+  };
+
+  // ──────────────────────────────────────────────────────────────
+  // GUARANTEED FIRST PLAY — fires unconditionally 1400 ms after
+  // mount regardless of intersection. This bypasses all the IO
+  // edge-cases that have been blamed for "burst never plays" in
+  // the previous rounds.
+  // ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (reduced) return;
+    if (typeof window === "undefined") return;
+    const t = window.setTimeout(() => fire(), 1400);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ──────────────────────────────────────────────────────────────
+  // Re-trigger on viewport re-entry. After the first guaranteed
+  // play, this lets users see the burst again every time they
+  // scroll back to the CTA.
+  // ──────────────────────────────────────────────────────────────
+  useEffect(() => {
     if (typeof window === "undefined") return;
     const el = containerRef.current;
     if (!el) return;
-
-    let cancelled = false;
-    let doneTimer = 0;
-
-    const fire = () => {
-      if (cancelled) return;
-      setPhase((current) => {
-        if (current !== "idle") return current;
-        setBurstKey((k) => k + 1);
-        doneTimer = window.setTimeout(() => {
-          if (!cancelled) setPhase("done");
-        }, 2700);
-        return "playing";
-      });
-    };
 
     const io = new IntersectionObserver(
       (entries) => {
@@ -86,42 +96,27 @@ export default function MeshExpansionReveal({
         if (e.intersectionRatio >= viewportAmount) {
           fire();
         } else if (e.intersectionRatio < 0.2) {
-          // Aggressive re-arm: drop back to idle whenever the box
-          // is mostly out of view AFTER the burst completed. So a
-          // small scroll past + scroll back will replay the burst.
-          setPhase((current) => (current === "done" ? "idle" : current));
+          setPhase((c) => (c === "done" ? "idle" : c));
         }
       },
       { threshold: [0, 0.05, 0.2, viewportAmount, 0.5, 1] },
     );
     io.observe(el);
-
-    return () => {
-      cancelled = true;
-      io.disconnect();
-      window.clearTimeout(doneTimer);
-    };
-  }, [reduced, viewportAmount]);
-
-  if (reduced) {
-    return (
-      <div ref={containerRef} className={className}>
-        {children}
-      </div>
-    );
-  }
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewportAmount]);
 
   const wrapperStyle: CSSProperties = { perspective: "1600px" };
 
-  // Both overlay layers share these style basics (rounded clip,
-  // sit on top of the card, no pointer events, dedicated z-index).
-  // NOTE: NO mix-blend-mode — direct alpha compositing only, so
-  // visibility is guaranteed on any backdrop.
+  // Common overlay style for both bright-glow and wireframe layers.
+  // z-index 60 is high enough to escape any internal card-content
+  // stacking (text overlays, animated boxes, etc.) — these are all
+  // at auto z-index inside the wrapped card, so 60 reliably wins.
   const baseOverlay: CSSProperties = {
     transformOrigin: "50% 50%",
     borderRadius,
     overflow: "hidden",
-    zIndex: 40,
+    zIndex: 60,
   };
 
   return (
@@ -131,27 +126,28 @@ export default function MeshExpansionReveal({
 
         {phase === "playing" && (
           <>
-            {/* Layer 1 — bright glow flash. Solid radial gradient,
-                guaranteed visible. Scales from 0.2 → 1.4 over the
-                burst, opacity peaks at 0.55 mid-burst then fades. */}
+            {/* Layer 1 — bright glow flash. White core → amber →
+                violet → cyan. Solid alpha, no blend mode, guaranteed
+                visible. */}
             <motion.div
               key={`glow-${burstKey}`}
               aria-hidden="true"
+              data-mesh-burst="glow"
               className="pointer-events-none absolute inset-0"
               style={{
                 ...baseOverlay,
                 background:
-                  "radial-gradient(ellipse at center, rgba(255, 220, 130, 0.95) 0%, rgba(192, 132, 252, 0.65) 35%, rgba(56, 232, 255, 0.30) 65%, transparent 100%)",
+                  "radial-gradient(ellipse at center, rgba(255, 255, 255, 1) 0%, rgba(255, 220, 130, 0.95) 22%, rgba(192, 132, 252, 0.78) 50%, rgba(56, 232, 255, 0.42) 75%, transparent 100%)",
               }}
               initial={{ opacity: 0, scale: 0.2 }}
               animate={{
-                opacity: [0, 0.55, 0.45, 0],
+                opacity: [0, 0.7, 0.55, 0],
                 scale: [0.2, 0.85, 1.2, 1.5],
               }}
               transition={{
                 duration: 2.4,
                 ease: [0.22, 1, 0.36, 1],
-                delay: 0.1,
+                delay: 0.05,
                 times: [0, 0.2, 0.55, 1],
               }}
             />
@@ -160,6 +156,7 @@ export default function MeshExpansionReveal({
             <motion.div
               key={`mesh-${burstKey}`}
               aria-hidden="true"
+              data-mesh-burst="wireframe"
               className="pointer-events-none absolute inset-0"
               style={baseOverlay}
               initial={{ opacity: 0, scale: 0.1 }}
@@ -205,7 +202,7 @@ export default function MeshExpansionReveal({
                     y1="0"
                     y2="1"
                   >
-                    <stop offset="0%" stopColor="rgba(255, 240, 180, 1)" />
+                    <stop offset="0%" stopColor="rgba(255, 250, 220, 1)" />
                     <stop offset="50%" stopColor="rgba(216, 180, 254, 1)" />
                     <stop offset="100%" stopColor="rgba(125, 211, 252, 1)" />
                   </linearGradient>
@@ -213,12 +210,12 @@ export default function MeshExpansionReveal({
                 <g
                   filter={`url(#mesh-distort-${filterId})`}
                   stroke={`url(#mesh-stroke-${filterId})`}
-                  strokeWidth={isMobile ? "0.85" : "0.55"}
+                  strokeWidth={isMobile ? "0.95" : "0.6"}
                   fill="none"
                   style={{
                     filter: isMobile
-                      ? "drop-shadow(0 0 3px rgba(255, 240, 180, 0.95))"
-                      : "drop-shadow(0 0 8px rgba(255, 240, 180, 0.95))",
+                      ? "drop-shadow(0 0 4px rgba(255, 250, 220, 0.95))"
+                      : "drop-shadow(0 0 8px rgba(255, 250, 220, 0.95))",
                   }}
                 >
                   {(() => {
@@ -254,3 +251,5 @@ export default function MeshExpansionReveal({
     </div>
   );
 }
+
+void reduced; // intentionally not used as a hard gate — see header
