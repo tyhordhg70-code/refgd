@@ -160,16 +160,21 @@ export default function PixelRainCosmic({
       // timeRef advances every rAF tick — decoupled from scroll so rain
       // keeps falling at natural speed even when the user stops scrolling.
       const tf = timeRef.current;
+      // screenRows: total visible rows on screen. cycleLen: one full column
+      // cycle (screen + trail buffer) so the head wraps back to the top
+      // instead of growing off-screen unboundedly.
+      const screenRows = Math.ceil(h / cellH);
+      const trailBuf = Math.max(8, Math.floor(aliveRows));
 
       for (let i = 0; i < cols; i++) {
         const c = columns[i];
         const x = i * cellW + cellW * 0.5;
 
-        // Head position is TIME-driven (tf) + per-column speed variance.
-        // p only modulates alpha/density (0 = invisible, 1 = full rain).
-        const headRow = (tf * c.speed * 0.45) + c.flicker * 4;
+        // Head position: time-driven with MODULO wrap so each column
+        // cycles 0 → screenRows → 0 → … continuously.
+        const cycleLen = screenRows + trailBuf + 4;
+        const headRow = ((tf * c.speed * 0.45 + c.flicker * cycleLen) % cycleLen);
 
-        const trailLen = Math.max(8, Math.floor(aliveRows));
         for (let k = 0; k < trailLen; k++) {
           const row = headRow - k;
           const y = row * cellH;
