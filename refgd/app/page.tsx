@@ -3,6 +3,7 @@ import MusicPlayer from "@/components/MusicPlayer";
 import AnimatedTelegramBox from "@/components/AnimatedTelegramBox";
 import ParallaxChapter from "@/components/ParallaxChapter";
 import ParallaxIllustration from "@/components/ParallaxIllustration";
+import MeshExpansionReveal from "@/components/MeshExpansionReveal";
 import EditableText from "@/components/EditableText";
 import HomeCTAButton from "@/components/HomeCTAButton";
 import HomeBackground from "@/components/HomeBackground";
@@ -178,12 +179,15 @@ export default async function HomePage() {
               data-telegram-snap
               className="container-px pb-10 sm:pb-14 [scroll-margin-top:12vh] [scroll-snap-align:start] [scroll-snap-stop:normal]"
             >
-              {/* "Stay up to speed" CTA — fully present from first paint.
-                  The previous MeshExpansionReveal entrance fired a
-                  wireframe-grid shockwave on scroll, which the user
-                  read as a "star appearing" behind the box. Removed in
-                  favour of a static wrapper so the box is always there. */}
-              <div className="relative">
+              {/* "Stay up to speed" CTA — the box is statically
+                  positioned (always present, no fold-in entrance). The
+                  distorted-mesh wireframe shockwave that detonates over
+                  it is triggered ONLY when the user has SETTLED on the
+                  box (≥ 50 % in view + scroll idle ≥ 400 ms) so the
+                  user actually sees the cinematic burst rather than
+                  having it fire while their eye is still tracking the
+                  scroll past it. */}
+              <MeshExpansionReveal borderRadius="2.5rem">
                 <div className="relative overflow-hidden rounded-[2.5rem] border border-white/[0.10] sm:pulse-glow-violet">
                   <div className="relative aspect-[4/5] sm:aspect-[16/6]">
                     <AnimatedTelegramBox />
@@ -209,7 +213,7 @@ export default async function HomePage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </MeshExpansionReveal>
             </section>
             {/* Decorative fade-to-footer gradient. On mobile h-12
                 (was h-24) — the gradient itself is decorative, and a
