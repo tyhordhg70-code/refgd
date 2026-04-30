@@ -1,43 +1,43 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
- * LoadingScreen — full-screen cinematic boot overlay.
+ * LoadingScreen — full-screen cinematic boot overlay with a REAL
+ * progress tracker.
  *
  * Why this exists
  * ───────────────
  * On a fresh page load, the browser is doing a LOT of work in the
- * first ~1.5 seconds:
- *   • Decoding hero/path-card images
- *   • Loading + swapping web fonts
- *   • Promoting transformed elements to their own GPU layers (the
- *     first time a layer is needed it has to be rasterised and
- *     uploaded to the GPU — this is the single biggest cause of
- *     "first scroll feels janky")
- *   • JIT-compiling framer-motion code paths
- *   • Initialising the Three.js / WebGL galaxy context (desktop)
+ * first ~1.5 seconds: image decoding, font swap, GPU layer
+ * promotion, framer-motion JIT, WebGL init. If the user can scroll
+ * during that window, every animation pays the layer-creation tax
+ * in real time and feels janky. Holding the user behind this
+ * overlay until the page is *actually* warm fixes that.
  *
- * If the user can scroll DURING that warm-up window, every
- * scroll-triggered animation pays the layer-creation tax in real
- * time and the page feels laggy. By holding everyone at this
- * overlay for ~2.5 seconds while the React tree mounts and warms
- * up underneath, that tax is paid up-front. When the overlay
- * fades, every layer/font/image is already on the GPU and the
- * subsequent scrolling/animation is buttery.
+ * The progress tracker is a TRUE measurement, not a fake timer:
  *
- * The component:
- *   • Mounts at the very top of <body>, fixed full-screen, z 9999
- *   • Locks body scroll while visible
- *   • Waits for ALL of: document.fonts.ready, window 'load',
- *     two rAF cycles, AND a minimum 2400 ms hold
- *   • Animates a smooth deterministic progress bar so the user
- *     sees clear forward motion the entire time
- *   • Fades out over 800 ms once ready, then fully unmounts so
- *     it costs nothing for the rest of the session
+ *   • IMAGES — every <img> currently in the DOM contributes 1 unit;
+ *     each fires its load event when the browser has decoded it
+ *   • FONTS — every FontFace registered with document.fonts is
+ *     1 unit; resolves when its load promise settles
+ *   • WINDOW — the 'load' event (everything in <head>, all CSS
+ *     and stylesheet @font-face declarations) is 1 weighted block
+ *   • PAINT — two rAF cycles after everything else, to guarantee
+ *     the React tree behind the overlay has fully painted
+ *   • STAGE — a soft minimum 1.5 s so the overlay never flashes
+ *     by faster than the user can read it
  *
- * It is a CLIENT component so it ships in the same chunk as the
- * page — no extra network round-trip required to remove it.
+ * The bar value is the WEIGHTED REAL ratio of all the above. It
+ * physically cannot reach 100 % until every signal resolves. A
+ * very gentle time-based floor is added so the bar always shows
+ * forward motion (never sits at 0 % for 800 ms while the first
+ * batch of images is still in-flight) — but that floor caps at
+ * 88 %, never at 100 %. 100 % only ever fires when the actual
+ * Promise.all() of all real signals resolves.
+ *
+ * Once truly ready: pause briefly at 100 %, fade overlay over
+ * 800 ms, then unmount. Subsequent scrolls have no overlay cost.
  */
 
 const PHASES = [
@@ -53,63 +53,233 @@ export default function LoadingScreen() {
   const [phase, setPhase] = useState(PHASES[0]);
   const [visible, setVisible] = useState(true);
   const [removed, setRemoved] = useState(false);
+  // Keep last reported value so the bar never goes backwards
+  const lastShownRef = useRef(0);
 
   useEffect(() => {
-    // Lock body scroll while the overlay is visible so the user
-    // can't start interacting with a half-warm tree.
+    // Lock body so the user can't start scrolling on a half-warm tree
     const prevOverflow = document.body.style.overflow;
     const prevTouchAction = document.body.style.touchAction;
     document.body.style.overflow = "hidden";
     document.body.style.touchAction = "none";
 
     const startTime = performance.now();
-    const MIN_DURATION = 2400;
-    let rafId = 0;
+    const MIN_DURATION = 1500;
     let cancelled = false;
+    let rafId = 0;
+    let timerA = 0;
+    let timerB = 0;
 
-    function tick() {
+    // ── REAL trackers ──────────────────────────────────────────────
+    const state = {
+      imgsTotal: 0,
+      imgsLoaded: 0,
+      fontsTotal: 0,
+      fontsLoaded: 0,
+      windowLoaded: document.readyState === "complete",
+      firstPaintDone: false,
+      minStallDone: false,
+      everythingResolved: false,
+    };
+
+    function commitProgress() {
       if (cancelled) return;
+      // Components of real progress (each is a 0..1 ratio)
+      const imgPct =
+        state.imgsTotal === 0 ? 1 : state.imgsLoaded / state.imgsTotal;
+      const fontPct =
+        state.fontsTotal === 0 ? 1 : state.fontsLoaded / state.fontsTotal;
+      const winPct = state.windowLoaded ? 1 : 0;
+      const paintPct = state.firstPaintDone ? 1 : 0;
+      const stallPct = state.minStallDone ? 1 : 0;
+
+      // Weighted real composite — images dominate because they're
+      // the slowest per-asset wait for first-paint perf.
+      const real =
+        imgPct * 0.45 +
+        fontPct * 0.20 +
+        winPct * 0.15 +
+        paintPct * 0.10 +
+        stallPct * 0.10;
+
+      // Soft time floor so the bar shows motion even if the first
+      // batch of resources hasn't reported yet. Caps at 88 % — only
+      // the everythingResolved Promise.all() can take it to 100 %.
       const elapsed = performance.now() - startTime;
-      const t = Math.min(0.95, elapsed / MIN_DURATION);
+      const t = Math.min(1, elapsed / 1200);
       const eased = 1 - Math.pow(1 - t, 3);
-      const pct = Math.round(eased * 95);
+      const floor = Math.min(0.88, eased * 0.78);
+
+      const candidate = Math.max(real, floor);
+      const cap = state.everythingResolved ? 1.0 : 0.95;
+      const display = Math.min(cap, candidate);
+
+      // Monotonic — never go backwards
+      const pct = Math.max(lastShownRef.current, Math.round(display * 100));
+      lastShownRef.current = pct;
       setProgress(pct);
+
       if (pct < 25) setPhase(PHASES[0]);
       else if (pct < 55) setPhase(PHASES[1]);
       else if (pct < 80) setPhase(PHASES[2]);
-      else setPhase(PHASES[3]);
-      if (t < 0.95) rafId = requestAnimationFrame(tick);
+      else if (pct < 100) setPhase(PHASES[3]);
+      else setPhase(PHASES[4]);
     }
+
+    function tick() {
+      if (cancelled) return;
+      commitProgress();
+      if (!state.everythingResolved) rafId = requestAnimationFrame(tick);
+    }
+
+    // Start the rAF loop immediately so the bar shows life
     rafId = requestAnimationFrame(tick);
 
-    // Wait for everything that meaningfully affects first-paint perf
-    const fontsReady: Promise<unknown> =
-      typeof document !== "undefined" && document.fonts && document.fonts.ready
-        ? document.fonts.ready
-        : Promise.resolve();
+    // ── Discover trackable resources after the first paint so the
+    //    React tree behind us has had a chance to mount its <img>s.
+    const discoverTimer = window.setTimeout(() => {
+      if (cancelled) return;
+      const imgs = Array.from(document.querySelectorAll("img"));
+      state.imgsTotal = imgs.length;
+      imgs.forEach((img) => {
+        if (img.complete && img.naturalHeight > 0) {
+          state.imgsLoaded++;
+        } else {
+          const onDone = () => {
+            state.imgsLoaded++;
+            commitProgress();
+          };
+          img.addEventListener("load", onDone, { once: true });
+          img.addEventListener("error", onDone, { once: true });
+        }
+      });
+      // Some lazy-loaded images may never fire while `loading="lazy"`
+      // and below the fold. We treat them as loaded after a short
+      // grace window so they can't block the bar forever.
+      window.setTimeout(() => {
+        if (cancelled) return;
+        const remaining = state.imgsTotal - state.imgsLoaded;
+        if (remaining > 0) {
+          state.imgsLoaded = state.imgsTotal;
+          commitProgress();
+        }
+      }, 4500);
+      commitProgress();
+    }, 250);
 
-    const windowLoaded = new Promise<void>((r) => {
+    // ── Fonts: register every FontFace, resolve on each load ──
+    if (typeof document !== "undefined" && document.fonts) {
+      // Snapshot count after a short delay so late `<link rel=stylesheet>`
+      // @font-face rules have had time to register.
+      window.setTimeout(() => {
+        if (cancelled) return;
+        const all = Array.from(document.fonts as Iterable<FontFace>);
+        state.fontsTotal = all.length || 1;
+        all.forEach((f) => {
+          if (f.status === "loaded") state.fontsLoaded++;
+          else
+            f.load()
+              .then(() => {
+                state.fontsLoaded++;
+                commitProgress();
+              })
+              .catch(() => {
+                state.fontsLoaded++;
+                commitProgress();
+              });
+        });
+        commitProgress();
+      }, 100);
+    }
+
+    // ── Window load (CSS, fonts via @font-face, deferred scripts) ──
+    const onWindowLoad = () => {
+      state.windowLoaded = true;
+      commitProgress();
+    };
+    if (document.readyState === "complete") {
+      state.windowLoaded = true;
+    } else {
+      window.addEventListener("load", onWindowLoad, { once: true });
+    }
+
+    // ── Two rAF cycles after window load so we know the React tree
+    //    has had a real layout + paint pass.
+    const paintWaiter = new Promise<void>((resolve) => {
+      const trigger = () => {
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            state.firstPaintDone = true;
+            commitProgress();
+            resolve();
+          }),
+        );
+      };
+      if (document.readyState === "complete") trigger();
+      else window.addEventListener("load", trigger, { once: true });
+    });
+
+    // ── Min stall: never finish faster than the user can register
+    //    that the overlay even appeared.
+    const minStallPromise = new Promise<void>((r) =>
+      window.setTimeout(() => {
+        state.minStallDone = true;
+        commitProgress();
+        r();
+      }, MIN_DURATION),
+    );
+
+    // ── Window load promise ──
+    const windowLoadPromise = new Promise<void>((r) => {
       if (document.readyState === "complete") r();
       else window.addEventListener("load", () => r(), { once: true });
     });
 
-    const minStall = new Promise<void>((r) => setTimeout(r, MIN_DURATION));
+    // ── Fonts ready promise ──
+    const fontsReadyPromise: Promise<unknown> =
+      typeof document !== "undefined" && document.fonts && document.fonts.ready
+        ? document.fonts.ready
+        : Promise.resolve();
 
-    // Two rAF cycles guarantee the first layout + paint of the
-    // mounted React tree have flushed.
-    const firstPaint = new Promise<void>((r) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => r())),
-    );
+    // ── Image promise: resolves when ALL images have either loaded
+    //    or hit the 4.5 s grace fallback above ──
+    const imagesPromise = new Promise<void>((resolve) => {
+      const check = window.setInterval(() => {
+        if (cancelled) {
+          clearInterval(check);
+          return;
+        }
+        if (
+          state.imgsTotal > 0 &&
+          state.imgsLoaded >= state.imgsTotal
+        ) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 100);
+      // Hard ceiling — never block beyond 6 s on images alone
+      window.setTimeout(() => {
+        clearInterval(check);
+        resolve();
+      }, 6000);
+    });
 
-    let timerA = 0;
-    let timerB = 0;
-
-    Promise.all([fontsReady, windowLoaded, minStall, firstPaint]).then(() => {
+    Promise.all([
+      fontsReadyPromise,
+      windowLoadPromise,
+      minStallPromise,
+      paintWaiter,
+      imagesPromise,
+    ]).then(() => {
       if (cancelled) return;
-      cancelAnimationFrame(rafId);
+      state.everythingResolved = true;
+      // Final commit takes us from whatever real % we reached up to 100
+      lastShownRef.current = 100;
       setProgress(100);
       setPhase(PHASES[4]);
-      timerA = window.setTimeout(() => setVisible(false), 240);
+      cancelAnimationFrame(rafId);
+
+      timerA = window.setTimeout(() => setVisible(false), 280);
       timerB = window.setTimeout(() => {
         setRemoved(true);
         document.body.style.overflow = prevOverflow;
@@ -120,8 +290,10 @@ export default function LoadingScreen() {
     return () => {
       cancelled = true;
       cancelAnimationFrame(rafId);
+      clearTimeout(discoverTimer);
       clearTimeout(timerA);
       clearTimeout(timerB);
+      window.removeEventListener("load", onWindowLoad);
       document.body.style.overflow = prevOverflow;
       document.body.style.touchAction = prevTouchAction;
     };
@@ -129,8 +301,7 @@ export default function LoadingScreen() {
 
   if (removed) return null;
 
-  // 36 deterministic CSS-twinkle stars across the overlay so the
-  // boot screen has cosmic character even at < 100 ms.
+  // Cosmic twinkle backdrop (deterministic, SSR-safe positions)
   const STARS = Array.from({ length: 36 }, (_, i) => {
     const left = (i * 67 + 13) % 100;
     const top = (i * 41 + 7) % 100;
@@ -162,13 +333,10 @@ export default function LoadingScreen() {
         pointerEvents: visible ? "auto" : "none",
         display: "grid",
         placeItems: "center",
-        // Promote to its own GPU layer so its fade-out is composited
-        // independently of the page underneath.
         willChange: "opacity",
         transform: "translateZ(0)",
       }}
     >
-      {/* Ambient nebula glow */}
       <div
         aria-hidden
         style={{
@@ -182,7 +350,6 @@ export default function LoadingScreen() {
         }}
       />
 
-      {/* Twinkle starfield */}
       <div aria-hidden style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
         {STARS.map((s, i) => (
           <span
@@ -204,7 +371,33 @@ export default function LoadingScreen() {
         ))}
       </div>
 
-      {/* Center cluster */}
+      {/* Spinning 3D wireframe accent — same family of shapes that
+          drifts in the page background, so the loading screen visually
+          previews the experience the user is about to get. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "calc(50% - 200px)",
+          transform: "translate(-50%, -50%)",
+          width: 110,
+          height: 110,
+          opacity: 0.55,
+          perspective: "800px",
+        }}
+      >
+        <div
+          className="shape-gyro"
+          style={{ width: "100%", height: "100%" }}
+        >
+          <div className="ring ring-1" />
+          <div className="ring ring-2" />
+          <div className="ring ring-3" />
+          <div className="core" />
+        </div>
+      </div>
+
       <div
         style={{
           position: "relative",
@@ -214,9 +407,6 @@ export default function LoadingScreen() {
           padding: "0 24px",
         }}
       >
-        {/* RG seal — pulse-glow CSS keyframe (already defined in
-            globals.css as pulseGlowViolet) provides the breathing
-            ring without any JS. */}
         <div
           className="pulse-glow-violet"
           style={{
@@ -275,15 +465,12 @@ export default function LoadingScreen() {
             color: "rgba(167,139,250,0.95)",
             margin: 0,
             marginBottom: 28,
-            // Reserve vertical space so the bar doesn't shift when
-            // the phase string changes length.
             minHeight: "1em",
           }}
         >
           {phase}
         </p>
 
-        {/* Progress bar */}
         <div
           style={{
             position: "relative",
