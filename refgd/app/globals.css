@@ -1024,6 +1024,30 @@ html { scroll-behavior: smooth; }
   .lite-star { animation: none; opacity: 0.4; }
 }
 
+/* ── Mobile drifting nebula ──
+ * A single radial-gradient div animated only with translate3d.
+ * The transform is GPU-only and the keyframe runs over 60-90 s,
+ * so the per-frame cost is essentially zero — but the slow
+ * drift gives the page real depth like coloured cosmic dust. */
+.lite-nebula {
+  position: absolute;
+  border-radius: 9999px;
+  /* No `filter: blur(...)` — radial-gradient already produces a
+   * soft falloff. blur() forces an additional rasterization pass
+   * that's expensive on integrated GPUs. The gradient alone
+   * gives the right "cloud" look at near-zero compositor cost. */
+  opacity: 0.9;
+  animation: liteNebulaDrift var(--nebula-dur, 75s) ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes liteNebulaDrift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(var(--nebula-x, 8vw), var(--nebula-y, -4vh), 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lite-nebula { animation: none; }
+}
+
 /* ─── MOBILE PERFORMANCE KILL-SWITCH ──────────────────────────
  * The user reported the page feels laggy on iPhone. The home
  * page runs >15 simultaneous infinite CSS animations across

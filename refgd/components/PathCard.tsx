@@ -158,6 +158,18 @@ export default function PathCard({
         className="group relative h-full"
         data-cursor="hover"
         data-cursor-label={title}
+        // Static 3D pose. The carousel sets `perspective: 1400px`
+        // on the section, so this rotateX gives the card real
+        // depth — it leans back ~6° as if standing on a stage.
+        // No animation: pose is identical at every scroll
+        // position, so iOS never has to interpolate transform
+        // values mid-swipe and the result is a solid 3D look
+        // with zero per-frame cost.
+        style={{
+          transform: "rotateX(6deg) translateZ(0)",
+          transformStyle: "preserve-3d",
+          willChange: "transform",
+        }}
       >
         <Tag
           {...linkProps}
@@ -166,6 +178,13 @@ export default function PathCard({
           style={{
             background:
               "linear-gradient(180deg, rgba(18,16,30,0.55), rgba(8,8,16,0.78))",
+            // Heavy multi-layer shadow that reads as "this card
+            // is floating above the page". The combination of
+            // the rotateX above + this shadow stack makes the
+            // card look like it has real volume — restoring the
+            // 3D character the user noticed missing.
+            boxShadow:
+              "0 30px 60px -20px rgba(0,0,0,0.85), 0 18px 36px -12px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.06) inset, 0 1px 0 rgba(255,255,255,0.10) inset",
           }}
         >
           <div

@@ -210,10 +210,17 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
     <section
       data-testid="paths-mobile-carousel"
       className="relative w-full"
+      style={{ perspective: "1400px", perspectiveOrigin: "50% 50%" }}
     >
-      {/* Edge fade masks — visual hint that more cards are off-screen. */}
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-[rgb(5,6,10)] to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-[rgb(5,6,10)] to-transparent" />
+      {/* Wide edge masks (14vw each) that hard-fade the peek of any
+          neighbouring card to the page background. Combined with
+          the 96vw slide width below, this means at any scroll
+          position the user only ever SEES one card; whatever sliver
+          of the neighbour reaches into the viewport is faded out
+          before it's perceptible. This is the actual fix for the
+          "still gets cut off when scrolling" report. */}
+      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-[14vw] bg-gradient-to-r from-[rgb(5,6,10)] via-[rgba(5,6,10,0.85)] to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-[14vw] bg-gradient-to-l from-[rgb(5,6,10)] via-[rgba(5,6,10,0.85)] to-transparent" />
 
       {/* The track. Native horizontal scroll + CSS snap-mandatory.
           touch-action: pan-x → iOS only routes horizontal touches
@@ -224,16 +231,17 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
         data-testid="paths-mobile-track"
         className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth py-8 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{
-          scrollPaddingLeft: "8vw",
-          scrollPaddingRight: "8vw",
+          scrollPaddingLeft: "2vw",
+          scrollPaddingRight: "2vw",
           touchAction: "pan-x",
           WebkitOverflowScrolling: "touch",
           overscrollBehaviorX: "contain",
           overscrollBehaviorY: "auto",
+          transformStyle: "preserve-3d",
         }}
       >
         {/* Leading spacer so the first card snaps to viewport centre. */}
-        <div aria-hidden="true" className="shrink-0" style={{ width: "8vw" }} />
+        <div aria-hidden="true" className="shrink-0" style={{ width: "2vw" }} />
         {cards.map((card, i) => {
           const renderedCard = isValidElement(card)
             ? cloneElement(card as ReactElement<{ noReveal?: boolean }>, {
@@ -250,19 +258,20 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
               data-slide-index={i}
               data-testid={`paths-mobile-slide-${i + 1}`}
               data-active={isActive ? "true" : "false"}
-              // No `path-card-slide` class, no CSS transition: the
-              // slides are visually inert. Cards stay at scale(1),
-              // opacity(1) regardless of position. activeIndex is
-              // ONLY used to highlight the right pagination dot.
+              // 96vw slide + 14vw edge fade on each side = the next
+              // card is always faded to background before any
+              // meaningful part of it enters the viewport. No
+              // active-class transition: cards stay flat (scale 1,
+              // opacity 1) so nothing can interpolate mid-swipe.
               className="relative shrink-0 snap-center snap-always px-2"
-              style={{ width: "84vw" }}
+              style={{ width: "96vw" }}
             >
               {renderedCard}
             </div>
           );
         })}
         {/* Trailing spacer so the last card snaps to viewport centre. */}
-        <div aria-hidden="true" className="shrink-0" style={{ width: "8vw" }} />
+        <div aria-hidden="true" className="shrink-0" style={{ width: "2vw" }} />
       </div>
 
       {/* Pagination dots — passive read of activeIndex. Tap to jump. */}
