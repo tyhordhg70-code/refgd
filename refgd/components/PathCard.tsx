@@ -165,26 +165,18 @@ export default function PathCard({
         // position, so iOS never has to interpolate transform
         // values mid-swipe and the result is a solid 3D look
         // with zero per-frame cost.
-        style={{
-          transform: "rotateX(6deg) translateZ(0)",
-          transformStyle: "preserve-3d",
-          willChange: "transform",
-        }}
+        style={{ transform: "translateZ(0)" }}
       >
         <Tag
           {...linkProps}
           data-testid={`path-card-${index + 1}-link`}
-          className={`relative block h-full overflow-hidden ${radius} glass-strong ${ACCENT_PULSE[accent]}`}
+          className={`relative block h-full overflow-hidden ${radius} glass-strong`}
           style={{
             background:
               "linear-gradient(180deg, rgba(18,16,30,0.55), rgba(8,8,16,0.78))",
-            // Heavy multi-layer shadow that reads as "this card
-            // is floating above the page". The combination of
-            // the rotateX above + this shadow stack makes the
-            // card look like it has real volume — restoring the
-            // 3D character the user noticed missing.
+            // 2-layer shadow (mobile perf): removed 4-layer stack + pulse-glow
             boxShadow:
-              "0 30px 60px -20px rgba(0,0,0,0.85), 0 18px 36px -12px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.06) inset, 0 1px 0 rgba(255,255,255,0.10) inset",
+              "0 20px 40px -12px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.07) inset",
           }}
         >
           <div
