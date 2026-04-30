@@ -34,7 +34,13 @@ export default function LedJoySection() {
     <section
       ref={ref}
       aria-label="Ahhh, feel the joy of cashback"
-      className="relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden"
+      /* User request: section was a full 100svh which left a lot of empty
+         vertical space above and below the LED text. Reduced to 60svh
+         so the beat plays tightly between the hero and Act 2 instead
+         of forcing a near-full viewport scroll past empty room. Also
+         dropped the heavy py default so the AHHHH sign sits higher
+         in the viewport (visible immediately on entry). */
+      className="relative isolate flex min-h-[60svh] w-full items-center justify-center overflow-hidden py-6 sm:py-10"
     >
 
       <div className="container-wide relative z-10 grid place-items-center text-center">
