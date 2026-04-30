@@ -178,7 +178,7 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
     >
       {/* Ambient floating orbs — pure CSS keyframes, zero JS cost during swipe */}
       <MobileFloatOrbs />
-      <SwiperCubeStage cards={cards} isMobile={isMobile} />
+      <SwiperCubeStage cards={cards} />
       <p
         aria-hidden="true"
         className="mt-4 heading-display text-center text-[10px] font-semibold uppercase tracking-[0.4em] text-white/55"
@@ -251,8 +251,16 @@ function MobileFloatOrbs() {
  * minus side padding; cubeEffect.shadow=true adds a soft floor
  * shadow that reads as the cube sitting on a surface.
  */
-function SwiperCubeStage({ cards, isMobile }: { cards: ReactNode[]; isMobile: boolean }) {
+function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
   return (
     <div
       data-testid="paths-mobile-track"
