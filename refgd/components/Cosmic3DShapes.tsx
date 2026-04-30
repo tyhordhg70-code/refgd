@@ -38,6 +38,12 @@ export default function Cosmic3DShapes() {
   }, []);
 
   if (!mounted) return null;
+  // Mobile lag fix: 3D wireframe shapes were already de-animated
+  // on mobile (globals.css gates the keyframes off at <=768px) but
+  // their 12+ static compositor layers still cost the GPU on every
+  // scroll frame. Drop the entire layer on mobile so scrolling +
+  // the path cards have the full GPU budget to themselves.
+  if (isMobile) return null;
 
   // Sizes tuned per breakpoint
   const cubeSize = isMobile ? 70 : 130;
