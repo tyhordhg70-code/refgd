@@ -269,9 +269,15 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         loop
         grabCursor
         speed={550}
+        // Cube depth — slideShadows give each face a subtle dark
+        // sheen as it rotates away from the camera, which is what
+        // sells the "this is a 3D cube" gesture. shadow draws the
+        // soft floor shadow under the rotating cube. Both are
+        // GPU-composited by Swiper (CSS transforms only) so they
+        // cost nothing on the JS thread during the swipe.
         cubeEffect={{
-          shadow: false,
-          slideShadows: false,
+          shadow: true,
+          slideShadows: true,
           shadowOffset: 24,
           shadowScale: 0.92,
         }}
