@@ -26,7 +26,10 @@ const TRACKS = [
 ];
 
 const TARGET_VOLUME = 0.5;
-const FADE_MS = 900;
+// Quick fade so unmute feels instant rather than gradually
+// emerging over almost a second (the previous 900 ms fade was the
+// main reason users reported "music feels really delayed").
+const FADE_MS = 250;
 const VISIT_KEY = "rg:music-track";
 const MUTE_KEY = "rg:music-muted";
 
@@ -223,6 +226,28 @@ export default function MusicPlayer() {
       }
     }
 
+    // ── canplay retry ────────────────────────────────────────
+    // If play() was rejected (commonly because the audio wasn't
+    // buffered yet at the moment of the user's first gesture), the
+    // `canplay` event fires the instant the browser has enough data
+    // to start. Retry play() then so audio kicks off as soon as
+    // physically possible — closes the "music doesn't always start"
+    // race entirely.
+    const onCanPlay = () => {
+      if (cancelled) return;
+      if (a.paused) {
+        // Honor current mute preference — if user toggled mute while
+        // we were waiting for buffer, don't override their choice.
+        if (mutedRef.current) {
+          a.muted = true;
+          a.volume = 0;
+        }
+        const p = a.play();
+        if (p) p.catch(() => {});
+      }
+    };
+    a.addEventListener("canplay", onCanPlay, { once: true });
+
     // Re-attempt muted autoplay if the tab regains focus.
     const onVisible = () => {
       if (cancelled) return;
@@ -237,22 +262,38 @@ export default function MusicPlayer() {
       cancelled = true;
       cancelFade();
       detach();
+      a.removeEventListener("canplay", onCanPlay);
       document.removeEventListener("visibilitychange", onVisible);
       // Stop playback on unmount (route change away from home).
       try { a.pause(); a.currentTime = 0; } catch {}
     };
   }, [track]);
 
-  // ── Mute-toggle effect: only applies the mute state, never resets. ──
+  // ── Mute-toggle effect: only applies the mute state on USER-driven
+  //    toggles, never on initial mount.
+  //
+  // The previous implementation ran on every render where `muted`
+  // or `track` changed — including the very first mount. On that
+  // first run, the bootstrap effect was ALSO firing (setting
+  // a.muted=true; tryPlay()), so we ended up with rapid-fire
+  // a.muted=true → a.muted=false → a.play() → a.play() in microsecond
+  // succession. Some browsers debounce / drop one of those calls,
+  // which is why users intermittently reported "music doesn't
+  // start". Skipping the first run hands ownership of initial
+  // playback cleanly to the bootstrap effect.
+  const isFirstMuteRun = useRef(true);
   useEffect(() => {
     mutedRef.current = muted;
+    if (isFirstMuteRun.current) {
+      isFirstMuteRun.current = false;
+      return;
+    }
     const a = audioRef.current;
     if (!a || !track) return;
     try { localStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch {}
 
     if (muted) {
-      // Fade out then pause without resetting currentTime.
-      fadeVolumeTo(0, 600, () => { try { a.pause(); } catch {} });
+      fadeVolumeTo(0, 350, () => { try { a.pause(); } catch {} });
     } else {
       a.muted = false;
       const p = a.play();
