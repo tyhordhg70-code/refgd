@@ -41,6 +41,17 @@ export default function GalaxyBackground() {
     const mount = mountRef.current;
     if (!mount) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // ── Skip Galaxy entirely on mobile ──
+    // Even with the particle counts halved twice and the shader
+    // throttled during scroll, the user's iPhone still reports
+    // "background animation is laggy". A continuously-rendering
+    // WebGL context behind a scrolling page is a top-tier mobile
+    // perf killer — it forces the GPU to composite the fixed
+    // canvas into every page repaint, on top of every shader
+    // tick. The page's CSS gradients and the per-section glow
+    // already supply plenty of cosmic colour without WebGL, so
+    // mobile gets a flat backdrop and 60 fps native scrolling.
+    if (window.matchMedia("(max-width: 768px)").matches) return;
 
     let disposed = false;
     let cleanup: (() => void) | null = null;

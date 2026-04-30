@@ -1002,24 +1002,20 @@ html { scroll-behavior: smooth; }
   font-feature-settings: "tnum" 1, "kern" 1;
 }
 
-/* ── Mobile scroll-snap for telegram section ──
-   Native CSS scroll-snap handled in the compositor — no JS, no
-   wheel/touch interception. The `proximity` mode means the snap
-   only kicks in when the user naturally lands close to a snap
-   point, so it never wrestles with intentional scrolling. The
-   only declared snap target on the home page is the telegram
-   <section id="telegram"> via `[scroll-snap-align:start]`, so a
-   hard scroll past the path cards lands the user with the
-   telegram block roughly aligned to the top of the viewport
-   (offset by its `scroll-margin-top: 12vh` so the headline isn't
-   tucked under the status bar). */
-@media (max-width: 767px) {
-  html {
-    scroll-snap-type: y proximity;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-snap-type: none !important;
-  }
-}
+/* ── No vertical scroll-snap on mobile ──
+   We previously set `scroll-snap-type: y proximity` on <html> with
+   `scroll-snap-align: start` on the telegram <section>. In theory
+   `proximity` only snaps when the user naturally lands close, but
+   in practice on iOS Safari this combination produced two bad
+   behaviours that the user explicitly complained about:
+     • "A light swipe back up from the telegram box forces me back
+        down." — the proximity snap was treating any small upward
+        flick as 'still close to the snap point' and rubber-banding
+        the viewport back DOWN to the telegram section's start.
+     • "Can't scroll down on path cards." — once the snap point
+        was satisfied, fighting the snap to leave the section took
+        more drag than a typical thumb gesture, so the page felt
+        locked.
+   No vertical snap is required — the path cards have their OWN
+   horizontal snap on the carousel track, which is unaffected.
+   Vertical scrolling is now fully native on mobile. */

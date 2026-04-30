@@ -156,12 +156,25 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
         inner.style.transform = "none";
         inner.style.opacity = "1";
       } else {
-        const rotateY = clamped * -32;
-        const scale = 1 - Math.min(0.18, Math.abs(clamped) * 0.18);
-        const opacity = Math.max(0.45, 1 - Math.abs(clamped) * 0.55);
-        inner.style.transform = `perspective(1400px) rotateY(${rotateY.toFixed(
-          2,
-        )}deg) scale(${scale.toFixed(3)})`;
+        // ── Subtle scale + dim only — NO rotateY ──
+        // Earlier we used rotateY = clamped * -32deg + scale 0.82.
+        // On a phone at speed that rotation made off-centre cards
+        // look like they were hinging away on a door, with the
+        // far edge appearing to vanish — exactly what the user
+        // described as "half the card gets cut off when
+        // scrolling on path cards". Worse, the active card
+        // landed with a brief pop as it un-rotated, which read
+        // as jank.
+        // Replaced with a flat scale + opacity envelope:
+        //   • Centred card: scale 1, opacity 1.
+        //   • Adjacent cards: scale ≥ 0.94, opacity ≥ 0.78.
+        // This still gives strong "the centre is the one in
+        // focus" feedback on every swipe, but every card stays
+        // fully visible and rectangular at all times — no
+        // false 'cut off' edges, no 3D pop on settle.
+        const scale = 1 - Math.min(0.06, Math.abs(clamped) * 0.06);
+        const opacity = Math.max(0.78, 1 - Math.abs(clamped) * 0.22);
+        inner.style.transform = `scale(${scale.toFixed(3)})`;
         inner.style.opacity = opacity.toFixed(3);
       }
       const absDist = Math.abs(distPx);
