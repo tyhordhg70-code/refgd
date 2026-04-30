@@ -1,5 +1,6 @@
 "use client";
-import { motion } from "framer-motion";
+import { motion, MotionConfig } from "framer-motion";
+import { useEffect, useState } from "react";
 
 export type PathIllustrationKind =
   | "store"
@@ -29,7 +30,7 @@ const ACCENT_TO_HEX: Record<string, { primary: string; secondary: string; soft: 
  *
  * Designs / colors are PRESERVED — only motion was added.
  */
-export default function PathIllustration({
+function PathIllustrationContent({
   kind,
   accent,
 }: {
@@ -512,5 +513,50 @@ function MasteryScene({ c, kind }: { c: any; kind: string }) {
             fontFamily="Clash Display, system-ui" fontWeight="700"
             fontSize="14" fill={c.secondary} letterSpacing="6">MASTERY</text>
     </g>
+  );
+}
+
+
+/* ────────────────────────────────────────────────────────────────────
+ * Mobile-aware wrapper.
+ *
+ * The illustration above uses 24 infinite-repeat framer-motion
+ * animations across 25 motion.* elements. Each PathCard mounts one
+ * — and the mobile carousel keeps all 5 cards mounted in the cube,
+ * so on mobile we'd be running ~120 concurrent infinite animations
+ * on a single section. That was THE dominant remaining mobile lag
+ * source after the Round-14 GPU-layer optimisations.
+ *
+ * <MotionConfig reducedMotion="always"> tells framer-motion to
+ * treat every nested motion.* as if the user has prefers-reduced-
+ * motion enabled: animations are skipped, initial values jump to
+ * final values, and the framework never enters its rAF loop for
+ * those elements. The illustrations still RENDER (their static
+ * SVG geometry and gradients are unchanged) — they just don't
+ * animate, exactly the behaviour the user wanted ("dont remove
+ * animations just fix the lag" — animations are still active on
+ * desktop where there's GPU budget for them).
+ * ────────────────────────────────────────────────────────────────── */
+export default function PathIllustration(props: {
+  kind: PathIllustrationKind;
+  accent: keyof typeof ACCENT_TO_HEX;
+}) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 768px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  // `reducedMotion="always"` on mobile, "user" everywhere else
+  // (which honours the OS setting normally). This single wrapper
+  // neutralises all 24 infinite animations on mobile in one shot.
+  return (
+    <MotionConfig reducedMotion={isMobile ? "always" : "user"}>
+      <PathIllustrationContent {...props} />
+    </MotionConfig>
   );
 }
