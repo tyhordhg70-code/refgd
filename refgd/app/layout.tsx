@@ -6,6 +6,7 @@ import AnnouncementBanner from "@/components/AnnouncementBanner";
 import CustomCursor from "@/components/CustomCursor";
 import PulsatingOverlay from "@/components/PulsatingOverlay";
 import GalaxyBackground from "@/components/GalaxyBackground";
+import Cosmic3DShapes from "@/components/Cosmic3DShapes";
 import LoadingScreen from "@/components/LoadingScreen";
 import EditProvider from "@/lib/edit-context";
 import EditorToolbar from "@/components/EditorToolbar";
@@ -90,6 +91,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {/* Site-wide continuous WebGL galaxy field — every page scrolls
               over the same scene so transitions feel like one journey. */}
           <GalaxyBackground />
+          {/* Subtle 3D wireframe shapes drifting behind every chapter —
+              pure CSS @keyframes, GPU-only, zero JS thread cost. */}
+          <Cosmic3DShapes />
           <PulsatingOverlay />
           <AnnouncementBanner
             text={initialContent["banner.text"]}
