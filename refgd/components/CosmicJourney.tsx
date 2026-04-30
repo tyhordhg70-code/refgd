@@ -378,25 +378,27 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // for free and stays in lock-step with native scroll.
   const stageAnimate = exiting
     ? isMobile
-      ? // Restored ORIGINAL mobile exit: quick fade + small upward
-        // slide + gentle scale, so the welcome appears to "lift up
-        // and away" as it scrolls out of view naturally (no
-        // pinning on mobile — see the section style below).
-        { opacity: 0, y: -80, scale: 0.92 }
+      ? // Mobile exit, NOW with cinematic drama. The previous pose
+        // ({opacity:0, y:-80, scale:0.92}) was technically running
+        // but read as "instantaneous fade" on phones — not enough
+        // motion to register as an animated transition. This pose
+        // mirrors the desktop "fly into the cosmos" gesture but at
+        // mobile-friendly intensity: scene shrinks to half size,
+        // tilts back, and lifts off-screen.
+        { opacity: 0, y: -100, scale: 0.5, rotateX: -22 }
       : { scale: 0.08, rotateX: -55, y: -200, opacity: 0 }
     : isMobile
-      ? { opacity: 1, y: 0, scale: 1 }
+      ? { opacity: 1, y: 0, scale: 1, rotateX: 0 }
       : { scale: 1, rotateX: 0, y: 0, opacity: 1 };
 
   const stageTransition = exiting
     ? isMobile
-      ? // Snappy mobile exit (was 1.0 s). With pinning re-enabled
-        // below the welcome stays in viewport for the whole
-        // animation, but a 1.0 s pin felt stuck. 0.55 s is just
-        // long enough to read the lift-up motion clearly while
-        // landing the user on the paths section in well under a
-        // second of total transition.
-        { duration: 0.55, ease: [0.4, 0, 0.2, 1] as const }
+      ? // 0.7 s — long enough that the dramatic shrink + tilt + lift
+        // reads as motion (not as instantaneous fade), short enough
+        // that the user lands on the paths section without feeling
+        // pinned. Eased so the early frames are slow (when the user
+        // can perceive them clearly) and the tail accelerates away.
+        { duration: 0.7, ease: [0.32, 0, 0.67, 0] as const }
       : { duration: 1.2, ease: [0.65, 0, 0.35, 1] as const }
     : { duration: 0.7, ease: [0.16, 1, 0.3, 1] as const };
 
