@@ -1193,3 +1193,125 @@ html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
   .float-orb, .cube-float, .constellation-dot { animation: none; }
 }
+
+
+/* ────────────────────────────────────────────────────────────────
+ * 3D Wireframe Background Shapes — pure CSS, compositor-only.
+ *
+ * Three primitives are exposed:
+ *   .shape-cube  — six wire-frame faces, slow XY rotation
+ *   .shape-gyro  — three perpendicular rings (atom / gyroscope)
+ *   .shape-pyr   — four-face wireframe pyramid (octahedron-ish)
+ *
+ * Every animation tweaks ONLY `transform` — the entire spin is
+ * composited on the GPU, never touches the JS thread. They are
+ * decorative and `pointer-events:none` so they never interfere
+ * with scrolling or interaction.
+ * ──────────────────────────────────────────────────────────────── */
+
+@keyframes shape-rotate-1 {
+  from { transform: rotateX(0deg) rotateY(0deg); }
+  to   { transform: rotateX(360deg) rotateY(360deg); }
+}
+@keyframes shape-rotate-2 {
+  from { transform: rotateX(0deg) rotateZ(0deg); }
+  to   { transform: rotateX(-360deg) rotateZ(360deg); }
+}
+@keyframes shape-rotate-3 {
+  from { transform: rotateY(0deg) rotateZ(0deg); }
+  to   { transform: rotateY(360deg) rotateZ(-360deg); }
+}
+@keyframes shape-drift-y {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -18px, 0); }
+}
+
+.shape-3d-stage {
+  position: absolute;
+  pointer-events: none;
+  transform-style: preserve-3d;
+  perspective: 800px;
+  will-change: transform;
+  animation: shape-drift-y 9s ease-in-out infinite;
+}
+
+/* ── Cube ── */
+.shape-cube {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: shape-rotate-1 28s linear infinite;
+  will-change: transform;
+}
+.shape-cube > .face {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(255, 225, 140, 0.22);
+  background: linear-gradient(135deg, rgba(167,139,250,0.06), rgba(34,211,238,0.04));
+  box-shadow: inset 0 0 24px rgba(167,139,250,0.10);
+}
+.shape-cube > .face-f { transform: translateZ(var(--half)); }
+.shape-cube > .face-b { transform: rotateY(180deg) translateZ(var(--half)); }
+.shape-cube > .face-r { transform: rotateY(90deg)  translateZ(var(--half)); }
+.shape-cube > .face-l { transform: rotateY(-90deg) translateZ(var(--half)); }
+.shape-cube > .face-t { transform: rotateX(90deg)  translateZ(var(--half)); }
+.shape-cube > .face-d { transform: rotateX(-90deg) translateZ(var(--half)); }
+
+/* ── Gyroscope (atom-style 3 perpendicular rings) ── */
+.shape-gyro {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: shape-rotate-2 32s linear infinite;
+  will-change: transform;
+}
+.shape-gyro > .ring {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(103, 232, 249, 0.32);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 18px rgba(167, 139, 250, 0.18),
+    0 0 22px rgba(34, 211, 238, 0.12);
+  background:
+    radial-gradient(circle at 50% 50%, transparent 60%, rgba(167,139,250,0.05) 100%);
+}
+.shape-gyro > .ring-1 { transform: rotateX(0deg)   rotateY(0deg); }
+.shape-gyro > .ring-2 { transform: rotateX(60deg)  rotateY(30deg); }
+.shape-gyro > .ring-3 { transform: rotateX(120deg) rotateY(60deg); }
+/* Small core dot */
+.shape-gyro > .core {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 6px; height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(255, 225, 140, 0.95);
+  box-shadow: 0 0 18px rgba(255, 225, 140, 0.95), 0 0 36px rgba(167,139,250,0.6);
+}
+
+/* ── Octahedron-ish: 2 rotated squares forming a wireframe diamond ── */
+.shape-pyr {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: shape-rotate-3 24s linear infinite;
+  will-change: transform;
+}
+.shape-pyr > .plane {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(244, 114, 182, 0.30);
+  background: linear-gradient(135deg, rgba(244,114,182,0.05), rgba(167,139,250,0.04));
+  box-shadow: inset 0 0 22px rgba(244,114,182,0.14);
+}
+.shape-pyr > .plane-1 { transform: rotateY(0deg)   rotateX(45deg); }
+.shape-pyr > .plane-2 { transform: rotateY(60deg)  rotateX(45deg); }
+.shape-pyr > .plane-3 { transform: rotateY(120deg) rotateX(45deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .shape-cube, .shape-gyro, .shape-pyr, .shape-3d-stage { animation: none; }
+}
