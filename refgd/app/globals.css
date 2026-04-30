@@ -1139,3 +1139,57 @@ html { scroll-behavior: smooth; }
    No vertical snap is required — the path cards have their OWN
    horizontal snap on the carousel track, which is unaffected.
    Vertical scrolling is now fully native on mobile. */
+
+
+/* ────────────────────────────────────────────────────────────────
+ * Pure-CSS replacements for framer-motion infinite animations on
+ * mobile. Critical perf principle: every keyframe below animates
+ * ONLY `transform` and `opacity` — both compositor-thread safe
+ * properties on iOS Safari + Android Chrome. The browser runs the
+ * entire animation on the GPU without ever waking up JavaScript.
+ *
+ * These replace what was previously 5 framer-motion <motion.div>
+ * orbs, 1 framer-motion cube-stage float, and 5 framer-motion
+ * constellation-dot pulses. All visual motion preserved; per-frame
+ * JS cost on the scroll thread eliminated.
+ * ──────────────────────────────────────────────────────────────── */
+
+@keyframes floatOrb {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: var(--orb-min, 0.32); }
+  25%      { transform: translate3d(var(--orb-dx, 4px), var(--orb-dy-up, -16px), 0); opacity: var(--orb-max, 0.78); }
+  50%      { transform: translate3d(0, 0, 0); opacity: var(--orb-min, 0.32); }
+  75%      { transform: translate3d(var(--orb-dx-neg, -3px), var(--orb-dy-down, 6px), 0); opacity: var(--orb-max, 0.78); }
+}
+
+.float-orb {
+  animation-name: floatOrb;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  will-change: transform, opacity;
+}
+
+@keyframes cubeFloat {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -10px, 0); }
+}
+
+.cube-float {
+  animation: cubeFloat 4.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes constellationDotPulse {
+  0%, 100% { transform: scale(0.8); opacity: 0.4; }
+  50%      { transform: scale(1.4); opacity: 1; }
+}
+
+.constellation-dot {
+  animation-name: constellationDotPulse;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .float-orb, .cube-float, .constellation-dot { animation: none; }
+}
