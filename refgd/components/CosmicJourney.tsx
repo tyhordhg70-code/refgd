@@ -458,10 +458,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             eliminating the "welcome breaks on scroll-up" blank. CSS-only. */}
         <div
           aria-hidden="true"
-          className="relative flex flex-col items-center justify-center"
+          className="relative pointer-events-none"
           style={{
             height: isMobile ? "80svh" : "115svh",
-            background: "linear-gradient(to bottom, #05060a 0%, #080b14 55%, #05060a 100%)",
+            background: "transparent",
             overflow: "hidden",
           }}
         >
@@ -471,24 +471,36 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
               10%  { opacity: 1; }
               100% { transform: translateX(-140vw) translateY(60vh) scaleX(1); opacity: 0; }
             }
-            @keyframes cj-pulse-text {
-              0%, 100% { opacity: 0.35; letter-spacing: 0.3em; }
-              50%       { opacity: 0.75; letter-spacing: 0.45em; }
-            }
-            @keyframes cj-dest {
-              from { opacity: 0; transform: translateY(14px); }
-              to   { opacity: 1; transform: translateY(0); }
-            }
           `}</style>
           {[
-            { top: "16%", left: "92%", w: 160, delay: "0s",   dur: "2.4s" },
-            { top: "32%", left: "98%", w: 220, delay: "0.7s", dur: "2.1s" },
-            { top: "50%", left: "88%", w: 140, delay: "1.3s", dur: "2.8s" },
-            { top: "68%", left: "96%", w: 180, delay: "0.3s", dur: "2.2s" },
-            { top: "80%", left: "91%", w: 130, delay: "1.8s", dur: "2.6s" },
-            { top: "7%",  left: "95%", w: 200, delay: "2.2s", dur: "2.0s" },
-            { top: "58%", left: "94%", w: 110, delay: "0.9s", dur: "3.1s" },
-            { top: "24%", left: "89%", w: 250, delay: "1.6s", dur: "1.9s" },
+            { top: "9%", left: "88%", w: 90, delay: "0.00s", dur: "1.60s", angle: -8 },
+            { top: "26%", left: "89%", w: 113, delay: "0.31s", dur: "1.87s", angle: 3 },
+            { top: "43%", left: "90%", w: 136, delay: "0.62s", dur: "2.14s", angle: -8 },
+            { top: "60%", left: "91%", w: 159, delay: "0.93s", dur: "2.41s", angle: 3 },
+            { top: "77%", left: "92%", w: 182, delay: "1.24s", dur: "2.68s", angle: -8 },
+            { top: "94%", left: "93%", w: 205, delay: "1.55s", dur: "2.95s", angle: 3 },
+            { top: "16%", left: "94%", w: 228, delay: "1.86s", dur: "3.22s", angle: -8 },
+            { top: "33%", left: "95%", w: 251, delay: "2.17s", dur: "3.49s", angle: 3 },
+            { top: "50%", left: "96%", w: 94, delay: "2.48s", dur: "3.76s", angle: -8 },
+            { top: "67%", left: "97%", w: 117, delay: "2.79s", dur: "1.83s", angle: 3 },
+            { top: "84%", left: "98%", w: 140, delay: "3.10s", dur: "2.10s", angle: -8 },
+            { top: "6%", left: "99%", w: 163, delay: "3.41s", dur: "2.37s", angle: 3 },
+            { top: "23%", left: "88%", w: 186, delay: "0.22s", dur: "2.64s", angle: -8 },
+            { top: "40%", left: "89%", w: 209, delay: "0.53s", dur: "2.91s", angle: 3 },
+            { top: "57%", left: "90%", w: 232, delay: "0.84s", dur: "3.18s", angle: -8 },
+            { top: "74%", left: "91%", w: 255, delay: "1.15s", dur: "3.45s", angle: 3 },
+            { top: "91%", left: "92%", w: 98, delay: "1.46s", dur: "3.72s", angle: -8 },
+            { top: "13%", left: "93%", w: 121, delay: "1.77s", dur: "1.79s", angle: 3 },
+            { top: "30%", left: "94%", w: 144, delay: "2.08s", dur: "2.06s", angle: -8 },
+            { top: "47%", left: "95%", w: 167, delay: "2.39s", dur: "2.33s", angle: 3 },
+            { top: "64%", left: "96%", w: 190, delay: "2.70s", dur: "2.60s", angle: -8 },
+            { top: "81%", left: "97%", w: 213, delay: "3.01s", dur: "2.87s", angle: 3 },
+            { top: "3%", left: "98%", w: 236, delay: "3.32s", dur: "3.14s", angle: -8 },
+            { top: "20%", left: "99%", w: 259, delay: "0.13s", dur: "3.41s", angle: 3 },
+            { top: "37%", left: "88%", w: 102, delay: "0.44s", dur: "3.68s", angle: -8 },
+            { top: "54%", left: "89%", w: 125, delay: "0.75s", dur: "1.75s", angle: 3 },
+            { top: "71%", left: "90%", w: 148, delay: "1.06s", dur: "2.02s", angle: -8 },
+            { top: "88%", left: "91%", w: 171, delay: "1.37s", dur: "2.29s", angle: 3 },
           ].map((s, i) => (
             <div
               key={i}
@@ -498,31 +510,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
                 left: s.left,
                 width: s.w,
                 height: 1.5,
-                background: "linear-gradient(to left, rgba(255,237,180,0.85) 0%, transparent 100%)",
-                boxShadow: "0 0 6px rgba(255,237,180,0.45)",
+                background: "linear-gradient(to left, rgba(255,237,180,0.92) 0%, rgba(255,210,120,0.55) 50%, transparent 100%)",
+                boxShadow: "0 0 8px rgba(255,237,180,0.55)",
+                transform: `rotate(${s.angle}deg)`,
+                transformOrigin: "100% 50%",
                 animation: `cj-shoot ${s.dur} ${s.delay} ease-in infinite`,
                 willChange: "transform, opacity",
               }}
             />
           ))}
-          <div className="relative z-10 text-center select-none pointer-events-none">
-            <p style={{
-              fontFamily: "Clash Display, system-ui",
-              fontWeight: 700,
-              fontSize: "clamp(10px, 2vw, 12px)",
-              color: "rgba(255,210,120,0.55)",
-              animation: "cj-pulse-text 3.2s ease-in-out infinite",
-              marginBottom: "1rem",
-            }}>ENTERING ORBIT</p>
-            <p style={{
-              fontFamily: "Clash Display, system-ui",
-              fontWeight: 300,
-              fontSize: "clamp(18px, 4vw, 28px)",
-              color: "rgba(255,255,255,0.65)",
-              letterSpacing: "0.12em",
-              animation: "cj-dest 1.2s ease-out both",
-            }}>choose your path</p>
-          </div>
         </div>
 
     </section>
