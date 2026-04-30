@@ -164,7 +164,7 @@ export default function EvadePage() {
             Completes in ONE scroll-pass and reverses if the visitor
             scrolls back up, giving a clean transition in either
             direction between the trailer and the editorial chapters. */}
-        <PixelRainCosmic accent="#7dd3fc" scrollLength={1.0} />
+        <PixelRainCosmic accent="#7dd3fc" scrollLength={1.8} />
       </ReorderableSection>
 
       <ReorderableSection sectionId="intro">
