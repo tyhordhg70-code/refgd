@@ -1,5 +1,5 @@
 "use client";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion, useScroll, useTransform, useMotionValueEvent } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import KineticText from "./KineticText";
 
@@ -38,18 +38,8 @@ import KineticText from "./KineticText";
  */
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
-  const [exiting, setExiting] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-
-  // exitKey increments each time we enter the exiting state so that
-  // the warp streaks unmount+remount and replay their animation
-  // cleanly on each scroll-down, instead of being stuck at their
-  // end-state from the previous exit.
-  const [exitKey, setExitKey] = useState(0);
-  const exitingRef = useRef(false);
-  // Ref to the welcome <section>. Used to pin the section to
-  // `position: fixed` during exit so the cinematic exit animation
-  // is visible IN the viewport while the page scrolls underneath.
+  const [showMidFlight, setShowMidFlight] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
 
   // Mobile detection — used to thin out the per-frame DOM work in
@@ -136,328 +126,90 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // away when leaving and snaps back in when returning — the
   // visual choreography is unchanged — but no input is ever
   // captured or delayed.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (reduced) return;
 
-    // The previous threshold was max(60, vh * 0.08) ≈ 70 px. Anything
-    // past 70 px set the welcome stage to opacity:0 / scale:0.08
-    // (the cinematic fly-away pose). The welcome SECTION itself is
-    // 100 svh tall, so it stays in the viewport from scrollY 0 →
-    // ~700 px. That created a "dead zone" of ~630 px where the
-    // welcome section was clearly visible in the viewport but its
-    // CONTENT (planet, headline, halo) was invisible — exactly
-    // what the user was reporting as "scrolling up from telegram
-    // box causes welcome to vanish": as they scroll up from
-    // telegram and the welcome section re-enters the viewport from
-    // above, they see blank space instead of the welcome scene
-    // because exitingRef is still stuck at true.
-    //
-    // The fix: bind exit to "welcome is mostly off-screen". Use a
-    // threshold of 70 % of the viewport height so the cinematic
-    // fly-away only triggers AFTER the user has nearly fully
-    // scrolled past the section, AND the welcome reappears as
-    // soon as it scrolls back into view from above. With the snap
-    // landing at the paths section (~700–800 px down), exit
-    // triggers cleanly during the snap. Returning from telegram
-    // (scrollY shrinks past 0.7 × vh) brings the welcome stage
-    // back to visible while it's still entering view from above —
-    // no dead zone, no vanish.
-    function getExitThreshold() {
-      return 20; // fires simultaneously with snap trigger
-    }
 
-    function onScroll() {
-      const y = window.scrollY;
-      const next = y > getExitThreshold();
-      if (next !== exitingRef.current) {
-        exitingRef.current = next;
-        if (next) {
-          setExitKey((k) => k + 1);
-        }
-        setExiting(next);
-      }
-    }
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-    };
-  }, [reduced]);
-
-  // ── One-shot snap to "— you have arrived" ─────────────────────
+  // ── Scroll-linked exit ───────────────────────────────────────────
   //
-  // The user explicitly asked: "desktop scroll should lock onto
-  // 'you have arrived' after scrolling from welcome no matter how
-  // fast or light scrolling, both on desktop and mobile".
+  // The welcome section is 200 svh tall on desktop / 150 svh on mobile.
+  // An inner sticky viewport holds the visual at the top of the screen
+  // while the user scrolls through the section's full height.
+  // scrollYProgress goes from 0 (section top at viewport top) to 1
+  // (section bottom at viewport top = user has scrolled past).
   //
-  // The previous incarnation of this effect was a full scroll-jacker
-  // that intercepted every wheel/touchmove with `passive: false` +
-  // preventDefault and ran a custom rAF scroll loop. That broke the
-  // entire page (the subject of the desktop scroll-stutter fix in
-  // commit 07d5a1c).
-  //
-  // This implementation is intentionally minimal:
-  //
-  //   • A single passive `scroll` listener — never preventDefault,
-  //     never `passive: false`, no custom rAF loop. The browser's
-  //     compositor stays in charge of every frame.
-  //   • Triggers exactly ONCE per "departure from welcome" — the
-  //     instant the user's scrollY moves from ~0 to anywhere above,
-  //     we fire `window.scrollTo({behavior: 'smooth'})` to land at
-  //     the paths section kicker, and then we get out of the way.
-  //   • Re-arms ONLY when the user returns all the way back to the
-  //     welcome (y < 8). After that, a fresh scroll-down snaps to
-  //     the kicker again.
-  //   • Works equally on desktop wheel and on mobile touch — the
-  //     `scroll` event fires for both, and the only thing the snap
-  //     does is set the target. The browser handles the smooth
-  //     animation natively, so the feel is identical on every
-  //     platform.
-  //
-  // Implementation note on "fast or light":
-  //   The user's first wheel notch / touch-drag gives us 1 scroll
-  //   event with whatever `y` the browser computed. We immediately
-  //   fire `scrollTo(targetY, smooth)`. Whether the user moved
-  //   1 px or 600 px, the smooth scroll animates from current
-  //   position to targetY and lands there. That's the "lock".
-  //
-  // Skipping cases:
-  //   • Reduced motion users — never snap.
-  //   • Page loads already past the welcome (deep link, hash anchor,
-  //     hot reload mid-scroll, browser back-forward cache restore)
-  //     — start in the snapped state so we don't yank the user from
-  //     wherever they intentionally landed.
-  // ── Snap-to-paths: DESKTOP + MOBILE, single-fire ──────────────
-  //
-  // The user explicitly asked for the lock-onto "you have arrived"
-  // scroll-snap to work on mobile too. The previous mobile-skip was
-  // wrong — it stripped a feature the user wanted. The HAYWIRE
-  // problem on mobile was caused by a 3-step reassertion timer
-  // (250/550/950 ms) that fired `scrollTo` again and again on top
-  // of the user's still-active touch-drag — that's gone. The snap
-  // now fires ONCE on the first scroll-down from y≈0 and never
-  // reasserts, on either platform.
-  //
-  // Mobile-specific notes:
-  //   • iOS Safari may interrupt the smooth-scroll if the user is
-  //     still dragging when we call scrollTo — that's fine, the
-  //     user is in control. The snap is a guarantee for INTENTIONAL
-  //     small flicks ("I want to leave the welcome screen") not for
-  //     a wrestling match against active input.
-  //   • The latch never re-arms — once we've fired, scrolling back
-  //     to the top and forward again behaves like normal native
-  //     scrolling for the rest of the session.
-  //
-  // No reassertion. No mobile bypass. No re-arming. One fire, done.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (reduced) return;
+  // We drive the stage's scale/rotateX/y/opacity directly from scroll
+  // position — zero JS interval/setTimeout/rAF, runs on the compositor.
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start start", "end start"],
+  });
 
-    // The "snap to 'you have arrived'" guarantee, hardened against
-    // hard / fast scrolls.
-    //
-    // The PREVIOUS implementation only fired when `lastY < 8 && y >= 8`.
-    // That works for a gentle wheel-tick (one pixel at a time) but
-    // FAILS on a hard fling: a single scroll event might jump straight
-    // from y=0 to y=2000, skipping the [8, 60) trigger band entirely
-    // because by the time the listener runs the user is already
-    // hundreds of pixels past the snap target. The user reported:
-    // "Scrolling too hard after welcome should still land me on you
-    // have arrived; instead it lands all the way at end."
-    //
-    // Hardened logic:
-    //   • While not yet snapped, ANY scroll event with y > 0 triggers
-    //     the snap, regardless of velocity. We always smooth-scroll
-    //     to the paths-intro target.
-    //   • To beat iOS touch momentum (which can keep firing scroll
-    //     events for ~700 ms after touchend, each one cancelling our
-    //     scrollTo), we keep RE-FIRING scrollTo while the user is
-    //     significantly past the target (|delta| > 60), up to a hard
-    //     cap of 1.2 s and 8 attempts. This is the minimum "fight
-    //     iOS inertia" that actually works reliably without producing
-    //     the haywire feeling of the previous infinite-reassertion
-    //     timer (which fought ALL scrolls forever and that's what
-    //     broke before).
-    //   • Once the user is within 60 px of the target the snap is
-    //     considered locked and we stop re-firing.
-    //   • The snap arms exactly once per page load. Returning to y≈0
-    //     does NOT re-arm — that prevented an infinite ping-pong loop.
+  // Desktop: dramatic fly-into-cosmos (scale 1→0.08, rotateX 0→-55, y 0→-200)
+  const dtScale    = useTransform(scrollYProgress, [0, 1], [1, 0.08]);
+  const dtRotateX  = useTransform(scrollYProgress, [0, 1], [0, -55]);
+  const dtY        = useTransform(scrollYProgress, [0, 1], [0, -200]);
+  const dtOpacity  = useTransform(scrollYProgress, [0.55, 1], [1, 0]);
 
-    // Single-fire snap. The previous rAF reassertion loop fought
-    // every browser smooth-scroll for 1.8 s, producing the visible
-    // flicker / "snap doesn't work after going back up" complaints.
-    // The only thing this does now is: the FIRST scroll event that
-    // takes us off the welcome (y > 0) issues exactly ONE smooth
-    // scrollTo to the paths section, then gets out of the way for
-    // the rest of the session. The browser's compositor handles
-    // every frame natively — no JS contention.
-    let snapped = window.scrollY >= 60;
+  // Mobile: cinematic but not extreme (scale 1→0.5, rotateX 0→-22, y 0→-100)
+  const mbScale    = useTransform(scrollYProgress, [0, 1], [1, 0.5]);
+  const mbRotateX  = useTransform(scrollYProgress, [0, 1], [0, -22]);
+  const mbY        = useTransform(scrollYProgress, [0, 1], [0, -100]);
+  const mbOpacity  = useTransform(scrollYProgress, [0.6, 1], [1, 0]);
 
-    function targetY(): number | null {
-      const paths = document.getElementById("paths");
-      if (!paths) return null;
-      // Mobile snap offset: 80 px on both platforms. The earlier
-      // 24 px attempt put the kicker behind the iOS Safari URL
-      // bar / dynamic island ("you have arrived text is now cut
-      // off"). With the lead paragraph hidden on mobile and the
-      // headline clamped down to 1.6 rem, the full carousel +
-      // pagination dots + swipe caption STILL fit in the viewport
-      // at the comfortable 80 px offset, so we keep the kicker
-      // safely below the URL bar without sacrificing the swipe
-      // caption.
-      const headerOffset = 80;
-      return Math.max(
-        0,
-        Math.round(paths.getBoundingClientRect().top + window.scrollY - headerOffset),
-      );
-    }
+  const stageScale   = isMobile ? mbScale   : dtScale;
+  const stageRotateX = isMobile ? mbRotateX : dtRotateX;
+  const stageY       = isMobile ? mbY       : dtY;
+  const stageOpacity = isMobile ? mbOpacity : dtOpacity;
 
-    // Native compositor-driven smooth-scroll snap.
-    //
-    // The previous incarnation ran a custom 1500 ms requestAnimationFrame
-    // `window.scrollTo(0, …)` loop in parallel with the welcome's
-    // framer-motion exit animation. Both fought for the same frame
-    // budget on the main thread — a JS-driven scrollTo CANNOT be
-    // composited on the compositor thread, every frame triggers a
-    // layout flush, so the result was a visible stutter as the page
-    // scrolled away from welcome (the symptom the user kept reporting).
-    //
-    // Switching to the browser's native smooth-scroll moves the scroll
-    // animation onto the compositor thread; the welcome's exit
-    // animation no longer competes for the same paint frames. The
-    // native smooth-scroll lasts ~400-600 ms instead of 1500 ms, but
-    // the welcome exit (1.2 s) keeps playing AFTER the scroll has
-    // settled — so the cinematic fly-away is still visible, just
-    // layered above the now-stationary paths section as it fades.
-    function onScroll() {
-      const y = window.scrollY;
-      // Re-arm when user returns to welcome
-      if (y < 20) { snapped = false; return; }
-      // Guarantee exit animation fires even if the scroll event
-      // fires BEFORE the passive exit-observer effect runs.
-      if (!exitingRef.current) {
-        exitingRef.current = true;
-        setExitKey((k) => k + 1);
-        setExiting(true);
-      }
-      if (snapped) return;
-      snapped = true;
-      const target = targetY();
-      if (target == null) return;
-      if (Math.abs(window.scrollY - target) < 40) return;
-      // Native smooth-scroll. Auto-aborts on user input so the user
-      // always retains control. Compositor-driven, no main-thread
-      // contention with the exit animation.
-      try {
-        window.scrollTo({ top: target, behavior: "smooth" });
-      } catch {
-        window.scrollTo(0, target);
-      }
-    }
+  // Scroll indicator fades out once user starts scrolling.
+  const scrollIndicatorOpacity = useTransform(scrollYProgress, [0, 0.12], [1, 0]);
 
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-    };
-  }, [reduced]);
-
-  // Direction-aware stage transition.
-  //   Exit  → cinematic slow build (cubic-in-out, 1.2 s)
-  //   Return → eager rush back (cubic-out, 0.7 s) so the hero is
-  //            fully visible within ~150 ms of scroll-up, not blank.
-  // Mobile gets a stripped-down exit: just opacity + a small
-  // y-slide. The desktop stage is built around scale-0.08 +
-  // rotateX -55deg, both of which force the GPU to re-rasterise
-  // the planet's giant box-shadow every frame at progressively
-  // smaller sizes — fine on a desktop GPU but a top-tier
-  // stutter source on iOS Safari while the rAF scroll is
-  // running in parallel. The simpler mobile exit composites
-  // for free and stays in lock-step with native scroll.
-  const stageAnimate = exiting
-    ? isMobile
-      ? // Mobile exit, NOW with cinematic drama. The previous pose
-        // ({opacity:0, y:-80, scale:0.92}) was technically running
-        // but read as "instantaneous fade" on phones — not enough
-        // motion to register as an animated transition. This pose
-        // mirrors the desktop "fly into the cosmos" gesture but at
-        // mobile-friendly intensity: scene shrinks to half size,
-        // tilts back, and lifts off-screen.
-        { opacity: 0, y: -100, scale: 0.5, rotateX: -22 }
-      : { scale: 0.08, rotateX: -55, y: -200, opacity: 0 }
-    : isMobile
-      ? { opacity: 1, y: 0, scale: 1, rotateX: 0 }
-      : { scale: 1, rotateX: 0, y: 0, opacity: 1 };
-
-  const stageTransition = exiting
-    ? isMobile
-      ? // 0.7 s — long enough that the dramatic shrink + tilt + lift
-        // reads as motion (not as instantaneous fade), short enough
-        // that the user lands on the paths section without feeling
-        // pinned. Eased so the early frames are slow (when the user
-        // can perceive them clearly) and the tail accelerates away.
-        { duration: 0.7, ease: [0.32, 0, 0.67, 0] as const }
-      : { duration: 1.2, ease: [0.65, 0, 0.35, 1] as const }
-    : { duration: 0.7, ease: [0.16, 1, 0.3, 1] as const };
+  // Mid-flight warp effects — desktop only, show in the 35-90% scroll range.
+  useMotionValueEvent(scrollYProgress, "change", (v) => {
+    setShowMidFlight(v > 0.35 && v < 0.9 && !reduced && !isMobile);
+  });
 
   return (
     <>
-      {/* Phantom placeholder — only takes up space while the welcome
-          is pinned to position:fixed during exit (DESKTOP ONLY).
-          Without this, switching the welcome to fixed would remove
-          its 100svh from flow and the rest of the page would jump
-          up by 100svh on the same frame as exit triggers. On
-          mobile we don't pin (see below) so no phantom is needed. */}
-      <div aria-hidden="true" style={{ height: exiting ? "100svh" : 0 }} />
+      {/*
+       * Scroll-linked welcome — no JS-driven triggers, no position:fixed,
+       * no auto-scroll. The section is intentionally TALL (200 svh desktop /
+       * 150 svh mobile) so the user has a generous scroll range to travel
+       * through the exit animation at their own pace. A sticky inner viewport
+       * holds the visual at the top of the screen during the whole journey.
+       * When the section's bottom edge reaches the top of the viewport the
+       * scene is fully gone and the paths section slides into view naturally.
+       */}
       <section
         ref={sectionRef}
         data-testid="cosmic-journey"
-        className="relative grid w-full place-items-center overflow-hidden"
-        style={{
-          height: "100svh",
-          contain: "layout paint",
-          perspective: "1400px",
-          transform: "translate3d(0,0,0)",
-          ...(exiting
-            ? {
-                // Pinning is now active on BOTH desktop AND mobile.
-                //
-                // Desktop: 1.2 s cinematic exit (scale 0.08 +
-                // rotateX -55 + y -200) plays fully in view.
-                //
-                // Mobile: 0.55 s snappy exit ({opacity:0, y:-80,
-                // scale:0.92}) plays fully in view too. Without
-                // pinning the native compositor was dragging the
-                // welcome offscreen in ~250 ms, before the animation
-                // could even finish — which is why the user said
-                // "still no welcome animation on mobile". With the
-                // duration cut to 0.55 s the pin feels snappy not
-                // sticky, and the lift-up-and-away motion is now
-                // actually visible.
-                position: "fixed" as const,
-                top: 0,
-                left: 0,
-                right: 0,
-                zIndex: 30,
-                pointerEvents: "none" as const,
-              }
-            : {}),
-        }}
+        className="relative w-full"
+        style={{ height: isMobile ? "150svh" : "200svh" }}
       >
-      {/* Scene stage */}
-      <motion.div
-        className="absolute inset-0 grid place-items-center"
-        animate={stageAnimate}
-        transition={stageTransition}
-        style={{
-          transformStyle: "preserve-3d",
-          transformOrigin: "50% 28%",
-          willChange: "transform, opacity",
-        }}
-        suppressHydrationWarning
-      >
+        {/* Sticky viewport — the scene lives here and stays pinned to
+            the top of the viewport while the user scrolls through the
+            section's extra height. No JS: pure CSS position:sticky. */}
+        <div
+          className="sticky top-0 grid w-full place-items-center overflow-hidden"
+          style={{
+            height: "100svh",
+            perspective: "1400px",
+            contain: "layout paint",
+          }}
+        >
+          {/* Scene stage — driven by scroll, not by timers */}
+          <motion.div
+            className="absolute inset-0 grid place-items-center"
+            style={{
+              scale: stageScale,
+              rotateX: stageRotateX,
+              y: stageY,
+              opacity: stageOpacity,
+              transformStyle: "preserve-3d",
+              transformOrigin: "50% 28%",
+              willChange: "transform, opacity",
+            }}
+            suppressHydrationWarning
+          >
         {/* ── 1. Nebula backdrop ── */}
         <motion.div
           aria-hidden="true"
@@ -625,14 +377,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           className="absolute bottom-12 z-[6] flex flex-col items-center gap-3 text-white"
           data-testid="hero-scroll-indicator"
           initial={reduced ? { opacity: 1 } : { opacity: 0, y: 10 }}
-          animate={exiting ? { opacity: 0, y: 0 } : { opacity: 1, y: 0 }}
-          transition={
-            reduced
-              ? { duration: 0 }
-              : exiting
-                ? { duration: 0.4 }
-                : { duration: 0.7, ease: "easeOut", delay: 2.0 }
-          }
+          style={{ opacity: scrollIndicatorOpacity }}
           suppressHydrationWarning
         >
           <span
@@ -661,11 +406,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 z-[18]"
-        style={{ display: exiting && !reduced ? "block" : "none" }}
+        style={{ display: showMidFlight ? "block" : "none" }}
       >
         {/* White flash — "camera passes through" beat */}
         <motion.div
-          key={`flash-${exitKey}`}
+          key={"flash"}
           className="absolute inset-0 bg-white"
           initial={{ opacity: 0 }}
           animate={{ opacity: [0, 0.45, 0] }}
@@ -676,7 +421,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         <div className="absolute inset-0 grid place-items-center">
           {warpStreaks.map((s, i) => (
             <motion.span
-              key={`warp-${exitKey}-${i}`}
+              key={`warp-${i}`}
               className="absolute rounded-full"
               initial={{ x: 0, y: 0, opacity: 0, scaleX: 0.4 }}
               animate={{
@@ -705,6 +450,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           ))}
         </div>
       </div>
+    </div>
+
     </section>
     </>
   );
