@@ -160,7 +160,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // back to visible while it's still entering view from above —
     // no dead zone, no vanish.
     function getExitThreshold() {
-      return Math.max(30, window.innerHeight * 0.12);
+      return 20; // fires simultaneously with snap trigger
     }
 
     function onScroll() {
@@ -313,8 +313,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
     function onScroll() {
       const y = window.scrollY;
-      // Re-arm the snap whenever the user returns near the welcome top
+      // Re-arm when user returns to welcome
       if (y < 20) { snapped = false; return; }
+      // Guarantee exit animation fires even if the scroll event
+      // fires BEFORE the passive exit-observer effect runs.
+      if (!exitingRef.current) {
+        exitingRef.current = true;
+        setExitKey((k) => k + 1);
+        setExiting(true);
+      }
       if (snapped) return;
       snapped = true;
       const target = targetY();
