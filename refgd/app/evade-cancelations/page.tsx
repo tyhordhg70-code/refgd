@@ -12,6 +12,7 @@ import EvadeIllustrationDivider from "@/components/EvadeIllustrationDivider";
 import TrailerTitle3D from "@/components/TrailerTitle3D";
 import ChapterHeader from "@/components/ChapterHeader";
 import FloatingArt from "@/components/FloatingArt";
+import SceneActivator from "@/components/SceneActivator";
 
 export const metadata = {
   title: "Evade Cancelations — RefundGod",
@@ -103,6 +104,11 @@ const TRUST = [
 export default function EvadePage() {
   return (
     <ReorderableContainer pageId="evade-cancelations">
+      {/* Activate the worker's "evade" scene (cool teal/violet shockwave
+          drift) for as long as this page is mounted. The visual sits
+          BEHIND the page-scoped gradient overlay below, layered into
+          the shared WebGL canvas in <GalaxyBackground/>. */}
+      <SceneActivator name="evade" />
       {/* Page-wide deep blue → purple gradient overlay so the Evade page
           has its own distinct atmosphere, sitting above the global
           galaxy backdrop. Subtle radial accents reinforce a "vault"
