@@ -9,8 +9,6 @@ import TextReveal from "@/components/TextReveal";
 import BounceList from "@/components/BounceList";
 import ImpactHeadline from "@/components/ImpactHeadline";
 import CubicParallax from "@/components/CubicParallax";
-import CosmicBackground from "@/components/CosmicBackground";
-import LiquidParticles from "@/components/LiquidParticles";
 import EmotionChips from "@/components/EmotionChips";
 import EditableText from "@/components/EditableText";
 import GlassCard from "@/components/GlassCard";
@@ -62,9 +60,9 @@ const EMOTIONS = ["Fear", "Excitement", "Curiosity", "Anger", "Guilt", "Sadness"
  *  – All entrance animations are one-shot whileInView (no scroll-linked
  *    per-frame transforms). They complete in 0.4–0.7s after entering
  *    the viewport so they cannot freeze mid-scroll.
- *  – Background: a single page-scoped CosmicBackground (color-cycling
- *    pulsating gradient + drifting dust) plus a small LiquidParticles
- *    layer of abstract floating orbs. No bubble swarm.
+ *  – Background: the global shared WebGL canvas renders the
+ *    "mentorship" cosmic scene (warm gold rim + violet aurora curtain)
+ *    via SceneActivator. No DOM background work on this page.
  *  – TextReveal variants are intentionally diversified per section
  *    (wordWave / charBounce / lineMask / wordBlur / charGlitch) so
  *    no two consecutive sections share the same flavour.
@@ -83,10 +81,6 @@ export default function MentorshipsPage() {
           aurora curtain) for as long as this page is mounted. Renders
           into the shared WebGL canvas behind everything else. */}
       <SceneActivator name="mentorship" />
-      {/* Page-scoped cosmic backdrop + abstract liquid bubbles */}
-      <CosmicBackground />
-      <LiquidParticles count={14} />
-
       {/* Act 1 — Bespoke parallax illustration hero (replaces the
           generic chess fallback). Layers move at different depths
           on both mouse + scroll for a rich 3D feel. */}
@@ -704,8 +698,8 @@ export default function MentorshipsPage() {
 
       {/* ─── Act 9 — Add-ons + final WORLDWIDE statement ─────────── */}
       {/* Background contract-signing image removed at user request — the
-          section is now transparent so the page-scoped CosmicBackground
-          shows through, matching the rest of the page. */}
+          section is transparent so the shared WebGL cosmic scene shows
+          through, matching the rest of the page. */}
       <section className="relative py-20 sm:py-24">
         <div className="container-wide">
           <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-14">
