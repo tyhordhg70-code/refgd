@@ -279,7 +279,41 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         modules={[EffectCube, Pagination]}
         loop
         grabCursor
-        speed={550}
+        speed={520}
+        // ── Touch sensitivity tuning ─────────────────────────────────
+        // Default Swiper requires the user to drag past 50% of the
+        // slide width (longSwipesRatio: 0.5) OR have ~300 ms+ of
+        // velocity before a swipe commits to the next slide. With the
+        // cube effect that means people had to drag almost the full
+        // width of the card to rotate it — the user reported this as
+        // "takes a really long swipe to change cards".
+        //
+        // The tuning below makes the cube respond like a normal mobile
+        // carousel:
+        //   • threshold:        ignore <6 px finger jitter (fixes
+        //                       accidental "swipe" on tap).
+        //   • touchRatio: 1.35  amplify finger movement so the cube
+        //                       rotates ~35% faster than the finger.
+        //                       The user feels like a small flick
+        //                       moves the cube a meaningful amount.
+        //   • longSwipesRatio:  commit on just 18% drag instead of
+        //                       50% — a quick flick now reliably
+        //                       lands on the next slide.
+        //   • longSwipesMs:     250 ms (default 300) — slightly
+        //                       faster long-swipe detection.
+        //   • shortSwipes/      both true (default) so a fast flick
+        //     followFinger:     also advances regardless of distance.
+        //
+        // None of these change the cube ANIMATION itself — the 3D
+        // rotation still plays at full quality. They only change how
+        // much input is needed to trigger it.
+        threshold={6}
+        touchRatio={1.35}
+        longSwipesRatio={0.18}
+        longSwipesMs={250}
+        shortSwipes
+        followFinger
+        resistanceRatio={0.55}
         onSwiper={(s) => setActiveIndex(s.realIndex)}
         onSlideChange={(s) => setActiveIndex(s.realIndex)}
         // Cube depth — slideShadows give each face a subtle dark
