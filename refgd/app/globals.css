@@ -1687,3 +1687,62 @@ html { scroll-behavior: smooth; }
     contain-intrinsic-size: auto 800px;
   }
 }
+
+/* ─── HomeBackground DOM cinematic layer ──────────────────────────── */
+/* Drifting gradient orbs — slow translate+scale loop, opacity breath. */
+.hb-orb {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  filter: blur(20px);
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+  animation: hb-orb-drift ease-in-out infinite;
+  transform: translate(-50%, -50%);
+}
+@keyframes hb-orb-drift {
+  0%, 100% { transform: translate(-50%, -50%) scale(1)    rotate(0deg);   opacity: 0.55; }
+  25%      { transform: translate(-44%, -56%) scale(1.06) rotate(40deg);  opacity: 0.75; }
+  50%      { transform: translate(-56%, -44%) scale(1.10) rotate(80deg);  opacity: 0.85; }
+  75%      { transform: translate(-50%, -52%) scale(1.04) rotate(40deg);  opacity: 0.65; }
+}
+
+/* Aurora streamer — slow horizontal drift + fade breath. */
+.hb-aurora {
+  position: absolute;
+  inset: 18% -10% auto -10%;
+  width: 120%;
+  height: 60vh;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.6;
+  will-change: transform, opacity;
+  animation: hb-aurora-drift 22s ease-in-out infinite;
+}
+@keyframes hb-aurora-drift {
+  0%, 100% { transform: translate3d(-4%, 0, 0)  scaleY(1);    opacity: 0.55; }
+  50%      { transform: translate3d( 4%, -6%, 0) scaleY(1.10); opacity: 0.85; }
+}
+
+/* Twinkling DOM stars — small dot, slow opacity+scale loop. */
+.hb-star {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  opacity: 0;
+  will-change: opacity, transform;
+  animation-name: hb-star-twinkle;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  transform: translate(-50%, -50%) scale(0.6);
+}
+@keyframes hb-star-twinkle {
+  0%, 100% { opacity: 0;    transform: translate(-50%, -50%) scale(0.6); }
+  50%      { opacity: 0.95; transform: translate(-50%, -50%) scale(1.0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hb-orb, .hb-aurora, .hb-star { animation: none !important; }
+  .hb-star { opacity: 0.6; }
+  .hb-orb  { opacity: 0.55; }
+}
