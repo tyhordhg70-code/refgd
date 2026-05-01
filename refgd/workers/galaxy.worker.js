@@ -430,10 +430,16 @@ function buildHomeScene({ isMobile }) {
 
   // ─── 3. NEBULA CLOUDS — 3 large additive quads with noise shader ──
   const nebulaUniforms = { time: { value: 0 }, scroll: { value: 0 } };
+  // Nebula strengths bumped (was 0.55/0.42/0.40) so the nebulas read
+  // clearly behind the planet on both mobile + desktop. Also added
+  // a 4th pink/magenta nebula for extra colour variety. User report:
+  // "home page illustrations and animation still gone with the planet"
+  // — only the planet was punching through. Nebulas were too faint.
   const nebulaConfigs = [
-    { x: -8, y:  3, z: -6, scale: 22, color: [0.65, 0.55, 0.98], strength: 0.55 }, // violet
-    { x:  9, y: -2, z: -4, scale: 18, color: [0.13, 0.83, 0.93], strength: 0.42 }, // cyan
-    { x:  0, y: -6, z: -8, scale: 24, color: [0.96, 0.73, 0.27], strength: 0.40 }, // amber
+    { x: -8, y:  3, z: -6, scale: 24, color: [0.65, 0.55, 0.98], strength: 0.95 }, // violet
+    { x:  9, y: -2, z: -4, scale: 20, color: [0.13, 0.83, 0.93], strength: 0.78 }, // cyan
+    { x:  0, y: -6, z: -8, scale: 26, color: [0.96, 0.73, 0.27], strength: 0.72 }, // amber
+    { x: -6, y:  6, z: -7, scale: 18, color: [0.96, 0.45, 0.78], strength: 0.62 }, // pink
   ];
   for (const cfg of nebulaConfigs) {
     const nebGeo = new THREE.PlaneGeometry(cfg.scale, cfg.scale);
@@ -499,7 +505,10 @@ function buildHomeScene({ isMobile }) {
   // distance 22-40 (camera at z=21) so they read as a faint backdrop.
   // This adds a NEAR cluster (z 0..15) that lives in the home scene only,
   // with bright sin-driven twinkle and additive blending so they pop.
-  const FG_STAR_COUNT = isMobile ? 220 : 420;
+  // Mobile star count bumped (was 220) so the screen visibly fills.
+  // 380 mobile / 600 desktop is well within GPU budget — these are
+  // gl_Points in a single draw call.
+  const FG_STAR_COUNT = isMobile ? 380 : 600;
   const fgStarPositions = new Float32Array(FG_STAR_COUNT * 3);
   const fgStarSeeds     = new Float32Array(FG_STAR_COUNT);
   const fgStarSizes     = new Float32Array(FG_STAR_COUNT);
@@ -512,7 +521,9 @@ function buildHomeScene({ isMobile }) {
     fgStarPositions[i * 3 + 1] = Math.sin(angle) * r * (0.55 + Math.random() * 0.6);
     fgStarPositions[i * 3 + 2] = (Math.random() - 0.3) * 14;  // bias toward camera
     fgStarSeeds[i] = Math.random() * 6.28;
-    fgStarSizes[i] = 1.4 + Math.random() * 3.2;
+    // Sizes bumped (was 1.4..4.6) so each twinkle reads clearly even
+    // on mobile DPR 1.25 where small points get crushed.
+    fgStarSizes[i] = 2.0 + Math.random() * 4.5;
   }
   const fgStarGeo = new THREE.BufferGeometry();
   fgStarGeo.setAttribute("position", new THREE.BufferAttribute(fgStarPositions, 3));
