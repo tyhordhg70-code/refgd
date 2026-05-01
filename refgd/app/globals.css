@@ -1628,3 +1628,35 @@ html { scroll-behavior: smooth; }
   }
 }
 
+
+/* ────────────────────────────────────────────────────────────────
+   MOBILE PERFORMANCE — content-visibility off-screen skip
+   ────────────────────────────────────────────────────────────────
+   The single biggest mobile win possible without removing animations.
+
+   The home page has multiple long sections (cosmic hero, paths cube,
+   chapters, telegram CTA, footer). On mobile the browser was paying
+   layout + paint + style cost for ALL of them on every scroll frame,
+   even though only one section is visible at a time. With
+   `content-visibility: auto`, the browser SKIPS that work entirely
+   for sections that aren't near the viewport — and resumes it
+   automatically when the user scrolls them into view.
+
+   - Targets `[data-section-id]` on every <ReorderableSection> wrapper.
+   - The hero section is excluded so the first scene paints
+     immediately on initial load (no placeholder flash).
+   - `contain-intrinsic-size: auto 800px` reserves a believable
+     placeholder height so the scrollbar/page geometry doesn't jump
+     as sections render. The `auto` keyword lets the browser cache
+     the real measured size after first render.
+   - framer-motion's `whileInView` / IntersectionObserver still fires
+     correctly when sections enter the viewport — content-visibility
+     auto delegates to the same intersection logic the browser uses
+     internally.
+   ──────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  [data-section-id]:not([data-section-id="hero"]) {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 800px;
+  }
+}
