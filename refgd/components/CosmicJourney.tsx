@@ -76,6 +76,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     let queued = false;
     let lastInd = -1;
     let lastH = -1;
+    // Headline ownership: framer-motion drives the delayed entrance
+    // (initial → animate over ~1s after a 1s delay). The rAF listener
+    // only takes over once the user has actually scrolled past the
+    // headline-fade threshold (p2 > 0). Until then we don't write
+    // style.transform/opacity at all, so framer's animation is never
+    // clobbered.
     const update = () => {
       queued = false;
       const rect = section.getBoundingClientRect();
@@ -91,19 +97,27 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           scrollInd.style.opacity = ind.toFixed(3);
         }
       }
-      // WELCOME headline: slight scale-up and fade as the user scrolls
-      // through the cinematic. Reads as the camera dollying past it
-      // — pairs with the worker's planet alpha fade-on-scroll.
+      // WELCOME headline: slight scale-up + drift + fade once the
+      // user has scrolled past 30% of the section.
       if (headline) {
-        // Up to ~30% scroll: hold full size. After that: scale 1 → 1.18
-        // and opacity 1 → 0 by ~70% scroll.
         const p2 = Math.max(0, Math.min(1, (progress - 0.30) / 0.40));
-        const scale = 1 + p2 * 0.18;
-        const op = 1 - p2;
-        if (Math.abs(p2 - lastH) > 0.005) {
-          lastH = p2;
-          headline.style.transform = `translateY(${(-p2 * 24).toFixed(1)}px) scale(${scale.toFixed(3)})`;
-          headline.style.opacity = op.toFixed(3);
+        // Skip writes while p2 is exactly 0 — framer-motion still owns
+        // transform/opacity during the entrance animation. Only take
+        // over once the scroll fade actually starts (p2 > 0). And once
+        // we've returned to p2=0 (user scrolled back to top), restore
+        // a clean transform so framer can take over again.
+        if (p2 > 0) {
+          if (Math.abs(p2 - lastH) > 0.005) {
+            lastH = p2;
+            const scale = 1 + p2 * 0.18;
+            const op = 1 - p2;
+            headline.style.transform = `translate3d(0,${(-p2 * 24).toFixed(1)}px,0) scale(${scale.toFixed(3)})`;
+            headline.style.opacity = op.toFixed(3);
+          }
+        } else if (lastH > 0) {
+          lastH = 0;
+          headline.style.transform = "";
+          headline.style.opacity = "";
         }
       }
     };
@@ -113,6 +127,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       raf = requestAnimationFrame(update);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
+    // Initial sync — only updates the indicator opacity if needed; the
+    // headline writer is gated on p2>0 so the entrance animation is
+    // never clobbered.
     update();
     return () => {
       window.removeEventListener("scroll", onScroll);
