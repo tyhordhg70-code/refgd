@@ -1,0 +1,46 @@
+{
+  "summary": "Frontend-only regression testing completed for homepage scroll/camera behaviors in /app/refgd. Requested desktop/mobile scroll interactions passed in primary run, but an intermittent hydration warning was observed once in console.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Homepage initial hydration (Telegram CTA area)",
+        "issue": "Intermittent React hydration mismatch error logged in browser console involving HomeCTAButton/EditableText subtree.",
+        "affected_selectors": [
+          "[data-testid='cosmic-journey']",
+          "HomeCTAButton subtree (no data-testid)"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/root/.emergent/automation_output/20260429_020713/console_20260429_020713.log",
+    "/root/.emergent/automation_output/20260429_020753/console_20260429_020753.log"
+  ],
+  "action_items": [
+    "Fix intermittent hydration mismatch in Telegram CTA/HomeCTAButton region (server/client render divergence).",
+    "Re-run homepage console validation in dev and production build after hydration fix.",
+    "Optionally stabilize scroll lock sequencing between CosmicJourney and PathsHorizontalReveal listeners to reduce non-deterministic landing offsets under repeated hard wheel input."
+  ],
+  "critical_code_review_comments": [
+    "CosmicJourney and PathsHorizontalReveal both attach document-level capture wheel/touch listeners; this can create race-like behavior under repeated large wheel deltas and make landing position non-deterministic.",
+    "Hydration mismatch stack points to HomeCTAButton/EditableText render output differing between SSR and client in at least one run."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_4.json"
+  ],
+  "success_rate": {
+    "backend": "N/A (frontend-only request)",
+    "frontend": "90% (core requested scroll flows passed; console hydration check intermittently failed)"
+  },
+  "seed_data_creation": "none",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Primary automated run passed requested behaviors: desktop hard wheel landed with Path section visible + 5 cards visible + desktop flyby active, desktop wheel-up returned to top, mobile hard wheel landed with intro visible/card 1 active, vertical wheel advanced cards 1->5 with zero window.scrollY delta per step, and horizontal wheel did not change card index. One separate run logged a hydration mismatch in Telegram CTA/HomeCTAButton subtree; another reload run did not reproduce it.",
+  "rca of the issue": "Observed once in console log: React hydration mismatch error references HomeCTAButton/EditableText subtree, showing server/client attribute/content divergence (caret-color style vs text node). Repro in this iteration was intermittent (seen in run 1, not seen on immediate reload), suggesting state/timing-sensitive SSR-client divergence rather than a deterministic crash."
+}

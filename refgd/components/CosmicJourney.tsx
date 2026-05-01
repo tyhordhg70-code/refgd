@@ -46,7 +46,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
   const sectionRef    = useRef<HTMLElement>(null);
   const scrollIndRef  = useRef<HTMLDivElement>(null);
-  const headlineRef   = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -57,84 +56,27 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // Smooth scroll-driven fades for:
-  //   • the "scroll" indicator at the bottom of the hero (fades 1 → 0
-  //     over the first 6% of section progress)
-  //   • the WELCOME headline (gentle scale-up + fade as you scroll past)
-  //
-  // Implementation: ONE rAF-throttled scroll listener that does ONE
-  // getBoundingClientRect + a couple of style writes per frame.
-  // (Previous IntersectionObserver-only version made the indicator
-  // pop on/off instead of smoothly fading — user feedback: "what
-  // happened to the old design of home page the scroll animation".)
+  // Tiny scroll listener — only updates the scroll indicator opacity.
+  // Cost: 1 getBoundingClientRect + 1 style write per scroll frame.
   useEffect(() => {
     const section = sectionRef.current;
     const scrollInd = scrollIndRef.current;
-    const headline = headlineRef.current;
-    if (!section) return;
-    let raf = 0;
-    let queued = false;
+    if (!section || !scrollInd) return;
     let lastInd = -1;
-    let lastH = -1;
-    // Headline ownership: framer-motion drives the delayed entrance
-    // (initial → animate over ~1s after a 1s delay). The rAF listener
-    // only takes over once the user has actually scrolled past the
-    // headline-fade threshold (p2 > 0). Until then we don't write
-    // style.transform/opacity at all, so framer's animation is never
-    // clobbered.
     const update = () => {
-      queued = false;
       const rect = section.getBoundingClientRect();
       const sectionH = section.offsetHeight;
       const viewH = window.innerHeight;
       const raw = -rect.top / Math.max(1, sectionH - viewH);
       const progress = raw < 0 ? 0 : raw > 1 ? 1 : raw;
-      // Scroll indicator: visible only at the very top, fades fast.
-      if (scrollInd) {
-        const ind = Math.max(0, Math.min(1, 1 - progress / 0.06));
-        if (Math.abs(ind - lastInd) > 0.005) {
-          lastInd = ind;
-          scrollInd.style.opacity = ind.toFixed(3);
-        }
-      }
-      // WELCOME headline: slight scale-up + drift + fade once the
-      // user has scrolled past 30% of the section.
-      if (headline) {
-        const p2 = Math.max(0, Math.min(1, (progress - 0.30) / 0.40));
-        // Skip writes while p2 is exactly 0 — framer-motion still owns
-        // transform/opacity during the entrance animation. Only take
-        // over once the scroll fade actually starts (p2 > 0). And once
-        // we've returned to p2=0 (user scrolled back to top), restore
-        // a clean transform so framer can take over again.
-        if (p2 > 0) {
-          if (Math.abs(p2 - lastH) > 0.005) {
-            lastH = p2;
-            const scale = 1 + p2 * 0.18;
-            const op = 1 - p2;
-            headline.style.transform = `translate3d(0,${(-p2 * 24).toFixed(1)}px,0) scale(${scale.toFixed(3)})`;
-            headline.style.opacity = op.toFixed(3);
-          }
-        } else if (lastH > 0) {
-          lastH = 0;
-          headline.style.transform = "";
-          headline.style.opacity = "";
-        }
-      }
+      const ind = Math.max(0, Math.min(1, 1 - progress / 0.06));
+      if (Math.abs(ind - lastInd) < 0.005) return;
+      lastInd = ind;
+      scrollInd.style.opacity = ind.toFixed(4);
     };
-    const onScroll = () => {
-      if (queued) return;
-      queued = true;
-      raf = requestAnimationFrame(update);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    // Initial sync — only updates the indicator opacity if needed; the
-    // headline writer is gated on p2>0 so the entrance animation is
-    // never clobbered.
+    window.addEventListener("scroll", update, { passive: true });
     update();
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (raf) cancelAnimationFrame(raf);
-    };
+    return () => window.removeEventListener("scroll", update);
   }, []);
 
   return (
@@ -153,16 +95,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             rendered by the worker's `home` scene activated by
             HomeBackground. */}
         <motion.div
-          ref={headlineRef}
-          className="container-wide pointer-events-none relative z-[5] flex flex-col items-center justify-center text-center will-change-transform"
+          className="container-wide pointer-events-none relative z-[5] flex flex-col items-center justify-center text-center"
           initial={reduced ? { opacity: 1, y: 0 } : { opacity: 0, y: 32, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={reduced ? { duration: 0 } : { duration: 1.0, ease: [0.16, 1, 0.3, 1], delay: 1.0 }}
-          // After the entrance settles, the rAF scroll listener owns
-          // `style.transform` and `style.opacity` to drive the
-          // scroll-linked dolly/fade. style.transform overwrites the
-          // framer-motion transform once scrolling begins.
-          style={{ transformOrigin: "50% 50%" }}
         >
           <KineticText
             as="h1"

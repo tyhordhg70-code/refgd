@@ -172,11 +172,7 @@ export default function YouTubeTheater({
           scale: 1,
           rotateX: 0,
           rotateZ: 0,
-          // End state drops the SVG turbulence/displacement filter
-          // entirely — leaving it applied caused the iframe contents
-          // (title text, controls, captions) to look permanently
-          // rippled even after the entrance animation finished.
-          filter: "blur(0px)",
+          filter: "blur(0px) url(#refgd-yt-mesh)",
           clipPath:
             "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%)",
         }}

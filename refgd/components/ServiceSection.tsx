@@ -114,16 +114,8 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
       {showHero && (
       <>
       {/* ─── Act 1 — "Get rewarded for shopping online." hero ──────── */}
-      {/*
-       * Mobile: flex-col so the headline card and the CashbackScene
-       * stack vertically (otherwise both flex-children in a row get
-       * crammed side-by-side and look broken).
-       * Desktop: flex-row so the headline sits left and the absolute-
-       * positioned CashbackScene sits on the right. justify-center
-       * keeps the stack vertically centered in the tall viewport.
-       */}
       <section
-        className="relative isolate flex min-h-[88svh] w-full flex-col items-center justify-center gap-6 overflow-hidden bg-ink-950 py-8 md:flex-row md:gap-0 md:py-0 md:min-h-[92svh]"
+        className="relative isolate flex min-h-[88svh] w-full items-center overflow-hidden bg-ink-950 py-8 md:py-0 md:min-h-[92svh]"
         data-cursor="big"
       >
         {/* mesh orbs + gradient ambience */}
@@ -171,7 +163,7 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
                 as="h1"
                 editId="service.hero.title"
                 text="Get rewarded for shopping online."
-                className="editorial-display max-w-[1500px] text-balance text-white text-[clamp(2.25rem,6.5vw,4.5rem)] uppercase"
+                className="editorial-display max-w-[1500px] text-balance text-white text-[clamp(1.5rem,4.4vw,4.5rem)] uppercase"
                 style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)", lineHeight: 1.05 }}
                 stagger={0.06}
                 delay={0.35}
@@ -195,15 +187,15 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
         </motion.div>
 
         {/* MOBILE-only cashback scene — desktop has the 520px scene
-            absolutely positioned on the right; on mobile we render
-            a much larger version below the headline so the gradient
-            illustration is the visual anchor of the mobile hero.
-            User: "make the cashback illustration BIGGER on mobile". */}
+            absolutely positioned on the right; on mobile we drop a
+            smaller version below the headline so the illustration is
+            never invisible. User report: "for storelist illustration
+            is missing on mobile". */}
         <div
           aria-hidden="true"
-          className="pointer-events-none relative z-10 mt-8 grid w-full place-items-center md:hidden"
+          className="container-wide pointer-events-none relative z-10 mt-6 grid w-full place-items-center md:hidden"
         >
-          <CashbackScene size={420} />
+          <CashbackScene size={260} />
         </div>
       </section>
 
@@ -281,7 +273,6 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
             {STEPS.map((s, i) => (
               <GlassCard
                 key={s.n}
-                index={i}
                 tint={s.tint}
                 delay={i * 0.12}
                 className=""
@@ -346,7 +337,6 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
             {WHY.map((w, i) => (
               <GlassCard
                 key={w.h}
-                index={i + 3}
                 tint={w.tint}
                 delay={i * 0.1}
                 className=""

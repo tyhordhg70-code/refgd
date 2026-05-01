@@ -1,0 +1,60 @@
+{
+  "summary": "Frontend-only regression testing completed for home-page scroll/card fixes in /app/refgd. Revert commit is correctly on top, TypeScript passes, but hard-scroll gating from top still fails and can skip users past the intended paths handoff.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "CosmicJourney first-scroll gate",
+        "issue": "Desktop hard wheel from top does not consistently trigger the hero->paths controlled transition; run showed scrollY stayed at 0 on first hard wheel, then later skipped to Telegram/footer (scrollY ~3133), bypassing intended one-gesture landing.",
+        "selector": "[data-testid='cosmic-journey']",
+        "priority": "HIGH"
+      },
+      {
+        "component": "CosmicJourney + page handoff (mobile)",
+        "issue": "Mobile hard scroll can jump deep into lower sections/footer before reliable path-stepper interaction; expected behavior is to complete welcome animation and land at paths first.",
+        "selector": "[data-testid='cosmic-journey']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Home top -> welcome animation -> choose your path",
+        "issue": "Gate condition likely misses y=0/top-of-page state because section offset starts below sticky header; nearHero check requires y >= sectionTop-12 (sectionTop observed ~105), so the first hard scroll from absolute top is not intercepted.",
+        "affected_selectors": [
+          "[data-testid='cosmic-journey']",
+          "[data-testid='paths-scroll-stepper']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/refgd/test_reports/iteration_5_artifacts/desktop_initial.jpg",
+    "/app/refgd/test_reports/iteration_5_artifacts/mobile_initial.jpg",
+    "/app/refgd/test_reports/iteration_5_artifacts/desktop_wheel_over_stepper.jpg"
+  ],
+  "action_items": [
+    "Fix top-of-page interception in CosmicJourney wheel/touch gate so first hard scroll at y=0 always runs controlled animateTo(pathsTop).",
+    "Retest mobile hard-swipe from top to ensure it cannot bypass paths and footer is not reached early.",
+    "After gate fix, rerun white-overlay visual check specifically at the arrival handoff point."
+  ],
+  "critical_code_review_comments": [
+    "CosmicJourney.tsx: nearHero uses y >= bounds.top - 12; with sticky nav/announcement offset, section top is below 0 so the first top-of-page wheel can miss the gate. Include an absolute-top allowance (e.g., y <= threshold) or normalize against section rect.",
+    "PathsHorizontalReveal.tsx one-wheel-one-card logic works when wheel events originate over the stepper region; card progression 1->5 is reliable in focused tests."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_1.json"
+  ],
+  "success_rate": {
+    "backend": "N/A (frontend-only request)",
+    "frontend": "60%"
+  },
+  "seed_data_creation": "none",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Verified git top commit: 5b04609 (Revert) then fixes below it. npx tsc --noEmit passes. In focused wheel-over-stepper test, cards advance exactly one per wheel (1->5), card 5 visible, and only the next wheel continues page scroll. Core remaining issue is first hard scroll interception from absolute top.",
+  "rca of the issue": "RCA: CosmicJourney first-scroll gate is position-sensitive and assumes current scrollY has entered the hero section bounds (nearHero). With observed layout, cosmic section starts around y=105 due top UI chrome. At absolute top (y=0), nearHero=false, so the first hard wheel is not prevented/controlled and native scrolling can overshoot intended handoff. Repro: open home at y=0, perform hard wheel; observe no controlled transition then eventual jump near Telegram/footer. Mitigation: widen gate to include y=0/top-of-page and revalidate both wheel and touch paths with the same logic."
+}

@@ -106,15 +106,7 @@ export default function PathCardCameraFly({ index, children }: Props) {
         style={{
           transformStyle: "preserve-3d",
           transformOrigin: "50% 50%",
-          // willChange removed: it kept the layer permanently promoted
-          // even after the entrance finished, which on long-scrolling
-          // pages caused iOS Safari to evict the texture mid-scroll
-          // and the illustration would briefly disappear. We only need
-          // GPU promotion during the 380 ms entrance — framer-motion
-          // handles that itself by toggling will-change for the
-          // duration of the active animation.
-          WebkitBackfaceVisibility: "visible",
-          backfaceVisibility: "visible",
+          willChange: "transform, opacity",
         }}
       >
         {children}

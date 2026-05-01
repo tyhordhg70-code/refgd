@@ -20,19 +20,6 @@ import { type ReactNode } from "react";
 
 const LUSION_EASE = [0.16, 1, 0.3, 1] as const;
 
-/**
- * Card reveal variants — pick a different one per card to avoid the
- * "every card does the same thing" repetition. Each variant is a
- * lusion-style entrance (curtain mask, axial slide, iris, tilt, wipe).
- */
-type RevealVariant =
-  | "curtain"      // bottom-up curtain mask + tilt-back  (default)
-  | "slide-left"   // slide in from the left edge
-  | "slide-right"  // slide in from the right edge
-  | "iris"         // circular clip-path expand from centre
-  | "tilt-3d"     // 3D Y-axis flip-in
-  | "wipe-diag";  // diagonal clip-path wipe
-
 export default function GlassCard({
   children,
   className = "",
@@ -40,8 +27,6 @@ export default function GlassCard({
   reveal = true,
   delay = 0,
   elastic = true,
-  variant,
-  index,
 }: {
   children: ReactNode;
   className?: string;
@@ -49,11 +34,6 @@ export default function GlassCard({
   reveal?: boolean;
   delay?: number;
   elastic?: boolean;
-  /** Explicit reveal variant — wins over `index` rotation. */
-  variant?: RevealVariant;
-  /** Card index — when no variant given, picks one from a pool so
-   *  sibling cards in a row each animate differently. */
-  index?: number;
 }) {
   const reduced = useReducedMotion();
 
@@ -108,56 +88,48 @@ export default function GlassCard({
 
   // Layer 1 (entrance) → Layer 2 (float) → Layer 3 (surface / hover tilt)
   // ─────────────────────────────────────────────────────────────────
-  // LUSION-VARIED ENTRANCES:
-  //   The user complained that "every card does the same thing".
-  //   We now pick a different lusion-style entrance per card so a
-  //   row of sibling cards animates as a varied composition rather
-  //   than one synchronised motion. Pool of variants below; cards
-  //   either pass `variant` directly or rely on `index` to pick.
+  // LUSION-AUTHENTIC ENTRANCE (round 5):
+  //   Lusion.co's signature card reveal is a CURTAIN-RISE MASK, not
+  //   a scale-up. The card emerges from below a clip-path mask,
+  //   rising into place with a long exponential ease-out and a faint
+  //   rotateX tilt that flattens as it lands. There is NO scale —
+  //   that's what made our previous version read as generic
+  //   framer-motion instead of Lusion.
   //
-  //   `once: true` — once a card has revealed, it STAYS revealed
-  //   even when scrolled past and back. Earlier `once: false`
-  //   meant cards re-clipped themselves to invisible whenever they
-  //   left the viewport, which made the page read as "blank" zones
-  //   when the user scrolled back up.
-  const VARIANTS: RevealVariant[] = [
-    "curtain",
-    "slide-left",
-    "wipe-diag",
-    "tilt-3d",
-    "slide-right",
-    "iris",
-  ];
-  const v: RevealVariant =
-    variant ?? VARIANTS[((index ?? 0) % VARIANTS.length + VARIANTS.length) % VARIANTS.length];
-
-  const initials: Record<RevealVariant, any> = {
-    curtain:    { opacity: 0, y: 140, rotateX: 8, clipPath: "inset(100% 0% 0% 0%)" },
-    "slide-left":  { opacity: 0, x: -120, clipPath: "inset(0% 0% 0% 100%)" },
-    "slide-right": { opacity: 0, x:  120, clipPath: "inset(0% 100% 0% 0%)" },
-    iris:       { opacity: 0, scale: 0.86, clipPath: "circle(0% at 50% 50%)" },
-    "tilt-3d":  { opacity: 0, rotateY: -42, x: -40 },
-    "wipe-diag": { opacity: 0, clipPath: "polygon(0 0, 0 0, 0 100%, 0 100%)" },
-  };
-  const targets: Record<RevealVariant, any> = {
-    curtain:    { opacity: 1, y: 0, rotateX: 0, clipPath: "inset(0% 0% 0% 0%)" },
-    "slide-left":  { opacity: 1, x: 0, clipPath: "inset(0% 0% 0% 0%)" },
-    "slide-right": { opacity: 1, x: 0, clipPath: "inset(0% 0% 0% 0%)" },
-    iris:       { opacity: 1, scale: 1, clipPath: "circle(75% at 50% 50%)" },
-    "tilt-3d":  { opacity: 1, rotateY: 0, x: 0 },
-    "wipe-diag": { opacity: 1, clipPath: "polygon(0 0, 100% 0, 100% 100%, 0 100%)" },
-  };
-  const durations: Record<RevealVariant, number> = {
-    curtain: 1.55, "slide-left": 1.2, "slide-right": 1.2, iris: 1.35, "tilt-3d": 1.3, "wipe-diag": 1.1,
-  };
-
+  //   Initial state:
+  //     • clip-path inset(100% 0 0 0) — top inset 100% means the
+  //       full visible area is clipped away from the top down,
+  //       leaving 0px of card visible. The reveal then animates
+  //       the top inset back to 0%, "lifting the curtain" UPWARD
+  //       and exposing the card from BOTTOM to top — the
+  //       characteristic Lusion rise.
+  //     • y: 140 — substantial slide-up so the rise has runway.
+  //     • rotateX: 8 — subtle 3D tilt back, then flattens.
+  //     • opacity: 0 → fades in alongside the mask reveal.
+  //
+  //   Transition: 1.55s with [0.16, 1, 0.3, 1] (power4.out).
+  //
+  //   The viewport.once stays false so cards REPLAY this entrance
+  //   every time they re-enter the viewport — matching the
+  //   "vanish/reappear" rhythm the user requested for the SE/refund
+  //   what's-included blocks (which is also Lusion's behaviour).
   return (
     <motion.div
-      initial={initials[v]}
-      whileInView={targets[v]}
-      viewport={{ once: true, amount: 0.12 }}
+      initial={{
+        opacity: 0,
+        y: 140,
+        rotateX: 8,
+        clipPath: "inset(100% 0% 0% 0%)",
+      }}
+      whileInView={{
+        opacity: 1,
+        y: 0,
+        rotateX: 0,
+        clipPath: "inset(0% 0% 0% 0%)",
+      }}
+      viewport={{ once: false, amount: 0.12 }}
       transition={{
-        duration: durations[v],
+        duration: 1.55,
         delay,
         ease: LUSION_EASE,
       }}
@@ -165,7 +137,7 @@ export default function GlassCard({
       className="group will-change-transform"
       style={{
         transformPerspective: 1500,
-        transformOrigin: v === "tilt-3d" ? "0% 50%" : "50% 100%",
+        transformOrigin: "50% 100%",
       }}
     >
       {floatClasses ? (

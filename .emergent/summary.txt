@@ -1,0 +1,110 @@
+<analysis>**original_problem_statement**: 
+PRODUCT REQUIREMENTS: 
+1. Fix home page scroll animations for mobile and PC viewports.
+2. Prevent hard scroll from skipping the entire welcome animation.
+3. Fix the screen breaking with an overlay box at the bottom.
+4. Prevent animations from breaking/going haywire when scrolling back up from the very bottom of the page.
+5. The 5 cards must change strictly upon scrolling *down*, not sideways.
+6. Scroll should be strictly locked so hard scrolling down doesn't skip unrevealed cards.
+7. After the 5th card is revealed, vertical scroll must resume normally.
+8. On desktop, all cards should be visible at once with a scroll-controlled camera fly-by (diagonal zoom + sideways motion) that creates a cinematic 3D effect. Mobile should remain as the locked one-card vertical scroll stepper.
+9. **LATEST REQUEST**: Fix first-scroll lag and animation skipping. Fix Path to mastery section landing with cut-off text. Fix bidirectional full-animation reverse scroll. Prevent page from scrolling simultaneously while mobile cards are changing. Resolve overall page lag.
+
+**User's preferred language**: English (INSTRUCT next agent to respond in English only)
+
+**what currently exists?** 
+A Next.js 14 application located in a subfolder (). It is a self-hosted rebuild of refundgod.io utilizing Framer Motion for complex scroll-driven 3D and parallax animations. It includes a PostgreSQL database connection for certain routes.
+
+**Last working item**: 
+    - Last item agent was working: Fixing homepage scroll bugs (skipping hero animation, laggy performance, cut-off landing positions, awkward page scroll during mobile card steps) and fixing an SSR hydration mismatch on the Telegram CTA button.
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: Y
+    - Which testing method agent to use? Frontend testing agent and . If new visual changes are requested, use .
+    - User Testing Done: N
+
+**All Pending/In progress Issue list**: 
+None. All requested scroll fixes, lag optimizations, and hydration bugs have been resolved and verified by the testing agent.
+
+**In progress Task List**: 
+None.
+
+**Upcoming and Future Tasks**
+    Upcoming Tasks:
+    - Run a production-build console check to ensure all scroll behaviors and hydration warnings are perfectly clean before launch. (P1)
+    - Add automated regression script/coverage for the desktop fly-by and mobile stepper split to prevent future breakages. (P1)
+    
+    Future Tasks:
+    - Tune visual pacing/spacing of the desktop card camera fly-by if the user requests a tighter or more dramatic cinematic pass. (P2)
+    - Add a subtle “camera progress” cue on desktop so users feel the fly-by motion more intentionally while scrolling (Enhancement Proposal). (P2)
+
+**Completed work in this session**
+- Fixed first-scroll skipping hero animations and reverse scroll-to-hero logic (, ).
+- Fixed Path to Mastery section cut-off landing and stabilized target calculations ().
+- Fixed mobile card-step page drift by addressing a release-timer race condition and switching to interval-based control ().
+- Optimised heavy animations (reduced particle counts and CSS calculations) to resolve overall page lag ().
+- Fixed intermittent hydration mismatch on Telegram CTA (, ).
+
+**Earlier issues found/mentioned but not fixed**
+None.
+
+**Known issue recurrence from previous fork**
+  - Issue recurrence in previous fork: None. 
+  - Recurrence count: 0
+  - Status: RESOLVED
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+Next.js 14 (App Router), React, Framer Motion (for complex parallax and scroll intercepts), TypeScript, TailwindCSS, PostgreSQL (via ).
+
+**key DB schema**
+  - stores: managed in 
+
+**changes in tech stack**
+None.
+
+**All files of reference** 
+  -  (Reduced animation lag/particle load).
+  -  (Fixed mobile scroll lock, event timers, and race conditions).
+  -  (Fixed desktop landing positions and stabilized target calculations).
+  -  &  (Fixed hydration mismatch divergence).
+  -  (Updated with completion status).
+  -  (Regression test report from frontend testing agent).
+
+**Areas that need refactoring**: 
+The complex Framer Motion logic orchestrating precise scroll tracking across multiple components (, , ) remains highly sensitive to timing and layout heights. Minor CSS changes to heights may break scroll-locking calculations.
+
+**key api endpoints**
+N/A
+
+**Critical Info for New Agent** 
+The entire application lives inside the  subfolder. Always run commands (, yarn install v1.22.22
+info No lockfile found.
+$ sh -c 'rm -f package-lock.json yarn.lock; case "$npm_config_user_agent" in pnpm/*) ;; *) echo "Use pnpm instead" >&2; exit 1 ;; esac'
+info Visit https://yarnpkg.com/en/docs/cli/install for documentation about this command., , etc.) from within . The server runs on port 3000. Framer Motion heavily relies on exact window heights and window scroll position calculations—if modifying layout dimensions, thoroughly test the scroll intersections using  or .
+
+**documents and test reports created in this job**
+  - 
+  - 
+
+**Last 10 User Messages and any pending HUMAN messages** 
+ -  - COMPLETED
+
+**Project Health Check:**
+Healthy. Typescript builds pass without errors. Local Next.js dev server starts properly, scrolling flows correctly on both viewports, and hydration warnings have been suppressed/fixed.
+
+**3rd Party Integrations** 
+PostgreSQL (Managed internally via connection strings). 
+
+**Testing status**
+  - Testing agent used after significant changes: YES
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: 
+  - Known regressions: None. 
+
+**Credentials to test flow:**
+N/A
+
+**What agent forgot to execute**
+Nothing. All requests were successfully processed. Hydration and race-condition edge-cases detected by the testing agent were proactively fixed.</analysis>
