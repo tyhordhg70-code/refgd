@@ -137,10 +137,13 @@ function tick() {
 
   const now = performance.now();
   const isScrolling = now - lastScrollAt < 220;
-  // During scroll on mobile we drop to ~25fps to stay smooth; idle = 30fps.
+  // Mobile: 30fps during scroll, 45fps idle — bumped from 16/30 because
+  // PathIllustration's 120 framer-motion timelines were the real lag, and
+  // the worker was masked into looking slow when it actually has plenty
+  // of GPU headroom on iPhones.
   // Desktop runs at full 60fps when scrolling for the cinematic feel.
   const minFrameMs = isMobileGlobal
-    ? (isScrolling ? 60 : 33)
+    ? (isScrolling ? 33 : 22)
     : (isScrolling ? 16 : 22);
   if (now - lastRender < minFrameMs) return;
   lastRender = now;
@@ -338,11 +341,18 @@ function buildHomeScene({ isMobile }) {
         vec3 dark = mix(violet, cyan, 0.45) * 0.45;
         vec3 surface = mix(dark, base, NdL);
 
-        // Rim glow (Lusion-grade light scattering hint)
-        vec3 rim = mix(amber, violet, 0.5) * fres * 1.6;
-
-        vec3 col = surface + rim;
-        float alpha = 0.92 - scroll * 0.85;  // fade out as user scrolls past hero
+        // Color-cycle the rim glow on a slow cycle through amber -> violet -> cyan
+        // so the planet visibly breathes (user feedback: "planet doesn't pulse").
+        float cyc = time * 0.7;
+        vec3 cycCol = mix(amber, violet, sin(cyc) * 0.5 + 0.5);
+        cycCol = mix(cycCol, cyan, sin(cyc * 0.5) * 0.5 + 0.5);
+        // Pulsing rim — amplitude oscillates between ~1.05x and ~2.15x every ~3s
+        float pulse = 1.6 + sin(time * 2.1) * 0.55;
+        vec3 rim = cycCol * fres * pulse;
+        // Inner-body emissive boost on the in-breath of the pulse
+        float emit = 0.10 + 0.18 * (sin(time * 2.1) * 0.5 + 0.5);
+        vec3 col = surface * (1.0 + emit) + rim;
+        float alpha = 0.95 - scroll * 0.85;  // fade out as user scrolls past hero
         gl_FragColor = vec4(col, alpha);
       }
     `,
@@ -483,6 +493,77 @@ function buildHomeScene({ isMobile }) {
     group.add(neb);
   }
 
+  // ─── 3.5. FOREGROUND TWINKLE STARS — bright, near-camera twinkly stars ──
+  // User feedback: "the page used to have many small twinkling stars filling
+  // the screen — now I see almost none". The globalField stars sit at
+  // distance 22-40 (camera at z=21) so they read as a faint backdrop.
+  // This adds a NEAR cluster (z 0..15) that lives in the home scene only,
+  // with bright sin-driven twinkle and additive blending so they pop.
+  const FG_STAR_COUNT = isMobile ? 220 : 420;
+  const fgStarPositions = new Float32Array(FG_STAR_COUNT * 3);
+  const fgStarSeeds     = new Float32Array(FG_STAR_COUNT);
+  const fgStarSizes     = new Float32Array(FG_STAR_COUNT);
+  for (let i = 0; i < FG_STAR_COUNT; i++) {
+    // Distribute on a wide tilted disc in front of/around the planet,
+    // avoiding a small radius around the planet itself.
+    const r = 6.5 + Math.random() * 14;
+    const angle = Math.random() * Math.PI * 2;
+    fgStarPositions[i * 3]     = Math.cos(angle) * r * (0.9 + Math.random() * 0.4);
+    fgStarPositions[i * 3 + 1] = Math.sin(angle) * r * (0.55 + Math.random() * 0.6);
+    fgStarPositions[i * 3 + 2] = (Math.random() - 0.3) * 14;  // bias toward camera
+    fgStarSeeds[i] = Math.random() * 6.28;
+    fgStarSizes[i] = 1.4 + Math.random() * 3.2;
+  }
+  const fgStarGeo = new THREE.BufferGeometry();
+  fgStarGeo.setAttribute("position", new THREE.BufferAttribute(fgStarPositions, 3));
+  fgStarGeo.setAttribute("seed",     new THREE.BufferAttribute(fgStarSeeds, 1));
+  fgStarGeo.setAttribute("size",     new THREE.BufferAttribute(fgStarSizes, 1));
+  const fgStarUniforms = { time: { value: 0 }, scroll: { value: 0 } };
+  const fgStarMat = new THREE.ShaderMaterial({
+    uniforms: fgStarUniforms,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexShader: `
+      uniform float time;
+      uniform float scroll;
+      attribute float seed;
+      attribute float size;
+      varying float vTwinkle;
+      varying float vTint;
+      void main() {
+        // Fast individual twinkle — each star has its own phase
+        float w = sin(time * 2.4 + seed * 6.28);
+        vTwinkle = 0.55 + 0.45 * w;
+        // Slow color tint cycle so the field shifts cyan/violet/cream
+        vTint = 0.5 + 0.5 * sin(time * 0.3 + seed * 3.14);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        // Slight size modulation with twinkle + small scroll fade-out
+        float sz = size * (0.85 + 0.5 * w) * (1.0 - scroll * 0.4);
+        gl_PointSize = sz * (300.0 / -(modelViewMatrix * vec4(position, 1.0)).z);
+      }
+    `,
+    fragmentShader: `
+      varying float vTwinkle;
+      varying float vTint;
+      void main() {
+        float d = length(gl_PointCoord - 0.5);
+        if (d > 0.5) discard;
+        // Soft round star with bright core
+        float core = smoothstep(0.5, 0.0, d);
+        float halo = smoothstep(0.5, 0.18, d) * 0.6;
+        vec3 cream  = vec3(1.00, 0.95, 0.78);
+        vec3 cyan   = vec3(0.55, 0.90, 1.00);
+        vec3 violet = vec3(0.85, 0.70, 1.00);
+        vec3 col = mix(cream, mix(cyan, violet, vTint), 0.45);
+        float a = (core + halo) * vTwinkle;
+        gl_FragColor = vec4(col, a);
+      }
+    `,
+  });
+  const fgStars = new THREE.Points(fgStarGeo, fgStarMat);
+  group.add(fgStars);
+
   // ─── 4. WARP STREAKS — radial particle streaks that elongate with scroll ──
   // Replaces the DOM motion warp streaks + the CSS shooting-star filler.
   const STREAK_COUNT = isMobile ? 80 : 220;
@@ -513,11 +594,13 @@ function buildHomeScene({ isMobile }) {
       void main() {
         float t = mod(time * 0.6 + seed * 6.28, 6.28);
         float life = (sin(t) * 0.5 + 0.5);
-        // Streak elongates and pushes outward as scroll rises
+        // Streak elongates and pushes outward as scroll rises.
+        // Idle baseline boosted (was 0.4) so the warp streaks remain
+        // clearly visible during the welcome scene without scroll.
         vec3 p = position * (1.0 + scroll * 1.2 + life * 0.6);
-        vAlpha = life * (0.4 + scroll * 1.5);
+        vAlpha = life * (0.85 + scroll * 1.2);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-        gl_PointSize = (2.0 + scroll * 6.0) * (0.6 + life);
+        gl_PointSize = (3.5 + scroll * 6.0) * (0.6 + life);
       }
     `,
     fragmentShader: `
@@ -541,8 +624,14 @@ function buildHomeScene({ isMobile }) {
       nebulaUniforms.scroll.value = scrollNorm;
       streakUniforms.time.value = t;
       streakUniforms.scroll.value = scrollNorm;
+      fgStarUniforms.time.value = t;
+      fgStarUniforms.scroll.value = scrollNorm;
       // Slight planet rotation
       planet.rotation.y = t * 0.05;
+      // Visible scale-pulse on the planet (~3s period, ±4%) — pairs with
+      // the shader's emissive pulse to read as a clear breathing motion.
+      const ps = 1.0 + Math.sin(t * 2.1) * 0.04;
+      planet.scale.set(ps, ps, ps);
     },
   };
 }
