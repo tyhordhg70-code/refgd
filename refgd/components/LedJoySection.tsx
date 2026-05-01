@@ -34,13 +34,11 @@ export default function LedJoySection() {
     <section
       ref={ref}
       aria-label="Ahhh, feel the joy of cashback"
-      /* User request: section was a full 100svh which left a lot of empty
-         vertical space above and below the LED text. Reduced to 60svh
-         so the beat plays tightly between the hero and Act 2 instead
-         of forcing a near-full viewport scroll past empty room. Also
-         dropped the heavy py default so the AHHHH sign sits higher
-         in the viewport (visible immediately on entry). */
-      className="relative isolate flex min-h-[60svh] w-full items-center justify-center overflow-hidden py-6 sm:py-10"
+      /* User request: shrink further AND drive a more aggressive entrance
+         so the beat hits hard and the page keeps moving. Was 60svh →
+         now 40svh / 48svh-mobile so the LED sign feels punchy rather
+         than landing in a near-empty viewport. */
+      className="relative isolate flex min-h-[48svh] w-full items-center justify-center overflow-hidden py-4 sm:min-h-[40svh] sm:py-6"
     >
 
       <div className="container-wide relative z-10 grid place-items-center text-center">
@@ -62,11 +60,19 @@ export default function LedJoySection() {
           {ahhLetters.map((ch, i) => (
             <motion.span
               key={i}
-              initial={reduce ? { opacity: 1 } : { opacity: 0, x: 360, skewX: -28 }}
-              animate={inView ? { opacity: 1, x: 0, skewX: 0 } : undefined}
+              initial={
+                reduce
+                  ? { opacity: 1 }
+                  : { opacity: 0, x: 520, skewX: -38, scale: 0.6, filter: "blur(8px)" }
+              }
+              animate={
+                inView
+                  ? { opacity: 1, x: 0, skewX: 0, scale: 1, filter: "blur(0px)" }
+                  : undefined
+              }
               transition={{
-                duration: 0.32,
-                delay: i * 0.07,
+                duration: 0.42,
+                delay: i * 0.05,
                 ease: [0.16, 1, 0.3, 1],
               }}
               className="inline-block"

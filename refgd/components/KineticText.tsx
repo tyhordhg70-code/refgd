@@ -60,10 +60,20 @@ export default function KineticText({
   return (
     <M
       className={className}
-      style={style}
+      // Enforce a comfortable line-height so each word's
+      // overflow-hidden mask box has enough room for tall caps and
+      // the slide-up animation doesn't clip the top of letters when
+      // the headline wraps to multiple lines (the "stop wasting time"
+      // headline was missing parts because tight default leading on
+      // huge clamp() font sizes left the per-word mask too short).
+      style={{ lineHeight: 1.08, ...style }}
       initial="hidden"
+      // once: true so the words don't re-hide when the heading is
+      // scrolled past; previously `once: false` would re-trigger the
+      // `hidden` variant whenever the element left the viewport,
+      // producing the "after animation, text is missing" report.
       whileInView="show"
-      viewport={{ once: false, margin: "-50px" }}
+      viewport={{ once: true, margin: "0px 0px -10% 0px" }}
       transition={{ staggerChildren: stagger, delayChildren: delay }}
       aria-label={value}
     >
@@ -72,16 +82,17 @@ export default function KineticText({
           key={i}
           // pb/pt give descenders + ascenders breathing room. Side
           // padding stops italic glyphs from being clipped at the
-          // word edges (fixes "Stop paying for other BS…" italic
-          // pull-quote letters touching / cropping).
-          className="inline-block overflow-hidden align-bottom"
+          // word edges. align-top (was align-bottom) keeps the mask
+          // box anchored from the top so the visible cap line stays
+          // in place when font sizes wrap to multiple lines.
+          className="inline-block overflow-hidden align-top"
           style={{
-            paddingBottom: "0.18em",
-            paddingTop: "0.06em",
-            paddingLeft: "0.05em",
-            paddingRight: "0.05em",
-            marginLeft: "-0.05em",
-            marginRight: "-0.05em",
+            paddingBottom: "0.22em",
+            paddingTop: "0.1em",
+            paddingLeft: "0.06em",
+            paddingRight: "0.06em",
+            marginLeft: "-0.06em",
+            marginRight: "-0.06em",
           }}
           aria-hidden="true"
         >

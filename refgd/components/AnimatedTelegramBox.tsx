@@ -71,7 +71,147 @@ export default function AnimatedTelegramBox() {
           0%   { transform:rotate(0deg) }
           100% { transform:rotate(360deg) }
         }
+        /* ── Lusion-style wireframe mesh ── */
+        @keyframes tg-mesh-spin {
+          0%   { transform: translate(-50%,-50%) rotateX(62deg) rotateZ(0deg) }
+          100% { transform: translate(-50%,-50%) rotateX(62deg) rotateZ(360deg) }
+        }
+        @keyframes tg-mesh-pulse {
+          0%,100% { opacity: 0.55 }
+          50%     { opacity: 0.95 }
+        }
+        /* Grid pan moves the inner background; outer wrapper does
+           the perspective + warp so transform doesn't conflict. */
+        @keyframes tg-grid-pan {
+          0%   { background-position: 0 0,    0 0 }
+          100% { background-position: 0 -88px, 0 -88px }
+        }
+        @keyframes tg-warp {
+          0%,100% { transform: translate(-50%,-50%) perspective(700px) rotateX(64deg) skewY(0deg) }
+          25%     { transform: translate(-50%,-50%) perspective(700px) rotateX(64deg) skewY(1.4deg) }
+          75%     { transform: translate(-50%,-50%) perspective(700px) rotateX(64deg) skewY(-1.4deg) }
+        }
       `}</style>
+
+      {/* ────── Lusion-style 3D mesh layer ──────
+          Recedes into the box via CSS perspective + rotateX so it reads
+          as a warped grid floor; a wireframe sphere sits on top of it
+          slowly rotating. Pure CSS / SVG — no WebGL, no JS rAF.
+          Skipped on mobile and prefers-reduced-motion to keep the box
+          calm on small screens / motion-sensitive users. */}
+      {!reduced && !isMobile && (
+        <>
+          {/* Recessed grid floor — outer wrapper handles the perspective
+              + warp transform; the inner grid moves via background-position
+              so the two animations don't trample each other. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-[78%] h-[120%] w-[160%] opacity-60"
+            style={{
+              transform: "translate(-50%,-50%) perspective(700px) rotateX(64deg)",
+              animation: "tg-warp 11s ease-in-out infinite",
+              filter: "drop-shadow(0 0 14px rgba(167,139,250,0.4))",
+              maskImage:
+                "radial-gradient(ellipse 60% 80% at 50% 30%, #000 0%, #000 40%, transparent 80%)",
+              WebkitMaskImage:
+                "radial-gradient(ellipse 60% 80% at 50% 30%, #000 0%, #000 40%, transparent 80%)",
+            }}
+          >
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgba(167,139,250,0.45) 1px, transparent 1px)," +
+                  "linear-gradient(90deg, rgba(34,211,238,0.45) 1px, transparent 1px)",
+                backgroundSize: "44px 44px, 44px 44px",
+                animation: "tg-grid-pan 6s linear infinite",
+              }}
+            />
+          </div>
+
+          {/* Wireframe sphere — built from concentric ellipses + radial
+              meridians so it reads as a 3D mesh. Slowly rotates around
+              a tilted Z so the meridians appear to revolve. */}
+          <svg
+            aria-hidden="true"
+            viewBox="-110 -110 220 220"
+            className="pointer-events-none absolute left-1/2 top-1/2 z-[1] h-[78%] w-[78%]"
+            style={{
+              transform: "translate(-50%,-50%) rotateX(62deg) rotateZ(0deg)",
+              animation:
+                "tg-mesh-spin 22s linear infinite, tg-mesh-pulse 9s ease-in-out infinite",
+              filter:
+                "drop-shadow(0 0 24px rgba(34,211,238,0.55)) drop-shadow(0 0 40px rgba(167,139,250,0.35))",
+              maxWidth: 520,
+              maxHeight: 520,
+            }}
+          >
+            <defs>
+              <linearGradient id="tg-mesh-stroke" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%"   stopColor="#7be7ff" stopOpacity="0.95" />
+                <stop offset="50%"  stopColor="#a78bfa" stopOpacity="0.85" />
+                <stop offset="100%" stopColor="#f5b945" stopOpacity="0.75" />
+              </linearGradient>
+              <radialGradient id="tg-mesh-core" cx="50%" cy="50%" r="50%">
+                <stop offset="0%"  stopColor="rgba(255,255,255,0.7)" />
+                <stop offset="60%" stopColor="rgba(167,139,250,0.15)" />
+                <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+              </radialGradient>
+            </defs>
+            {/* Glow core */}
+            <circle cx="0" cy="0" r="100" fill="url(#tg-mesh-core)" />
+            {/* Latitude rings — 7 ellipses with shrinking ry to fake
+                the 3D sphere bands when the whole thing is tilted. */}
+            {[100, 84, 68, 52, 36, 20, 6].map((rx, i) => (
+              <ellipse
+                key={`lat-${i}`}
+                cx="0"
+                cy="0"
+                rx={rx}
+                ry={rx * 0.32}
+                fill="none"
+                stroke="url(#tg-mesh-stroke)"
+                strokeWidth="0.7"
+                strokeOpacity={0.35 + (i % 3) * 0.2}
+              />
+            ))}
+            {/* Longitude meridians — 12 lines through the centre,
+                rotated by 15deg increments. */}
+            {Array.from({ length: 12 }).map((_, i) => (
+              <line
+                key={`lon-${i}`}
+                x1="-100"
+                y1="0"
+                x2="100"
+                y2="0"
+                stroke="url(#tg-mesh-stroke)"
+                strokeWidth="0.55"
+                strokeOpacity={0.4}
+                transform={`rotate(${i * 15})`}
+              />
+            ))}
+            {/* Vertex dots at intersections for the lusion "data-mesh"
+                look — placed on the outer + middle rings. */}
+            {[100, 68, 36].map((rx, ringI) =>
+              Array.from({ length: 12 }).map((_, i) => {
+                const ang = (i * 30 * Math.PI) / 180;
+                const cx = Math.cos(ang) * rx;
+                const cy = Math.sin(ang) * rx * 0.32;
+                return (
+                  <circle
+                    key={`v-${ringI}-${i}`}
+                    cx={cx}
+                    cy={cy}
+                    r={ringI === 0 ? 1.4 : 1}
+                    fill="#fff"
+                    fillOpacity={0.9}
+                  />
+                );
+              }),
+            )}
+          </svg>
+        </>
+      )}
 
       {/* ── Stars ── */}
       {Array.from({ length: STARS }).map((_, i) => {

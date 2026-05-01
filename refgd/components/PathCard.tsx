@@ -161,14 +161,19 @@ export default function PathCard({
         className="group relative h-full"
         data-cursor="hover"
         data-cursor-label={title}
-        // Static 3D pose. The carousel sets `perspective: 1400px`
-        // on the section, so this rotateX gives the card real
-        // depth — it leans back ~6° as if standing on a stage.
-        // No animation: pose is identical at every scroll
-        // position, so iOS never has to interpolate transform
-        // values mid-swipe and the result is a solid 3D look
-        // with zero per-frame cost.
-        style={{ transform: "translateZ(0)" }}
+        // No `translateZ(0)` here. The previous version created an
+        // extra GPU layer for every card; combined with the Swiper
+        // cube's own 3D context and overflow:hidden on the slide,
+        // iOS Safari aggressively evicted the inner illustration
+        // layer mid-scroll — users saw the card frame stay but the
+        // illustration "vanish" until they tapped or paused. Letting
+        // the cube parent own the only 3D context fixes it. Backface
+        // visibility kept visible so iOS never culls the back of the
+        // card if the cube edges momentarily face away.
+        style={{
+          WebkitBackfaceVisibility: "visible",
+          backfaceVisibility: "visible",
+        }}
       >
         <Tag
           {...linkProps}

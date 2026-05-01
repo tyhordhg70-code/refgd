@@ -205,7 +205,9 @@ export default function PixelRainCosmic({
     }
 
     function loop() {
-      if (!visibleRef.current) {
+      // Always advance progress (so off-screen drains back to 0).
+      tickProgress();
+      if (!visibleRef.current && progressRef.current <= 0) {
         if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
         return;
@@ -216,24 +218,24 @@ export default function PixelRainCosmic({
       rafRef.current = requestAnimationFrame(loop);
     }
 
-    // ── Scroll-progress driver ──
-    // Progress now starts the moment the wrapper enters the viewport
-    // (its top crosses the bottom of the screen) instead of waiting
-    // for its top to reach the viewport top. This removes the
-    // "scroll a bit before rain starts" delay the user reported and
-    // makes the transition feel continuous with the section above.
-    function onScroll() {
-      const r = W.getBoundingClientRect();
-      const vh = window.innerHeight || 1;
-      // Span over which 0 → 1 plays out.
-      const span = vh * scrollLength;
-      // How far the wrapper has traveled INTO the viewport, measured
-      // from when its top first crossed the bottom edge.
-      const traveled = vh - r.top;
-      progressRef.current = clamp(traveled / span, 0, 1);
+    // ── Auto-progress driver ──
+    // The rain now AUTO-PLAYS the moment the section enters the viewport.
+    // No scroll input required: progress ramps 0 → 1 over ~700ms once
+    // visible, then stays at full density. This was a user request:
+    // they should never have to scroll inside the rain to see the effect.
+    let entryTime: number | null = null;
+    const RAMP_MS = 700;
+    function tickProgress() {
+      if (!visibleRef.current) {
+        // Not in view → drain back to 0 so re-entry replays nicely.
+        entryTime = null;
+        progressRef.current = Math.max(0, progressRef.current - 0.04);
+        return;
+      }
+      if (entryTime == null) entryTime = performance.now();
+      const elapsed = performance.now() - entryTime;
+      progressRef.current = clamp(elapsed / RAMP_MS, 0, 1);
     }
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
 
     if (reduce) {
       progressRef.current = 0.6;
@@ -245,7 +247,6 @@ export default function PixelRainCosmic({
     return () => {
       ro.disconnect();
       io.disconnect();
-      window.removeEventListener("scroll", onScroll);
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     };
   }, [accent, scrollLength]);

@@ -29,6 +29,25 @@
   ) !important;
 }
 
+/* Critical: by default Swiper applies `touch-action: pan-y` only on the
+   `.swiper-horizontal` variant. The cube-effect Swiper *removes* that
+   default and sets `touch-action: none` on the .swiper element, which
+   means every touch landing on the cube surface gets swallowed by the
+   gesture handler — including pure-vertical drags meant to scroll the
+   page. Android users reported being "stuck on pathcard 2": they
+   couldn't scroll past the carousel because Swiper claimed every drag.
+   Force `touch-action: pan-y` back on so the BROWSER handles vertical
+   scroll while Swiper still handles horizontal swipes (filtered by
+   `touchAngle: 35` in PathsHorizontalReveal.tsx). */
+[data-testid="paths-mobile-track"] .swiper {
+  touch-action: pan-y !important;
+}
+[data-testid="paths-mobile-track"] .swiper-wrapper,
+[data-testid="paths-mobile-track"] .swiper-cube,
+[data-testid="paths-mobile-track"] .swiper-slide {
+  touch-action: pan-y !important;
+}
+
 @layer base {
   :root {
     --bg: 5 6 10;
@@ -429,79 +448,99 @@ html { scroll-behavior: smooth; }
   50%      { opacity: 0.85;transform: scale(0.98) rotate(-6deg); }
 }
 
-/* ─── Pulsating box-shadow for glass cards ──────────────────────── */
+/* ─── Pulsating box-shadow for glass cards ──────────────────────────
+   Glow refactor (Apr 2026): the previous keyframes used a hard
+   `0 0 0 1px rgba(...)` shadow as a coloured rim around every card.
+   That 1px ring has zero blur, so it always rendered as a crisp
+   coloured outline — which the user described as "glow looks weird,
+   has borders to it, doesn't look like a natural glow". The fix is
+   to drop the hard ring entirely and rely on stacked, large-blur
+   outer shadows whose alpha tapers off past the spread radius. The
+   result reads as a soft halo bleeding into the surrounding dark
+   background instead of a fenced rectangle of colour.
+   Each glow now uses three concentric outer shadows:
+     • near halo (blur 32, spread -6) — close colour wash
+     • mid halo (blur 64, spread 0)   — broader glow
+     • far halo (blur 110, spread 0)  — atmospheric bloom
+   No `0 0 0 1px` ring → no visible glow boundary. */
 .pulse-glow {
   animation: pulseGlowShadow 4.5s ease-in-out infinite;
 }
 @keyframes pulseGlowShadow {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(255,225,140,0.10),
-                0 30px 80px -30px rgba(245,185,69,0.18);
+    box-shadow: 0 0 32px -6px rgba(245,185,69,0.18),
+                0 0 64px rgba(245,185,69,0.10),
+                0 30px 110px rgba(245,185,69,0.10);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(255,225,140,0.45),
-                0 30px 100px -25px rgba(245,185,69,0.55),
-                0 0 60px 10px rgba(167,139,250,0.20);
+    box-shadow: 0 0 32px -6px rgba(245,185,69,0.42),
+                0 0 64px rgba(245,185,69,0.28),
+                0 30px 110px rgba(167,139,250,0.18);
   }
 }
 .pulse-glow-violet { animation: pulseGlowViolet 5s ease-in-out infinite; }
 @keyframes pulseGlowViolet {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(167,139,250,0.10),
-                0 30px 80px -30px rgba(167,139,250,0.18);
+    box-shadow: 0 0 32px -6px rgba(167,139,250,0.18),
+                0 0 64px rgba(167,139,250,0.10),
+                0 30px 110px rgba(167,139,250,0.10);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(167,139,250,0.55),
-                0 30px 100px -25px rgba(167,139,250,0.55),
-                0 0 60px 10px rgba(34,211,238,0.20);
+    box-shadow: 0 0 32px -6px rgba(167,139,250,0.45),
+                0 0 64px rgba(167,139,250,0.30),
+                0 30px 110px rgba(34,211,238,0.18);
   }
 }
 .pulse-glow-cyan { animation: pulseGlowCyan 5s ease-in-out infinite; }
 @keyframes pulseGlowCyan {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(34,211,238,0.10),
-                0 30px 80px -30px rgba(34,211,238,0.18);
+    box-shadow: 0 0 32px -6px rgba(34,211,238,0.18),
+                0 0 64px rgba(34,211,238,0.10),
+                0 30px 110px rgba(34,211,238,0.10);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(34,211,238,0.55),
-                0 30px 100px -25px rgba(34,211,238,0.50),
-                0 0 60px 10px rgba(167,139,250,0.20);
+    box-shadow: 0 0 32px -6px rgba(34,211,238,0.45),
+                0 0 64px rgba(34,211,238,0.28),
+                0 30px 110px rgba(167,139,250,0.18);
   }
 }
 .pulse-glow-gold { animation: pulseGlowGold 4.6s ease-in-out infinite; }
 @keyframes pulseGlowGold {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(255,225,140,0.10),
-                0 30px 80px -30px rgba(245,185,69,0.18);
+    box-shadow: 0 0 32px -6px rgba(245,185,69,0.18),
+                0 0 64px rgba(245,185,69,0.10),
+                0 30px 110px rgba(255,225,140,0.10);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(255,225,140,0.55),
-                0 30px 100px -25px rgba(245,185,69,0.55),
-                0 0 60px 10px rgba(255,237,180,0.22);
+    box-shadow: 0 0 32px -6px rgba(245,185,69,0.45),
+                0 0 64px rgba(245,185,69,0.32),
+                0 30px 110px rgba(255,225,140,0.20);
   }
 }
 .pulse-glow-orange { animation: pulseGlowOrange 5.2s ease-in-out infinite; }
 @keyframes pulseGlowOrange {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(249,115,22,0.10),
-                0 30px 80px -30px rgba(249,115,22,0.18);
+    box-shadow: 0 0 32px -6px rgba(249,115,22,0.18),
+                0 0 64px rgba(249,115,22,0.10),
+                0 30px 110px rgba(249,115,22,0.10);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(249,115,22,0.55),
-                0 30px 100px -25px rgba(249,115,22,0.55),
-                0 0 60px 10px rgba(253,186,116,0.22);
+    box-shadow: 0 0 32px -6px rgba(249,115,22,0.45),
+                0 0 64px rgba(249,115,22,0.28),
+                0 30px 110px rgba(253,186,116,0.20);
   }
 }
 .pulse-glow-fuchsia { animation: pulseGlowFuchsia 4.8s ease-in-out infinite; }
 @keyframes pulseGlowFuchsia {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(236,72,153,0.10),
-                0 30px 80px -30px rgba(236,72,153,0.18);
+    box-shadow: 0 0 32px -6px rgba(236,72,153,0.18),
+                0 0 64px rgba(236,72,153,0.10),
+                0 30px 110px rgba(236,72,153,0.10);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(236,72,153,0.60),
-                0 30px 100px -25px rgba(236,72,153,0.55),
-                0 0 60px 10px rgba(244,114,182,0.22);
+    box-shadow: 0 0 32px -6px rgba(236,72,153,0.48),
+                0 0 64px rgba(236,72,153,0.30),
+                0 30px 110px rgba(244,114,182,0.20);
   }
 }
 

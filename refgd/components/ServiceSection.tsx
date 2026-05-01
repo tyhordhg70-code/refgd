@@ -195,15 +195,15 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
         </motion.div>
 
         {/* MOBILE-only cashback scene — desktop has the 520px scene
-            absolutely positioned on the right; on mobile we drop a
-            smaller version below the headline so the illustration is
-            never invisible. User report: "for storelist illustration
-            is missing on mobile". */}
+            absolutely positioned on the right; on mobile we render
+            a much larger version below the headline so the gradient
+            illustration is the visual anchor of the mobile hero.
+            User: "make the cashback illustration BIGGER on mobile". */}
         <div
           aria-hidden="true"
-          className="container-wide pointer-events-none relative z-10 mt-6 grid w-full place-items-center md:hidden"
+          className="pointer-events-none relative z-10 mt-8 grid w-full place-items-center md:hidden"
         >
-          <CashbackScene size={260} />
+          <CashbackScene size={420} />
         </div>
       </section>
 
@@ -281,6 +281,7 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
             {STEPS.map((s, i) => (
               <GlassCard
                 key={s.n}
+                index={i}
                 tint={s.tint}
                 delay={i * 0.12}
                 className=""
@@ -345,6 +346,7 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
             {WHY.map((w, i) => (
               <GlassCard
                 key={w.h}
+                index={i + 3}
                 tint={w.tint}
                 delay={i * 0.1}
                 className=""

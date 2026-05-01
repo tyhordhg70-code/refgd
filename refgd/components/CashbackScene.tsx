@@ -37,7 +37,11 @@ export default function CashbackScene({
     <motion.div
       aria-hidden="true"
       className={`pointer-events-none relative cs-stage ${className}`}
-      style={{ width: size, height: size, ["--cs-size" as any]: `${size}px` }}
+      style={{
+        width: `min(${size}px, 92vw)`,
+        height: `min(${size}px, 92vw)`,
+        ["--cs-size" as any]: `min(${size}px, 92vw)`,
+      }}
       initial={{ opacity: 0, scale: 0.92, y: 20 }}
       whileInView={{ opacity: 1, scale: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}

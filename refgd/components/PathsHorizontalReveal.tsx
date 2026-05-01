@@ -276,6 +276,15 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         // GPU layer for the whole stage; nothing outside is
         // affected by the cube's 3D context.
         transform: "translateZ(0)",
+        // Critical for Android: tell the browser that vertical drags
+        // belong to page scroll, not to the swiper. Without this, the
+        // cube swallows every touch on its surface area and the user
+        // gets stuck on pathcard 2 — they can't scroll the page past
+        // the carousel because every vertical drag is consumed by the
+        // cube's gesture handler. `pan-y` lets vertical drags bubble
+        // to the document; `touchAngle: 35` below tells Swiper to
+        // treat anything more vertical than 35° as "not a swipe".
+        touchAction: "pan-y",
       }}
     >
       <Swiper
@@ -284,6 +293,12 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         loop
         grabCursor
         speed={520}
+        // Only treat finger drags within ±35° of horizontal as swipes.
+        // Anything more vertical than that is left alone so the page
+        // scrolls normally. Pairs with `touch-action: pan-y` on the
+        // wrapper above; together they fix the Android "can't scroll
+        // past pathcard 2" report.
+        touchAngle={35}
         // ── Touch sensitivity tuning ─────────────────────────────────
         // Default Swiper requires the user to drag past 50% of the
         // slide width (longSwipesRatio: 0.5) OR have ~300 ms+ of

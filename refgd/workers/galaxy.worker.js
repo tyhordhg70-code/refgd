@@ -111,6 +111,41 @@ function initRenderer({ canvas, width, height, dpr, isMobile, isTablet }) {
   sceneRegistry.globalField.group.visible = true;
   activeScenes.add("globalField");
 
+  // ─── LUSION / NOMOO PRE-WARM ──────────────────────────────────────────
+  // Compile every scene's shaders to the GPU NOW, before the user ever
+  // sees a frame. Without this, the first time a scene becomes visible
+  // (e.g. when the loading screen fades and the home scene appears) the
+  // browser has to do a synchronous shader-compile + program-link which
+  // can stall the worker for 80–250ms on mid-range mobile GPUs and
+  // produces visible jank on the very first paint.
+  //
+  // We temporarily flip every scene visible, call renderer.compile() so
+  // THREE walks the full scene graph and uploads every WebGL program,
+  // render one warmup frame at t=0, then restore the intended
+  // visibility set. Cost: one extra ~6ms render up-front; payoff: a
+  // jank-free reveal when the loading overlay fades.
+  for (const k of Object.keys(sceneRegistry)) {
+    sceneRegistry[k].group.visible = true;
+  }
+  // Update each scene once at t=0 so per-frame uniforms (time, scroll)
+  // are populated before renderer.compile walks them.
+  for (const k of Object.keys(sceneRegistry)) {
+    sceneRegistry[k].update(0, 0, cursor);
+  }
+  if (renderer.compile) renderer.compile(scene, camera);
+  renderer.render(scene, camera);  // warmup frame, throw-away
+
+  // Restore visibility to just the always-on globalField. Pages will
+  // re-add their scene via setActiveScenes when their components mount.
+  for (const k of Object.keys(sceneRegistry)) {
+    sceneRegistry[k].group.visible = activeScenes.has(k);
+  }
+
+  // Tell the main thread we're warm. GalaxyBackground.tsx will relay
+  // this as a `refgd:scene-ready` window event, which the
+  // LoadingScreen overlay already listens for in order to fade out.
+  self.postMessage({ type: "ready" });
+
   startTime = performance.now();
   tick();
 }
@@ -288,6 +323,12 @@ function buildGlobalField({ isMobile, isTablet }) {
 // ═══════════════════════════════════════════════════════════════════════════
 function buildHomeScene({ isMobile }) {
   const group = new THREE.Group();
+  // Inner pivot — used so the planet (and its halo/flare/moons) can be
+  // shifted by cursor as a unit without breaking the orbital math of
+  // children. This is the lusion / nomoo-labs style: a hero subject
+  // that drifts with the pointer over a more stationary backdrop.
+  const planetPivot = new THREE.Group();
+  group.add(planetPivot);
 
   // ─── 1. CENTRAL PLANET ──
   // Sphere with custom radial-gradient + rim glow + light scattering shader.
@@ -352,14 +393,16 @@ function buildHomeScene({ isMobile }) {
         // Inner-body emissive boost on the in-breath of the pulse
         float emit = 0.10 + 0.18 * (sin(time * 2.1) * 0.5 + 0.5);
         vec3 col = surface * (1.0 + emit) + rim;
-        float alpha = 0.95 - scroll * 0.85;  // fade out as user scrolls past hero
+        // Slower fade — keep the planet visible deeper into the dolly
+        // so the user still sees the hero subject as the camera dives.
+        float alpha = 0.96 - scroll * 0.55;
         gl_FragColor = vec4(col, alpha);
       }
     `,
   });
   const planet = new THREE.Mesh(planetGeo, planetMat);
   planet.position.set(0, 0, 0);
-  group.add(planet);
+  planetPivot.add(planet);
 
   // Lens-flare-style additive sprite around the planet (extra bloom kick)
   const flareGeo = new THREE.PlaneGeometry(28, 28);
@@ -388,13 +431,13 @@ function buildHomeScene({ isMobile }) {
         vec3 warm = vec3(1.00, 0.78, 0.30);
         vec3 cool = vec3(0.65, 0.55, 0.98);
         vec3 col = mix(cool, warm, halo);
-        float a = (core + halo * 0.55) * (1.0 - scroll * 0.85);
+        float a = (core + halo * 0.55) * (1.0 - scroll * 0.55);
         gl_FragColor = vec4(col, a);
       }
     `,
   });
   const flare = new THREE.Mesh(flareGeo, flareMat);
-  group.add(flare);
+  planetPivot.add(flare);
 
   // ─── 2. HALO RING ──
   // Thin glowing ring around the planet, like the 88vmin border in the source.
@@ -419,14 +462,132 @@ function buildHomeScene({ isMobile }) {
       void main() {
         float pulse = 0.7 + 0.3 * sin(time * 0.7);
         vec3 col = mix(vec3(1.0, 0.88, 0.55), vec3(0.65, 0.55, 0.98), 0.5);
-        float a = pulse * (1.0 - scroll * 0.9);
+        float a = pulse * (1.0 - scroll * 0.6);
         gl_FragColor = vec4(col, a);
       }
     `,
   });
   const halo = new THREE.Mesh(haloGeo, haloMat);
   halo.rotation.x = Math.PI / 2;  // face camera
-  group.add(halo);
+  planetPivot.add(halo);
+
+  // ─── 2.5. ORBITING MOONS — 3 small bodies at distinct depths for parallax ──
+  // Lusion / nomoo-labs hero compositions almost always have a "satellite"
+  // body that the eye tracks at a different parallax depth than the main
+  // subject. This adds three: a near warm moon, a far violet moon, and an
+  // even-farther cyan ice moon. Each orbits at its own period so they
+  // continually re-arrange around the planet.
+  const moonConfigs = [
+    { radius: 13.0, baseY: 1.6, depth: 0.3, size: 0.95, period: 18, phase: 0.0,
+      color: [1.00, 0.85, 0.55], rim: [1.00, 0.92, 0.65] },
+    { radius: 16.5, baseY: -2.2, depth: -1.4, size: 1.35, period: 26, phase: 1.7,
+      color: [0.78, 0.62, 1.00], rim: [0.92, 0.78, 1.00] },
+    { radius: 20.0, baseY: 3.4, depth: -2.6, size: 0.78, period: 34, phase: 3.4,
+      color: [0.42, 0.85, 0.98], rim: [0.70, 0.95, 1.00] },
+  ];
+  const moons = [];
+  for (const cfg of moonConfigs) {
+    const moonU = { time: { value: 0 }, scroll: { value: 0 } };
+    const mGeo = new THREE.SphereGeometry(cfg.size, 28, 28);
+    const mMat = new THREE.ShaderMaterial({
+      uniforms: {
+        ...moonU,
+        baseColor: { value: new THREE.Vector3(...cfg.color) },
+        rimColor:  { value: new THREE.Vector3(...cfg.rim) },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+          vViewDir = normalize(-mvPos.xyz);
+          gl_Position = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        uniform float time;
+        uniform float scroll;
+        uniform vec3  baseColor;
+        uniform vec3  rimColor;
+        varying vec3 vNormal;
+        varying vec3 vViewDir;
+        void main() {
+          vec3 lightDir = normalize(vec3(-0.6, 0.7, 0.8));
+          float NdL = max(0.0, dot(vNormal, lightDir));
+          float fres = pow(1.0 - max(0.0, dot(vNormal, vViewDir)), 2.0);
+          vec3 surface = baseColor * (0.25 + 0.85 * NdL);
+          float pulse = 1.2 + 0.4 * sin(time * 1.6);
+          vec3 col = surface + rimColor * fres * pulse;
+          float a = (0.92 - scroll * 0.55) * (0.55 + 0.45 * NdL);
+          gl_FragColor = vec4(col, a);
+        }
+      `,
+    });
+    const m = new THREE.Mesh(mGeo, mMat);
+    // Parent to planetPivot so moons inherit the pivot's tilt + yaw +
+    // cursor translation. Their per-frame `position.set` only writes
+    // the orbital component now (no more redundant cursor math).
+    planetPivot.add(m);
+    moons.push({ mesh: m, mat: mMat, cfg });
+  }
+
+  // ─── 2.6. ASTEROID DEBRIS BELT — flat ring of points around the planet ──
+  // Adds a third depth layer between the planet and the nebula clouds, so
+  // the foreground gets the multi-plane parallax that lusion/nomoo hero
+  // shots are known for. Cheap: ~110 points in a single draw call.
+  const BELT_COUNT = isMobile ? 70 : 130;
+  const beltPositions = new Float32Array(BELT_COUNT * 3);
+  const beltSeeds     = new Float32Array(BELT_COUNT);
+  for (let i = 0; i < BELT_COUNT; i++) {
+    const r = 11.5 + Math.random() * 4.5;
+    const a = Math.random() * Math.PI * 2;
+    beltPositions[i * 3]     = Math.cos(a) * r;
+    beltPositions[i * 3 + 1] = (Math.random() - 0.5) * 1.0;  // very flat
+    beltPositions[i * 3 + 2] = Math.sin(a) * r;
+    beltSeeds[i] = Math.random();
+  }
+  const beltGeo = new THREE.BufferGeometry();
+  beltGeo.setAttribute("position", new THREE.BufferAttribute(beltPositions, 3));
+  beltGeo.setAttribute("seed",     new THREE.BufferAttribute(beltSeeds, 1));
+  const beltUniforms = { time: { value: 0 }, scroll: { value: 0 } };
+  const beltMat = new THREE.ShaderMaterial({
+    uniforms: beltUniforms,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexShader: `
+      uniform float time;
+      uniform float scroll;
+      attribute float seed;
+      varying float vAlpha;
+      void main() {
+        // Orbit each particle around the y-axis at its own slow rate
+        float a = atan(position.z, position.x) + (0.10 + seed * 0.06) * time;
+        float r = length(position.xz);
+        vec3 p = vec3(cos(a) * r, position.y, sin(a) * r);
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = (1.6 + seed * 2.4) * (300.0 / -mv.z);
+        vAlpha = (0.60 + 0.40 * sin(time * 1.8 + seed * 6.28)) * (1.0 - scroll * 0.7);
+      }
+    `,
+    fragmentShader: `
+      varying float vAlpha;
+      void main() {
+        float d = length(gl_PointCoord - 0.5);
+        if (d > 0.5) discard;
+        float core = smoothstep(0.5, 0.0, d);
+        gl_FragColor = vec4(1.0, 0.92, 0.74, core * vAlpha);
+      }
+    `,
+  });
+  const belt = new THREE.Points(beltGeo, beltMat);
+  belt.rotation.x = Math.PI * 0.18;  // tilt the disc
+  planetPivot.add(belt);
 
   // ─── 3. NEBULA CLOUDS — 3 large additive quads with noise shader ──
   const nebulaUniforms = { time: { value: 0 }, scroll: { value: 0 } };
@@ -628,7 +789,7 @@ function buildHomeScene({ isMobile }) {
 
   return {
     group,
-    update(t, scrollNorm) {
+    update(t, scrollNorm, cursor) {
       planetUniforms.time.value = t;
       planetUniforms.scroll.value = scrollNorm;
       nebulaUniforms.time.value = t;
@@ -637,12 +798,46 @@ function buildHomeScene({ isMobile }) {
       streakUniforms.scroll.value = scrollNorm;
       fgStarUniforms.time.value = t;
       fgStarUniforms.scroll.value = scrollNorm;
+      beltUniforms.time.value = t;
+      beltUniforms.scroll.value = scrollNorm;
       // Slight planet rotation
       planet.rotation.y = t * 0.05;
       // Visible scale-pulse on the planet (~3s period, ±4%) — pairs with
       // the shader's emissive pulse to read as a clear breathing motion.
       const ps = 1.0 + Math.sin(t * 2.1) * 0.04;
       planet.scale.set(ps, ps, ps);
+      // ── PLANET CURSOR PARALLAX ──
+      // The planet (and its halo, flare, asteroid belt, moons) drift
+      // opposite the cursor — gain is kept moderate because the camera
+      // also parallaxes the SAME axis with +cursor.x*1.6, so combined
+      // they already give a layered multi-plane feel without going
+      // overboard. A slow scroll-driven upward dolly lets the planet
+      // rise out of frame as the user scrolls.
+      const cx = cursor ? cursor.x : 0;
+      const cy = cursor ? cursor.y : 0;
+      planetPivot.position.set(
+        -cx * 0.9,
+         cy * 0.7 + scrollNorm * 4.5,
+              scrollNorm * -2.0,
+      );
+      // Subtle yaw/pitch wobble adds liveliness even when idle.
+      planetPivot.rotation.y =  cx * 0.18 + Math.sin(t * 0.25) * 0.05;
+      planetPivot.rotation.x = -cy * 0.14 + Math.cos(t * 0.20) * 0.03;
+      // ── MOON ORBITS — moons are parented to planetPivot so they
+      // automatically inherit its tilt, yaw, and cursor translation.
+      // Each moon writes only its orbital position relative to the pivot.
+      for (const moon of moons) {
+        const cfg = moon.cfg;
+        const omega = (Math.PI * 2) / cfg.period;
+        const a = cfg.phase + t * omega;
+        const px = Math.cos(a) * cfg.radius;
+        const pz = Math.sin(a) * cfg.radius * 0.4 + cfg.depth;
+        const py = cfg.baseY + Math.sin(a * 1.7) * 1.2;
+        moon.mesh.position.set(px, py, pz);
+        moon.mat.uniforms.time.value = t;
+        moon.mat.uniforms.scroll.value = scrollNorm;
+        moon.mesh.rotation.y = t * 0.12 + cfg.phase;
+      }
     },
   };
 }
