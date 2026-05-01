@@ -89,6 +89,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     let lastProg = -1;
 
     const update = () => {
+      // Mobile: skip per-scroll DOM work entirely. The parallax tilt
+      // (already capped to 50% scale / -22deg / -100px on mobile) is
+      // barely visible during a fast mobile scroll-snap, while the
+      // per-frame getBoundingClientRect + 4 style writes on a 60vmin
+      // element measurably starve the iOS compositor. Mount-time
+      // animations (planet scale-in, halo, streaks, KineticText) all
+      // still play. The section just stays static while the user
+      // scrolls past it — same as a still hero image.
+      if (isMobileRef.current) return;
       const rect    = section.getBoundingClientRect();
       const sectionH = section.offsetHeight;
       const viewH    = window.innerHeight;
@@ -367,7 +376,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             { top:"54%", left:"89%", w:125, delay:"0.75s", dur:"1.75s", angle:3  },
             { top:"71%", left:"90%", w:148, delay:"1.06s", dur:"2.02s", angle:-8 },
             { top:"88%", left:"91%", w:171, delay:"1.37s", dur:"2.29s", angle:3  },
-          ].map((s, i) => (
+          ].slice(0, isMobile ? 12 : 28).map((s, i) => (
             <div
               key={i}
               className="absolute rounded-full"
