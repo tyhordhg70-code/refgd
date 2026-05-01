@@ -15,6 +15,7 @@ import EditableText from "@/components/EditableText";
 import ChapterPill from "@/components/ChapterPill";
 import LedTicker from "@/components/LedTicker";
 import LedJoySection from "@/components/LedJoySection";
+import SceneActivator from "@/components/SceneActivator";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,10 @@ export default async function StoreListPage() {
   return (
     <>
       <ReorderableContainer pageId="store-list">
+        {/* Activate the worker's "store" scene (calm ambient nebula
+            with subtle drift) for as long as this page is mounted.
+            Renders into the shared WebGL canvas behind everything. */}
+        <SceneActivator name="store" />
 
         {/* Act 1 — "Get rewarded for shopping online." HERO ONLY.
             Shrunk so the headline + scene fit comfortably in a single
