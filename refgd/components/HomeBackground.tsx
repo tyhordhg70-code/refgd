@@ -6,24 +6,27 @@ import InteractiveParticles from "@/components/InteractiveParticles";
 /**
  * Page-wide cosmic backdrop overlay for the home page.
  *
- * Two layers of richness now:
- *   1. The shared Web-Worker WebGL canvas (planet, halo, nebulas,
- *      warp streaks) — activated via useCosmicScene("home").
- *   2. DOM cinematic layer — large drifting gradient orbs, dense
- *      twinkling starfield, an aurora streamer, and cursor-reactive
- *      particles.
+ * Goal: maximum visual richness on desktop, minimum main-thread work
+ * on mobile (iPhone Safari). The Web-Worker WebGL canvas
+ * (planet, halo, nebulas, twinkles, warp streaks) does the heavy
+ * lifting on BOTH platforms — this DOM layer just adds taste on top.
  *
- * The DOM layer is intentionally compositor-only (transform/opacity
- * keyframes, GPU-promoted via will-change). It sits ABOVE the worker
- * canvas so its colour pops, and the worker continues to render the
- * planet/nebula behind it.
+ * Mobile contract (post user feedback "still gone with the planet,
+ * still laggy"):
+ *   - DROP the big mix-blend-mode + blur orbs on mobile. They were
+ *     covering the whole viewport with bright washed-out gradients,
+ *     hiding the worker nebulas/twinkles behind them, AND they are
+ *     the single most expensive thing for Safari's compositor to
+ *     redraw every scroll tick.
+ *   - DROP the SVG aurora streamer on mobile (gaussian blur filter
+ *     also expensive).
+ *   - DROP InteractiveParticles on mobile (no cursor anyway).
+ *   - KEEP the dot-only twinkling starfield (pure transform/opacity,
+ *     no blur, no blend mode — basically free for the compositor)
+ *     and bump its count to 80 so the screen visibly fills.
  *
- * User feedback (May '26): "home page illustrations and background
- * effects and stars and abstract particles are all gone" — the
- * earlier rewrite that moved everything into the worker left the page
- * feeling empty because the worker scene alone was too subtle. This
- * version restores DOM richness on top of the worker without bringing
- * back the heavy backdrop-blur stacks that made mobile feel laggy.
+ * Desktop:
+ *   - Keep all of it: orbs, aurora, dense star field, cursor particles.
  */
 export default function HomeBackground() {
   useCosmicScene("home");
@@ -40,7 +43,9 @@ export default function HomeBackground() {
   }, []);
   if (!mounted) return null;
 
-  const STAR_COUNT = isMobile ? 36 : 90;
+  // Star count — generous on both platforms because dot-only stars
+  // are essentially free (no blur, no blend mode, just opacity).
+  const STAR_COUNT = isMobile ? 80 : 110;
   const stars = Array.from({ length: STAR_COUNT }).map((_, i) => {
     const seed = (i * 9301 + 49297) % 233280;
     const r1 = (seed / 233280);
@@ -66,23 +71,26 @@ export default function HomeBackground() {
       data-testid="home-background"
       className="pointer-events-none fixed inset-0 z-[1] overflow-hidden"
     >
-      {/* Soft vignette that keeps the centre of the page legible. */}
+      {/* Soft vignette that keeps the centre of the page legible.
+          Lighter than before (0.55 → 0.35) so the worker nebulas
+          and twinkles aren't crushed at the screen edges. */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(ellipse at 50% 40%, transparent 35%, rgba(4,3,12,0.55) 100%)",
+            "radial-gradient(ellipse at 50% 40%, transparent 45%, rgba(4,3,12,0.35) 100%)",
         }}
       />
 
-      {/* DRIFTING GRADIENT ORBS — 4 large softly-coloured radial
-          gradients that slowly drift and pulse. Pure transform/opacity
-          animation = compositor-only, no per-frame paint. */}
-      {[
-        { c: "rgba(245,185,69,0.28)",  size: "60vmin", l: "8%",  t: "12%", d: "0s",   dur: "32s" },
-        { c: "rgba(167,139,250,0.30)", size: "70vmin", l: "62%", t: "8%",  d: "-8s",  dur: "38s" },
-        { c: "rgba(103,232,249,0.22)", size: "55vmin", l: "78%", t: "60%", d: "-16s", dur: "30s" },
-        { c: "rgba(244,114,182,0.20)", size: "65vmin", l: "12%", t: "65%", d: "-22s", dur: "36s" },
+      {/* DESKTOP-ONLY drifting gradient orbs. These wash out the
+          worker nebulas if rendered on a small mobile viewport, and
+          the blur+blend mode is the #1 cause of iPhone Safari scroll
+          lag, so they are gated to desktop only. */}
+      {!isMobile && [
+        { c: "rgba(245,185,69,0.22)",  size: "60vmin", l: "8%",  t: "12%", d: "0s",   dur: "32s" },
+        { c: "rgba(167,139,250,0.24)", size: "70vmin", l: "62%", t: "8%",  d: "-8s",  dur: "38s" },
+        { c: "rgba(103,232,249,0.18)", size: "55vmin", l: "78%", t: "60%", d: "-16s", dur: "30s" },
+        { c: "rgba(244,114,182,0.16)", size: "65vmin", l: "12%", t: "65%", d: "-22s", dur: "36s" },
       ].map((o, i) => (
         <div
           key={i}
@@ -99,40 +107,40 @@ export default function HomeBackground() {
         />
       ))}
 
-      {/* AURORA STREAMER — a single softly-curving SVG path that fades
-          in/out and drifts horizontally. Adds organic movement above
-          the orbs. */}
-      <svg
-        className="hb-aurora"
-        viewBox="0 0 1200 800"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <defs>
-          <linearGradient id="hb-aurora-grad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%"   stopColor="rgba(167,139,250,0)" />
-            <stop offset="35%"  stopColor="rgba(167,139,250,0.45)" />
-            <stop offset="55%"  stopColor="rgba(245,185,69,0.55)" />
-            <stop offset="75%"  stopColor="rgba(103,232,249,0.40)" />
-            <stop offset="100%" stopColor="rgba(103,232,249,0)" />
-          </linearGradient>
-          <filter id="hb-aurora-blur" x="-20%" y="-50%" width="140%" height="200%">
-            <feGaussianBlur stdDeviation="36" />
-          </filter>
-        </defs>
-        <path
-          d="M -200 420 C 200 280, 500 540, 800 360 S 1200 480, 1500 320"
-          stroke="url(#hb-aurora-grad)"
-          strokeWidth="120"
-          fill="none"
-          filter="url(#hb-aurora-blur)"
-          opacity="0.85"
-        />
-      </svg>
+      {/* DESKTOP-ONLY aurora streamer. */}
+      {!isMobile && (
+        <svg
+          className="hb-aurora"
+          viewBox="0 0 1200 800"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient id="hb-aurora-grad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%"   stopColor="rgba(167,139,250,0)" />
+              <stop offset="35%"  stopColor="rgba(167,139,250,0.45)" />
+              <stop offset="55%"  stopColor="rgba(245,185,69,0.55)" />
+              <stop offset="75%"  stopColor="rgba(103,232,249,0.40)" />
+              <stop offset="100%" stopColor="rgba(103,232,249,0)" />
+            </linearGradient>
+            <filter id="hb-aurora-blur" x="-20%" y="-50%" width="140%" height="200%">
+              <feGaussianBlur stdDeviation="36" />
+            </filter>
+          </defs>
+          <path
+            d="M -200 420 C 200 280, 500 540, 800 360 S 1200 480, 1500 320"
+            stroke="url(#hb-aurora-grad)"
+            strokeWidth="120"
+            fill="none"
+            filter="url(#hb-aurora-blur)"
+            opacity="0.85"
+          />
+        </svg>
+      )}
 
-      {/* TWINKLING STARFIELD — DOM stars sit ABOVE the worker canvas
-          and the orbs so they pop visibly. Each star is a 1-3px white/
-          amber/violet/cyan dot with its own slow opacity+scale loop. */}
+      {/* TWINKLING STARFIELD — dot-only (no blur, no blend mode).
+          Cheap enough to run on mobile at full count. Sits ABOVE the
+          worker so the dots punch through the vignette. */}
       {stars.map((s, i) => (
         <span
           key={i}
@@ -150,8 +158,7 @@ export default function HomeBackground() {
         />
       ))}
 
-      {/* CURSOR-REACTIVE ABSTRACT PARTICLES — desktop only (mobile has
-          no cursor and the orbs already provide enough depth). */}
+      {/* DESKTOP-ONLY cursor-reactive abstract particles. */}
       {!isMobile && (
         <div className="absolute inset-0">
           <InteractiveParticles count={70} influence={180} />
