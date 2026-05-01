@@ -1585,11 +1585,38 @@ html { scroll-behavior: smooth; }
         layers. We KEEP every animation — but force them onto the
         GPU compositor (transform/opacity only) and prevent the
         browser from re-rasterizing the underlying SVG geometry
-        each tick. */
-  .cs-stage,
-  .cs-stage * {
-    transform: translateZ(0);
+        each tick.
+
+        IMPORTANT: do NOT apply `transform: translateZ(0)` to every
+        descendant — that declaration OVERWRITES the static `transform:
+        translate(-50%, -50%)` centering on `.cs-card-wrap` (and the
+        margin-offsets on coins/chips when their keyframe animation
+        is paused mid-cycle), which is exactly what made the storelist
+        mobile illustration look "broken" — credit card jumped to
+        top-left, coins/chips lost their stacking. Use `will-change`
+        on the stage itself for compositor promotion instead. */
+  .cs-stage {
+    will-change: transform;
     backface-visibility: hidden;
+  }
+
+  /* SCALE the fixed-pixel pieces (coins, chips, bills, wallet stroke
+     widths) proportionally to the stage. Desktop stage is 520px and
+     these sizes were tuned for it; on mobile the stage is 260px so
+     anything in fixed px renders ~2x oversized and visually breaks
+     the layout. Using calc() against `--cs-size` keeps them
+     proportional at any size. */
+  .cs-coin {
+    width:  calc(var(--cs-size, 520px) * 0.085);
+    height: calc(var(--cs-size, 520px) * 0.085);
+    margin-left: calc(var(--cs-size, 520px) * -0.0425);
+    margin-top:  calc(var(--cs-size, 520px) * -0.0425);
+  }
+  .cs-coin svg { width: 100%; height: 100%; }
+  .cs-chip {
+    font-size: calc(var(--cs-size, 520px) * 0.022);
+    padding: calc(var(--cs-size, 520px) * 0.010) calc(var(--cs-size, 520px) * 0.020);
+    letter-spacing: 0.18em;
   }
 
   /* 4. CONTAIN LARGE OFF-SCREEN BLOCKS so layout work scales with
