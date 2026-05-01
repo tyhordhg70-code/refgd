@@ -85,28 +85,33 @@ export default function ParallaxChapter({
   return (
     <section ref={sectionRef} className={`relative isolate ${className}`}>
       {bg && (
-        disable ? (
-          <motion.div
-            aria-hidden="true"
-            initial={mounted ? { opacity: 0, y: `${intensity * 12}%`, scale: 0.97 } : { opacity: 0 }}
-            whileInView={{ opacity: 1, y: "0%", scale: 1 }}
-            viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
-            transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-            suppressHydrationWarning
-            className={`pointer-events-none z-0 ${bgClassName}`}
-          >
-            {bg}
-          </motion.div>
-        ) : (
-          <motion.div
-            aria-hidden="true"
-            style={{ y: bgY, scale: bgScale, opacity: bgOp }}
-            suppressHydrationWarning
-            className={`pointer-events-none z-0 ${bgClassName}`}
-          >
-            {bg}
-          </motion.div>
-        )
+        // OUTER wrapper: owns all positioning classes (absolute, top-/right-/
+        // -translate-y-1/2, hidden lg:block, etc) so Tailwind transform
+        // utilities aren't overridden by motion's inline transform.
+        // INNER motion wrapper: owns the parallax animation (transform/opacity).
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none z-0 ${bgClassName}`}
+        >
+          {disable ? (
+            <motion.div
+              initial={mounted ? { opacity: 0, y: `${intensity * 12}%`, scale: 0.97 } : { opacity: 0 }}
+              whileInView={{ opacity: 1, y: "0%", scale: 1 }}
+              viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
+              transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+              suppressHydrationWarning
+            >
+              {bg}
+            </motion.div>
+          ) : (
+            <motion.div
+              style={{ y: bgY, scale: bgScale, opacity: bgOp }}
+              suppressHydrationWarning
+            >
+              {bg}
+            </motion.div>
+          )}
+        </div>
       )}
       {disable ? (
         <motion.div
