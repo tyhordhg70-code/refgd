@@ -39,6 +39,24 @@ export default function SmoothScroll() {
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (prefersReducedMotion) return;
 
+    // ── Mobile / touch: skip Lenis entirely ──────────────────────────
+    // Below we already set `syncTouch: false` so Lenis does NOTHING
+    // visible on phones — iOS/Android native momentum drives every
+    // scroll. But the Lenis instance was still mounting and ticking a
+    // rAF loop EVERY frame on mobile, doing internal bookkeeping that
+    // does nothing the user can see while still stealing main-thread
+    // budget. During the Swiper cube swipe gesture this rAF was
+    // competing with Swiper's own touch handler for the same 16 ms
+    // frame slot, contributing to the "still laggy" report.
+    //
+    // Detection uses `pointer: coarse` (any device whose primary
+    // pointer is a finger) — same predicate CustomCursor uses for
+    // the inverse case. Desktops with a touchscreen + mouse stay on
+    // the smooth-wheel path because their primary pointer is fine.
+    const isCoarsePointer =
+      window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+    if (isCoarsePointer) return;
+
     const lenis = new Lenis({
       // Easing curve for wheel-driven smoothing (Lusion-style ease-out).
       // 1.05 lerp gives a smooth-but-snappy feel that doesn't lag the
