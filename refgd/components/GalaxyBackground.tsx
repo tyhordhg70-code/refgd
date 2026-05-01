@@ -39,7 +39,15 @@ export default function GalaxyBackground() {
     // In that case simply don't render — the static gradient still looks fine.
     if (typeof (canvas as any).transferControlToOffscreen !== "function") return;
 
-    const offscreen = (canvas as any).transferControlToOffscreen() as OffscreenCanvas;
+    // Guard against React StrictMode / HMR re-running this effect on
+    // the same canvas: transferControlToOffscreen() can only be called
+    // once per <canvas>, the second call throws InvalidStateError.
+    let offscreen: OffscreenCanvas;
+    try {
+      offscreen = (canvas as any).transferControlToOffscreen() as OffscreenCanvas;
+    } catch {
+      return;
+    }
     const worker = new Worker(
       new URL("../workers/galaxy.worker.js", import.meta.url),
     );
