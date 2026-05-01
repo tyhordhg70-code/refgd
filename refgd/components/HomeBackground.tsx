@@ -1,38 +1,42 @@
 "use client";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
+import { useCosmicScene } from "@/lib/cosmic-scene";
 
 /**
- * Page-wide animated cosmic background for the home page.
+ * Page-wide cosmic backdrop overlay for the home page.
  *
- * Renders a family of gradient orbs that drift behind every chapter
- * via PURE CSS keyframe animations — no scroll listeners, no
- * useTransform hooks, no per-frame re-render. The orbs already
- * float and pulse via their `.orb` class, so the page-wide field
- * stays lively without paying the per-scroll repaint cost that was
- * causing the home page to feel laggy.
+ * All cinematic decoration (planet, halo, nebulas, warp streaks,
+ * orbital rings, constellation dots) is now rendered by the shared
+ * Web-Worker WebGL canvas in <GalaxyBackground/>. This component just
+ * activates the 'home' scene for the duration of the home page and
+ * paints a soft DOM vignette to keep mid-page text legible.
  *
- * Sits between <GalaxyBackground/> (z-0) and the page content (z-2).
+ * Removed in this rewrite:
+ *   • Desktop CSS orb stack (4 × 50vh blurred radial-gradients with
+ *     mix-blend-mode:screen + filter:blur(120px) — extreme compositor
+ *     cost on mobile and unnecessary now that the WebGL nebula clouds
+ *     are full-spec on every viewport).
+ *   • Mobile lite-nebula stack (3 large drifting CSS gradients) and
+ *     the 35 individually-positioned twinkling DOM stars. The worker
+ *     now bumps mobile to 1500 in-canvas stars + 3 GLSL fbm-noise
+ *     nebulas + warp streaks, all on the GPU. This was previously
+ *     rendered in the DOM because the worker was under-utilised on
+ *     mobile (only 160 stars). With the worker rebuilt that fallback
+ *     is no longer needed and removing it eliminates the last
+ *     scroll-time recomposite of a 3-layer mobile stack.
  *
- * ── Mobile ────────────────────────────────────────────────────────
- * The orbs use `mix-blend-mode: screen` + `filter: blur(120px)` on a
- * fixed full-viewport layer — that combo is the same compositor
- * killer pattern we removed from PulsatingOverlay. On mobile GPUs
- * this forces a full-viewport recomposite on every scroll frame.
- * The galaxy WebGL background + the per-section gradients already
- * provide plenty of cosmic colour on mobile, so we drop the orbs
- * entirely on viewports ≤ 768 px and keep only the vignette.
+ * Net effect: zero per-scroll repaint cost from this component on
+ * mobile, while the visual richness goes UP (real WebGL nebulas vs
+ * blurred CSS gradients).
  */
 export default function HomeBackground() {
+  // Activate the worker's "home" scene (planet + halo + nebulas +
+  // warp streaks) for as long as this component is mounted.
+  useCosmicScene("home");
+
   const [mounted, setMounted] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     setMounted(true);
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(max-width: 768px)");
-    const sync = () => setIsMobile(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
   }, []);
 
   if (!mounted) return null;
@@ -43,7 +47,8 @@ export default function HomeBackground() {
       data-testid="home-background"
       className="pointer-events-none fixed inset-0 z-[1] overflow-hidden"
     >
-      {/* Soft vignette that keeps the centre of the page legible. */}
+      {/* Soft vignette that keeps the centre of the page legible.
+          This is the ONLY paint now — the rest is GPU/WebGL. */}
       <div
         className="absolute inset-0"
         style={{
@@ -51,149 +56,6 @@ export default function HomeBackground() {
             "radial-gradient(ellipse at 50% 40%, transparent 35%, rgba(4,3,12,0.45) 100%)",
         }}
       />
-
-      {/* Orbs animate purely via .orb CSS keyframes — see globals.css.
-          Skipped on mobile to drop a full-viewport mix-blend + 120px
-          blur stack that the mobile compositor cannot afford. */}
-      {!isMobile && (
-        <>
-          <div className="orb orb-1 absolute left-[6%] top-[8%] h-[55vh] w-[55vh] rounded-full" />
-          <div className="orb orb-2 absolute right-[4%] top-[18%] h-[50vh] w-[50vh] rounded-full" />
-          <div className="orb orb-3 absolute left-[30%] top-[55%] h-[48vh] w-[48vh] rounded-full" />
-          <div className="orb orb-4 absolute right-[24%] top-[78%] h-[40vh] w-[40vh] rounded-full" />
-        </>
-      )}
-
-      {/* ── Mobile cosmic field ──
-          Replaces the WebGL Galaxy + the heavy orb stack for the
-          phone with three layers of pure CSS:
-
-          1. ~3 huge, very faint, slowly drifting NEBULA gradients.
-             Each is a single radial-gradient div animated only on
-             `transform: translate3d(...)` over 60-90 s. The GPU
-             owns the entire animation; the main thread is never
-             woken up. These give the page real depth, like soft
-             clouds of coloured cosmic dust.
-
-          2. ~50 small twinkling STARS. Each star animates only
-             `opacity` (the cheapest property the compositor can
-             animate). 50 of them cost roughly the same as 50
-             static divs, but together they restore a real star
-             field feel.
-
-          3. A small set of warm/cool tinted ACCENT stars with a
-             slightly larger glow, scattered through the field for
-             visual interest.
-
-          Distributed across 350 vh so the field follows the user
-          down the entire page. */}
-      {isMobile && (
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0"
-          style={{
-            height: "100vh",
-            // Force the entire cosmic field into ONE cached
-            // compositor layer. With this, the GPU rasterises the
-            // nebulas + 35 stars exactly once and reuses the
-            // bitmap for every subsequent frame — horizontal
-            // scrolls of the path-card carousel above never
-            // invalidate it. This is the actual performance fix
-            // (the previous attempt promoted each star to its own
-            // layer instead, which added compositor overhead).
-            transform: "translateZ(0)",
-            willChange: "transform",
-            contain: "strict",
-          }}
-        >
-          {/* Nebula 1 — warm violet, top half */}
-          <div
-            className="lite-nebula"
-            style={
-              {
-                left: "-10%",
-                top: "5vh",
-                width: "120vw",
-                height: "70vh",
-                background:
-                  "radial-gradient(ellipse at 50% 50%, rgba(180,90,255,0.22), rgba(120,60,220,0.08) 40%, transparent 70%)",
-                "--nebula-dur": "75s",
-                "--nebula-x": "10vw",
-                "--nebula-y": "-4vh",
-              } as CSSProperties
-            }
-          />
-          {/* Nebula 2 — warm gold, mid */}
-          <div
-            className="lite-nebula"
-            style={
-              {
-                right: "-15%",
-                top: "90vh",
-                width: "130vw",
-                height: "80vh",
-                background:
-                  "radial-gradient(ellipse at 50% 50%, rgba(255,180,90,0.16), rgba(255,140,60,0.06) 45%, transparent 75%)",
-                "--nebula-dur": "90s",
-                "--nebula-x": "-12vw",
-                "--nebula-y": "6vh",
-              } as CSSProperties
-            }
-          />
-          {/* Nebula 3 — cool teal, lower */}
-          <div
-            className="lite-nebula"
-            style={
-              {
-                left: "-5%",
-                top: "200vh",
-                width: "120vw",
-                height: "80vh",
-                background:
-                  "radial-gradient(ellipse at 50% 50%, rgba(70,180,220,0.18), rgba(40,120,200,0.06) 45%, transparent 75%)",
-                "--nebula-dur": "80s",
-                "--nebula-x": "8vw",
-                "--nebula-y": "-5vh",
-              } as CSSProperties
-            }
-          />
-
-          {/* Star field — 35 dots (cached in single layer above) */}
-          {Array.from({ length: 35 }).map((_, i) => {
-            const seed = i * 9301 + 49297;
-            const left = (seed * 13) % 100;
-            const topPct = (seed * 7) % 100;
-            const sizeRaw = (seed * 3) % 30;
-            const size = 1 + (sizeRaw % 3); // 1-3 px
-            const dur = 4 + ((seed >> 3) % 5); // 4-8 s
-            const delay = ((seed >> 5) % 50) / 10; // 0-5 s
-            const tint =
-              i % 5 === 0
-                ? "rgba(255, 215, 130, 0.95)" // warm gold accent
-                : i % 7 === 0
-                  ? "rgba(180, 200, 255, 0.95)" // cool blue accent
-                  : "#ffffff";
-            const glow = i % 5 === 0 || i % 7 === 0 ? size * 5 : size * 3;
-            return (
-              <span
-                key={i}
-                className="lite-star"
-                style={
-                  {
-                    left: `${left}%`,
-                    top: `${topPct}%`,
-                    width: `${size}px`,
-                    height: `${size}px`,
-                    background: tint,
-                    boxShadow: `0 0 ${glow}px ${tint}`,
-                    "--lite-star-dur": `${dur}s`,
-                    "--lite-star-delay": `${delay}s`,
-                  } as CSSProperties
-                }
-              />
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
