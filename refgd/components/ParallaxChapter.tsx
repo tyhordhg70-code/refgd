@@ -59,16 +59,23 @@ export default function ParallaxChapter({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // disable continuous scroll-driven parallax when:
+  // disable continuous scroll-driven parallax only when:
   //   - user prefers reduced motion
   //   - admin is editing (caret positioning relies on no transform parents)
-  //   - we're on mobile (iPhone Safari can't sustain per-scroll
-  //     useTransform alongside the worker + KineticText)
-  const disable = reduced || editing || isMobile;
+  //
+  // Mobile NOW also gets scroll-driven parallax (with reduced intensity)
+  // because users explicitly asked for the old scroll-linked feel back
+  // and they primarily test on iPhone. We damp the per-frame transform
+  // ranges so the GPU has less work and Safari stays smooth.
+  const disable = reduced || editing;
 
-  // Scroll-driven (desktop) — track the section's progress through the
-  // viewport from "section bottom enters viewport bottom" to
-  // "section top exits viewport top".
+  // Effective intensity — mobile uses 60% of the requested intensity
+  // so the parallax is felt but doesn't overwhelm the small viewport.
+  const eff = isMobile ? intensity * 0.6 : intensity;
+
+  // Scroll-driven — track the section's progress through the viewport
+  // from "section bottom enters viewport bottom" to "section top exits
+  // viewport top".
   const sectionRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -77,10 +84,10 @@ export default function ParallaxChapter({
 
   // Background drifts down + scales up over the section's scroll range.
   // Foreground gently lifts.
-  const bgY     = useTransform(scrollYProgress, [0, 1], [`-${intensity * 14}%`, `${intensity * 14}%`]);
-  const bgScale = useTransform(scrollYProgress, [0, 0.5, 1], [0.94, 1.0, 1.06]);
+  const bgY     = useTransform(scrollYProgress, [0, 1], [`-${eff * 14}%`, `${eff * 14}%`]);
+  const bgScale = useTransform(scrollYProgress, [0, 0.5, 1], [isMobile ? 0.97 : 0.94, 1.0, isMobile ? 1.03 : 1.06]);
   const bgOp    = useTransform(scrollYProgress, [0, 0.15, 0.85, 1], [0, 1, 1, 0.7]);
-  const fgY     = useTransform(scrollYProgress, [0, 1], [intensity * 22, -intensity * 22]);
+  const fgY     = useTransform(scrollYProgress, [0, 1], [eff * 22, -eff * 22]);
 
   return (
     <section ref={sectionRef} className={`relative isolate ${className}`}>
