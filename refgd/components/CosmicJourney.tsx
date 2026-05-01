@@ -56,27 +56,29 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // Tiny scroll listener — only updates the scroll indicator opacity.
-  // Cost: 1 getBoundingClientRect + 1 style write per scroll frame.
+  // Scroll indicator: was a per-scroll-event getBoundingClientRect + style
+  // write (cheap individually, but iOS Safari fires scroll events at very
+  // high frequency and even bounded layout reads contend for the main
+  // thread mid-flick). Replaced with an IntersectionObserver pair that
+  // toggles the indicator only at the section-top threshold — zero
+  // per-scroll JS while the user is mid-flick.
   useEffect(() => {
     const section = sectionRef.current;
     const scrollInd = scrollIndRef.current;
     if (!section || !scrollInd) return;
-    let lastInd = -1;
-    const update = () => {
-      const rect = section.getBoundingClientRect();
-      const sectionH = section.offsetHeight;
-      const viewH = window.innerHeight;
-      const raw = -rect.top / Math.max(1, sectionH - viewH);
-      const progress = raw < 0 ? 0 : raw > 1 ? 1 : raw;
-      const ind = Math.max(0, Math.min(1, 1 - progress / 0.06));
-      if (Math.abs(ind - lastInd) < 0.005) return;
-      lastInd = ind;
-      scrollInd.style.opacity = ind.toFixed(4);
-    };
-    window.addEventListener("scroll", update, { passive: true });
-    update();
-    return () => window.removeEventListener("scroll", update);
+    // Visible only while the section's top edge is within the top 6% of the
+    // viewport (i.e. the user has just landed on the home hero and hasn't
+    // started scrolling away yet).
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          scrollInd.style.opacity = e.isIntersecting ? "1" : "0";
+        }
+      },
+      { rootMargin: "0px 0px -94% 0px", threshold: 0 },
+    );
+    io.observe(section);
+    return () => io.disconnect();
   }, []);
 
   return (
