@@ -16,6 +16,7 @@ import EditableText from "@/components/EditableText";
 import GlassCard from "@/components/GlassCard";
 import VanishWrapper from "@/components/VanishWrapper";
 import ExplodeText from "@/components/ExplodeText";
+import SceneActivator from "@/components/SceneActivator";
 
 export const metadata = {
   title: "Exclusive Mentorships — RefundGod",
@@ -78,6 +79,10 @@ const EMOTIONS = ["Fear", "Excitement", "Curiosity", "Anger", "Guilt", "Sadness"
 export default function MentorshipsPage() {
   return (
     <div className="relative">
+      {/* Activate the worker's "mentorship" scene (warm gold + violet
+          aurora curtain) for as long as this page is mounted. Renders
+          into the shared WebGL canvas behind everything else. */}
+      <SceneActivator name="mentorship" />
       {/* Page-scoped cosmic backdrop + abstract liquid bubbles */}
       <CosmicBackground />
       <LiquidParticles count={14} />
