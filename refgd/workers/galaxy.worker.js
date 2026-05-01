@@ -66,6 +66,10 @@ self.onmessage = ({ data }) => {
 
 function setActiveScenes(names) {
   activeScenes.clear();
+  // globalField is always-on regardless of incoming page request,
+  // so the cosmic point cloud is never accidentally turned off
+  // between page transitions.
+  activeScenes.add("globalField");
   for (const n of names) activeScenes.add(n);
   for (const k of Object.keys(sceneRegistry)) {
     sceneRegistry[k].group.visible = activeScenes.has(k);
