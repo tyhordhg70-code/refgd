@@ -78,6 +78,7 @@ export default function LoadingScreen() {
     let rafId = 0;
     let timerA = 0;
     let timerB = 0;
+    let timerC = 0;
 
     // ── REAL trackers ──────────────────────────────────────────────
     const state = {
@@ -320,13 +321,25 @@ export default function LoadingScreen() {
 
       timerA = window.setTimeout(() => {
         setVisible(false);
-        // Tell deferred entrance animations (CosmicJourney welcome
+        // v6.10.3: gated entrance animations (CosmicJourney welcome
         // headline, GlassCard / PathCard / MeshEntrance / etc. via
-        // useEntranceReady) that the overlay is about to lift so
-        // they don't burn their first play behind a full-screen
-        // blocker. markLoadingComplete clears the gate flag and
-        // dispatches `refgd:loading-complete` in one call.
-        markLoadingComplete();
+        // useEntranceReady) used to fire HERE — i.e. at the moment
+        // the splash STARTS its 800 ms opacity fade. The result:
+        // each entrance ran its 1.0 s reveal behind a still-mostly-
+        // opaque splash, finishing ~80 %% of the way through the fade.
+        // By the time the splash was fully gone the welcome was
+        // already nearly settled, so the user perceived it as
+        // "welcome text delayed and animation not visible on page
+        // load — but visible after returning to home from another
+        // page" (back-nav re-mounts with the gate already open, so
+        // the entrance plays cleanly there).
+        //
+        // Now we wait 820 ms (the full 800 ms CSS opacity transition
+        // plus a 20 ms safety margin) AFTER setVisible(false) before
+        // firing the gate. By then the splash is fully transparent
+        // and the welcome reveal runs visibly on a clean backdrop.
+        // timerC carries this so it's properly cleared on unmount.
+        timerC = window.setTimeout(markLoadingComplete, 820);
       }, 280);
       timerB = window.setTimeout(() => {
         setRemoved(true);
@@ -341,6 +354,7 @@ export default function LoadingScreen() {
       clearTimeout(discoverTimer);
       clearTimeout(timerA);
       clearTimeout(timerB);
+      clearTimeout(timerC);
       window.removeEventListener("load", onWindowLoad);
       document.body.style.overflow = prevOverflow;
       document.body.style.touchAction = prevTouchAction;
