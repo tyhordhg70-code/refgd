@@ -11,7 +11,7 @@ import {
 } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { EffectCube, Pagination } from "swiper/modules";
+import { EffectCards, Pagination } from "swiper/modules";
 import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
@@ -245,11 +245,24 @@ function MobileFloatOrbs() {
 }
 
 /* ── SwiperCubeStage ─────────────────────────────────────────────
- * Wraps Swiper with EffectCube + Pagination modules. Each slide
- * is one path card, rendered in noReveal mode (flat, no extra
- * motion wrappers). The cube container is sized to the viewport
- * minus side padding; cubeEffect.shadow=true adds a soft floor
- * shadow that reads as the cube sitting on a surface.
+ * v6.10 (2026-05): switched from EffectCube to EffectCards.
+ *
+ * Why: a Swiper cube has only FOUR rotatable side faces (it's a
+ * cube). The home page now has FIVE path cards (Refund Store List,
+ * Evade Cancelations, Exclusive Mentorships, Shop Methods, BUY 4
+ * YOU). With 5 slides on a 4-face cube, Swiper could rotate to
+ * cards 1 and 2 but physically had nowhere to put cards 3-5 — the
+ * cube would refuse to advance past slide 2 and the user reported
+ * exactly that ("can't scroll past card 2") plus "illustrations
+ * gone" (the unreachable cards 3-5 contained the illustrations
+ * the user expected to swipe to).
+ *
+ * EffectCards (Swiper's stacked-deck effect) supports an
+ * arbitrary number of slides — they sit in a tactile card stack
+ * and the top card swipes off to reveal the next. The user can
+ * cycle through all 5 path cards with no face-count limit. The
+ * effect is GPU-only (CSS transforms) so the per-frame cost is
+ * the same as the cube was.
  */
 function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -337,22 +350,11 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
       }}
     >
       <Swiper
-        effect="cube"
-        modules={[EffectCube, Pagination]}
-        // ── loop disabled ──
-        // Swiper's EffectCube was designed for 4 cube faces. With 5
-        // slides + loop=true Swiper duplicates slides at both ends to
-        // create the illusion of an infinite cube, but the cube
-        // rotation maths assumes a single set of N faces; the
-        // duplicated slides land at the SAME rotational position as
-        // a "real" slide. The user reported this as "can't scroll
-        // right past card 2" — Swiper would advance to slide 2,
-        // try to advance to a duplicated slide 1' overlapping the
-        // real slide 1, fail to commit, and snap back. Disabling
-        // loop makes the cube an honest 5-face polyhedron that
-        // rotates 1→2→3→4→5 cleanly. The cube cannot rotate past
-        // slide 5 (and pagination dots make the bounds obvious),
-        // which is the standard mobile-carousel UX.
+        effect="cards"
+        modules={[EffectCards, Pagination]}
+        // EffectCards has no face-count limit — it's a stacked card
+        // deck, so all 5 path cards live in the stack at once and
+        // swipe through 1→2→3→4→5 with no physical bound issue.
         loop={false}
         grabCursor
         speed={520}
@@ -396,21 +398,18 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         resistanceRatio={0.55}
         onSwiper={(s) => setActiveIndex(s.realIndex)}
         onSlideChange={(s) => setActiveIndex(s.realIndex)}
-        // Cube depth — slideShadows give each face a subtle dark
-        // sheen as it rotates away from the camera, which is what
-        // sells the "this is a 3D cube" gesture. shadow draws the
-        // soft floor shadow under the rotating cube. Both are
-        // GPU-composited by Swiper (CSS transforms only) so they
-        // cost nothing on the JS thread during the swipe.
-        cubeEffect={{
-          // Mobile-only cube: no floor shadow, no slide shadows.
-          // The cube wrapper already has its own backdrop styling
-          // and the slide shadows added a per-frame compositor pass
-          // that wasn't worth the visual on a 6.1" screen.
-          shadow: false,
+        // EffectCards stack tuning. perSlideOffset=8 stacks the
+        // back cards 8 px behind the top card so the user can see
+        // there's a deck behind it. perSlideRotate=2 gives each
+        // back card a tiny 2° rotation so the stack looks tactile
+        // (like a real deck of cards on a table). slideShadows off
+        // because the path cards already have their own gradient
+        // ring and accent glow — extra shadow muddies the look.
+        cardsEffect={{
+          perSlideOffset: 8,
+          perSlideRotate: 2,
+          rotate: true,
           slideShadows: false,
-          shadowOffset: 24,
-          shadowScale: 0.92,
         }}
         pagination={{ clickable: true }}
         className="h-full w-full"
