@@ -192,16 +192,29 @@ export default function AnimatedTelegramBox() {
                   so the mesh subtly breathes/melts in place rather than
                   sitting as a static geometric primitive. */}
               {!reduced && (
-                <filter id="tg-mesh-distort" x="-20%" y="-20%" width="140%" height="140%">
-                  <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="2" seed="3">
+                <filter id="tg-mesh-distort" x="-30%" y="-30%" width="160%" height="160%">
+                  <feTurbulence type="fractalNoise" baseFrequency="0.028" numOctaves="3" seed="3">
                     <animate
                       attributeName="baseFrequency"
-                      dur="7s"
-                      values="0.012;0.038;0.020;0.034;0.012"
+                      dur="6s"
+                      values="0.018;0.062;0.030;0.054;0.018"
+                      repeatCount="indefinite"
+                    />
+                    <animate
+                      attributeName="seed"
+                      dur="9s"
+                      values="3;7;11;5;3"
                       repeatCount="indefinite"
                     />
                   </feTurbulence>
-                  <feDisplacementMap in="SourceGraphic" scale="6" />
+                  <feDisplacementMap in="SourceGraphic" scale="14">
+                    <animate
+                      attributeName="scale"
+                      dur="5.5s"
+                      values="6;18;9;16;6"
+                      repeatCount="indefinite"
+                    />
+                  </feDisplacementMap>
                 </filter>
               )}
             </defs>
@@ -280,7 +293,7 @@ export default function AnimatedTelegramBox() {
                 "drop-shadow(0 0 18px rgba(34,211,238,0.45)) drop-shadow(0 0 30px rgba(245,185,69,0.25))",
               maxWidth: 560,
               maxHeight: 560,
-              opacity: 0.7,
+              opacity: 0.92,
             }}
           >
             <g filter={reduced ? undefined : "url(#tg-mesh-distort)"}>

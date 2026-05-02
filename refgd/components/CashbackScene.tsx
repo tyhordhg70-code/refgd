@@ -42,10 +42,10 @@ export default function CashbackScene({
         height: `min(${size}px, 92vw)`,
         ["--cs-size" as any]: `min(${size}px, 92vw)`,
       }}
-      initial={reduced ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.92, y: 20 }}
-      whileInView={{ opacity: 1, scale: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={reduced ? { duration: 0 } : { duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+      initial={reduced ? { opacity: 1 } : { opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true, margin: "-120px", amount: 0.15 }}
+      transition={reduced ? { duration: 0 } : { duration: 0.8, ease: "easeOut" }}
       suppressHydrationWarning
     >
       {/* AURORA HALO BACKDROP */}

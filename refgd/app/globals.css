@@ -357,28 +357,42 @@
   .pulse-glow-shadow {
     animation: none !important;
   }
+  /* Mobile static glows — REMOVED the `0 0 0 1px rgba(...)` hard
+   * ring on every variant (user complaint: "all glow animations
+   * and box cards have glow that looks weird that has borders to
+   * it doesnt look like a natural glow"). Each glow is now three
+   * concentric box-shadows of decreasing opacity that fade to
+   * fully-transparent by the outer edge — natural light falloff
+   * with no visible boundary line. */
   .pulse-glow-violet {
-    box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.40),
-                0 0 22px rgba(167, 139, 250, 0.30);
+    box-shadow: 0 0 24px rgba(167, 139, 250, 0.32),
+                0 0 56px rgba(167, 139, 250, 0.18),
+                0 0 110px rgba(167, 139, 250, 0.08);
   }
   .pulse-glow-cyan {
-    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.40),
-                0 0 22px rgba(34, 211, 238, 0.30);
+    box-shadow: 0 0 24px rgba(34, 211, 238, 0.32),
+                0 0 56px rgba(34, 211, 238, 0.18),
+                0 0 110px rgba(34, 211, 238, 0.08);
   }
   .pulse-glow-gold {
-    box-shadow: 0 0 0 1px rgba(255, 225, 140, 0.40),
-                0 0 22px rgba(255, 225, 140, 0.30);
+    box-shadow: 0 0 24px rgba(255, 225, 140, 0.32),
+                0 0 56px rgba(255, 225, 140, 0.18),
+                0 0 110px rgba(255, 225, 140, 0.08);
   }
   .pulse-glow-orange {
-    box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.40),
-                0 0 22px rgba(251, 146, 60, 0.30);
+    box-shadow: 0 0 24px rgba(251, 146, 60, 0.32),
+                0 0 56px rgba(251, 146, 60, 0.18),
+                0 0 110px rgba(251, 146, 60, 0.08);
   }
   .pulse-glow-fuchsia {
-    box-shadow: 0 0 0 1px rgba(244, 114, 182, 0.40),
-                0 0 22px rgba(244, 114, 182, 0.30);
+    box-shadow: 0 0 24px rgba(244, 114, 182, 0.32),
+                0 0 56px rgba(244, 114, 182, 0.18),
+                0 0 110px rgba(244, 114, 182, 0.08);
   }
   .pulse-glow-shadow {
-    box-shadow: 0 0 22px rgba(255, 255, 255, 0.20);
+    box-shadow: 0 0 24px rgba(255, 255, 255, 0.20),
+                0 0 56px rgba(255, 255, 255, 0.10),
+                0 0 110px rgba(255, 255, 255, 0.05);
   }
 }
 
@@ -894,8 +908,8 @@ html { scroll-behavior: smooth; }
   border-color: rgba(255,255,255,0.18);
   box-shadow:
     0 40px 90px -30px rgba(0,0,0,0.7),
-    0 0 0 1px rgba(255,255,255,0.06) inset,
-    0 0 60px -10px var(--lg-glow, rgba(167,139,250,0.45));
+    0 0 30px -8px var(--lg-glow, rgba(167,139,250,0.30)),
+    0 0 70px -12px var(--lg-glow, rgba(167,139,250,0.20));
 }
 .liquid-glass > * { position: relative; z-index: 2; }
 @media (prefers-reduced-motion: reduce) {

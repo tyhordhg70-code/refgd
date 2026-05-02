@@ -348,14 +348,30 @@ export default function MusicPlayer() {
           className="group relative grid h-12 w-12 place-items-center rounded-full text-ink-950 transition active:scale-95"
           style={{
             background: "linear-gradient(135deg, #ffe28a, #f5b945 55%, #d99520)",
+            // Diffuse multi-stop glow — three concentric shadows of
+            // decreasing opacity that fade to invisible by the outer
+            // edge. Removed the `0 0 0 1px` ring AND the `36px 6px`
+            // hard-spread halo — those were the visible "boxed-in"
+            // borders the user complained about. Now the glow just
+            // breathes outward like real light.
             boxShadow:
-              "0 0 0 1px rgba(255,225,140,0.85), 0 12px 30px -8px rgba(245,185,69,0.6), 0 0 36px 6px rgba(245,185,69,0.35)",
+              "0 12px 28px -10px rgba(245,185,69,0.55), 0 0 36px 0 rgba(245,185,69,0.28), 0 0 80px 0 rgba(245,185,69,0.16), 0 0 140px 0 rgba(245,185,69,0.08)",
           }}
         >
+          {/* Soft outer halo — a separately-blurred layer behind the
+              button so the glow has a true diffuse falloff that
+              cannot be drawn with box-shadow alone. Sits OUTSIDE the
+              button via negative inset, then filter:blur softens
+              every edge. */}
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 rounded-full"
-            style={{ animation: "pulseGlow 2.4s ease-in-out infinite" }}
+            className="pointer-events-none absolute -inset-6 rounded-full"
+            style={{
+              background:
+                "radial-gradient(circle, rgba(245,185,69,0.45) 0%, rgba(245,185,69,0.18) 35%, rgba(245,185,69,0.06) 60%, rgba(245,185,69,0) 80%)",
+              filter: "blur(10px)",
+              animation: "pulseGlow 2.4s ease-in-out infinite",
+            }}
           />
           {muted ? (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="relative">

@@ -53,9 +53,15 @@ export default function LoadingScreen() {
   // session. The whole point is to mask the cold first-paint; once the
   // user has been past it once, every subsequent route change should
   // feel instantaneous.
+  //
+  // Also skip if URL contains ?skip-loader=1 (used by e2e tests so the
+  // page content is immediately visible) or if the test agent has already
+  // set the sessionStorage key.
   const initiallySkip =
     typeof window !== "undefined" &&
-    window.sessionStorage?.getItem("refgd:loader-played") === "1";
+    (window.sessionStorage?.getItem("refgd:loader-played") === "1" ||
+      window.location.search.includes("skip-loader=1") ||
+      window.location.search.includes("skip-loader=true"));
 
   const [progress, setProgress] = useState(initiallySkip ? 100 : 0);
   const [phase, setPhase] = useState(PHASES[initiallySkip ? 4 : 0]);
@@ -502,9 +508,13 @@ export default function LoadingScreen() {
             width: 104,
             height: 104,
             borderRadius: "50%",
+            // Multi-stop radial — fades to fully-transparent so there is
+            // NO visible boundary where the glow ends. Removed the
+            // `border: 1px solid` ring that was creating a sharp 1px
+            // edge around the orb (user complaint: "you can see the
+            // borders end to glow").
             background:
-              "radial-gradient(circle at 30% 30%, rgba(255,225,140,0.42), rgba(167,139,250,0.22) 55%, transparent 100%)",
-            border: "1px solid rgba(255,225,140,0.35)",
+              "radial-gradient(circle at 30% 30%, rgba(255,225,140,0.55) 0%, rgba(255,225,140,0.32) 22%, rgba(167,139,250,0.20) 50%, rgba(167,139,250,0.08) 75%, rgba(167,139,250,0) 100%)",
             marginBottom: 28,
           }}
         >
