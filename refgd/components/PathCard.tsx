@@ -196,7 +196,21 @@ export default function PathCard({
               maskComposite: "exclude",
             }}
           />
-          <div className={`relative ${aspect} overflow-hidden ${radius}`}>
+          {/*
+            Mobile carousel inner content fills the ENTIRE Swiper cube
+            face. Previously this used `aspect-[3/4]` (=0.75 ratio)
+            inside a Swiper slide that the mobile cube sizes at
+            ~1/1.42 (=0.70 ratio) — so the inner block was ~88 % of
+            the slide height and sat anchored to the top, leaving
+            ~30 px of empty glass-strong gradient at the bottom of
+            every card. The user reported that as "path cards still
+            missing illustrations": the illustration WAS rendering,
+            it just wasn't filling the visible card face on mobile,
+            so the bottom third of each card looked blank. Switching
+            to `h-full w-full` makes the illustration + tint + chip +
+            title fill the whole card face every time.
+          */}
+          <div className={`relative h-full w-full overflow-hidden ${radius}`}>
             <div className={`absolute inset-0 bg-gradient-to-br ${BG_TINT[accent]}`} />
             <PathIllustration kind={illustration} accent={accent} animated={animated} />
             <div

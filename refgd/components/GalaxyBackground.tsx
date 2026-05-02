@@ -100,11 +100,22 @@ export default function GalaxyBackground() {
             "linear-gradient(to bottom, rgb(5,6,10) 0%, rgba(5,6,10,0.92) 25%, rgba(5,6,10,0.5) 60%, transparent 100%)",
         }}
       />
+      {/* Bottom vignette darkens the lower 55vh so foreground text/cards
+          read on top of stars. Endpoint MUST match body `bg-ink-950`
+          (#05060a) — previously this gradient ended at `rgb(10,12,20)`
+          (#0a0c14, ink-900). The 4-point lightness step between this
+          fixed-position vignette and the body bg below the page rendered
+          as a slightly-lighter horizontal band glued to the bottom 55vh
+          of the viewport. As the user scrolled the welcome screen on
+          mobile, that band visibly slid down/up and read as a "small
+          black strip overlay on bottom" against the slightly-lighter
+          welcome backdrop. Aligning all stops to rgb(5,6,10) removes
+          the step so the vignette dissolves invisibly into body bg. */}
       <div
         className="absolute inset-x-0 bottom-0 h-[55vh]"
         style={{
           background:
-            "linear-gradient(to top, rgb(10,12,20) 0%, rgba(10,12,20,0.95) 22%, rgba(10,12,20,0.65) 55%, transparent 100%)",
+            "linear-gradient(to top, rgb(5,6,10) 0%, rgba(5,6,10,0.95) 22%, rgba(5,6,10,0.65) 55%, transparent 100%)",
         }}
       />
     </div>

@@ -4,6 +4,7 @@ import {
   cloneElement,
   isValidElement,
   useEffect,
+  useRef,
   useState,
   type ReactElement,
   type ReactNode,
@@ -252,16 +253,77 @@ function MobileFloatOrbs() {
  */
 function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isMobile, setIsMobile] = useState(false);
+
+  // ── Capture-phase vertical-scroll release ──────────────────────
+  // Even with `touchAngle: 30` set on Swiper below, on iOS Safari
+  // Swiper's bubble-phase touchmove handler still consumes the
+  // first ~5-10 px of any gesture before its own angle filter
+  // kicks in. That ate enough of a real horizontal flick that the
+  // cube couldn't commit past slide 2 — Swiper would see the
+  // first chunk of the gesture, partially rotate, then end the
+  // touch before reaching its `longSwipesRatio` threshold.
+  //
+  // Fix: attach our own capture-phase touchstart/touchmove on the
+  // cube wrapper. We classify a gesture as vertical ONLY when:
+  //   • total motion ≥ 12 px (avoid jitter), AND
+  //   • |dy| > |dx| × 1.7 (clearly vertical, not just slightly), AND
+  //   • |dy| ≥ 10 px of vertical travel.
+  // Anything else (every reasonable horizontal flick) flows
+  // through to Swiper untouched and rotates the cube cleanly.
+  // Vertical scrolls past the threshold release immediately via
+  // stopImmediatePropagation, so the page's pan-y scroll wins.
+  const trackRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
-    const sync = () => setIsMobile(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
+    const el = trackRef.current;
+    if (!el) return;
+    let startX = 0;
+    let startY = 0;
+    let decided: "h" | "v" | null = null;
+
+    const onStart = (e: TouchEvent) => {
+      if (!e.touches[0]) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      decided = null;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!e.touches[0]) return;
+      if (decided === "h") return;
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+      const ax = Math.abs(dx);
+      const ay = Math.abs(dy);
+      if (decided === "v") {
+        e.stopImmediatePropagation();
+        return;
+      }
+      if (ax + ay < 12) return;
+      if (ay > ax * 1.7 && ay >= 10) {
+        decided = "v";
+        e.stopImmediatePropagation();
+      } else {
+        decided = "h";
+      }
+    };
+    const onEnd = () => {
+      decided = null;
+    };
+
+    el.addEventListener("touchstart", onStart, { capture: true, passive: true });
+    el.addEventListener("touchmove", onMove, { capture: true, passive: true });
+    el.addEventListener("touchend", onEnd, { capture: true, passive: true });
+    el.addEventListener("touchcancel", onEnd, { capture: true, passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onStart, { capture: true } as EventListenerOptions);
+      el.removeEventListener("touchmove", onMove, { capture: true } as EventListenerOptions);
+      el.removeEventListener("touchend", onEnd, { capture: true } as EventListenerOptions);
+      el.removeEventListener("touchcancel", onEnd, { capture: true } as EventListenerOptions);
+    };
   }, []);
+
   return (
     <div
+      ref={trackRef}
       data-testid="paths-mobile-track"
       className="cube-float mx-auto"
       style={{
@@ -277,9 +339,27 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
       <Swiper
         effect="cube"
         modules={[EffectCube, Pagination]}
-        loop
+        // ── loop disabled ──
+        // Swiper's EffectCube was designed for 4 cube faces. With 5
+        // slides + loop=true Swiper duplicates slides at both ends to
+        // create the illusion of an infinite cube, but the cube
+        // rotation maths assumes a single set of N faces; the
+        // duplicated slides land at the SAME rotational position as
+        // a "real" slide. The user reported this as "can't scroll
+        // right past card 2" — Swiper would advance to slide 2,
+        // try to advance to a duplicated slide 1' overlapping the
+        // real slide 1, fail to commit, and snap back. Disabling
+        // loop makes the cube an honest 5-face polyhedron that
+        // rotates 1→2→3→4→5 cleanly. The cube cannot rotate past
+        // slide 5 (and pagination dots make the bounds obvious),
+        // which is the standard mobile-carousel UX.
+        loop={false}
         grabCursor
         speed={520}
+        // touchAngle: 30 — Swiper's own filter for vertical-leaning
+        // gestures. Combined with our capture-phase listener above
+        // this gives belt-and-braces release for vertical scrolls.
+        touchAngle={30}
         // ── Touch sensitivity tuning ─────────────────────────────────
         // Default Swiper requires the user to drag past 50% of the
         // slide width (longSwipesRatio: 0.5) OR have ~300 ms+ of
@@ -323,8 +403,12 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         // GPU-composited by Swiper (CSS transforms only) so they
         // cost nothing on the JS thread during the swipe.
         cubeEffect={{
+          // Mobile-only cube: no floor shadow, no slide shadows.
+          // The cube wrapper already has its own backdrop styling
+          // and the slide shadows added a per-frame compositor pass
+          // that wasn't worth the visual on a 6.1" screen.
           shadow: false,
-          slideShadows: !isMobile,
+          slideShadows: false,
           shadowOffset: 24,
           shadowScale: 0.92,
         }}
