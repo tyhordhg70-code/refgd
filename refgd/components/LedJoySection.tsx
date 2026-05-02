@@ -34,13 +34,13 @@ export default function LedJoySection() {
     <section
       ref={ref}
       aria-label="Ahhh, feel the joy of cashback"
-      /* User request: section was a full 100svh which left a lot of empty
-         vertical space above and below the LED text. Reduced to 60svh
-         so the beat plays tightly between the hero and Act 2 instead
-         of forcing a near-full viewport scroll past empty room. Also
-         dropped the heavy py default so the AHHHH sign sits higher
-         in the viewport (visible immediately on entry). */
-      className="relative isolate flex min-h-[60svh] w-full items-center justify-center overflow-hidden py-6 sm:py-10"
+      /* User reported the section still felt too tall with too much
+         empty space. Shrunk again to 32svh mobile / 26svh desktop —
+         enough room for the giant LED letters and the tagline beneath,
+         with no empty padding bleeding into the next chapter. The
+         entrance animation below now uses a larger overshoot + shake
+         so the impact feels harder against the smaller container. */
+      className="relative isolate flex min-h-[32svh] w-full items-center justify-center overflow-hidden py-3 sm:min-h-[26svh] sm:py-5"
     >
 
       <div className="container-wide relative z-10 grid place-items-center text-center">
@@ -62,11 +62,30 @@ export default function LedJoySection() {
           {ahhLetters.map((ch, i) => (
             <motion.span
               key={i}
-              initial={reduce ? { opacity: 1 } : { opacity: 0, x: 360, skewX: -28 }}
-              animate={inView ? { opacity: 1, x: 0, skewX: 0 } : undefined}
+              initial={
+                reduce
+                  ? { opacity: 1 }
+                  : { opacity: 0, x: 720, skewX: -55, scale: 0.45, filter: "blur(12px)" }
+              }
+              animate={
+                inView
+                  ? {
+                      opacity: 1,
+                      // Overshoot keyframes: slam past, snap back.
+                      // First number is the in-flight target, second is
+                      // the resting position. The brief overshoot reads
+                      // as a hard stop / shake on impact.
+                      x: [720, -22, 0],
+                      skewX: [-55, 8, 0],
+                      scale: [0.45, 1.18, 1],
+                      filter: ["blur(12px)", "blur(0px)", "blur(0px)"],
+                    }
+                  : undefined
+              }
               transition={{
-                duration: 0.32,
-                delay: i * 0.07,
+                duration: 0.55,
+                delay: i * 0.045,
+                times: [0, 0.7, 1],
                 ease: [0.16, 1, 0.3, 1],
               }}
               className="inline-block"

@@ -3,32 +3,38 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef, type ReactNode } from "react";
 
 /**
- * VanishWrapper — wraps a block of cards / content so it fades IN
- * as it enters the viewport, holds visible while in view, and fades
- * BACK OUT as it exits. On scroll reverse, the cycle plays in reverse,
- * so the block "vanishes and reappears" as the user moves up and down.
+ * VanishWrapper — soft fade-in / fade-out wrapper.
  *
- * The opacity / scale curve is keyed off the wrapper's own scroll
- * progress (0 → 1 across [start end] → [end start]):
- *   0.00 → 0.18 : fade IN
- *   0.18 → 0.78 : fully visible
- *   0.78 → 1.00 : fade OUT
+ * History: previous version drove opacity all the way to 0 at the
+ * scroll-progress extremes (0 and 1). For TALL content blocks on the
+ * mentorship page (e.g. "What's Included" with a sticky illustration
+ * column on the left and a long BounceList on the right) the wrapper's
+ * scroll progress reached the edges of [start end] / [end start] WHILE
+ * the cards were still in the visible viewport, so they "vanished and
+ * reappeared" mid-scroll. The fade was correct mathematically but
+ * read to the user as a rendering bug.
  *
- * Combined with a slight scale + Y drift so the entrance / exit feel
- * physical instead of a flat alpha cut.
+ * Fix: keep the parallax motion but never let opacity drop below 0.85.
+ * The block now glides in/out with a subtle drift+scale, but stays
+ * fully readable the entire time. Cards no longer disappear when the
+ * sticky column re-pins. If you really want a vanish, pass
+ * `minOpacity={0}` explicitly.
  */
 export default function VanishWrapper({
   children,
   className = "",
   /** How much vertical drift on entry/exit, in pixels. */
-  drift = 36,
+  drift = 24,
   /** Minimum scale at the fade-in / fade-out edges. */
-  minScale = 0.94,
+  minScale = 0.97,
+  /** Minimum opacity at the fade-in / fade-out edges (0–1). */
+  minOpacity = 0.85,
 }: {
   children: ReactNode;
   className?: string;
   drift?: number;
   minScale?: number;
+  minOpacity?: number;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const { scrollYProgress } = useScroll({
@@ -38,17 +44,17 @@ export default function VanishWrapper({
 
   const opacity = useTransform(
     scrollYProgress,
-    [0, 0.18, 0.78, 1],
-    [0, 1, 1, 0]
+    [0, 0.12, 0.88, 1],
+    [minOpacity, 1, 1, minOpacity]
   );
   const y = useTransform(
     scrollYProgress,
-    [0, 0.18, 0.78, 1],
+    [0, 0.12, 0.88, 1],
     [drift, 0, 0, -drift]
   );
   const scale = useTransform(
     scrollYProgress,
-    [0, 0.18, 0.78, 1],
+    [0, 0.12, 0.88, 1],
     [minScale, 1, 1, minScale]
   );
 

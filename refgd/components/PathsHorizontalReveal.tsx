@@ -251,7 +251,11 @@ function MobileFloatOrbs() {
  * shadow that reads as the cube sitting on a surface.
  */
 function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
-  const [activeIndex, setActiveIndex] = useState(0);
+  // activeIndex was previously read to selectively un-freeze framer-motion
+  // animations on the visible slide; now we freeze every slide on mobile, so
+  // we only need the setter for Swiper's onSlideChange (kept in case future
+  // pagination/analytics work needs it).
+  const [, setActiveIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
@@ -272,6 +276,15 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         // GPU layer for the whole stage; nothing outside is
         // affected by the cube's 3D context.
         transform: "translateZ(0)",
+        // Critical for Android: tell the browser that vertical drags
+        // belong to page scroll, not to the swiper. Without this, the
+        // cube swallows every touch on its surface area and the user
+        // gets stuck on pathcard 2 — they can't scroll the page past
+        // the carousel because every vertical drag is consumed by the
+        // cube's gesture handler. `pan-y` lets vertical drags bubble
+        // to the document; `touchAngle: 35` below tells Swiper to
+        // treat anything more vertical than 35° as "not a swipe".
+        touchAction: "pan-y",
       }}
     >
       <Swiper
@@ -280,6 +293,12 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         loop
         grabCursor
         speed={520}
+        // Only treat finger drags within ±35° of horizontal as swipes.
+        // Anything more vertical than that is left alone so the page
+        // scrolls normally. Pairs with `touch-action: pan-y` on the
+        // wrapper above; together they fix the Android "can't scroll
+        // past pathcard 2" report.
+        touchAngle={35}
         // ── Touch sensitivity tuning ─────────────────────────────────
         // Default Swiper requires the user to drag past 50% of the
         // slide width (longSwipesRatio: 0.5) OR have ~300 ms+ of
@@ -314,6 +333,26 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         shortSwipes
         followFinger
         resistanceRatio={0.55}
+        // ── Android "stuck on pathcard 2" hardening ─────────────────
+        // Swiper defaults to `touchStartPreventDefault: true`, which
+        // calls preventDefault() on touchstart. On Android Chrome
+        // that prevents the browser from EVER deciding the gesture
+        // is a vertical scroll — once Swiper grabs the touch it
+        // owns it for life, even if the user is dragging straight
+        // down. Setting it to false lets the browser do its native
+        // intention detection, and then `touchAngle: 35` above
+        // tells Swiper to release any touch that turns out to be
+        // more vertical than 35°.
+        touchStartPreventDefault={false}
+        // Don't capture every pointerdown across the full container
+        // surface — only the inner wrapper (the cube faces). The
+        // 4-card-wide gutter around the cube stays scroll-pass-through.
+        touchEventsTarget="wrapper"
+        // Honour native browser scroll detection alongside Swiper's.
+        // Without this, the cube can latch the touch even when the
+        // user clearly meant to scroll the page.
+        passiveListeners
+        nested
         onSwiper={(s) => setActiveIndex(s.realIndex)}
         onSlideChange={(s) => setActiveIndex(s.realIndex)}
         // Cube depth — slideShadows give each face a subtle dark
@@ -335,11 +374,14 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
           const renderedCard = isValidElement(card)
             ? cloneElement(card as ReactElement<{ noReveal?: boolean; animated?: boolean }>, {
                 noReveal: true,
-                // Only the currently visible slide gets live animations.
-                // Others are frozen by PathIllustration's MotionConfig gate,
-                // reducing concurrent framer-motion rAF callbacks from
-                // ~125 (5 slides × 25 animations) to ~25 (1 active slide).
-                animated: i === activeIndex,
+                // Mobile carousel: freeze EVERY slide (active + inactive) via
+                // PathIllustration's MotionConfig gate. Each PathIllustration
+                // has 24 infinite framer-motion timelines that fight scroll on
+                // the main thread; even one active slide kept iPhone Safari
+                // pinned at 20–30fps. The carousel's swipe motion already
+                // supplies all the kinaesthetic feedback — the per-element SVG
+                // micro-animations were invisible mid-swipe anyway.
+                animated: false,
               })
             : card;
           return (

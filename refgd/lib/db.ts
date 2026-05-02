@@ -39,9 +39,14 @@ function createPool(): Pool {
   const cleanUrl = url.replace(/[?&]sslmode=[^&]*/g, (match) =>
     match.startsWith("?") ? "?" : "",
   ).replace(/\?&/, "?").replace(/\?$/, "");
+  // Local Postgres (Replit dev DB, docker, localhost) doesn't speak SSL.
+  // Detect by hostname or PGHOST and disable SSL only in those cases.
+  const isLocal = /\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|host\.docker\.internal)/i.test(cleanUrl)
+    || (process.env.PGHOST ?? "").toLowerCase() === "localhost"
+    || (process.env.PGHOST ?? "").startsWith("/");
   return new Pool({
     connectionString: cleanUrl,
-    ssl: { rejectUnauthorized: false },
+    ssl: isLocal ? false : { rejectUnauthorized: false },
     max: 5,
     idleTimeoutMillis: 30_000,
   });
