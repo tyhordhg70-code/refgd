@@ -4,6 +4,7 @@ import {
   cloneElement,
   isValidElement,
   useEffect,
+  useRef,
   useState,
   type ReactElement,
   type ReactNode,
@@ -260,8 +261,82 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
+
+  // ── Capture-phase vertical-scroll release ──────────────────────
+  // touchAngle: 12 in the Swiper config below already tells Swiper
+  // to ignore vertical-leaning gestures, but on iOS Safari Swiper's
+  // touchmove handler still consumes the gesture for ~5-10 px
+  // before it gives up — long enough for the user to feel "the
+  // cube ate my scroll". To eliminate that perceived lock entirely
+  // we attach our OWN capture-phase listeners on the cube wrapper
+  // and call `stopImmediatePropagation()` on the touchmove BEFORE
+  // Swiper's bubble-phase listeners run. Swiper never receives the
+  // event, so the browser's native pan-y scroll takes over from
+  // the very first millimeter of vertical motion.
+  //
+  // Threshold: a gesture is classified as vertical the moment
+  // |dy| > |dx| AND |dy| >= 4 px. Any horizontal-leaning gesture
+  // (or near-zero motion = tap) flows through to Swiper untouched
+  // and rotates the cube as before.
+  const trackRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    let startX = 0;
+    let startY = 0;
+    let decided: "h" | "v" | null = null;
+
+    const onStart = (e: TouchEvent) => {
+      if (!e.touches[0]) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      decided = null;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!e.touches[0]) return;
+      if (decided === "h") return;
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+      const ax = Math.abs(dx);
+      const ay = Math.abs(dy);
+      if (decided === "v") {
+        // Already decided vertical — keep blocking Swiper for the
+        // entire gesture so it can't latch on mid-swipe.
+        e.stopImmediatePropagation();
+        return;
+      }
+      if (ax + ay < 4) return;
+      if (ay > ax) {
+        decided = "v";
+        e.stopImmediatePropagation();
+      } else {
+        decided = "h";
+      }
+    };
+    const onEnd = () => {
+      decided = null;
+    };
+
+    // capture: true puts our handlers BEFORE Swiper's listeners
+    // (which are attached on inner .swiper-wrapper in bubble phase).
+    // passive: true is fine — we never preventDefault, only
+    // stopPropagation. The browser still owns the gesture for
+    // pan-y scroll arbitration.
+    el.addEventListener("touchstart", onStart, { capture: true, passive: true });
+    el.addEventListener("touchmove", onMove, { capture: true, passive: true });
+    el.addEventListener("touchend", onEnd, { capture: true, passive: true });
+    el.addEventListener("touchcancel", onEnd, { capture: true, passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onStart, { capture: true } as EventListenerOptions);
+      el.removeEventListener("touchmove", onMove, { capture: true } as EventListenerOptions);
+      el.removeEventListener("touchend", onEnd, { capture: true } as EventListenerOptions);
+      el.removeEventListener("touchcancel", onEnd, { capture: true } as EventListenerOptions);
+    };
+  }, []);
+
   return (
     <div
+      ref={trackRef}
       data-testid="paths-mobile-track"
       className="cube-float mx-auto"
       style={{
