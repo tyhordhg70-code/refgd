@@ -1196,16 +1196,26 @@ html { scroll-behavior: smooth; }
      the cards just rotates the cube a tiny bit and the page never
      moves. `pan-y` tells the browser "I only handle horizontal
      gestures here; vertical scrolling belongs to the document."
-     Swiper still gets horizontal swipes for the cube rotation. */
-  touch-action: pan-y;
+     Swiper still gets horizontal swipes for the cube rotation.
+     `!important` because Swiper ships its own stylesheet
+     (swiper/css/effect-cube) that sets `touch-action: pan-y` on
+     `.swiper-cube` but NONE on `.swiper-slide` — the slides ended
+     up with the default `touch-action: auto` and Android Chrome
+     interpreted that as "this element handles all touches",
+     locking out the document scroller entirely. */
+  touch-action: pan-y !important;
 }
 /* Same rule on every Swiper element inside the cube stage so iOS
-   doesn't grab vertical drags on the slide / cube wrapper either. */
+   AND Android don't grab vertical drags on the slide / cube wrapper
+   either. The `.swiper-cube` and `.swiper-3d` selectors cover the
+   classes Swiper EffectCube adds to its containers at runtime. */
 .cube-float .swiper,
 .cube-float .swiper-wrapper,
 .cube-float .swiper-slide,
+.cube-float .swiper-cube,
+.cube-float .swiper-3d,
 .cube-float .swiper-cube-shadow {
-  touch-action: pan-y;
+  touch-action: pan-y !important;
 }
 
 @keyframes constellationDotPulse {
