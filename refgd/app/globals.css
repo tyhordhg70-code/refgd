@@ -1375,44 +1375,49 @@ html { scroll-behavior: smooth; }
   isolation: isolate;
 }
 
-/* AURORA HALO */
+/* AURORA HALO — softened in v6.2 so the backdrop reads as a gentle
+   bloom rather than a sharp coloured disc behind the credit card. */
 .cs-aurora {
   position: absolute;
   inset: 0;
   border-radius: 9999px;
   background: radial-gradient(
     circle at 50% 50%,
-    rgba(255, 225, 140, 0.32),
-    rgba(167, 139, 250, 0.22) 40%,
-    transparent 70%
+    rgba(255, 225, 140, 0.16),
+    rgba(167, 139, 250, 0.10) 40%,
+    transparent 72%
   );
-  filter: blur(28px);
+  filter: blur(40px);
   transform: scale(1);
-  opacity: 0.85;
+  opacity: 0.55;
 }
 .cs-aurora--anim { animation: cs-aurora-breath 6s ease-in-out infinite; }
 @keyframes cs-aurora-breath {
-  0%, 100% { transform: scale(1);    opacity: 0.7; }
-  50%      { transform: scale(1.08); opacity: 1;   }
+  0%, 100% { transform: scale(1);    opacity: 0.45; }
+  50%      { transform: scale(1.08); opacity: 0.7;  }
 }
 
-/* PULSE RINGS — each ring scales out from card centre and fades */
+/* PULSE RINGS — each ring scales out from card centre and fades.
+   v6.2 (2026-05): softened from 0.85 → 0.30 border + 0.55 → 0.18 shadow.
+   The previous 0.85-alpha yellow rings read as HARD glow edges around
+   the storelist hero illustration; now they're a gentle reward halo. */
 .cs-ring {
   position: absolute;
   left: 50%; top: 50%;
   width: 28%; height: 28%;
   margin-left: -14%; margin-top: -14%;
-  border: 2px solid rgba(255, 225, 140, 0.85);
+  border: 1.5px solid rgba(255, 225, 140, 0.30);
   border-radius: 9999px;
   opacity: 0;
   transform: scale(0.6);
   animation: cs-ring 3.6s ease-out infinite;
-  box-shadow: 0 0 22px rgba(255, 225, 140, 0.55);
+  box-shadow: 0 0 30px rgba(255, 225, 140, 0.18);
+  filter: blur(0.4px);
 }
 @keyframes cs-ring {
-  0%   { opacity: 0;   transform: scale(0.6); border-color: rgba(255,225,140,0.95); }
-  10%  { opacity: 0.95; }
-  100% { opacity: 0;   transform: scale(2.2); border-color: rgba(167,139,250,0.05); }
+  0%   { opacity: 0;   transform: scale(0.6); border-color: rgba(255,225,140,0.32); }
+  10%  { opacity: 0.55; }
+  100% { opacity: 0;   transform: scale(2.2); border-color: rgba(167,139,250,0.04); }
 }
 
 /* CARD WRAPPER — float + subtle 3D tilt loop */

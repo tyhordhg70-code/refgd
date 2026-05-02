@@ -76,8 +76,8 @@ export default function StoreCard({
       whileHover={{ y: -4 }}
       className={`group relative ${store.prismaticGlow ? "p-[1.5px]" : "p-px"} rounded-2xl ${
         store.prismaticGlow ? "prismatic-border" : "bg-white/10"
-      } transition-shadow duration-300 hover:shadow-[0_30px_70px_-25px_rgba(245,185,69,0.5)] ${
-        showOverlay ? "ring-2 ring-amber-300/0 hover:ring-amber-300/70" : ""
+      } transition-shadow duration-300 hover:shadow-[0_30px_70px_-25px_rgba(245,185,69,0.18)] ${
+        showOverlay ? "ring-2 ring-amber-300/0 hover:ring-amber-300/40" : ""
       }`}
     >
       <div

@@ -63,9 +63,13 @@ export default function ChapterPill({
       ? "px-3 py-1 text-[10px] sm:text-[11px] tracking-[0.4em] sm:tracking-[0.45em]"
       : "px-4 py-1.5 text-[11px] sm:text-xs tracking-[0.45em] sm:tracking-[0.5em]";
 
+  // v6.2 (2026-05): softened the inset 1px coloured ring (0.30 → 0.12)
+  // and the outer glow (0.55 → 0.18). The previous values were rendering
+  // as a hard-edged coloured outline on every chapter pill across the
+  // site, which compounded the "hard glow edges everywhere" complaint.
   const pillStyle: CSSProperties = {
-    boxShadow: `inset 0 0 0 1px rgba(${rgb},0.30), 0 0 30px -10px rgba(${rgb},0.55)`,
-    background: `linear-gradient(180deg, rgba(${rgb},0.08), rgba(255,255,255,0.02))`,
+    boxShadow: `inset 0 0 0 1px rgba(${rgb},0.12), 0 0 30px -10px rgba(${rgb},0.18)`,
+    background: `linear-gradient(180deg, rgba(${rgb},0.06), rgba(255,255,255,0.02))`,
   };
 
   return (

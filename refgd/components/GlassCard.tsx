@@ -76,14 +76,19 @@ export default function GlassCard({
     rose:    "from-rose-500/[0.28] via-rose-400/[0.06] to-white/[0.04]",
     emerald: "from-emerald-500/[0.28] via-emerald-400/[0.06] to-white/[0.04]",
   }[tint];
+  // v6.2 (2026-05): dropped tinted halo alpha 0.55 → 0.18 across every
+  // colour. The 0.55 colored shadow was reading as a HARD GLOW EDGE
+  // around every box card on storelist / evade-cancelations / exclusive-
+  // mentorships (every GlassCard with `tint=` had a visible coloured
+  // ring). 0.18 keeps the colour cue while letting the card breathe.
   const glow = {
-    neutral: "shadow-[0_30px_80px_-30px_rgba(255,255,255,0.18)]",
-    amber:   "shadow-[0_30px_80px_-30px_rgba(245,185,69,0.55)]",
-    violet:  "shadow-[0_30px_80px_-30px_rgba(167,139,250,0.55)]",
-    cyan:    "shadow-[0_30px_80px_-30px_rgba(34,211,238,0.55)]",
-    fuchsia: "shadow-[0_30px_80px_-30px_rgba(244,114,182,0.55)]",
-    rose:    "shadow-[0_30px_80px_-30px_rgba(244,63,94,0.55)]",
-    emerald: "shadow-[0_30px_80px_-30px_rgba(52,211,153,0.55)]",
+    neutral: "shadow-[0_30px_80px_-30px_rgba(255,255,255,0.10)]",
+    amber:   "shadow-[0_30px_80px_-30px_rgba(245,185,69,0.18)]",
+    violet:  "shadow-[0_30px_80px_-30px_rgba(167,139,250,0.18)]",
+    cyan:    "shadow-[0_30px_80px_-30px_rgba(34,211,238,0.18)]",
+    fuchsia: "shadow-[0_30px_80px_-30px_rgba(244,114,182,0.18)]",
+    rose:    "shadow-[0_30px_80px_-30px_rgba(244,63,94,0.18)]",
+    emerald: "shadow-[0_30px_80px_-30px_rgba(52,211,153,0.18)]",
   }[tint];
 
   const elasticClass = elastic && !reduced ? "liquid-glass-3d liquid-glass-mobile" : "";

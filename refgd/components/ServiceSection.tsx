@@ -411,7 +411,7 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
         <section className="container-wide">
           <Reveal>
             <div
-              className="pulse-glow relative overflow-hidden rounded-[2.5rem] border border-amber-400/40 p-10 text-center sm:p-16"
+              className="pulse-glow relative overflow-hidden rounded-[2.5rem] border border-amber-400/15 p-10 text-center sm:p-16"
               style={{
                 background:
                   "linear-gradient(160deg, rgba(40,22,4,0.88) 0%, rgba(20,12,4,0.92) 100%)",
