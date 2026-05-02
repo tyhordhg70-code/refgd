@@ -110,24 +110,23 @@ export default function GalaxyBackground() {
             "linear-gradient(to bottom, rgba(5,6,10,0.55) 0%, rgba(5,6,10,0.32) 45%, transparent 100%)",
         }}
       />
-      {/* Bottom vignette darkens the lower 55vh so foreground text/cards
-          read on top of stars. Endpoint MUST match body `bg-ink-950`
-          (#05060a) — previously this gradient ended at `rgb(10,12,20)`
-          (#0a0c14, ink-900). The 4-point lightness step between this
-          fixed-position vignette and the body bg below the page rendered
-          as a slightly-lighter horizontal band glued to the bottom 55vh
-          of the viewport. As the user scrolled the welcome screen on
-          mobile, that band visibly slid down/up and read as a "small
-          black strip overlay on bottom" against the slightly-lighter
-          welcome backdrop. Aligning all stops to rgb(5,6,10) removes
-          the step so the vignette dissolves invisibly into body bg. */}
-      <div
-        className="absolute inset-x-0 bottom-0 h-[55vh]"
-        style={{
-          background:
-            "linear-gradient(to top, rgb(5,6,10) 0%, rgba(5,6,10,0.95) 22%, rgba(5,6,10,0.65) 55%, transparent 100%)",
-        }}
-      />
+      {/* v6.10.2 (2026-05): bottom vignette REMOVED.
+          Previously a 55vh-tall fixed overlay sat at the bottom of the
+          viewport to darken cards/text against the WebGL galaxy. Even
+          after aligning its endpoint to body bg (#05060a) in v6.7, the
+          gradient TRANSITION at its top edge (~45% down the viewport)
+          remained visible as a soft horizontal band that the user
+          repeatedly reported as a "gradient strip on bottom" on the
+          mobile home page. Because GalaxyBackground is `fixed inset-0`,
+          the band did not scroll with the page — it stayed glued to
+          the bottom of the viewport on every scroll position, making
+          it especially noticeable on the welcome hero where the
+          backdrop is otherwise unbroken.
+          The page sections (CosmicJourney, paths section, telegram
+          CTA) all manage their own foreground contrast via per-element
+          text-shadows and per-section backgrounds, so the global
+          vignette is unnecessary. The body bg `bg-ink-950` (#05060a)
+          below the page provides the natural dark continuation. */}
     </div>
   );
 }
