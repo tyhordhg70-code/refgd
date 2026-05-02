@@ -1,37 +1,43 @@
 "use client";
-import { motion, useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "framer-motion";
 import { type ReactNode } from "react";
 
 /**
  * GlassCard — Lusion.co-style glassmorphism panel.
  *
- * v4 (2026-05): Three-layer transform stack so no transform
- * conflicts occur between the entrance animation, the continuous
- * float, and the 3D hover tilt:
+ * v5 (2026-05): CSS-only reveal.
  *
- *   Layer 1: <motion.div>   → Lusion entrance (opacity, y, scale)
- *   Layer 2: <div float>    → CSS float animation (translate Y only)
- *   Layer 3: <div surface>  → liquid-glass-3d hover tilt (rotateX/Y)
+ * Earlier versions used `framer-motion` `whileInView` + IntersectionObserver
+ * to play a curtain-rise / clip-path mask entrance. On this site that
+ * approach was unreliable — the observer occasionally never fired (parent
+ * containing blocks created by ParallaxChapter's `transform`,
+ * `content-visibility: auto` on mobile sections, the LoadingScreen overlay
+ * delaying first paint, etc.) leaving cards stuck at their initial state
+ * (`opacity: 0`, `clip-path: inset(100%)`) — i.e. INVISIBLE FOREVER.
  *
- * float-card / float-card-2 / float-card-3 are now extracted from
- * `className` and applied to Layer 2 so they never fight Layer 3's
- * perspective-rotateX/Y transform.
+ * Symptom users saw: section headers ("WHY TRUST US?", "Get started today.",
+ * "How it works", "Why choose us?", "Evade like a PRO", "Our comprehensive
+ * solutions") rendered fine but the cards underneath were just dark space.
+ *
+ * Fix: drop framer-motion's whileInView entirely and use a CSS keyframe
+ * animation (`.glass-card-reveal` in globals.css) that ALWAYS plays on
+ * mount. CSS animations are guaranteed by the browser — they don't need
+ * an IntersectionObserver, they don't care about parent transforms, and
+ * they survive hydration races. The lusion curtain-rise look is preserved
+ * (translateY + clip-path inset), just driven by CSS instead of JS.
+ *
+ * `delay` still works (`animationDelay` inline style) for staggered card
+ * reveals. `reveal={false}` still skips the animation. Reduced-motion
+ * users are respected via @media query in the CSS.
+ *
+ * Three-layer transform stack so the entrance, the continuous float
+ * (float-card / float-card-2 / float-card-3) and the 3D hover tilt
+ * (liquid-glass-3d) never fight each other:
+ *
+ *   Layer 1: <div .glass-card-reveal>   → CSS curtain entrance
+ *   Layer 2: <div float-card>           → CSS float (translateY only)
+ *   Layer 3: <div .liquid-glass-3d>     → hover tilt (rotateX/Y)
  */
-
-const LUSION_EASE = [0.16, 1, 0.3, 1] as const;
-
-/**
- * Card reveal variants — pick a different one per card to avoid the
- * "every card does the same thing" repetition. Each variant is a
- * lusion-style entrance (curtain mask, axial slide, iris, tilt, wipe).
- */
-type RevealVariant =
-  | "curtain"      // bottom-up curtain mask + tilt-back  (default)
-  | "slide-left"   // slide in from the left edge
-  | "slide-right"  // slide in from the right edge
-  | "iris"         // circular clip-path expand from centre
-  | "tilt-3d"     // 3D Y-axis flip-in
-  | "wipe-diag";  // diagonal clip-path wipe
 
 export default function GlassCard({
   children,
@@ -40,8 +46,6 @@ export default function GlassCard({
   reveal = true,
   delay = 0,
   elastic = true,
-  variant,
-  index,
 }: {
   children: ReactNode;
   className?: string;
@@ -49,11 +53,6 @@ export default function GlassCard({
   reveal?: boolean;
   delay?: number;
   elastic?: boolean;
-  /** Explicit reveal variant — wins over `index` rotation. */
-  variant?: RevealVariant;
-  /** Card index — when no variant given, picks one from a pool so
-   *  sibling cards in a row each animate differently. */
-  index?: number;
 }) {
   const reduced = useReducedMotion();
 
@@ -101,76 +100,20 @@ export default function GlassCard({
     </div>
   );
 
+  const innerLayer = floatClasses ? <div className={floatClasses}>{surface}</div> : surface;
+
+  // No reveal requested OR reduced-motion preferred → render plain.
   if (!reveal || reduced) {
-    // No entrance — still wrap in float layer if needed
-    return floatClasses ? <div className={floatClasses}>{surface}</div> : surface;
+    return <div className="group">{innerLayer}</div>;
   }
 
-  // Layer 1 (entrance) → Layer 2 (float) → Layer 3 (surface / hover tilt)
-  // ─────────────────────────────────────────────────────────────────
-  // LUSION-VARIED ENTRANCES:
-  //   The user complained that "every card does the same thing".
-  //   We now pick a different lusion-style entrance per card so a
-  //   row of sibling cards animates as a varied composition rather
-  //   than one synchronised motion. Pool of variants below; cards
-  //   either pass `variant` directly or rely on `index` to pick.
-  //
-  //   `once: true` — once a card has revealed, it STAYS revealed
-  //   even when scrolled past and back. Earlier `once: false`
-  //   meant cards re-clipped themselves to invisible whenever they
-  //   left the viewport, which made the page read as "blank" zones
-  //   when the user scrolled back up.
-  const VARIANTS: RevealVariant[] = [
-    "curtain",
-    "slide-left",
-    "wipe-diag",
-    "tilt-3d",
-    "slide-right",
-    "iris",
-  ];
-  const v: RevealVariant =
-    variant ?? VARIANTS[((index ?? 0) % VARIANTS.length + VARIANTS.length) % VARIANTS.length];
-
-  const initials: Record<RevealVariant, any> = {
-    curtain:    { opacity: 0, y: 140, rotateX: 8, clipPath: "inset(100% 0% 0% 0%)" },
-    "slide-left":  { opacity: 0, x: -120, clipPath: "inset(0% 0% 0% 100%)" },
-    "slide-right": { opacity: 0, x:  120, clipPath: "inset(0% 100% 0% 0%)" },
-    iris:       { opacity: 0, scale: 0.86, clipPath: "circle(0% at 50% 50%)" },
-    "tilt-3d":  { opacity: 0, rotateY: -42, x: -40 },
-    "wipe-diag": { opacity: 0, clipPath: "polygon(0 0, 0 0, 0 100%, 0 100%)" },
-  };
-  const targets: Record<RevealVariant, any> = {
-    curtain:    { opacity: 1, y: 0, rotateX: 0, clipPath: "inset(0% 0% 0% 0%)" },
-    "slide-left":  { opacity: 1, x: 0, clipPath: "inset(0% 0% 0% 0%)" },
-    "slide-right": { opacity: 1, x: 0, clipPath: "inset(0% 0% 0% 0%)" },
-    iris:       { opacity: 1, scale: 1, clipPath: "circle(75% at 50% 50%)" },
-    "tilt-3d":  { opacity: 1, rotateY: 0, x: 0 },
-    "wipe-diag": { opacity: 1, clipPath: "polygon(0 0, 100% 0, 100% 100%, 0 100%)" },
-  };
-  const durations: Record<RevealVariant, number> = {
-    curtain: 1.55, "slide-left": 1.2, "slide-right": 1.2, iris: 1.35, "tilt-3d": 1.3, "wipe-diag": 1.1,
-  };
-
+  // Reveal layer — CSS-only curtain rise. Always plays on mount.
   return (
-    <motion.div
-      initial={initials[v]}
-      whileInView={targets[v]}
-      viewport={{ once: true, amount: 0.05 }}
-      transition={{
-        duration: durations[v],
-        delay,
-        ease: LUSION_EASE,
-      }}
-      suppressHydrationWarning
-      className="group will-change-transform"
-      style={{
-        transformPerspective: 1500,
-        transformOrigin: v === "tilt-3d" ? "0% 50%" : "50% 100%",
-      }}
+    <div
+      className="group glass-card-reveal will-change-transform"
+      style={{ animationDelay: `${delay}s` }}
     >
-      {floatClasses ? (
-        <div className={floatClasses}>{surface}</div>
-      ) : surface}
-    </motion.div>
+      {innerLayer}
+    </div>
   );
 }
