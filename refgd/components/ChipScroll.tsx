@@ -1,5 +1,5 @@
 "use client";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, useScroll, useTransform, useMotionValueEvent } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 
 /**
@@ -67,15 +67,25 @@ export default function ChipScroll({
 
   // The hero scene is INVISIBLE at scroll progress 0 and ramps in over
   // the first ~5 % of the runway. This fixes "the scrolling thing
-  // appears at page load instead of when the user starts scrolling" —
-  // the procedural canvas + caption + scroll prompt all sit at opacity
-  // 0 until a scroll gesture begins, then bloom in together. Once
-  // they're in, they stay visible across the rest of the runway and
-  // only fade at the very end before the next section.
-  const sceneOpacity   = useTransform(scrollYProgress, [0.0, 0.04], [0, 1]);
+  // appears at page load instead of when the user starts scrolling".
+  //
+  // IMPLEMENTATION: framer-motion's MotionValue→style binding on
+  // <motion.canvas> loses the inline opacity after hydration (the
+  // SSR HTML shows opacity:0 but the browser repaints at 1 the
+  // moment the JS subscribes), so we drive the opacity via plain
+  // React state mirrored from scrollYProgress through
+  // useMotionValueEvent. State starts at 0 and only ever advances
+  // when a real scroll event fires — bulletproof.
   const captionOpacity = useTransform(scrollYProgress, [0.0, 0.04, 0.92, 1.0], [0, 1, 1, 0]);
   const captionY       = useTransform(scrollYProgress, [0.0, 1.0], [0, -24]);
   const scrollPromptOpacity = useTransform(scrollYProgress, [0.0, 0.02, 0.1], [0, 1, 0]);
+
+  const [sceneOpacity, setSceneOpacity] = useState(0);
+  useMotionValueEvent(scrollYProgress, "change", (v) => {
+    // Linear ramp 0 → 1 over the first 4 % of the runway, clamped.
+    const next = Math.max(0, Math.min(1, v / 0.04));
+    setSceneOpacity(next);
+  });
 
   // ── Preload frames ──────────────────────────────────────────────
   useEffect(() => {
@@ -407,12 +417,25 @@ export default function ChipScroll({
       }}
     >
       <div className="sticky top-0 flex h-screen w-full items-center justify-center overflow-hidden">
-        <motion.canvas
-          ref={canvasRef}
-          className="block h-full w-full"
-          style={{ display: "block", opacity: sceneOpacity }}
-          suppressHydrationWarning
-        />
+        {/* Wrapper div carries the React-state opacity so the canvas
+            can't ever flash at full brightness during hydration.
+            Starts at 0, only ramps up when scrollYProgress reports a
+            real change. */}
+        <div
+          className="absolute inset-0 h-full w-full"
+          style={{
+            opacity: sceneOpacity,
+            transition: "opacity 220ms cubic-bezier(0.4, 0, 0.2, 1)",
+            willChange: "opacity",
+          }}
+        >
+          <canvas
+            ref={canvasRef}
+            className="block h-full w-full"
+            style={{ display: "block" }}
+            suppressHydrationWarning
+          />
+        </div>
 
         {/* Loading spinner — only shown until frames preload OR fallback engages */}
         {!allReady && !usingFallback && (
