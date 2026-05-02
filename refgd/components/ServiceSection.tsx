@@ -21,16 +21,10 @@ function WastingTimeIllustration({ size }: { size: number }) {
   const reduce = useReducedMotion();
   return (
     <motion.div
-      initial={reduce ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.92, y: 18 }}
+      initial={{ opacity: 0, scale: 0.92, y: 18 }}
       whileInView={{ opacity: 1, scale: 1, y: 0 }}
-      // once:true so the wasting-time illustration's entrance only
-      // plays the FIRST time it scrolls into view. The previous
-      // once:false fired the entrance every back-scroll, which on
-      // desktop home (already shipping CosmicJourney + HomeBackground
-      // + InteractiveParticles + worker render) was a measurable
-      // cause of the home-page lag report.
-      viewport={{ once: true, amount: 0.15, margin: "-10% 0px" }}
-      transition={reduce ? { duration: 0 } : { duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
+      viewport={{ once: false, margin: "-10% 0px" }}
+      transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
       style={{
         width: size,
         height: size,
@@ -120,16 +114,8 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
       {showHero && (
       <>
       {/* ─── Act 1 — "Get rewarded for shopping online." hero ──────── */}
-      {/*
-       * Mobile: flex-col so the headline card and the CashbackScene
-       * stack vertically (otherwise both flex-children in a row get
-       * crammed side-by-side and look broken).
-       * Desktop: flex-row so the headline sits left and the absolute-
-       * positioned CashbackScene sits on the right. justify-center
-       * keeps the stack vertically centered in the tall viewport.
-       */}
       <section
-        className="relative isolate flex min-h-[88svh] w-full flex-col items-center justify-center gap-6 overflow-hidden bg-ink-950 py-8 md:flex-row md:gap-0 md:py-0 md:min-h-[92svh]"
+        className="relative isolate flex min-h-[88svh] w-full items-center overflow-hidden bg-ink-950 py-8 md:py-0 md:min-h-[92svh]"
         data-cursor="big"
       >
         {/* mesh orbs + gradient ambience */}
@@ -177,7 +163,7 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
                 as="h1"
                 editId="service.hero.title"
                 text="Get rewarded for shopping online."
-                className="editorial-display max-w-[1500px] text-balance text-white text-[clamp(2.25rem,6.5vw,4.5rem)] uppercase"
+                className="editorial-display max-w-[1500px] text-balance text-white text-[clamp(1.5rem,4.4vw,4.5rem)] uppercase"
                 style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)", lineHeight: 1.05 }}
                 stagger={0.06}
                 delay={0.35}
@@ -201,17 +187,15 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
         </motion.div>
 
         {/* MOBILE-only cashback scene — desktop has the 520px scene
-            absolutely positioned on the right; on mobile we render
-            an even larger version below the headline so the
-            multi-stop animated aurora gradient is unmistakably the
-            visual anchor of the mobile hero. Was 420px → bumped to
-            560px (still capped to 92vw inside CashbackScene so it
-            never overflows on tiny screens). */}
+            absolutely positioned on the right; on mobile we drop a
+            smaller version below the headline so the illustration is
+            never invisible. User report: "for storelist illustration
+            is missing on mobile". */}
         <div
           aria-hidden="true"
-          className="pointer-events-none relative z-10 mt-8 grid w-full place-items-center md:hidden"
+          className="container-wide pointer-events-none relative z-10 mt-6 grid w-full place-items-center md:hidden"
         >
-          <CashbackScene size={560} />
+          <CashbackScene size={260} />
         </div>
       </section>
 
@@ -289,7 +273,6 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
             {STEPS.map((s, i) => (
               <GlassCard
                 key={s.n}
-                index={i}
                 tint={s.tint}
                 delay={i * 0.12}
                 className=""
@@ -354,7 +337,6 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
             {WHY.map((w, i) => (
               <GlassCard
                 key={w.h}
-                index={i + 3}
                 tint={w.tint}
                 delay={i * 0.1}
                 className=""

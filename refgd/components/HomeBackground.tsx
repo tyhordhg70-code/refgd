@@ -1,69 +1,41 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useCosmicScene } from "@/lib/cosmic-scene";
-import InteractiveParticles from "@/components/InteractiveParticles";
+import { useEffect, useState, type CSSProperties } from "react";
 
 /**
- * Page-wide cosmic backdrop overlay for the home page.
+ * Page-wide animated cosmic background for the home page.
  *
- * Goal: maximum visual richness on desktop, minimum main-thread work
- * on mobile (iPhone Safari). The Web-Worker WebGL canvas
- * (planet, halo, nebulas, twinkles, warp streaks) does the heavy
- * lifting on BOTH platforms — this DOM layer just adds taste on top.
+ * Renders a family of gradient orbs that drift behind every chapter
+ * via PURE CSS keyframe animations — no scroll listeners, no
+ * useTransform hooks, no per-frame re-render. The orbs already
+ * float and pulse via their `.orb` class, so the page-wide field
+ * stays lively without paying the per-scroll repaint cost that was
+ * causing the home page to feel laggy.
  *
- * Mobile contract (post user feedback "still gone with the planet,
- * still laggy"):
- *   - DROP the big mix-blend-mode + blur orbs on mobile. They were
- *     covering the whole viewport with bright washed-out gradients,
- *     hiding the worker nebulas/twinkles behind them, AND they are
- *     the single most expensive thing for Safari's compositor to
- *     redraw every scroll tick.
- *   - DROP the SVG aurora streamer on mobile (gaussian blur filter
- *     also expensive).
- *   - DROP InteractiveParticles on mobile (no cursor anyway).
- *   - KEEP the dot-only twinkling starfield (pure transform/opacity,
- *     no blur, no blend mode — basically free for the compositor)
- *     and bump its count to 80 so the screen visibly fills.
+ * Sits between <GalaxyBackground/> (z-0) and the page content (z-2).
  *
- * Desktop:
- *   - Keep all of it: orbs, aurora, dense star field, cursor particles.
+ * ── Mobile ────────────────────────────────────────────────────────
+ * The orbs use `mix-blend-mode: screen` + `filter: blur(120px)` on a
+ * fixed full-viewport layer — that combo is the same compositor
+ * killer pattern we removed from PulsatingOverlay. On mobile GPUs
+ * this forces a full-viewport recomposite on every scroll frame.
+ * The galaxy WebGL background + the per-section gradients already
+ * provide plenty of cosmic colour on mobile, so we drop the orbs
+ * entirely on viewports ≤ 768 px and keep only the vignette.
  */
 export default function HomeBackground() {
-  useCosmicScene("home");
-
   const [mounted, setMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     setMounted(true);
+    if (typeof window === "undefined") return;
     const mq = window.matchMedia("(max-width: 768px)");
     const sync = () => setIsMobile(mq.matches);
     sync();
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
-  if (!mounted) return null;
 
-  // Star count — generous on both platforms because dot-only stars
-  // are essentially free (no blur, no blend mode, just opacity).
-  const STAR_COUNT = isMobile ? 80 : 110;
-  const stars = Array.from({ length: STAR_COUNT }).map((_, i) => {
-    const seed = (i * 9301 + 49297) % 233280;
-    const r1 = (seed / 233280);
-    const r2 = ((seed * 7) % 233280) / 233280;
-    const r3 = ((seed * 13) % 233280) / 233280;
-    const r4 = ((seed * 19) % 233280) / 233280;
-    const left = (r1 * 100).toFixed(2);
-    const top = (r2 * 100).toFixed(2);
-    const size = (1 + r3 * 2.4).toFixed(2);
-    const dur = (2.4 + r4 * 4.5).toFixed(2);
-    const delay = (r3 * 5).toFixed(2);
-    const tint =
-      r4 < 0.55 ? "rgba(255,255,255,0.95)" :
-      r4 < 0.8  ? "rgba(255,225,140,0.95)" :
-      r4 < 0.92 ? "rgba(167,139,250,0.95)" :
-                  "rgba(103,232,249,0.95)";
-    return { left, top, size, dur, delay, tint };
-  });
+  if (!mounted) return null;
 
   return (
     <div
@@ -71,97 +43,155 @@ export default function HomeBackground() {
       data-testid="home-background"
       className="pointer-events-none fixed inset-0 z-[1] overflow-hidden"
     >
-      {/* Soft vignette that keeps the centre of the page legible.
-          Lighter than before (0.55 → 0.35) so the worker nebulas
-          and twinkles aren't crushed at the screen edges. */}
+      {/* Soft vignette that keeps the centre of the page legible. */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(ellipse at 50% 40%, transparent 45%, rgba(4,3,12,0.35) 100%)",
+            "radial-gradient(ellipse at 50% 40%, transparent 35%, rgba(4,3,12,0.45) 100%)",
         }}
       />
 
-      {/* DESKTOP-ONLY drifting gradient orbs. These wash out the
-          worker nebulas if rendered on a small mobile viewport, and
-          the blur+blend mode is the #1 cause of iPhone Safari scroll
-          lag, so they are gated to desktop only. */}
-      {!isMobile && [
-        { c: "rgba(245,185,69,0.22)",  size: "60vmin", l: "8%",  t: "12%", d: "0s",   dur: "32s" },
-        { c: "rgba(167,139,250,0.24)", size: "70vmin", l: "62%", t: "8%",  d: "-8s",  dur: "38s" },
-        { c: "rgba(103,232,249,0.18)", size: "55vmin", l: "78%", t: "60%", d: "-16s", dur: "30s" },
-        { c: "rgba(244,114,182,0.16)", size: "65vmin", l: "12%", t: "65%", d: "-22s", dur: "36s" },
-      ].map((o, i) => (
-        <div
-          key={i}
-          className="hb-orb"
-          style={{
-            left: o.l,
-            top: o.t,
-            width: o.size,
-            height: o.size,
-            background: `radial-gradient(circle at 50% 50%, ${o.c}, transparent 65%)`,
-            animationDelay: o.d,
-            animationDuration: o.dur,
-          }}
-        />
-      ))}
-
-      {/* DESKTOP-ONLY aurora streamer. */}
+      {/* Orbs animate purely via .orb CSS keyframes — see globals.css.
+          Skipped on mobile to drop a full-viewport mix-blend + 120px
+          blur stack that the mobile compositor cannot afford. */}
       {!isMobile && (
-        <svg
-          className="hb-aurora"
-          viewBox="0 0 1200 800"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <defs>
-            <linearGradient id="hb-aurora-grad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%"   stopColor="rgba(167,139,250,0)" />
-              <stop offset="35%"  stopColor="rgba(167,139,250,0.45)" />
-              <stop offset="55%"  stopColor="rgba(245,185,69,0.55)" />
-              <stop offset="75%"  stopColor="rgba(103,232,249,0.40)" />
-              <stop offset="100%" stopColor="rgba(103,232,249,0)" />
-            </linearGradient>
-            <filter id="hb-aurora-blur" x="-20%" y="-50%" width="140%" height="200%">
-              <feGaussianBlur stdDeviation="36" />
-            </filter>
-          </defs>
-          <path
-            d="M -200 420 C 200 280, 500 540, 800 360 S 1200 480, 1500 320"
-            stroke="url(#hb-aurora-grad)"
-            strokeWidth="120"
-            fill="none"
-            filter="url(#hb-aurora-blur)"
-            opacity="0.85"
-          />
-        </svg>
+        <>
+          <div className="orb orb-1 absolute left-[6%] top-[8%] h-[55vh] w-[55vh] rounded-full" />
+          <div className="orb orb-2 absolute right-[4%] top-[18%] h-[50vh] w-[50vh] rounded-full" />
+          <div className="orb orb-3 absolute left-[30%] top-[55%] h-[48vh] w-[48vh] rounded-full" />
+          <div className="orb orb-4 absolute right-[24%] top-[78%] h-[40vh] w-[40vh] rounded-full" />
+        </>
       )}
 
-      {/* TWINKLING STARFIELD — dot-only (no blur, no blend mode).
-          Cheap enough to run on mobile at full count. Sits ABOVE the
-          worker so the dots punch through the vignette. */}
-      {stars.map((s, i) => (
-        <span
-          key={i}
-          className="hb-star"
-          style={{
-            left: `${s.left}%`,
-            top: `${s.top}%`,
-            width: `${s.size}px`,
-            height: `${s.size}px`,
-            background: s.tint,
-            boxShadow: `0 0 ${(parseFloat(s.size) * 4).toFixed(1)}px ${s.tint}`,
-            animationDuration: `${s.dur}s`,
-            animationDelay: `${s.delay}s`,
-          }}
-        />
-      ))}
+      {/* ── Mobile cosmic field ──
+          Replaces the WebGL Galaxy + the heavy orb stack for the
+          phone with three layers of pure CSS:
 
-      {/* DESKTOP-ONLY cursor-reactive abstract particles. */}
-      {!isMobile && (
-        <div className="absolute inset-0">
-          <InteractiveParticles count={70} influence={180} />
+          1. ~3 huge, very faint, slowly drifting NEBULA gradients.
+             Each is a single radial-gradient div animated only on
+             `transform: translate3d(...)` over 60-90 s. The GPU
+             owns the entire animation; the main thread is never
+             woken up. These give the page real depth, like soft
+             clouds of coloured cosmic dust.
+
+          2. ~50 small twinkling STARS. Each star animates only
+             `opacity` (the cheapest property the compositor can
+             animate). 50 of them cost roughly the same as 50
+             static divs, but together they restore a real star
+             field feel.
+
+          3. A small set of warm/cool tinted ACCENT stars with a
+             slightly larger glow, scattered through the field for
+             visual interest.
+
+          Distributed across 350 vh so the field follows the user
+          down the entire page. */}
+      {isMobile && (
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0"
+          style={{
+            height: "100vh",
+            // Force the entire cosmic field into ONE cached
+            // compositor layer. With this, the GPU rasterises the
+            // nebulas + 35 stars exactly once and reuses the
+            // bitmap for every subsequent frame — horizontal
+            // scrolls of the path-card carousel above never
+            // invalidate it. This is the actual performance fix
+            // (the previous attempt promoted each star to its own
+            // layer instead, which added compositor overhead).
+            transform: "translateZ(0)",
+            willChange: "transform",
+            contain: "strict",
+          }}
+        >
+          {/* Nebula 1 — warm violet, top half */}
+          <div
+            className="lite-nebula"
+            style={
+              {
+                left: "-10%",
+                top: "5vh",
+                width: "120vw",
+                height: "70vh",
+                background:
+                  "radial-gradient(ellipse at 50% 50%, rgba(180,90,255,0.22), rgba(120,60,220,0.08) 40%, transparent 70%)",
+                "--nebula-dur": "75s",
+                "--nebula-x": "10vw",
+                "--nebula-y": "-4vh",
+              } as CSSProperties
+            }
+          />
+          {/* Nebula 2 — warm gold, mid */}
+          <div
+            className="lite-nebula"
+            style={
+              {
+                right: "-15%",
+                top: "90vh",
+                width: "130vw",
+                height: "80vh",
+                background:
+                  "radial-gradient(ellipse at 50% 50%, rgba(255,180,90,0.16), rgba(255,140,60,0.06) 45%, transparent 75%)",
+                "--nebula-dur": "90s",
+                "--nebula-x": "-12vw",
+                "--nebula-y": "6vh",
+              } as CSSProperties
+            }
+          />
+          {/* Nebula 3 — cool teal, lower */}
+          <div
+            className="lite-nebula"
+            style={
+              {
+                left: "-5%",
+                top: "200vh",
+                width: "120vw",
+                height: "80vh",
+                background:
+                  "radial-gradient(ellipse at 50% 50%, rgba(70,180,220,0.18), rgba(40,120,200,0.06) 45%, transparent 75%)",
+                "--nebula-dur": "80s",
+                "--nebula-x": "8vw",
+                "--nebula-y": "-5vh",
+              } as CSSProperties
+            }
+          />
+
+          {/* Star field — 35 dots (cached in single layer above) */}
+          {Array.from({ length: 35 }).map((_, i) => {
+            const seed = i * 9301 + 49297;
+            const left = (seed * 13) % 100;
+            const topPct = (seed * 7) % 100;
+            const sizeRaw = (seed * 3) % 30;
+            const size = 1 + (sizeRaw % 3); // 1-3 px
+            const dur = 4 + ((seed >> 3) % 5); // 4-8 s
+            const delay = ((seed >> 5) % 50) / 10; // 0-5 s
+            const tint =
+              i % 5 === 0
+                ? "rgba(255, 215, 130, 0.95)" // warm gold accent
+                : i % 7 === 0
+                  ? "rgba(180, 200, 255, 0.95)" // cool blue accent
+                  : "#ffffff";
+            const glow = i % 5 === 0 || i % 7 === 0 ? size * 5 : size * 3;
+            return (
+              <span
+                key={i}
+                className="lite-star"
+                style={
+                  {
+                    left: `${left}%`,
+                    top: `${topPct}%`,
+                    width: `${size}px`,
+                    height: `${size}px`,
+                    background: tint,
+                    boxShadow: `0 0 ${glow}px ${tint}`,
+                    "--lite-star-dur": `${dur}s`,
+                    "--lite-star-delay": `${delay}s`,
+                  } as CSSProperties
+                }
+              />
+            );
+          })}
         </div>
       )}
     </div>

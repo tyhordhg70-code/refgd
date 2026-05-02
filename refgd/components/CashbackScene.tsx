@@ -37,16 +37,11 @@ export default function CashbackScene({
     <motion.div
       aria-hidden="true"
       className={`pointer-events-none relative cs-stage ${className}`}
-      style={{
-        width: `min(${size}px, 92vw)`,
-        height: `min(${size}px, 92vw)`,
-        ["--cs-size" as any]: `min(${size}px, 92vw)`,
-      }}
-      initial={reduced ? { opacity: 1 } : { opacity: 0 }}
-      whileInView={{ opacity: 1 }}
-      viewport={{ once: true, margin: "-120px", amount: 0.15 }}
-      transition={reduced ? { duration: 0 } : { duration: 0.8, ease: "easeOut" }}
-      suppressHydrationWarning
+      style={{ width: size, height: size, ["--cs-size" as any]: `${size}px` }}
+      initial={{ opacity: 0, scale: 0.92, y: 20 }}
+      whileInView={{ opacity: 1, scale: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
     >
       {/* AURORA HALO BACKDROP */}
       <div className={`cs-aurora ${reduced ? "" : "cs-aurora--anim"}`} />

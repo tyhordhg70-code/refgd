@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 
 /**
  * LedTicker — LED matrix-style horizontal scrolling text bar.
@@ -26,7 +26,6 @@ export default function LedTicker({
   className?: string;
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const reduced = useReducedMotion();
 
   useEffect(() => {
     const el = trackRef.current;
@@ -38,11 +37,10 @@ export default function LedTicker({
 
   return (
     <motion.div
-      initial={reduced ? { opacity: 1, x: 0, scaleX: 1 } : { opacity: 0, x: 80, scaleX: 0.92 }}
+      initial={{ opacity: 0, x: 80, scaleX: 0.92 }}
       whileInView={{ opacity: 1, x: 0, scaleX: 1 }}
       viewport={{ once: true, amount: 0.3 }}
-      transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 110, damping: 14, mass: 0.9 }}
-      suppressHydrationWarning
+      transition={{ type: "spring", stiffness: 110, damping: 14, mass: 0.9 }}
       className={`led-ticker relative w-full overflow-hidden border-y border-white/[0.07] ${className}`}
       style={{ ["--led-accent" as string]: accent, transformOrigin: "right center" }}
     >

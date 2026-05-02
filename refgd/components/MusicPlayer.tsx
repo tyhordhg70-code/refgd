@@ -348,29 +348,14 @@ export default function MusicPlayer() {
           className="group relative grid h-12 w-12 place-items-center rounded-full text-ink-950 transition active:scale-95"
           style={{
             background: "linear-gradient(135deg, #ffe28a, #f5b945 55%, #d99520)",
-            // Subtle drop shadow ONLY — the visible glow comes from the
-            // big blurred halo span behind the button (see below). Keeps
-            // the button itself looking grounded without contributing a
-            // bounded box-shadow disc.
-            boxShadow: "0 8px 22px -6px rgba(0,0,0,0.55)",
+            boxShadow:
+              "0 0 0 1px rgba(255,225,140,0.85), 0 12px 30px -8px rgba(245,185,69,0.6), 0 0 36px 6px rgba(245,185,69,0.35)",
           }}
         >
-          {/* TRUE diffuse halo behind the button — a much larger
-              blurred span so the falloff has real radial extent. The
-              previous version used -inset-6 (24 px) with a 5-stop
-              gradient, which still showed a visible disc edge against
-              the dark cosmos. Now -inset-16 (64 px) on each side, plus
-              a heavier blur, so the glow legitimately fades into the
-              background with no perceptible boundary. */}
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute -inset-16 rounded-full"
-            style={{
-              background:
-                "radial-gradient(circle, rgba(245,185,69,0.55) 0%, rgba(245,185,69,0.28) 18%, rgba(245,185,69,0.14) 35%, rgba(245,185,69,0.06) 55%, rgba(245,185,69,0.02) 75%, rgba(245,185,69,0) 100%)",
-              filter: "blur(22px)",
-              animation: "pulseGlow 2.4s ease-in-out infinite",
-            }}
+            className="pointer-events-none absolute inset-0 rounded-full"
+            style={{ animation: "pulseGlow 2.4s ease-in-out infinite" }}
           />
           {muted ? (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="relative">
