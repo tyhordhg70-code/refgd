@@ -343,9 +343,12 @@ export default function MentorshipHero({
             style={{ opacity: captionOp, y: captionY }}
             suppressHydrationWarning
           >
-            <p className="heading-display mb-4 text-[10px] font-semibold uppercase tracking-[0.4em] text-violet-200/90 sm:text-xs">
-              — chapter 02 / mastery awaits
-            </p>
+            {/* v6.7 — REMOVED the "— chapter 02 / mastery awaits"
+                eyebrow per user request. The hero already telegraphs
+                "this is the mentorship page" through the crown sigil
+                and the headline; the chapter marker on the very first
+                section was redundant and competed with the headline
+                for attention. */}
             <h1
               className="editorial-display text-balance text-white text-[clamp(2.4rem,8vw,7rem)] uppercase"
               style={{ textShadow: "0 6px 40px rgba(0,0,0,0.95), 0 0 30px rgba(167,139,250,0.4)" }}
@@ -353,7 +356,10 @@ export default function MentorshipHero({
               {caption}
             </h1>
             {subCaption ? (
-              <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/85 sm:text-lg">
+              <p
+                className="mx-auto mt-6 max-w-2xl text-base font-bold leading-relaxed text-white sm:text-lg"
+                style={{ textShadow: "0 2px 12px rgba(0,0,0,0.85), 0 0 22px rgba(167,139,250,0.35)" }}
+              >
                 {subCaption}
               </p>
             ) : null}

@@ -215,19 +215,11 @@ export default async function HomePage() {
                 </div>
               </MeshExpansionReveal>
             </section>
-            {/* Decorative fade-to-footer gradient. On mobile h-12
-                (was h-24) — the gradient itself is decorative, and a
-                tall version of it on mobile contributed visible empty
-                vertical space below the telegram CTA, making the page
-                feel longer than necessary. Desktop keeps h-32. */}
-            <div
-              aria-hidden="true"
-              className="pointer-events-none relative h-12 w-full sm:h-32"
-              style={{
-                background:
-                  "linear-gradient(to bottom, rgba(5,6,10,0) 0%, rgba(5,6,10,0.6) 45%, rgb(10,12,20) 100%)",
-              }}
-            />
+            {/* v6.7 — REMOVED the decorative fade-to-footer gradient.
+                The opaque rgb(10,12,20) bottom stop was rendering as a
+                solid black bar across the bottom of the homepage on
+                top of the global galaxy backdrop. The page now ends
+                cleanly into the galaxy with no extra dark band. */}
           </ParallaxChapter>
         </ReorderableSection>
       </ReorderableContainer>

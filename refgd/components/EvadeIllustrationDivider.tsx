@@ -41,9 +41,14 @@ export default function EvadeIllustrationDivider({
     target: ref,
     offset: ["start end", "end start"],
   });
-  const y = useTransform(scrollYProgress, [0, 1], [40, -40]);
-  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.94, 1.04, 0.96]);
-  const rotate = useTransform(scrollYProgress, [0, 1], [-2, 2]);
+  // v6.7 — TIGHTENED parallax (was [40,-40]). The original range
+  // shifted the artwork 40 px down at entry, producing the "huge
+  // gap above Get Started Today" the user reported. Keep the image
+  // close to its layout position so the band reads as one unit
+  // with the section header above it.
+  const y = useTransform(scrollYProgress, [0, 1], [10, -10]);
+  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.98, 1.02, 0.98]);
+  const rotate = useTransform(scrollYProgress, [0, 1], [-1, 1]);
 
   const glowMap = {
     cyan: "rgba(34,211,238,0.45)",
@@ -60,7 +65,7 @@ export default function EvadeIllustrationDivider({
       : "justify-center";
 
   return (
-    <section className={compact ? "relative py-2" : "relative py-10"}>
+    <section className={compact ? "relative py-2" : "relative py-4 sm:py-6"}>
       <div className="container-wide">
         <div
           ref={ref}

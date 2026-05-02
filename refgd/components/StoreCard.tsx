@@ -4,7 +4,6 @@ import { motion } from "framer-motion";
 import type { Store } from "@/lib/types";
 import { logoChainForStore } from "@/lib/logo";
 import { useEditContext } from "@/lib/edit-context";
-import MeshEntrance from "./MeshEntrance";
 
 const TAG_LABEL: Record<string, { label: string; cls: string }> = {
   fire:    { label: "🔥 hot",       cls: "bg-orange-500/15 text-orange-300 ring-orange-400/30" },
@@ -64,13 +63,14 @@ export default function StoreCard({
   // which is type-incompatible with React's `DragEvent<HTMLElement>`.
   // Putting the HTML drag handlers on the inner div sidesteps the conflict
   // entirely and keeps both layout animation AND native drag working.
-  // Lusion.co-style 3D mesh entrance — replaces the previous flat
-  // opacity/y fade. The MeshEntrance wrapper plays a one-shot
-  // SVG-displacement warp + perspective tilt + blur that settles to
-  // a clean static card so subsequent paints (hover, layout reorder,
-  // edit-mode overlays) stay zero-cost.
+  // v6.7 — REMOVED the MeshEntrance wrapper around store-info cards.
+  // Per the design brief: store cards on the store-list page should
+  // render statically with no entrance animation; only the "rules"
+  // boxcards (handled separately on app/store-list/page.tsx) get an
+  // entrance. The mesh warp on every store card was reading as a
+  // disorienting "all the data is mid-warping into focus" on initial
+  // page load with hundreds of cards.
   return (
-    <MeshEntrance delay={Math.min(idx * 0.04, 0.4)} duration={950} warp={70} blur={12}>
     <motion.article
       layout
       suppressHydrationWarning
@@ -217,7 +217,6 @@ export default function StoreCard({
         )}
       </div>
     </motion.article>
-    </MeshEntrance>
   );
 }
 

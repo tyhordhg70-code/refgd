@@ -1,6 +1,6 @@
 import ChipScroll from "@/components/ChipScroll";
 import GlassCard from "@/components/GlassCard";
-import MeshEntrance from "@/components/MeshEntrance";
+import PrismShard from "@/components/PrismShard";
 import KineticText from "@/components/KineticText";
 import ParallaxIllustration from "@/components/ParallaxIllustration";
 import ParallaxChapter from "@/components/ParallaxChapter";
@@ -125,7 +125,14 @@ export default function EvadePage() {
         <ChipScroll
           dir="/sequence/evade"
           frameCount={48}
-          background="#05060a"
+          // v6.7 — was "#05060a" (solid near-black). That painted the
+          // entire scrollytelling runway as a black void on first
+          // paint, before the user scrolled a single pixel — the
+          // user reported this as "evade page shows a black screen
+          // first then the animation vanishes". Transparent lets the
+          // page galaxy + cosmic gradient show through, so the user
+          // sees an atmospheric start state instead of a void.
+          background="transparent"
           accent="#22d3ee"
           fallbackKind="shield"
           caption="Experience Online Freedom."
@@ -166,7 +173,12 @@ export default function EvadePage() {
             Completes in ONE scroll-pass and reverses if the visitor
             scrolls back up, giving a clean transition in either
             direction between the trailer and the editorial chapters. */}
-        <PixelRainCosmic accent="#7dd3fc" scrollLength={1.8} />
+        {/* v6.7 — scrollLength reduced 1.8 → 0.9 so the user doesn't
+            have to scroll a full ~280svh through the rain runway
+            before reaching the next section. With the autoscroll
+            threshold also lowered to 0.55 the rain now feels like
+            a snappy interlude rather than an endurance test. */}
+        <PixelRainCosmic accent="#7dd3fc" scrollLength={0.9} />
       </ReorderableSection>
 
       <ReorderableSection sectionId="intro">
@@ -331,12 +343,17 @@ export default function EvadePage() {
         >
           <div className="container-wide relative grid gap-5 md:grid-cols-2">
             {FEATURES.map((f, i) => (
-              <MeshEntrance
+              // v6.7 — was MeshEntrance (same as StoreList rules
+              // cards). Per user request the Evade page and StoreList
+              // page now use DISTINCT entrance animations so the two
+              // pages don't feel templated. PrismShard sweeps each
+              // card open from a tilted shard with a chromatic-split
+              // settle — visually unrelated to MeshEntrance's
+              // SVG-displacement warp.
+              <PrismShard
                 key={f.title}
                 delay={i * 0.09}
                 duration={1100}
-                warp={80}
-                blur={14}
               >
                 <GlassCard tint={f.tint} index={i + 2} reveal={false} className={i % 2 === 0 ? "float-card" : "float-card float-card-2"}>
                   <div className="relative overflow-hidden p-8">
@@ -359,7 +376,7 @@ export default function EvadePage() {
                     />
                   </div>
                 </GlassCard>
-              </MeshEntrance>
+              </PrismShard>
             ))}
           </div>
         </ParallaxChapter>

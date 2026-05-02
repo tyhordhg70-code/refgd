@@ -37,11 +37,15 @@ export default function ImpactHeadline({
   const reduce = useReducedMotion();
   const Tag = motion[as] as typeof motion.h2;
 
+  // v6.7 — heavier styling per request ("Stop paying for BS" should
+  // read as a hammer-drop quote). 950 weight, thicker text-stroke,
+  // brighter violet glow + double drop-shadow so the line is
+  // instantly the loudest element on the page.
   const baseStyle: CSSProperties = {
-    fontWeight: 900,
-    WebkitTextStroke: "1.2px rgba(0,0,0,0.55)",
+    fontWeight: 950,
+    WebkitTextStroke: "1.6px rgba(0,0,0,0.7)",
     textShadow:
-      "0 4px 24px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.95), 0 0 40px rgba(167,139,250,0.30)",
+      "0 6px 32px rgba(0,0,0,0.98), 0 2px 8px rgba(0,0,0,0.98), 0 0 56px rgba(167,139,250,0.55)",
     fontStyle: italic ? "italic" : undefined,
     ...style,
   };

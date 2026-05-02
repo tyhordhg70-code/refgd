@@ -37,9 +37,16 @@ export default function FloatingArt({
     target: ref,
     offset: ["start end", "end start"],
   });
-  const y = useTransform(scrollYProgress, [0, 1], [60, -60]);
-  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.92, 1.05, 0.94]);
-  const rotate = useTransform(scrollYProgress, [0, 1], [-3, 3]);
+  // v6.7 — TIGHTENED parallax range (was [60, -60] / [0.92,1.05,0.94]).
+  // The previous values pushed the artwork ~60 px DOWN at section
+  // entry, leaving a huge empty gap above the image (the user
+  // reported this as "huge gap above the comprehensive solutions
+  // illustration"). New range keeps the image close to its layout
+  // position so spacing reads naturally; bob animation still gives
+  // it life.
+  const y = useTransform(scrollYProgress, [0, 1], [12, -12]);
+  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.98, 1.02, 0.98]);
+  const rotate = useTransform(scrollYProgress, [0, 1], [-1, 1]);
 
   const justify =
     side === "left" ? "justify-start" : side === "right" ? "justify-end" : "justify-center";
@@ -49,10 +56,15 @@ export default function FloatingArt({
       <motion.div
         style={{ y, scale, rotate, maxWidth: size }}
         className="relative w-full"
-        initial={{ opacity: 0, scale: 0.7, filter: "blur(12px)" }}
-        whileInView={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-        viewport={{ once: false, amount: 0.25 }}
-        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+        // v6.7 — softer entrance: was scale:0.7 + blur:12px (a
+        // dramatic "fly in from the void" that visibly compressed
+        // the image upward leaving an empty top gap). Now: gentle
+        // opacity-only fade with a subtle scale settle, so the
+        // image holds its slot from the moment it enters view.
+        initial={{ opacity: 0, scale: 0.96 }}
+        whileInView={{ opacity: 1, scale: 1 }}
+        viewport={{ once: true, amount: 0.2 }}
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
       >
         <motion.img
           src={src}

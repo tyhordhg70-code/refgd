@@ -219,7 +219,14 @@ export default function YouTubeTheater({
           scale: 1,
           rotateX: 0,
           rotateZ: 0,
-          filter: "blur(0px) url(#refgd-yt-mesh)",
+          // v6.7 — DROPPED the trailing `url(#refgd-yt-mesh)` from the
+          // animate filter. Chromium was treating the SVG filter ref
+          // as the final filter state mid-animation and leaving the
+          // iframe permanently rippled at the end of the entrance.
+          // The `onAnimationComplete` callback already wipes filter
+          // to "none"; here we ramp directly to "blur(0px)" with no
+          // SVG ref so the displacement is GUARANTEED to release.
+          filter: "blur(0px)",
           clipPath:
             "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%)",
         }}

@@ -44,9 +44,18 @@ function PathIllustrationContent({
       viewBox="0 0 400 500"
       className="absolute inset-0 h-full w-full"
       preserveAspectRatio="xMidYMid slice"
-      initial={{ opacity: 0, scale: 0.96 }}
+      // v6.7 — initial={false} so the SVG renders at its final
+      // {opacity:1, scale:1} state immediately. Previously the
+      // {opacity:0} initial combined with the parent MotionConfig
+      // reducedMotion="always" wrapper (used to freeze inactive
+      // Swiper-cube slides) left the SVG STUCK at opacity:0 — the
+      // user reported this as "blank illustrations on path cards".
+      // initial={false} skips the initial state entirely and
+      // guarantees the artwork is visible regardless of reduced
+      // motion / freeze state.
+      initial={false}
       animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 1.1, ease: [0.25, 0.4, 0.25, 1] }}
+      transition={{ duration: 0 }}
       aria-hidden="true"
     >
       <defs>
