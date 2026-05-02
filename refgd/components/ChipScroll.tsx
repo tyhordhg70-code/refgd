@@ -80,12 +80,37 @@ export default function ChipScroll({
   const captionY       = useTransform(scrollYProgress, [0.0, 1.0], [0, -24]);
   const scrollPromptOpacity = useTransform(scrollYProgress, [0.0, 0.02, 0.1], [0, 1, 0]);
 
+  // hasUserScrolled — guarantees the canvas stays invisible until the
+  // visitor actually scrolls. Defends against any framer-motion
+  // hydration weirdness, anchor-jumps, or programmatic scroll that
+  // could otherwise nudge scrollYProgress past 0 on first paint and
+  // unmask the canvas before the user has done anything. The wrapper
+  // opacity is `hasUserScrolled ? sceneOpacity : 0` — once the user
+  // has touched the page even once, the smooth scroll-driven ramp
+  // takes over.
+  const [hasUserScrolled, setHasUserScrolled] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const arm = () => setHasUserScrolled(true);
+    window.addEventListener("scroll", arm, { passive: true, once: true });
+    window.addEventListener("wheel", arm, { passive: true, once: true });
+    window.addEventListener("touchmove", arm, { passive: true, once: true });
+    window.addEventListener("keydown", arm, { once: true });
+    return () => {
+      window.removeEventListener("scroll", arm);
+      window.removeEventListener("wheel", arm);
+      window.removeEventListener("touchmove", arm);
+      window.removeEventListener("keydown", arm);
+    };
+  }, []);
+
   const [sceneOpacity, setSceneOpacity] = useState(0);
   useMotionValueEvent(scrollYProgress, "change", (v) => {
     // Linear ramp 0 → 1 over the first 4 % of the runway, clamped.
     const next = Math.max(0, Math.min(1, v / 0.04));
     setSceneOpacity(next);
   });
+  const effectiveOpacity = hasUserScrolled ? sceneOpacity : 0;
 
   // ── Preload frames ──────────────────────────────────────────────
   useEffect(() => {
@@ -424,7 +449,7 @@ export default function ChipScroll({
         <div
           className="absolute inset-0 h-full w-full"
           style={{
-            opacity: sceneOpacity,
+            opacity: effectiveOpacity,
             transition: "opacity 220ms cubic-bezier(0.4, 0, 0.2, 1)",
             willChange: "opacity",
           }}
