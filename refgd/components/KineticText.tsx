@@ -62,7 +62,8 @@ export default function KineticText({
       className={className}
       style={style}
       initial="hidden"
-      animate="show"
+      whileInView="show"
+      viewport={{ once: true, amount: 0.1 }}
       transition={{ staggerChildren: stagger, delayChildren: delay }}
       aria-label={value}
     >

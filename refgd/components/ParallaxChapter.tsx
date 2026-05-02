@@ -72,10 +72,9 @@ export default function ParallaxChapter({
   const fgInitial = disable ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 };
   const fgAnimate = { opacity: 1, y: 0 };
 
-  // v6 (2026-05): switched from `whileInView` to `animate` so the
-  // chapter entrance plays on mount rather than depending on
-  // IntersectionObserver — the same observer race that was leaving
-  // GlassCards stuck invisible was making chapters feel "flat".
+  // v6.1 (2026-05): scroll-triggered entrance with `once: true` so
+  // chapter contents animate in lusion-style as the user scrolls
+  // down, rather than burning through during the LoadingScreen.
 
   return (
     <section className={`relative isolate ${className}`}>
@@ -83,7 +82,8 @@ export default function ParallaxChapter({
         <motion.div
           aria-hidden="true"
           initial={mounted ? bgInitial : { opacity: 0 }}
-          animate={bgAnimate}
+          whileInView={bgAnimate}
+          viewport={{ once: true, amount: 0.1 }}
           transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
           suppressHydrationWarning
           className={`pointer-events-none z-0 ${bgClassName}`}
@@ -93,7 +93,8 @@ export default function ParallaxChapter({
       )}
       <motion.div
         initial={mounted ? fgInitial : undefined}
-        animate={fgAnimate}
+        whileInView={fgAnimate}
+        viewport={{ once: true, amount: 0.1 }}
         transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
         suppressHydrationWarning
         className="relative z-10"

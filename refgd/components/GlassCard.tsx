@@ -1,34 +1,35 @@
 "use client";
 import { useReducedMotion } from "framer-motion";
-import { type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
  * GlassCard — Lusion.co-style glassmorphism panel.
  *
- * v6 (2026-05): CSS-driven varied entrances.
+ * v6.1 (2026-05): CSS-driven varied entrances + IO-triggered playback.
  *
  *  • 6 lusion-style entrance variants (curtain, slide-left, slide-right,
  *    iris, tilt-3d, wipe-diag). Each is a CSS @keyframes in globals.css
- *    so it ALWAYS plays on mount — no framer-motion / IntersectionObserver
- *    races (which had been leaving cards permanently stuck at
- *    `clip-path: inset(100%)` — invisible — on this site).
+ *    so once the variant class is on the element, the animation ALWAYS
+ *    plays — no framer-motion clip-path race that had been leaving cards
+ *    permanently invisible on this site.
+ *
+ *  • The variant class is added by an IntersectionObserver, so cards
+ *    DO NOT animate during the LoadingScreen (which blocks scroll for
+ *    1.5s+ minimum). Off-screen cards stay invisible (.gc-pending) until
+ *    they scroll within 10% of the viewport bottom, at which point the
+ *    keyframe runs once. This is what the user means by "lusion-style
+ *    varied animations" — different per card AND scroll-triggered, not
+ *    burned through during the boot overlay.
  *
  *  • Pass `variant` to force a specific entrance, OR `index` to rotate
  *    through the variant pool so a row of sibling cards each animates
- *    differently (no synchronised "every card does the same thing"
- *    feel that the user complained about).
+ *    differently.
  *
  *  • `delay` becomes the inline `animation-delay` so staggered card
  *    cascades (`delay={i * 0.1}`) still work exactly the same.
  *
- *  • CSS `animation-fill-mode: backwards` keeps the card invisible
- *    during the delay window and removes the transform after the
- *    animation ends — so the float-card layer's continuous translateY
- *    and the liquid-glass-3d hover tilt take over cleanly with no
- *    leftover transform conflict.
- *
  * Three-layer transform stack:
- *   Layer 1: <div .glass-card-reveal--{variant}>  → CSS entrance
+ *   Layer 1: <div .glass-card-reveal--{variant}>  → CSS entrance (IO-gated)
  *   Layer 2: <div float-card>                     → CSS continuous float
  *   Layer 3: <div .liquid-glass-3d>               → hover tilt
  */
@@ -115,9 +116,50 @@ export default function GlassCard({
   const v: RevealVariant =
     variant ?? VARIANTS[(((index ?? 0) % VARIANTS.length) + VARIANTS.length) % VARIANTS.length];
 
+  // IntersectionObserver-gated playback. The card stays in `.gc-pending`
+  // state (opacity 0, hidden) until it actually scrolls into view, so
+  // off-screen cards do NOT burn their entrance animation while the
+  // LoadingScreen overlay is up. Once the IO fires we add the variant
+  // class — the keyframe runs and the card lands in its final state.
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [revealed, setRevealed] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // If the card is already visible on first paint (above-the-fold
+    // hero panels, etc.), reveal immediately.
+    const r = el.getBoundingClientRect();
+    if (
+      r.top < (window.innerHeight || 0) * 0.95 &&
+      r.bottom > 0
+    ) {
+      setRevealed(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            setRevealed(true);
+            io.disconnect();
+            break;
+          }
+        }
+      },
+      { rootMargin: "0px 0px -8% 0px", threshold: 0.05 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   return (
     <div
-      className={`group glass-card-reveal glass-card-reveal--${v} will-change-transform`}
+      ref={ref}
+      className={
+        revealed
+          ? `group glass-card-reveal glass-card-reveal--${v} will-change-transform`
+          : `group gc-pending will-change-transform`
+      }
       style={{ animationDelay: `${delay}s` }}
     >
       {innerLayer}

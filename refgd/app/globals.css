@@ -1725,6 +1725,17 @@ html { scroll-behavior: smooth; }
   animation-fill-mode: backwards;
   will-change: transform, opacity, clip-path;
 }
+/* Pre-reveal state — card is invisible until its IntersectionObserver
+   fires and the variant class is added. Without this the card would
+   flash in fully-visible for one frame before the keyframe started. */
+.gc-pending {
+  opacity: 0;
+  transform: translate3d(0, 24px, 0);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gc-pending { opacity: 1; transform: none; pointer-events: auto; }
+}
 .glass-card-reveal--curtain     { animation-name: glassCardCurtain;    animation-duration: 1.55s; }
 .glass-card-reveal--slide-left  { animation-name: glassCardSlideLeft;  animation-duration: 1.20s; }
 .glass-card-reveal--slide-right { animation-name: glassCardSlideRight; animation-duration: 1.20s; }

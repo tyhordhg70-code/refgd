@@ -91,7 +91,8 @@ export default function TextReveal({
         className={composedClassName}
         style={style}
         initial={{ opacity: 0, filter: "blur(6px)", y: 24 }}
-        animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+        whileInView={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+        viewport={{ once: true, amount: 0.15 }}
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         suppressHydrationWarning
       >
@@ -116,7 +117,8 @@ export default function TextReveal({
       style={style}
       variants={container}
       initial="hidden"
-      animate="show"
+      whileInView="show"
+      viewport={{ once: true, amount: 0.15 }}
       suppressHydrationWarning
     >
       {variant === "charBounce" || variant === "charGlitch"

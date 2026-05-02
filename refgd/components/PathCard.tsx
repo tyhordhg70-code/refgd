@@ -114,12 +114,12 @@ export default function PathCard({
         }
       : {
           initial: { opacity: 0, y: 80, scale: 0.85, rotateX: 18 },
-          // v6 (2026-05): switched from `whileInView` to `animate` so the
-          // entrance fires unconditionally on mount instead of waiting
-          // for the IntersectionObserver to fire — same observer race
-          // that was leaving GlassCards stuck invisible was also
-          // killing path-card illustrations on the homepage.
-          animate: { opacity: 1, y: 0, scale: 1, rotateX: 0 },
+          // v6.1 (2026-05): scroll-triggered entrance with `once: true`
+          // and a low `amount: 0.05` threshold so the cards reliably
+          // animate AS they scroll into view (lusion-style), but never
+          // burn through their entrance during the LoadingScreen.
+          whileInView: { opacity: 1, y: 0, scale: 1, rotateX: 0 },
+          viewport: { once: true, amount: 0.05 },
           transition: {
             duration: 1.0,
             delay: index * 0.12,

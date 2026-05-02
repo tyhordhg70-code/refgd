@@ -166,13 +166,14 @@ export default function ExplodeText({
                           filter: "blur(8px)",
                         }
                   }
-                  animate={{
+                  whileInView={{
                     opacity: 1,
                     x: 0,
                     y: 0,
                     rotate: 0,
                     filter: "blur(0px)",
                   }}
+                  viewport={{ once: true, amount: 0.05 }}
                   transition={{
                     duration: 0.85,
                     delay: g.delay,
