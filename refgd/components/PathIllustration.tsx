@@ -1,5 +1,5 @@
 "use client";
-import { motion, MotionConfig, useReducedMotion } from "framer-motion";
+import { motion, MotionConfig } from "framer-motion";
 import { useEffect, useState } from "react";
 
 export type PathIllustrationKind =
@@ -38,42 +38,16 @@ function PathIllustrationContent({
   accent: keyof typeof ACCENT_TO_HEX;
 }) {
   const c = ACCENT_TO_HEX[accent];
-  const reduced = useReducedMotion();
 
   return (
     <motion.svg
       viewBox="0 0 400 500"
       className="absolute inset-0 h-full w-full"
       preserveAspectRatio="xMidYMid slice"
-      // ── iOS Safari "vanishing illustration" hardening ───────────
-      // Previously: initial opacity:0 + whileInView with once:false
-      // means whenever this SVG drifts off-screen (e.g. inside a 3D
-      // cube swiper rotating, or sitting under a `transform-style:
-      // preserve-3d` ancestor whose backing layer Safari periodically
-      // discards), framer-motion drops it back to opacity 0 — and on
-      // iOS the next IntersectionObserver tick may never fire because
-      // the SVG is in a 3D context Safari thinks is fully off-screen.
-      // Net effect: the user reports "illustrations vanishing".
-      //
-      // Fix:
-      //   1. once:true so once revealed, it stays revealed
-      //   2. amount:"some" + small margin so we trigger on partial
-      //      visibility (cube faces are partially in/out during swipe)
-      //   3. reduced-motion → render at final state immediately
-      //   4. translate3d + backface-visibility: hidden + transform
-      //      style: flat give Safari its own GPU layer for the SVG
-      //      so it isn't subject to the cube's preserve-3d backing
-      //      layer being collapsed.
-      initial={reduced ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.96 }}
+      initial={{ opacity: 0, scale: 0.96 }}
       whileInView={{ opacity: 1, scale: 1 }}
-      viewport={{ once: true, amount: 0.05, margin: "0px 0px -10% 0px" }}
-      transition={reduced ? { duration: 0 } : { duration: 1.1, ease: [0.25, 0.4, 0.25, 1] }}
-      style={{
-        transform: "translate3d(0,0,0)",
-        backfaceVisibility: "hidden",
-        WebkitBackfaceVisibility: "hidden",
-        transformStyle: "flat",
-      }}
+      viewport={{ once: false }}
+      transition={{ duration: 1.1, ease: [0.25, 0.4, 0.25, 1] }}
       aria-hidden="true"
     >
       <defs>

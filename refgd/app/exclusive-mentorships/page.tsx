@@ -12,6 +12,8 @@ import CubicParallax from "@/components/CubicParallax";
 import EmotionChips from "@/components/EmotionChips";
 import EditableText from "@/components/EditableText";
 import GlassCard from "@/components/GlassCard";
+import VanishWrapper from "@/components/VanishWrapper";
+import ExplodeText from "@/components/ExplodeText";
 import SceneActivator from "@/components/SceneActivator";
 
 export const metadata = {
@@ -443,13 +445,7 @@ export default function MentorshipsPage() {
                 />
               </Reveal>
 
-              {/* VanishWrapper removed: even capped to opacity 0.85, the
-                  scroll-driven y-drift + scale tween made the entire
-                  BounceList block visibly wobble in/out as the user
-                  scrolled past, which the user reported as cards
-                  "vanishing and reappearing". The list now sits
-                  static; BounceList already animates each row
-                  individually on viewport entry. */}
+              <VanishWrapper drift={50} minScale={0.92}>
               <BounceList
                 items={REFUND_FEATURES}
                 detailsEditIdPrefix="ment.refund.feature.detail"
@@ -466,6 +462,7 @@ export default function MentorshipsPage() {
                   7: "Lifetime updates and a private chat where the meta is rewritten every week.",
                 }}
               />
+              </VanishWrapper>
 
               <div className="mt-10 space-y-6 text-base leading-relaxed text-white/85 sm:text-lg">
                 <TextReveal variant="wordSlide" editId="ment.refund.guarantee">
@@ -676,8 +673,7 @@ export default function MentorshipsPage() {
                 />
               </Reveal>
 
-              {/* VanishWrapper removed — see comment on the refund
-                  list above for the full rationale. */}
+              <VanishWrapper drift={50} minScale={0.92}>
               <BounceList
                 items={SE_FEATURES}
                 accent="cyan"
@@ -694,6 +690,7 @@ export default function MentorshipsPage() {
                   7: "Stack additional replacements on a single successful SE, target high-value SKUs, and learn the drop-off pipeline pros use.",
                 }}
               />
+              </VanishWrapper>
             </div>
           </div>
         </div>
@@ -771,25 +768,14 @@ export default function MentorshipsPage() {
           reads as one cohesive block instead of two separated chunks. */}
       <section className="relative overflow-x-clip pb-12 pt-6 text-center sm:pb-16 sm:pt-8">
         <div className="container-wide relative">
-          {/* CTA headline.
-              Was an ExplodeText where each glyph flew in from a 3D
-              scatter. In production users repeatedly reported the
-              line read as "STOP WATCHING. ST [gap] EARN [gap] NG." —
-              individual letter spans were stuck at opacity:0 (SSR
-              renders all glyphs at opacity 0 and depends on a
-              client-side viewport-driven animation to flip them to
-              opacity 1; if any one of those promises silently
-              dropped, the letter never appeared).
-              The CTA is the most important readable thing on the
-              page, so we render it as a single, plain headline that
-              ALWAYS shows the full text. KineticText still gives
-              a tasteful word-slide entrance for non-reduced-motion
-              users and short-circuits to plain text for reduced. */}
-          <KineticText
+          {/* Reverse-explosion CTA: each character flies in from a
+              scattered 3D position and assembles into the headline.
+              Large scatter radius so the effect is dramatic. */}
+          <ExplodeText
             as="h2"
-            editId="ment.cta.title"
             text="Stop watching. Start earning."
-            stagger={0.08}
+            scatter={420}
+            hue="167,139,250"
             className="editorial-display mx-auto text-white text-[clamp(2rem,7vw,6rem)] font-black uppercase"
             style={{
               paddingLeft: "0.3em",
@@ -797,7 +783,6 @@ export default function MentorshipsPage() {
               WebkitTextStroke: "1.2px rgba(0,0,0,0.55)",
               textShadow:
                 "0 4px 24px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.95), 0 0 50px rgba(167,139,250,0.45)",
-              textAlign: "center",
             }}
           />
           <Reveal delay={0.5}>

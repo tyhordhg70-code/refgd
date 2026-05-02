@@ -102,35 +102,6 @@ export default function ExplodeText({
 
   let glyphIdx = -1;
 
-  // Reduced-motion short-circuit: render the headline as a single
-  // plain Tag with the text. NO per-glyph motion spans, NO opacity:0
-  // initial, NO whileInView trigger that depends on scroll position.
-  // Previously the reduce branch still set initial:{ opacity:0 } and
-  // relied on whileInView to flip it to 1 — which silently failed
-  // when the headline was off-screen during initial render or when
-  // automation/full-page screenshots scrolled past it too quickly.
-  // The result on the live site was the "Stop watching. Start
-  // earning." line appearing partly or completely missing.
-  if (reduce) {
-    const Plain = as as any;
-    return (
-      <Plain
-        className={className}
-        style={{
-          ...style,
-          display: "block",
-          textAlign: (style as any)?.textAlign ?? "center",
-          textShadow:
-            style?.textShadow ??
-            `0 0 30px rgba(${hue},0.45), 0 4px 40px rgba(0,0,0,0.95)`,
-        }}
-        data-testid="explode-text"
-      >
-        {text}
-      </Plain>
-    );
-  }
-
   return (
     <Tag
       ref={ref as never}

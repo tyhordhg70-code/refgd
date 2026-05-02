@@ -29,25 +29,6 @@
   ) !important;
 }
 
-/* Critical: by default Swiper applies `touch-action: pan-y` only on the
-   `.swiper-horizontal` variant. The cube-effect Swiper *removes* that
-   default and sets `touch-action: none` on the .swiper element, which
-   means every touch landing on the cube surface gets swallowed by the
-   gesture handler — including pure-vertical drags meant to scroll the
-   page. Android users reported being "stuck on pathcard 2": they
-   couldn't scroll past the carousel because Swiper claimed every drag.
-   Force `touch-action: pan-y` back on so the BROWSER handles vertical
-   scroll while Swiper still handles horizontal swipes (filtered by
-   `touchAngle: 35` in PathsHorizontalReveal.tsx). */
-[data-testid="paths-mobile-track"] .swiper {
-  touch-action: pan-y !important;
-}
-[data-testid="paths-mobile-track"] .swiper-wrapper,
-[data-testid="paths-mobile-track"] .swiper-cube,
-[data-testid="paths-mobile-track"] .swiper-slide {
-  touch-action: pan-y !important;
-}
-
 @layer base {
   :root {
     --bg: 5 6 10;
@@ -448,99 +429,79 @@ html { scroll-behavior: smooth; }
   50%      { opacity: 0.85;transform: scale(0.98) rotate(-6deg); }
 }
 
-/* ─── Pulsating box-shadow for glass cards ──────────────────────────
-   Glow refactor (Apr 2026): the previous keyframes used a hard
-   `0 0 0 1px rgba(...)` shadow as a coloured rim around every card.
-   That 1px ring has zero blur, so it always rendered as a crisp
-   coloured outline — which the user described as "glow looks weird,
-   has borders to it, doesn't look like a natural glow". The fix is
-   to drop the hard ring entirely and rely on stacked, large-blur
-   outer shadows whose alpha tapers off past the spread radius. The
-   result reads as a soft halo bleeding into the surrounding dark
-   background instead of a fenced rectangle of colour.
-   Each glow now uses three concentric outer shadows:
-     • near halo (blur 32, spread -6) — close colour wash
-     • mid halo (blur 64, spread 0)   — broader glow
-     • far halo (blur 110, spread 0)  — atmospheric bloom
-   No `0 0 0 1px` ring → no visible glow boundary. */
+/* ─── Pulsating box-shadow for glass cards ──────────────────────── */
 .pulse-glow {
   animation: pulseGlowShadow 4.5s ease-in-out infinite;
 }
 @keyframes pulseGlowShadow {
   0%, 100% {
-    box-shadow: 0 0 32px -6px rgba(245,185,69,0.18),
-                0 0 64px rgba(245,185,69,0.10),
-                0 30px 110px rgba(245,185,69,0.10);
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.10),
+                0 30px 80px -30px rgba(245,185,69,0.18);
   }
   50% {
-    box-shadow: 0 0 32px -6px rgba(245,185,69,0.42),
-                0 0 64px rgba(245,185,69,0.28),
-                0 30px 110px rgba(167,139,250,0.18);
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.45),
+                0 30px 100px -25px rgba(245,185,69,0.55),
+                0 0 60px 10px rgba(167,139,250,0.20);
   }
 }
 .pulse-glow-violet { animation: pulseGlowViolet 5s ease-in-out infinite; }
 @keyframes pulseGlowViolet {
   0%, 100% {
-    box-shadow: 0 0 32px -6px rgba(167,139,250,0.18),
-                0 0 64px rgba(167,139,250,0.10),
-                0 30px 110px rgba(167,139,250,0.10);
+    box-shadow: 0 0 0 1px rgba(167,139,250,0.10),
+                0 30px 80px -30px rgba(167,139,250,0.18);
   }
   50% {
-    box-shadow: 0 0 32px -6px rgba(167,139,250,0.45),
-                0 0 64px rgba(167,139,250,0.30),
-                0 30px 110px rgba(34,211,238,0.18);
+    box-shadow: 0 0 0 1px rgba(167,139,250,0.55),
+                0 30px 100px -25px rgba(167,139,250,0.55),
+                0 0 60px 10px rgba(34,211,238,0.20);
   }
 }
 .pulse-glow-cyan { animation: pulseGlowCyan 5s ease-in-out infinite; }
 @keyframes pulseGlowCyan {
   0%, 100% {
-    box-shadow: 0 0 32px -6px rgba(34,211,238,0.18),
-                0 0 64px rgba(34,211,238,0.10),
-                0 30px 110px rgba(34,211,238,0.10);
+    box-shadow: 0 0 0 1px rgba(34,211,238,0.10),
+                0 30px 80px -30px rgba(34,211,238,0.18);
   }
   50% {
-    box-shadow: 0 0 32px -6px rgba(34,211,238,0.45),
-                0 0 64px rgba(34,211,238,0.28),
-                0 30px 110px rgba(167,139,250,0.18);
+    box-shadow: 0 0 0 1px rgba(34,211,238,0.55),
+                0 30px 100px -25px rgba(34,211,238,0.50),
+                0 0 60px 10px rgba(167,139,250,0.20);
   }
 }
 .pulse-glow-gold { animation: pulseGlowGold 4.6s ease-in-out infinite; }
 @keyframes pulseGlowGold {
   0%, 100% {
-    box-shadow: 0 0 32px -6px rgba(245,185,69,0.18),
-                0 0 64px rgba(245,185,69,0.10),
-                0 30px 110px rgba(255,225,140,0.10);
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.10),
+                0 30px 80px -30px rgba(245,185,69,0.18);
   }
   50% {
-    box-shadow: 0 0 32px -6px rgba(245,185,69,0.45),
-                0 0 64px rgba(245,185,69,0.32),
-                0 30px 110px rgba(255,225,140,0.20);
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.55),
+                0 30px 100px -25px rgba(245,185,69,0.55),
+                0 0 60px 10px rgba(255,237,180,0.22);
   }
 }
 .pulse-glow-orange { animation: pulseGlowOrange 5.2s ease-in-out infinite; }
 @keyframes pulseGlowOrange {
   0%, 100% {
-    box-shadow: 0 0 32px -6px rgba(249,115,22,0.18),
-                0 0 64px rgba(249,115,22,0.10),
-                0 30px 110px rgba(249,115,22,0.10);
+    box-shadow: 0 0 0 1px rgba(249,115,22,0.10),
+                0 30px 80px -30px rgba(249,115,22,0.18);
   }
   50% {
-    box-shadow: 0 0 32px -6px rgba(249,115,22,0.45),
-                0 0 64px rgba(249,115,22,0.28),
-                0 30px 110px rgba(253,186,116,0.20);
+    box-shadow: 0 0 0 1px rgba(249,115,22,0.55),
+                0 30px 100px -25px rgba(249,115,22,0.55),
+                0 0 60px 10px rgba(253,186,116,0.22);
   }
 }
 .pulse-glow-fuchsia { animation: pulseGlowFuchsia 4.8s ease-in-out infinite; }
 @keyframes pulseGlowFuchsia {
   0%, 100% {
-    box-shadow: 0 0 32px -6px rgba(236,72,153,0.18),
-                0 0 64px rgba(236,72,153,0.10),
-                0 30px 110px rgba(236,72,153,0.10);
+    box-shadow: 0 0 0 1px rgba(236,72,153,0.10),
+                0 30px 80px -30px rgba(236,72,153,0.18);
   }
   50% {
-    box-shadow: 0 0 32px -6px rgba(236,72,153,0.48),
-                0 0 64px rgba(236,72,153,0.30),
-                0 30px 110px rgba(244,114,182,0.20);
+    box-shadow: 0 0 0 1px rgba(236,72,153,0.60),
+                0 30px 100px -25px rgba(236,72,153,0.55),
+                0 0 60px 10px rgba(244,114,182,0.22);
   }
 }
 
@@ -1286,24 +1247,9 @@ html { scroll-behavior: smooth; }
 .shape-cube > .face {
   position: absolute;
   inset: 0;
-  /* No hard border — the user's previous build showed sharp
-     rectangular outlines reading as CSS boxes rather than glow.
-     Now each face is a soft luminous panel: transparent fill,
-     rounded corners, multi-layer blurred glow inside + out so the
-     edges fade into the background instead of being a visible
-     1 px stroke. */
-  border: none;
-  border-radius: 22%;
-  background:
-    radial-gradient(ellipse at center,
-      rgba(167,139,250,0.10) 0%,
-      rgba(34,211,238,0.05)  55%,
-      transparent            85%);
-  box-shadow:
-    inset 0 0 38px rgba(167,139,250,0.22),
-    inset 0 0 14px rgba(255,225,140,0.10),
-    0 0 36px rgba(167,139,250,0.18);
-  opacity: 0.7;
+  border: 1px solid rgba(255, 225, 140, 0.22);
+  background: linear-gradient(135deg, rgba(167,139,250,0.06), rgba(34,211,238,0.04));
+  box-shadow: inset 0 0 24px rgba(167,139,250,0.10);
 }
 .shape-cube > .face-f { transform: translateZ(var(--half)); }
 .shape-cube > .face-b { transform: rotateY(180deg) translateZ(var(--half)); }
@@ -1358,22 +1304,9 @@ html { scroll-behavior: smooth; }
 .shape-pyr > .plane {
   position: absolute;
   inset: 0;
-  /* Same soft-glow treatment as the cube faces — the previous
-     hard 1 px solid border rendered as visible diamond outlines
-     in the page background. Now each plane is a soft fuchsia
-     orb with rounded edges that blend into the cosmic backdrop. */
-  border: none;
-  border-radius: 30%;
-  background:
-    radial-gradient(ellipse at center,
-      rgba(244,114,182,0.10) 0%,
-      rgba(167,139,250,0.05) 55%,
-      transparent            85%);
-  box-shadow:
-    inset 0 0 36px rgba(244,114,182,0.22),
-    inset 0 0 12px rgba(255,225,140,0.08),
-    0 0 32px rgba(244,114,182,0.15);
-  opacity: 0.7;
+  border: 1px solid rgba(244, 114, 182, 0.30);
+  background: linear-gradient(135deg, rgba(244,114,182,0.05), rgba(167,139,250,0.04));
+  box-shadow: inset 0 0 22px rgba(244,114,182,0.14);
 }
 .shape-pyr > .plane-1 { transform: rotateY(0deg)   rotateX(45deg); }
 .shape-pyr > .plane-2 { transform: rotateY(60deg)  rotateX(45deg); }
@@ -1430,53 +1363,25 @@ html { scroll-behavior: smooth; }
   isolation: isolate;
 }
 
-/* AURORA HALO — multi-stop animated conic that sweeps gold→violet→
-   cyan→fuchsia behind the credit card. The conic provides the colour
-   wash, a radial soft-mask + blur turns it into a halo glow rather
-   than a hard wheel. The sweep + breathing animation are split onto
-   inner/outer layers so the conic angle and the scale don't trample
-   each other. */
+/* AURORA HALO */
 .cs-aurora {
   position: absolute;
-  inset: -8%;
+  inset: 0;
   border-radius: 9999px;
-  background:
-    /* Bright golden hot-spot in the centre */
-    radial-gradient(
-      circle at 50% 45%,
-      rgba(255, 225, 140, 0.55),
-      rgba(167, 139, 250, 0.18) 40%,
-      transparent 70%
-    ),
-    /* Multi-stop conic for the lusion-like prismatic glow */
-    conic-gradient(
-      from var(--cs-aurora-angle, 0deg) at 50% 50%,
-      rgba(245, 185, 69, 0.42),
-      rgba(232, 121, 249, 0.38) 25%,
-      rgba(34, 211, 238, 0.34) 50%,
-      rgba(167, 139, 250, 0.42) 75%,
-      rgba(245, 185, 69, 0.42) 100%
-    );
-  filter: blur(34px);
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 225, 140, 0.32),
+    rgba(167, 139, 250, 0.22) 40%,
+    transparent 70%
+  );
+  filter: blur(28px);
   transform: scale(1);
-  opacity: 0.88;
+  opacity: 0.85;
 }
-@property --cs-aurora-angle {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
-}
-.cs-aurora--anim {
-  animation:
-    cs-aurora-breath 6s ease-in-out infinite,
-    cs-aurora-spin   18s linear infinite;
-}
+.cs-aurora--anim { animation: cs-aurora-breath 6s ease-in-out infinite; }
 @keyframes cs-aurora-breath {
-  0%, 100% { transform: scale(1);    opacity: 0.78; }
-  50%      { transform: scale(1.10); opacity: 1;    }
-}
-@keyframes cs-aurora-spin {
-  to { --cs-aurora-angle: 360deg; }
+  0%, 100% { transform: scale(1);    opacity: 0.7; }
+  50%      { transform: scale(1.08); opacity: 1;   }
 }
 
 /* PULSE RINGS — each ring scales out from card centre and fades */
@@ -1680,38 +1585,11 @@ html { scroll-behavior: smooth; }
         layers. We KEEP every animation — but force them onto the
         GPU compositor (transform/opacity only) and prevent the
         browser from re-rasterizing the underlying SVG geometry
-        each tick.
-
-        IMPORTANT: do NOT apply `transform: translateZ(0)` to every
-        descendant — that declaration OVERWRITES the static `transform:
-        translate(-50%, -50%)` centering on `.cs-card-wrap` (and the
-        margin-offsets on coins/chips when their keyframe animation
-        is paused mid-cycle), which is exactly what made the storelist
-        mobile illustration look "broken" — credit card jumped to
-        top-left, coins/chips lost their stacking. Use `will-change`
-        on the stage itself for compositor promotion instead. */
-  .cs-stage {
-    will-change: transform;
+        each tick. */
+  .cs-stage,
+  .cs-stage * {
+    transform: translateZ(0);
     backface-visibility: hidden;
-  }
-
-  /* SCALE the fixed-pixel pieces (coins, chips, bills, wallet stroke
-     widths) proportionally to the stage. Desktop stage is 520px and
-     these sizes were tuned for it; on mobile the stage is 260px so
-     anything in fixed px renders ~2x oversized and visually breaks
-     the layout. Using calc() against `--cs-size` keeps them
-     proportional at any size. */
-  .cs-coin {
-    width:  calc(var(--cs-size, 520px) * 0.085);
-    height: calc(var(--cs-size, 520px) * 0.085);
-    margin-left: calc(var(--cs-size, 520px) * -0.0425);
-    margin-top:  calc(var(--cs-size, 520px) * -0.0425);
-  }
-  .cs-coin svg { width: 100%; height: 100%; }
-  .cs-chip {
-    font-size: calc(var(--cs-size, 520px) * 0.022);
-    padding: calc(var(--cs-size, 520px) * 0.010) calc(var(--cs-size, 520px) * 0.020);
-    letter-spacing: 0.18em;
   }
 
   /* 4. CONTAIN LARGE OFF-SCREEN BLOCKS so layout work scales with
@@ -1781,63 +1659,4 @@ html { scroll-behavior: smooth; }
     content-visibility: auto;
     contain-intrinsic-size: auto 800px;
   }
-}
-
-/* ─── HomeBackground DOM cinematic layer ──────────────────────────── */
-/* Drifting gradient orbs — slow translate+scale loop, opacity breath. */
-.hb-orb {
-  position: absolute;
-  border-radius: 9999px;
-  pointer-events: none;
-  filter: blur(20px);
-  mix-blend-mode: screen;
-  will-change: transform, opacity;
-  animation: hb-orb-drift ease-in-out infinite;
-  transform: translate(-50%, -50%);
-}
-@keyframes hb-orb-drift {
-  0%, 100% { transform: translate(-50%, -50%) scale(1)    rotate(0deg);   opacity: 0.55; }
-  25%      { transform: translate(-44%, -56%) scale(1.06) rotate(40deg);  opacity: 0.75; }
-  50%      { transform: translate(-56%, -44%) scale(1.10) rotate(80deg);  opacity: 0.85; }
-  75%      { transform: translate(-50%, -52%) scale(1.04) rotate(40deg);  opacity: 0.65; }
-}
-
-/* Aurora streamer — slow horizontal drift + fade breath. */
-.hb-aurora {
-  position: absolute;
-  inset: 18% -10% auto -10%;
-  width: 120%;
-  height: 60vh;
-  pointer-events: none;
-  mix-blend-mode: screen;
-  opacity: 0.6;
-  will-change: transform, opacity;
-  animation: hb-aurora-drift 22s ease-in-out infinite;
-}
-@keyframes hb-aurora-drift {
-  0%, 100% { transform: translate3d(-4%, 0, 0)  scaleY(1);    opacity: 0.55; }
-  50%      { transform: translate3d( 4%, -6%, 0) scaleY(1.10); opacity: 0.85; }
-}
-
-/* Twinkling DOM stars — small dot, slow opacity+scale loop. */
-.hb-star {
-  position: absolute;
-  border-radius: 9999px;
-  pointer-events: none;
-  opacity: 0;
-  will-change: opacity, transform;
-  animation-name: hb-star-twinkle;
-  animation-iteration-count: infinite;
-  animation-timing-function: ease-in-out;
-  transform: translate(-50%, -50%) scale(0.6);
-}
-@keyframes hb-star-twinkle {
-  0%, 100% { opacity: 0;    transform: translate(-50%, -50%) scale(0.6); }
-  50%      { opacity: 0.95; transform: translate(-50%, -50%) scale(1.0); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hb-orb, .hb-aurora, .hb-star { animation: none !important; }
-  .hb-star { opacity: 0.6; }
-  .hb-orb  { opacity: 0.55; }
 }

@@ -49,23 +49,14 @@ const PHASES = [
 ];
 
 export default function LoadingScreen() {
-  // Skip the loader entirely if we already played it in this browser
-  // session. The whole point is to mask the cold first-paint; once the
-  // user has been past it once, every subsequent route change should
-  // feel instantaneous.
-  const initiallySkip =
-    typeof window !== "undefined" &&
-    window.sessionStorage?.getItem("refgd:loader-played") === "1";
-
-  const [progress, setProgress] = useState(initiallySkip ? 100 : 0);
-  const [phase, setPhase] = useState(PHASES[initiallySkip ? 4 : 0]);
-  const [visible, setVisible] = useState(!initiallySkip);
-  const [removed, setRemoved] = useState(initiallySkip);
+  const [progress, setProgress] = useState(0);
+  const [phase, setPhase] = useState(PHASES[0]);
+  const [visible, setVisible] = useState(true);
+  const [removed, setRemoved] = useState(false);
   // Keep last reported value so the bar never goes backwards
-  const lastShownRef = useRef(initiallySkip ? 100 : 0);
+  const lastShownRef = useRef(0);
 
   useEffect(() => {
-    if (initiallySkip) return;
     // Lock body so the user can't start scrolling on a half-warm tree
     const prevOverflow = document.body.style.overflow;
     const prevTouchAction = document.body.style.touchAction;
@@ -73,14 +64,8 @@ export default function LoadingScreen() {
     document.body.style.touchAction = "none";
 
     const startTime = performance.now();
-    const MIN_DURATION = 600;
+    const MIN_DURATION = 1500;
     let cancelled = false;
-    // Hard wall-clock ceiling. The overlay is NEVER shown for longer
-    // than this — its job is to mask the first ~hundred ms of layer
-    // creation, not to block content. After this the user sees the
-    // page even if some background promise (HMR socket, third-party
-    // font, deferred script) is still in flight.
-    const HARD_CEILING_MS = 1500;
     let rafId = 0;
     let timerA = 0;
     let timerB = 0;
@@ -220,17 +205,8 @@ export default function LoadingScreen() {
 
     // ── Two rAF cycles after window load so we know the React tree
     //    has had a real layout + paint pass.
-    //
-    //    SAFETY: inside an iframe with active dev-server HMR sockets
-    //    (and on some browsers with long-pending sub-resources),
-    //    `window.load` may never fire. We add an 8 s ceiling so the
-    //    loader can never get permanently stuck behind a missing
-    //    `load` event — far longer than any normal first paint.
     const paintWaiter = new Promise<void>((resolve) => {
-      let done = false;
       const trigger = () => {
-        if (done) return;
-        done = true;
         requestAnimationFrame(() =>
           requestAnimationFrame(() => {
             state.firstPaintDone = true;
@@ -241,7 +217,6 @@ export default function LoadingScreen() {
       };
       if (document.readyState === "complete") trigger();
       else window.addEventListener("load", trigger, { once: true });
-      window.setTimeout(trigger, 8000);
     });
 
     // ── Min stall: never finish faster than the user can register
@@ -255,33 +230,16 @@ export default function LoadingScreen() {
     );
 
     // ── Window load promise ──
-    //    SAFETY: same iframe / HMR concern as paintWaiter — never let
-    //    a missing `load` event freeze the loader. Hard-resolve at 8 s.
     const windowLoadPromise = new Promise<void>((r) => {
-      let done = false;
-      const fire = () => {
-        if (done) return;
-        done = true;
-        state.windowLoaded = true;
-        commitProgress();
-        r();
-      };
-      if (document.readyState === "complete") fire();
-      else window.addEventListener("load", fire, { once: true });
-      window.setTimeout(fire, 8000);
+      if (document.readyState === "complete") r();
+      else window.addEventListener("load", () => r(), { once: true });
     });
 
     // ── Fonts ready promise ──
-    //    SAFETY: cap at 6 s so a slow / failed webfont never blocks
-    //    the whole loader from dismissing.
-    const fontsReadyRaw: Promise<unknown> =
+    const fontsReadyPromise: Promise<unknown> =
       typeof document !== "undefined" && document.fonts && document.fonts.ready
         ? document.fonts.ready
         : Promise.resolve();
-    const fontsReadyPromise: Promise<unknown> = Promise.race([
-      fontsReadyRaw,
-      new Promise((r) => window.setTimeout(r, 6000)),
-    ]);
 
     // ── Scene-ready promise: any cinematic scene component
     //    (ChipScroll on the evade page, etc.) dispatches a
@@ -335,42 +293,29 @@ export default function LoadingScreen() {
       }, 6000);
     });
 
-    const dismiss = () => {
-      if (cancelled) return;
-      state.everythingResolved = true;
-      lastShownRef.current = 100;
-      setProgress(100);
-      setPhase(PHASES[4]);
-      cancelAnimationFrame(rafId);
-      try {
-        window.sessionStorage?.setItem("refgd:loader-played", "1");
-      } catch {}
-      timerA = window.setTimeout(() => setVisible(false), 200);
-      timerB = window.setTimeout(() => {
-        setRemoved(true);
-        document.body.style.overflow = prevOverflow;
-        document.body.style.touchAction = prevTouchAction;
-      }, 700);
-    };
-
-    // Race the (possibly-slow) real readiness signal against a HARD
-    // wall-clock ceiling. Whichever wins, the overlay is gone — the
-    // user is NEVER held behind a black screen for more than
-    // HARD_CEILING_MS. The overlay's whole job is to mask the first
-    // ~hundred ms of layer creation; beyond that it is just blocking
-    // the page from being seen.
-    const realReady = Promise.all([
+    Promise.all([
       fontsReadyPromise,
       windowLoadPromise,
       minStallPromise,
       paintWaiter,
       imagesPromise,
       sceneReadyPromise,
-    ]);
-    const ceiling = new Promise<void>((r) =>
-      window.setTimeout(r, HARD_CEILING_MS),
-    );
-    Promise.race([realReady, ceiling]).then(dismiss);
+    ]).then(() => {
+      if (cancelled) return;
+      state.everythingResolved = true;
+      // Final commit takes us from whatever real % we reached up to 100
+      lastShownRef.current = 100;
+      setProgress(100);
+      setPhase(PHASES[4]);
+      cancelAnimationFrame(rafId);
+
+      timerA = window.setTimeout(() => setVisible(false), 280);
+      timerB = window.setTimeout(() => {
+        setRemoved(true);
+        document.body.style.overflow = prevOverflow;
+        document.body.style.touchAction = prevTouchAction;
+      }, 1100);
+    });
 
     return () => {
       cancelled = true;
@@ -382,8 +327,6 @@ export default function LoadingScreen() {
       document.body.style.overflow = prevOverflow;
       document.body.style.touchAction = prevTouchAction;
     };
-    // initiallySkip is read once at mount; intentionally not a dep
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (removed) return null;
