@@ -88,36 +88,44 @@ export default function GlassCard({
 
   // Layer 1 (entrance) → Layer 2 (float) → Layer 3 (surface / hover tilt)
   // ─────────────────────────────────────────────────────────────────
-  // LUSION-AUTHENTIC ENTRANCE (round 5):
-  //   Lusion.co's signature card reveal is a CURTAIN-RISE MASK, not
-  //   a scale-up. The card emerges from below a clip-path mask,
-  //   rising into place with a long exponential ease-out and a faint
-  //   rotateX tilt that flattens as it lands. There is NO scale —
-  //   that's what made our previous version read as generic
-  //   framer-motion instead of Lusion.
+  // LUSION-AUTHENTIC ENTRANCE (round 6 — reliability fix):
+  //   Lusion.co's signature card reveal is a curtain-rise mask + slide,
+  //   long exponential ease-out, faint rotateX tilt that flattens as
+  //   it lands. No scale.
   //
-  //   Initial state:
-  //     • clip-path inset(100% 0 0 0) — top inset 100% means the
-  //       full visible area is clipped away from the top down,
-  //       leaving 0px of card visible. The reveal then animates
-  //       the top inset back to 0%, "lifting the curtain" UPWARD
-  //       and exposing the card from BOTTOM to top — the
-  //       characteristic Lusion rise.
-  //     • y: 140 — substantial slide-up so the rise has runway.
-  //     • rotateX: 8 — subtle 3D tilt back, then flattens.
-  //     • opacity: 0 → fades in alongside the mask reveal.
+  //   Round 5 used `clipPath: inset(100%)` as the initial state and
+  //   `viewport.once: false` so cards re-hid every time they left the
+  //   viewport. That combination caused entire sections of the page
+  //   (Trust cards, Pricing cards, How-it-works steps, Why-choose-us,
+  //   Evade-like-a-Pro intro, Comprehensive Solutions, Features 2x2)
+  //   to render as blank space whenever the framer-motion
+  //   IntersectionObserver lost track of them — which happened
+  //   reliably on slow first paints, hydration races with the
+  //   LoadingScreen, or after scrolling past + back. The card was
+  //   sitting there in the DOM at clip-path: inset(100%) — completely
+  //   invisible, with no entrance animation ever firing. Users saw a
+  //   section header followed by empty space.
+  //
+  //   Round 6 fixes the reliability without losing the look:
+  //
+  //     • `once: true` — the reveal fires once when the card first
+  //       enters the viewport and the card stays visible afterwards.
+  //       The "vanish/reappear" rhythm was a misinterpretation of
+  //       Lusion (their cards do not re-hide on scroll-past).
+  //     • `amount: 0.05` — fire as soon as ~5% is visible (was 12%),
+  //       so a card whose layout box is just barely on screen still
+  //       triggers; this guards against the y:140 displacement
+  //       pushing the card's effective bbox out of view at mount.
+  //     • Initial `y: 80` instead of 140 — keeps the slide visible
+  //       but reduces the "card mounted off-screen, observer missed
+  //       it" failure mode.
   //
   //   Transition: 1.55s with [0.16, 1, 0.3, 1] (power4.out).
-  //
-  //   The viewport.once stays false so cards REPLAY this entrance
-  //   every time they re-enter the viewport — matching the
-  //   "vanish/reappear" rhythm the user requested for the SE/refund
-  //   what's-included blocks (which is also Lusion's behaviour).
   return (
     <motion.div
       initial={{
         opacity: 0,
-        y: 140,
+        y: 80,
         rotateX: 8,
         clipPath: "inset(100% 0% 0% 0%)",
       }}
@@ -127,7 +135,7 @@ export default function GlassCard({
         rotateX: 0,
         clipPath: "inset(0% 0% 0% 0%)",
       }}
-      viewport={{ once: false, amount: 0.12 }}
+      viewport={{ once: true, amount: 0.05 }}
       transition={{
         duration: 1.55,
         delay,
