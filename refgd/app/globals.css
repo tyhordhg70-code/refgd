@@ -1176,6 +1176,22 @@ html { scroll-behavior: smooth; }
 .cube-float {
   animation: cubeFloat 4.5s ease-in-out infinite;
   will-change: transform;
+  /* CRITICAL: let vertical drags pass through to the page scroller.
+     Without this, Swiper EffectCube's touch listeners on iOS capture
+     EVERY touch on the cube — so a user trying to scroll DOWN past
+     the cards just rotates the cube a tiny bit and the page never
+     moves. `pan-y` tells the browser "I only handle horizontal
+     gestures here; vertical scrolling belongs to the document."
+     Swiper still gets horizontal swipes for the cube rotation. */
+  touch-action: pan-y;
+}
+/* Same rule on every Swiper element inside the cube stage so iOS
+   doesn't grab vertical drags on the slide / cube wrapper either. */
+.cube-float .swiper,
+.cube-float .swiper-wrapper,
+.cube-float .swiper-slide,
+.cube-float .swiper-cube-shadow {
+  touch-action: pan-y;
 }
 
 @keyframes constellationDotPulse {
@@ -1593,14 +1609,18 @@ html { scroll-behavior: smooth; }
   }
 
   /* 4. CONTAIN LARGE OFF-SCREEN BLOCKS so layout work scales with
-        what's on screen, not with what's on the page. `contain:
-        layout paint` lets the browser skip layout/paint for
-        descendants when the section is far off-screen, without
-        hiding the element from the layout flow (no scroll-jank). */
+        what's on screen, not with what's on the page.
+        IMPORTANT: only `contain: layout` here — NOT `contain: paint`.
+        `paint` containment clips every text-shadow / box-shadow /
+        filter glow at the section's bounding box, which produced
+        the hard RECTANGULAR EDGES the user saw on every glow on
+        the site (sound button, WELCOME headline, glass cards,
+        pulse-glow chips, etc). Layout containment alone keeps
+        the scroll-perf benefit without sabotaging the design. */
   main > *,
   section[class*="container"],
   section[id] {
-    contain: layout paint;
+    contain: layout;
   }
 
   /* 5. HOVER-TILT (liquid-glass-3d) needs a perspective + transform

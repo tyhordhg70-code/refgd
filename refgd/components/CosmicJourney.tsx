@@ -157,7 +157,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       >
         <div
           className="sticky top-0 grid w-full place-items-center overflow-hidden"
-          style={{ height: "100svh", perspective: "1400px", contain: "layout paint" }}
+          style={{ height: "100svh", perspective: "1400px", contain: "layout" }}
         >
           {/* Stage — scroll transforms applied via direct style mutation, NOT motion values */}
           <div
