@@ -314,24 +314,6 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         shortSwipes
         followFinger
         resistanceRatio={0.55}
-        // ── VERTICAL SCROLL PASS-THROUGH (the "can't scroll on mobile" fix) ──
-        // Swiper's default touchStartPreventDefault:true calls
-        // event.preventDefault() on touchstart, which KILLS the browser's
-        // native vertical scrolling before our CSS `touch-action: pan-y`
-        // ever gets a chance. The user reported "path cards can't scroll
-        // on mobile" — they meant the entire page locked when their
-        // finger landed on the cube. With this set to false the browser
-        // owns the touch until Swiper's touchmove handler proves the
-        // gesture is horizontal-enough (within touchAngle below) to
-        // claim it.
-        touchStartPreventDefault={false}
-        // touchAngle (default 45): Swiper claims any drag within ±45° of
-        // horizontal. That's too greedy — a typical thumb-scroll on a
-        // phone is often 30-50° off vertical, so Swiper kept hijacking
-        // page scrolls. ±28° is the sweet spot: fast horizontal flicks
-        // still feel snappy, but anything that even slightly resembles
-        // a vertical scroll passes through to the document.
-        touchAngle={28}
         onSwiper={(s) => setActiveIndex(s.realIndex)}
         onSlideChange={(s) => setActiveIndex(s.realIndex)}
         // Cube depth — slideShadows give each face a subtle dark

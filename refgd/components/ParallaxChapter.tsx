@@ -1,21 +1,18 @@
 "use client";
-import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useState, type ReactNode } from "react";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
  * Wraps a "chapter" section so any background element you place inside
- * lifts/drifts as the user scrolls past it.
+ * fades + lifts into place once the section enters the viewport, then
+ * stays put — no per-frame scroll-driven transforms.
  *
- *   Desktop: REAL scroll-driven parallax (useScroll + useTransform).
- *     The bg element drifts down, scales, and the foreground gently
- *     lifts as the section moves through the viewport. This is the
- *     "scroll moves the cards" feel the design originally had.
- *   Mobile / reduced motion / admin edit mode: one-shot fade+lift on
- *     viewport entry. iPhone Safari can't afford a per-scroll
- *     framer-motion useTransform pipeline on top of the worker, the
- *     PathIllustration timelines, and KineticText, so we keep the
- *     mobile path lightweight.
+ * Was previously scroll-driven (useScroll + useTransform), which made
+ * EVERY page require constant scrolling to advance the parallax and
+ * pinned a heavy compositor cost across the whole document. Now it's
+ * a one-shot viewport-triggered reveal that plays through cleanly
+ * (stop-motion feel) and frees the scroll thread.
  *
  *   <ParallaxChapter
  *     bg={<ParallaxIllustration kind="shield" accent="cyan" size={400} />}
@@ -25,6 +22,10 @@ import { useEditContext } from "@/lib/edit-context";
  *     <ChapterHeader ... />
  *     <Cards ... />
  *   </ParallaxChapter>
+ *
+ *  - `bg` renders at z-0, fades + drifts in once.
+ *  - children render at z-10 with a small one-shot lift.
+ *  - intensity 0..1 controls bg drift distance.
  */
 export default function ParallaxChapter({
   bg,
@@ -59,87 +60,43 @@ export default function ParallaxChapter({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // disable continuous scroll-driven parallax only when:
-  //   - user prefers reduced motion
-  //   - admin is editing (caret positioning relies on no transform parents)
-  //
-  // Mobile NOW also gets scroll-driven parallax (with reduced intensity)
-  // because users explicitly asked for the old scroll-linked feel back
-  // and they primarily test on iPhone. We damp the per-frame transform
-  // ranges so the GPU has less work and Safari stays smooth.
-  const disable = reduced || editing;
+  const disable = reduced || editing || isMobile;
 
-  // Effective intensity — mobile uses 60% of the requested intensity
-  // so the parallax is felt but doesn't overwhelm the small viewport.
-  const eff = isMobile ? intensity * 0.6 : intensity;
+  // Background: small downward drift + scale + fade-in on enter.
+  const bgInitial = disable
+    ? { opacity: 1 }
+    : { opacity: 0, y: `${intensity * 12}%`, scale: 0.97 };
+  const bgWhileInView = { opacity: 1, y: "0%", scale: 1 };
 
-  // Scroll-driven — track the section's progress through the viewport
-  // from "section bottom enters viewport bottom" to "section top exits
-  // viewport top".
-  const sectionRef = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start end", "end start"],
-  });
-
-  // Background drifts down + scales up over the section's scroll range.
-  // Foreground gently lifts.
-  const bgY     = useTransform(scrollYProgress, [0, 1], [`-${eff * 14}%`, `${eff * 14}%`]);
-  const bgScale = useTransform(scrollYProgress, [0, 0.5, 1], [isMobile ? 0.97 : 0.94, 1.0, isMobile ? 1.03 : 1.06]);
-  const bgOp    = useTransform(scrollYProgress, [0, 0.15, 0.85, 1], [0, 1, 1, 0.7]);
-  const fgY     = useTransform(scrollYProgress, [0, 1], [eff * 22, -eff * 22]);
+  // Foreground: subtle 6% lift on enter, no continuous scroll motion.
+  const fgInitial = disable ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 };
+  const fgWhileInView = { opacity: 1, y: 0 };
 
   return (
-    <section ref={sectionRef} className={`relative isolate ${className}`}>
+    <section className={`relative isolate ${className}`}>
       {bg && (
-        // OUTER wrapper: owns all positioning classes (absolute, top-/right-/
-        // -translate-y-1/2, hidden lg:block, etc) so Tailwind transform
-        // utilities aren't overridden by motion's inline transform.
-        // INNER motion wrapper: owns the parallax animation (transform/opacity).
-        <div
+        <motion.div
           aria-hidden="true"
+          initial={mounted ? bgInitial : { opacity: 0 }}
+          whileInView={bgWhileInView}
+          viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
+          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+          suppressHydrationWarning
           className={`pointer-events-none z-0 ${bgClassName}`}
         >
-          {disable ? (
-            <motion.div
-              initial={mounted ? { opacity: 0, y: `${intensity * 12}%`, scale: 0.97 } : { opacity: 0 }}
-              whileInView={{ opacity: 1, y: "0%", scale: 1 }}
-              viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
-              transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-              suppressHydrationWarning
-            >
-              {bg}
-            </motion.div>
-          ) : (
-            <motion.div
-              style={{ y: bgY, scale: bgScale, opacity: bgOp }}
-              suppressHydrationWarning
-            >
-              {bg}
-            </motion.div>
-          )}
-        </div>
-      )}
-      {disable ? (
-        <motion.div
-          initial={mounted ? { opacity: 0, y: 14 } : undefined}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
-          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-          suppressHydrationWarning
-          className="relative z-10"
-        >
-          {children}
-        </motion.div>
-      ) : (
-        <motion.div
-          style={{ y: fgY }}
-          suppressHydrationWarning
-          className="relative z-10"
-        >
-          {children}
+          {bg}
         </motion.div>
       )}
+      <motion.div
+        initial={mounted ? fgInitial : undefined}
+        whileInView={fgWhileInView}
+        viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
+        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+        suppressHydrationWarning
+        className="relative z-10"
+      >
+        {children}
+      </motion.div>
     </section>
   );
 }

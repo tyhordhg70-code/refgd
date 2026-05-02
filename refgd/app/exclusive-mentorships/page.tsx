@@ -9,10 +9,13 @@ import TextReveal from "@/components/TextReveal";
 import BounceList from "@/components/BounceList";
 import ImpactHeadline from "@/components/ImpactHeadline";
 import CubicParallax from "@/components/CubicParallax";
+import CosmicBackground from "@/components/CosmicBackground";
+import LiquidParticles from "@/components/LiquidParticles";
 import EmotionChips from "@/components/EmotionChips";
 import EditableText from "@/components/EditableText";
 import GlassCard from "@/components/GlassCard";
-import SceneActivator from "@/components/SceneActivator";
+import VanishWrapper from "@/components/VanishWrapper";
+import ExplodeText from "@/components/ExplodeText";
 
 export const metadata = {
   title: "Exclusive Mentorships — RefundGod",
@@ -58,9 +61,9 @@ const EMOTIONS = ["Fear", "Excitement", "Curiosity", "Anger", "Guilt", "Sadness"
  *  – All entrance animations are one-shot whileInView (no scroll-linked
  *    per-frame transforms). They complete in 0.4–0.7s after entering
  *    the viewport so they cannot freeze mid-scroll.
- *  – Background: the global shared WebGL canvas renders the
- *    "mentorship" cosmic scene (warm gold rim + violet aurora curtain)
- *    via SceneActivator. No DOM background work on this page.
+ *  – Background: a single page-scoped CosmicBackground (color-cycling
+ *    pulsating gradient + drifting dust) plus a small LiquidParticles
+ *    layer of abstract floating orbs. No bubble swarm.
  *  – TextReveal variants are intentionally diversified per section
  *    (wordWave / charBounce / lineMask / wordBlur / charGlitch) so
  *    no two consecutive sections share the same flavour.
@@ -75,10 +78,10 @@ const EMOTIONS = ["Fear", "Excitement", "Curiosity", "Anger", "Guilt", "Sadness"
 export default function MentorshipsPage() {
   return (
     <div className="relative">
-      {/* Activate the worker's "mentorship" scene (warm gold + violet
-          aurora curtain) for as long as this page is mounted. Renders
-          into the shared WebGL canvas behind everything else. */}
-      <SceneActivator name="mentorship" />
+      {/* Page-scoped cosmic backdrop + abstract liquid bubbles */}
+      <CosmicBackground />
+      <LiquidParticles count={14} />
+
       {/* Act 1 — Bespoke parallax illustration hero (replaces the
           generic chess fallback). Layers move at different depths
           on both mouse + scroll for a rich 3D feel. */}
@@ -443,13 +446,7 @@ export default function MentorshipsPage() {
                 />
               </Reveal>
 
-              {/* VanishWrapper removed: even capped to opacity 0.85, the
-                  scroll-driven y-drift + scale tween made the entire
-                  BounceList block visibly wobble in/out as the user
-                  scrolled past, which the user reported as cards
-                  "vanishing and reappearing". The list now sits
-                  static; BounceList already animates each row
-                  individually on viewport entry. */}
+              <VanishWrapper drift={50} minScale={0.92}>
               <BounceList
                 items={REFUND_FEATURES}
                 detailsEditIdPrefix="ment.refund.feature.detail"
@@ -466,6 +463,7 @@ export default function MentorshipsPage() {
                   7: "Lifetime updates and a private chat where the meta is rewritten every week.",
                 }}
               />
+              </VanishWrapper>
 
               <div className="mt-10 space-y-6 text-base leading-relaxed text-white/85 sm:text-lg">
                 <TextReveal variant="wordSlide" editId="ment.refund.guarantee">
@@ -676,8 +674,7 @@ export default function MentorshipsPage() {
                 />
               </Reveal>
 
-              {/* VanishWrapper removed — see comment on the refund
-                  list above for the full rationale. */}
+              <VanishWrapper drift={50} minScale={0.92}>
               <BounceList
                 items={SE_FEATURES}
                 accent="cyan"
@@ -694,6 +691,7 @@ export default function MentorshipsPage() {
                   7: "Stack additional replacements on a single successful SE, target high-value SKUs, and learn the drop-off pipeline pros use.",
                 }}
               />
+              </VanishWrapper>
             </div>
           </div>
         </div>
@@ -701,8 +699,8 @@ export default function MentorshipsPage() {
 
       {/* ─── Act 9 — Add-ons + final WORLDWIDE statement ─────────── */}
       {/* Background contract-signing image removed at user request — the
-          section is transparent so the shared WebGL cosmic scene shows
-          through, matching the rest of the page. */}
+          section is now transparent so the page-scoped CosmicBackground
+          shows through, matching the rest of the page. */}
       <section className="relative py-20 sm:py-24">
         <div className="container-wide">
           <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-14">
@@ -771,25 +769,14 @@ export default function MentorshipsPage() {
           reads as one cohesive block instead of two separated chunks. */}
       <section className="relative overflow-x-clip pb-12 pt-6 text-center sm:pb-16 sm:pt-8">
         <div className="container-wide relative">
-          {/* CTA headline.
-              Was an ExplodeText where each glyph flew in from a 3D
-              scatter. In production users repeatedly reported the
-              line read as "STOP WATCHING. ST [gap] EARN [gap] NG." —
-              individual letter spans were stuck at opacity:0 (SSR
-              renders all glyphs at opacity 0 and depends on a
-              client-side viewport-driven animation to flip them to
-              opacity 1; if any one of those promises silently
-              dropped, the letter never appeared).
-              The CTA is the most important readable thing on the
-              page, so we render it as a single, plain headline that
-              ALWAYS shows the full text. KineticText still gives
-              a tasteful word-slide entrance for non-reduced-motion
-              users and short-circuits to plain text for reduced. */}
-          <KineticText
+          {/* Reverse-explosion CTA: each character flies in from a
+              scattered 3D position and assembles into the headline.
+              Large scatter radius so the effect is dramatic. */}
+          <ExplodeText
             as="h2"
-            editId="ment.cta.title"
             text="Stop watching. Start earning."
-            stagger={0.08}
+            scatter={420}
+            hue="167,139,250"
             className="editorial-display mx-auto text-white text-[clamp(2rem,7vw,6rem)] font-black uppercase"
             style={{
               paddingLeft: "0.3em",
@@ -797,7 +784,6 @@ export default function MentorshipsPage() {
               WebkitTextStroke: "1.2px rgba(0,0,0,0.55)",
               textShadow:
                 "0 4px 24px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.95), 0 0 50px rgba(167,139,250,0.45)",
-              textAlign: "center",
             }}
           />
           <Reveal delay={0.5}>

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import { useEditContext } from "@/lib/edit-context";
 
@@ -60,7 +60,6 @@ export default function YouTubeTheater({
   const [activated, setActivated] = useState(false); // mounts iframe after first reveal
   const [mounted, setMounted] = useState(false); // for portal SSR-safety
   useEffect(() => { setMounted(true); }, []);
-  const reduced = useReducedMotion();
 
   // ── Visibility gate ───────────────────────────────────────────
   useEffect(() => {
@@ -159,51 +158,29 @@ export default function YouTubeTheater({
           warped surface unwrinkling itself into a flat screen. */}
       <motion.div
         ref={wrapRef}
-        initial={
-          reduced
-            ? {
-                // Reduced-motion: render the player at its final flat
-                // state from the start. The original initial state had
-                // an SVG-filter url() reference that, combined with
-                // opacity:0, was leaving the entire video block
-                // invisible if whileInView didn't fire correctly.
-                opacity: 1,
-                scale: 1,
-                rotateX: 0,
-                rotateZ: 0,
-                filter: "blur(0px)",
-                clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%)",
-              }
-            : {
-                opacity: 0,
-                scale: 0.55,
-                rotateX: 22,
-                rotateZ: -3,
-                filter: "blur(14px) url(#refgd-yt-mesh)",
-                clipPath:
-                  "polygon(18% 22%, 82% 8%, 96% 78%, 12% 92%, 2% 50%)",
-              }
-        }
+        initial={{
+          opacity: 0,
+          scale: 0.55,
+          rotateX: 22,
+          rotateZ: -3,
+          filter: "blur(14px) url(#refgd-yt-mesh)",
+          clipPath:
+            "polygon(18% 22%, 82% 8%, 96% 78%, 12% 92%, 2% 50%)",
+        }}
         whileInView={{
           opacity: 1,
           scale: 1,
           rotateX: 0,
           rotateZ: 0,
-          // End state drops the SVG turbulence/displacement filter
-          // entirely — leaving it applied caused the iframe contents
-          // (title text, controls, captions) to look permanently
-          // rippled even after the entrance animation finished.
-          filter: "blur(0px)",
+          filter: "blur(0px) url(#refgd-yt-mesh)",
           clipPath:
             "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%)",
         }}
         viewport={{ once: true, margin: "-12% 0px -12% 0px" }}
-        transition={
-          reduced
-            ? { duration: 0 }
-            : { duration: 1.4, ease: [0.16, 1, 0.3, 1] }
-        }
-        suppressHydrationWarning
+        transition={{
+          duration: 1.4,
+          ease: [0.16, 1, 0.3, 1],
+        }}
         className={`relative z-[60] overflow-hidden rounded-3xl border border-white/10 ${className}`}
         style={{
           transformOrigin: "50% 50%",

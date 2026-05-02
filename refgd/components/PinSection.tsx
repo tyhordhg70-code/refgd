@@ -137,10 +137,10 @@ export default function PinSection({
             />
             {body && (
               <motion.p
-                initial={reduced ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={reduced ? { duration: 0 } : { duration: 0.8, delay: 1.3 }}
+                transition={{ duration: 0.8, delay: 1.3 }}
                 suppressHydrationWarning
                 className="mx-auto mt-8 max-w-3xl text-balance text-lg leading-relaxed text-white/85 sm:text-xl"
               >

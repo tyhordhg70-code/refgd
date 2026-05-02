@@ -10,14 +10,6 @@ const nextConfig = {
   // it from lockfile locations (avoids the "multiple lockfiles" warning
   // when Render builds from the repo root).
   outputFileTracingRoot: path.join(__dirname, ".."),
-  // Allow Replit's preview proxy domains during development so HMR/_next assets
-  // don't trigger cross-origin warnings.
-  allowedDevOrigins: [
-    "*.replit.dev",
-    "*.repl.co",
-    "*.picard.replit.dev",
-    "*.spock.replit.dev",
-  ],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "logo.clearbit.com" },

@@ -1,5 +1,5 @@
 "use client";
-import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 
 /**
@@ -33,7 +33,6 @@ export default function FloatingArt({
   className = "",
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const reduced = useReducedMotion();
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start end", "end start"],
@@ -45,26 +44,6 @@ export default function FloatingArt({
   const justify =
     side === "left" ? "justify-start" : side === "right" ? "justify-end" : "justify-center";
 
-  // Reduced-motion: render plain image at final state, no scroll-driven
-  // transforms, no entrance reveal, no continuous bob. The `once: false`
-  // + `initial: opacity: 0` combo on the parent was hiding this art for
-  // prefers-reduced-motion users (whileInView never re-fired in time).
-  if (reduced) {
-    return (
-      <div className={`relative flex w-full ${justify} ${className}`}>
-        <div className="relative w-full" style={{ maxWidth: size }}>
-          <img
-            src={src}
-            alt={alt}
-            loading="eager"
-            decoding="async"
-            className="block w-full h-auto object-contain drop-shadow-[0_24px_50px_rgba(0,0,0,0.55)]"
-          />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div ref={ref} className={`relative flex w-full ${justify} ${className}`}>
       <motion.div
@@ -72,7 +51,7 @@ export default function FloatingArt({
         className="relative w-full"
         initial={{ opacity: 0, scale: 0.7, filter: "blur(12px)" }}
         whileInView={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-        viewport={{ once: true, amount: 0.15 }}
+        viewport={{ once: false, amount: 0.25 }}
         transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
       >
         <motion.img

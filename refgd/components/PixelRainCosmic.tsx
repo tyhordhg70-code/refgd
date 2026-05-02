@@ -41,11 +41,6 @@ type Props = {
   /** Cosmic accent (default azure-cyan). */
   accent?: string;
   className?: string;
-  /** When true, the moment the user gives ANY scroll-input gesture
-   *  inside the rain section we smoothly auto-scroll the page past
-   *  the rain runway instead of forcing the visitor to scroll the
-   *  full 160 svh themselves. Honours prefers-reduced-motion. */
-  autoScrollAfterFirstNudge?: boolean;
 };
 
 const GLYPHS = "0123456789ABCDEFアイウエオカキクケコサシスセソタチツテトナニヌネノハ▣▤▥▦◇◆░▒▓".split("");
@@ -54,7 +49,6 @@ export default function PixelRainCosmic({
   scrollLength = 1.0,
   accent = "#7dd3fc",
   className = "",
-  autoScrollAfterFirstNudge = true,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -211,9 +205,7 @@ export default function PixelRainCosmic({
     }
 
     function loop() {
-      // Always advance progress (so off-screen drains back to 0).
-      tickProgress();
-      if (!visibleRef.current && progressRef.current <= 0) {
+      if (!visibleRef.current) {
         if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
         return;
@@ -224,24 +216,24 @@ export default function PixelRainCosmic({
       rafRef.current = requestAnimationFrame(loop);
     }
 
-    // ── Auto-progress driver ──
-    // The rain now AUTO-PLAYS the moment the section enters the viewport.
-    // No scroll input required: progress ramps 0 → 1 over ~700ms once
-    // visible, then stays at full density. This was a user request:
-    // they should never have to scroll inside the rain to see the effect.
-    let entryTime: number | null = null;
-    const RAMP_MS = 700;
-    function tickProgress() {
-      if (!visibleRef.current) {
-        // Not in view → drain back to 0 so re-entry replays nicely.
-        entryTime = null;
-        progressRef.current = Math.max(0, progressRef.current - 0.04);
-        return;
-      }
-      if (entryTime == null) entryTime = performance.now();
-      const elapsed = performance.now() - entryTime;
-      progressRef.current = clamp(elapsed / RAMP_MS, 0, 1);
+    // ── Scroll-progress driver ──
+    // Progress now starts the moment the wrapper enters the viewport
+    // (its top crosses the bottom of the screen) instead of waiting
+    // for its top to reach the viewport top. This removes the
+    // "scroll a bit before rain starts" delay the user reported and
+    // makes the transition feel continuous with the section above.
+    function onScroll() {
+      const r = W.getBoundingClientRect();
+      const vh = window.innerHeight || 1;
+      // Span over which 0 → 1 plays out.
+      const span = vh * scrollLength;
+      // How far the wrapper has traveled INTO the viewport, measured
+      // from when its top first crossed the bottom edge.
+      const traveled = vh - r.top;
+      progressRef.current = clamp(traveled / span, 0, 1);
     }
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
 
     if (reduce) {
       progressRef.current = 0.6;
@@ -253,147 +245,10 @@ export default function PixelRainCosmic({
     return () => {
       ro.disconnect();
       io.disconnect();
+      window.removeEventListener("scroll", onScroll);
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     };
   }, [accent, scrollLength]);
-
-  // ── AUTO-SCROLL after first nudge ───────────────────────────────
-  // The rain runway is ~160 svh tall. Without help, the visitor has
-  // to scroll the full runway themselves while staring at the rain.
-  // This effect listens for the FIRST scroll-input gesture (wheel,
-  // touchmove, keyboard arrow / page-down / space) inside the rain
-  // section, then smoothly auto-scrolls the page past the runway in
-  // ~1.4s via rAF. We then disconnect — it only fires once per page
-  // load, so the visitor can freely scroll back up afterwards.
-  useEffect(() => {
-    if (!autoScrollAfterFirstNudge) return;
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    if (typeof window === "undefined") return;
-
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return; // no auto-scroll for reduced-motion users
-
-    let armed = false;          // section is in view → ready to fire
-    let triggered = false;      // user nudged → animation started
-    let rafId: number | null = null;
-
-    const io = new IntersectionObserver(
-      ([e]) => {
-        // Arm only when the TOP of the section is at/above the
-        // viewport top (i.e. the rain has just become the dominant
-        // thing on screen). Using rootMargin of -10% top so we don't
-        // arm prematurely while the previous section is still mostly
-        // visible.
-        armed = e.isIntersecting;
-        if (!armed && !triggered) cancelPending();
-      },
-      { rootMargin: "-10% 0px -50% 0px", threshold: 0 }
-    );
-    io.observe(wrap);
-
-    function cancelPending() {
-      if (rafId != null) cancelAnimationFrame(rafId);
-      rafId = null;
-    }
-
-    function easeInOutCubic(t: number) {
-      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-    }
-
-    function startAutoScroll() {
-      triggered = true;
-      const rect = wrap!.getBoundingClientRect();
-      const pageY = window.scrollY || window.pageYOffset;
-      // Target: bottom of the rain wrapper, minus a small overlap so
-      // the next section's top edge enters view as we land.
-      const targetY = pageY + rect.bottom - window.innerHeight + 8;
-      const startY = pageY;
-      const dist = targetY - startY;
-      if (dist <= 0) return;
-      const dur = Math.min(2200, Math.max(1100, dist * 0.9));
-      const t0 = performance.now();
-
-      function step(now: number) {
-        const t = Math.min(1, (now - t0) / dur);
-        const y = startY + dist * easeInOutCubic(t);
-        window.scrollTo(0, y);
-        if (t < 1) {
-          rafId = requestAnimationFrame(step);
-        } else {
-          rafId = null;
-        }
-      }
-      rafId = requestAnimationFrame(step);
-    }
-
-    // Two-phase state machine to avoid the "same-gesture cancel"
-    // race the first version had. A physical wheel-spin or
-    // touchmove emits MANY events — using "second event = cancel"
-    // means the same gesture that started the auto-scroll
-    // immediately cancels it.
-    //
-    // Phase 1 (armed=true, fired=false): listening for the first
-    //   real input. On fire → start auto-scroll AND immediately
-    //   detach the wheel/touchmove/keydown listeners so the rest of
-    //   the gesture stream can't talk to us.
-    //
-    // Phase 2 (fired=true): the only thing that can cancel the
-    //   auto-scroll is a pointerdown (a deliberate finger/mouse
-    //   press) — that's a clear "I want control back" signal that
-    //   no continuous gesture would emit.
-    let fired = false;
-
-    function detachInputListeners() {
-      window.removeEventListener("wheel", onNudge);
-      window.removeEventListener("touchmove", onNudge);
-      window.removeEventListener("keydown", onKey);
-    }
-
-    function onNudge(ev: Event) {
-      if (!armed || fired) return;
-      // Ignore tiny zero-delta wheel events (some trackpads emit them).
-      if (ev.type === "wheel") {
-        const we = ev as WheelEvent;
-        if (Math.abs(we.deltaY) < 2) return;
-      }
-      fired = true;
-      detachInputListeners();
-      startAutoScroll();
-    }
-
-    function onKey(ev: KeyboardEvent) {
-      if (ev.key === "ArrowDown" || ev.key === "PageDown" || ev.key === " ") {
-        onNudge(ev);
-      }
-    }
-
-    function onPointerDown() {
-      // Only fires post-trigger (an explicit press = "give me back
-      // control"). After cancelling we keep the section alive so it
-      // doesn't re-arm — auto-scroll is one-shot per page load.
-      if (fired) {
-        cancelPending();
-        cleanup();
-      }
-    }
-
-    function cleanup() {
-      detachInputListeners();
-      window.removeEventListener("pointerdown", onPointerDown);
-      io.disconnect();
-    }
-
-    window.addEventListener("wheel", onNudge, { passive: true });
-    window.addEventListener("touchmove", onNudge, { passive: true });
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("pointerdown", onPointerDown, { passive: true });
-
-    return () => {
-      cancelPending();
-      cleanup();
-    };
-  }, [autoScrollAfterFirstNudge]);
 
   // Outer wrapper: scroll runway. Inner: sticky full-viewport canvas.
   // No bg colour, no border, no shadow — fully transparent so the page

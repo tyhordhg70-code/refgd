@@ -338,39 +338,28 @@
   .pulse-glow-shadow {
     animation: none !important;
   }
-  /* Diffuse mobile glows — the previous `0 0 0 1px` rim was a
-     hard 1-pixel ring that the user described as a visible edge
-     around every card. Replaced with a 3-stop transparent radial
-     falloff (close+mid+far blur) that has no perceptible boundary
-     — pure halo light, no disc outline. */
   .pulse-glow-violet {
-    box-shadow: 0 0 12px rgba(167, 139, 250, 0.22),
-                0 0 28px rgba(167, 139, 250, 0.16),
-                0 0 56px rgba(167, 139, 250, 0.08);
+    box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.40),
+                0 0 22px rgba(167, 139, 250, 0.30);
   }
   .pulse-glow-cyan {
-    box-shadow: 0 0 12px rgba(34, 211, 238, 0.22),
-                0 0 28px rgba(34, 211, 238, 0.16),
-                0 0 56px rgba(34, 211, 238, 0.08);
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.40),
+                0 0 22px rgba(34, 211, 238, 0.30);
   }
   .pulse-glow-gold {
-    box-shadow: 0 0 12px rgba(255, 225, 140, 0.22),
-                0 0 28px rgba(255, 225, 140, 0.16),
-                0 0 56px rgba(255, 225, 140, 0.08);
+    box-shadow: 0 0 0 1px rgba(255, 225, 140, 0.40),
+                0 0 22px rgba(255, 225, 140, 0.30);
   }
   .pulse-glow-orange {
-    box-shadow: 0 0 12px rgba(251, 146, 60, 0.22),
-                0 0 28px rgba(251, 146, 60, 0.16),
-                0 0 56px rgba(251, 146, 60, 0.08);
+    box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.40),
+                0 0 22px rgba(251, 146, 60, 0.30);
   }
   .pulse-glow-fuchsia {
-    box-shadow: 0 0 12px rgba(244, 114, 182, 0.22),
-                0 0 28px rgba(244, 114, 182, 0.16),
-                0 0 56px rgba(244, 114, 182, 0.08);
+    box-shadow: 0 0 0 1px rgba(244, 114, 182, 0.40),
+                0 0 22px rgba(244, 114, 182, 0.30);
   }
   .pulse-glow-shadow {
-    box-shadow: 0 0 14px rgba(255, 255, 255, 0.14),
-                0 0 36px rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 22px rgba(255, 255, 255, 0.20);
   }
 }
 
@@ -864,13 +853,10 @@ html { scroll-behavior: smooth; }
 .liquid-glass:hover {
   transform: translateY(-4px);
   border-color: rgba(255,255,255,0.18);
-  /* Diffuse hover glow — removed the inset 1px rim that drew a
-     visible square outline inside the card. Two-stop bloom that
-     fades smoothly outward with no detectable boundary. */
   box-shadow:
     0 40px 90px -30px rgba(0,0,0,0.7),
-    0 0 30px -8px var(--lg-glow, rgba(167,139,250,0.32)),
-    0 0 70px -10px var(--lg-glow, rgba(167,139,250,0.20));
+    0 0 0 1px rgba(255,255,255,0.06) inset,
+    0 0 60px -10px var(--lg-glow, rgba(167,139,250,0.45));
 }
 .liquid-glass > * { position: relative; z-index: 2; }
 @media (prefers-reduced-motion: reduce) {
@@ -1190,32 +1176,6 @@ html { scroll-behavior: smooth; }
 .cube-float {
   animation: cubeFloat 4.5s ease-in-out infinite;
   will-change: transform;
-  /* CRITICAL: let vertical drags pass through to the page scroller.
-     Without this, Swiper EffectCube's touch listeners on iOS capture
-     EVERY touch on the cube — so a user trying to scroll DOWN past
-     the cards just rotates the cube a tiny bit and the page never
-     moves. `pan-y` tells the browser "I only handle horizontal
-     gestures here; vertical scrolling belongs to the document."
-     Swiper still gets horizontal swipes for the cube rotation.
-     `!important` because Swiper ships its own stylesheet
-     (swiper/css/effect-cube) that sets `touch-action: pan-y` on
-     `.swiper-cube` but NONE on `.swiper-slide` — the slides ended
-     up with the default `touch-action: auto` and Android Chrome
-     interpreted that as "this element handles all touches",
-     locking out the document scroller entirely. */
-  touch-action: pan-y !important;
-}
-/* Same rule on every Swiper element inside the cube stage so iOS
-   AND Android don't grab vertical drags on the slide / cube wrapper
-   either. The `.swiper-cube` and `.swiper-3d` selectors cover the
-   classes Swiper EffectCube adds to its containers at runtime. */
-.cube-float .swiper,
-.cube-float .swiper-wrapper,
-.cube-float .swiper-slide,
-.cube-float .swiper-cube,
-.cube-float .swiper-3d,
-.cube-float .swiper-cube-shadow {
-  touch-action: pan-y !important;
 }
 
 @keyframes constellationDotPulse {
@@ -1633,18 +1593,14 @@ html { scroll-behavior: smooth; }
   }
 
   /* 4. CONTAIN LARGE OFF-SCREEN BLOCKS so layout work scales with
-        what's on screen, not with what's on the page.
-        IMPORTANT: only `contain: layout` here — NOT `contain: paint`.
-        `paint` containment clips every text-shadow / box-shadow /
-        filter glow at the section's bounding box, which produced
-        the hard RECTANGULAR EDGES the user saw on every glow on
-        the site (sound button, WELCOME headline, glass cards,
-        pulse-glow chips, etc). Layout containment alone keeps
-        the scroll-perf benefit without sabotaging the design. */
+        what's on screen, not with what's on the page. `contain:
+        layout paint` lets the browser skip layout/paint for
+        descendants when the section is far off-screen, without
+        hiding the element from the layout flow (no scroll-jank). */
   main > *,
   section[class*="container"],
   section[id] {
-    contain: layout;
+    contain: layout paint;
   }
 
   /* 5. HOVER-TILT (liquid-glass-3d) needs a perspective + transform
