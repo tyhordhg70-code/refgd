@@ -2,7 +2,7 @@ services:
   - type: web
     name: refgd
     rootDir: refgd
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm run build
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --ignore-workspace && pnpm run build
     startCommand: pnpm start
     env: node
     autoDeploy: true
