@@ -303,13 +303,24 @@ export default function LoadingScreen() {
       }, 6000);
     });
 
-    Promise.all([
-      fontsReadyPromise,
-      windowLoadPromise,
-      minStallPromise,
-      paintWaiter,
-      imagesPromise,
-      sceneReadyPromise,
+    // v6.10.5: HARD CEILING. windowLoadPromise + paintWaiter both wait
+    // on the 'load' event — if any single resource (slow CDN font,
+    // never-resolving script, hung WebGL init) blocks it forever, the
+    // Promise.all never resolves and the bar visibly stalls at 95 %
+    // (the cap). Users (and screenshot tooling) saw the splash stuck
+    // at "90 %" and the page never became interactive. Race the whole
+    // bundle against a 10 s ceiling so the splash ALWAYS clears.
+    const ceilingPromise = new Promise<void>((r) => window.setTimeout(r, 10000));
+    Promise.race([
+      Promise.all([
+        fontsReadyPromise,
+        windowLoadPromise,
+        minStallPromise,
+        paintWaiter,
+        imagesPromise,
+        sceneReadyPromise,
+      ]).then(() => undefined),
+      ceilingPromise,
     ]).then(() => {
       if (cancelled) return;
       state.everythingResolved = true;
