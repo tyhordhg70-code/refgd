@@ -11,7 +11,7 @@ import {
 } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { Pagination } from "swiper/modules";
+import { Pagination, EffectCoverflow } from "swiper/modules";
 import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
@@ -350,17 +350,23 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
       }}
     >
       <Swiper
-        // v6.10.4: plain horizontal slide effect (no 3D effect plugin).
-        // Previous attempts (EffectCube → EffectCards) both had
-        // problems: cube was hard-capped at 4 faces (couldn't show
-        // card 3+), and cards stacked back slides visibly behind the
-        // top card creating "tiny pieces in the back" flicker as
-        // each PathCard re-mounted its cinematic reveal. Plain slide
-        // effect: each card slides cleanly off-screen left/right,
-        // only the active card is visible at any moment, no back-
-        // stack peek, no per-effect render thrash. All 5 cards
-        // reachable.
-        modules={[Pagination]}
+        // v6.10.5: EffectCoverflow — true 3D rotation that supports any
+        // number of slides (no 4-face cube cap, no flickering back-stack
+        // like EffectCards). Each slide tilts in 3D as it moves toward /
+        // away from center; the active slide is centered face-on with
+        // its illustration fully visible, neighbors lean back slightly
+        // giving real depth. All 5 cards reachable.
+        modules={[Pagination, EffectCoverflow]}
+        effect="coverflow"
+        coverflowEffect={{
+          rotate: 38,
+          stretch: 0,
+          depth: 220,
+          modifier: 1,
+          slideShadows: false,
+        }}
+        centeredSlides
+        slidesPerView={1.05}
         loop={false}
         grabCursor
         speed={520}
