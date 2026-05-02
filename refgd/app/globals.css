@@ -338,25 +338,29 @@
   .pulse-glow-shadow {
     animation: none !important;
   }
+  /* v6 (2026-05): Softened hard 1px coloured rings (was 0.40 alpha, now 0.12)
+     and replaced the outer-ring 22px halo with a wider, much softer 50px
+     bloom so the cards have a gentle atmospheric glow instead of the
+     "hard edge" the user reported across desktop and mobile. */
   .pulse-glow-violet {
-    box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.40),
-                0 0 22px rgba(167, 139, 250, 0.30);
+    box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.12),
+                0 0 50px -12px rgba(167, 139, 250, 0.35);
   }
   .pulse-glow-cyan {
-    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.40),
-                0 0 22px rgba(34, 211, 238, 0.30);
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.12),
+                0 0 50px -12px rgba(34, 211, 238, 0.35);
   }
   .pulse-glow-gold {
-    box-shadow: 0 0 0 1px rgba(255, 225, 140, 0.40),
-                0 0 22px rgba(255, 225, 140, 0.30);
+    box-shadow: 0 0 0 1px rgba(255, 225, 140, 0.12),
+                0 0 50px -12px rgba(255, 225, 140, 0.35);
   }
   .pulse-glow-orange {
-    box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.40),
-                0 0 22px rgba(251, 146, 60, 0.30);
+    box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.12),
+                0 0 50px -12px rgba(251, 146, 60, 0.35);
   }
   .pulse-glow-fuchsia {
-    box-shadow: 0 0 0 1px rgba(244, 114, 182, 0.40),
-                0 0 22px rgba(244, 114, 182, 0.30);
+    box-shadow: 0 0 0 1px rgba(244, 114, 182, 0.12),
+                0 0 50px -12px rgba(244, 114, 182, 0.35);
   }
   .pulse-glow-shadow {
     box-shadow: 0 0 22px rgba(255, 255, 255, 0.20);
@@ -429,79 +433,87 @@ html { scroll-behavior: smooth; }
   50%      { opacity: 0.85;transform: scale(0.98) rotate(-6deg); }
 }
 
-/* ─── Pulsating box-shadow for glass cards ──────────────────────── */
+/* ─── Pulsating box-shadow for glass cards ──────────────────────────
+   v6 (2026-05): Softened the entire pulse cycle. Previous peaks ran
+   the 1px coloured ring up to alpha 0.55 / 0.60, which read as a
+   visible "hard edge" outline around every tinted card on desktop
+   and especially on mobile (where the same pulse is applied to the
+   sound toggle and other small controls). The peak ring alpha is now
+   capped at 0.18 so the cards still breathe in their accent colour
+   but no longer have a discernible outline edge. The wider 60px
+   secondary halo carries the colour energy now. */
 .pulse-glow {
   animation: pulseGlowShadow 4.5s ease-in-out infinite;
 }
 @keyframes pulseGlowShadow {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(255,225,140,0.10),
-                0 30px 80px -30px rgba(245,185,69,0.18);
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.06),
+                0 30px 80px -30px rgba(245,185,69,0.16);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(255,225,140,0.45),
-                0 30px 100px -25px rgba(245,185,69,0.55),
-                0 0 60px 10px rgba(167,139,250,0.20);
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.18),
+                0 30px 100px -25px rgba(245,185,69,0.42),
+                0 0 60px 10px rgba(167,139,250,0.16);
   }
 }
 .pulse-glow-violet { animation: pulseGlowViolet 5s ease-in-out infinite; }
 @keyframes pulseGlowViolet {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(167,139,250,0.10),
-                0 30px 80px -30px rgba(167,139,250,0.18);
+    box-shadow: 0 0 0 1px rgba(167,139,250,0.06),
+                0 30px 80px -30px rgba(167,139,250,0.16);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(167,139,250,0.55),
-                0 30px 100px -25px rgba(167,139,250,0.55),
-                0 0 60px 10px rgba(34,211,238,0.20);
+    box-shadow: 0 0 0 1px rgba(167,139,250,0.18),
+                0 30px 100px -25px rgba(167,139,250,0.42),
+                0 0 60px 10px rgba(34,211,238,0.16);
   }
 }
 .pulse-glow-cyan { animation: pulseGlowCyan 5s ease-in-out infinite; }
 @keyframes pulseGlowCyan {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(34,211,238,0.10),
-                0 30px 80px -30px rgba(34,211,238,0.18);
+    box-shadow: 0 0 0 1px rgba(34,211,238,0.06),
+                0 30px 80px -30px rgba(34,211,238,0.16);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(34,211,238,0.55),
-                0 30px 100px -25px rgba(34,211,238,0.50),
-                0 0 60px 10px rgba(167,139,250,0.20);
+    box-shadow: 0 0 0 1px rgba(34,211,238,0.18),
+                0 30px 100px -25px rgba(34,211,238,0.40),
+                0 0 60px 10px rgba(167,139,250,0.16);
   }
 }
 .pulse-glow-gold { animation: pulseGlowGold 4.6s ease-in-out infinite; }
 @keyframes pulseGlowGold {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(255,225,140,0.10),
-                0 30px 80px -30px rgba(245,185,69,0.18);
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.06),
+                0 30px 80px -30px rgba(245,185,69,0.16);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(255,225,140,0.55),
-                0 30px 100px -25px rgba(245,185,69,0.55),
-                0 0 60px 10px rgba(255,237,180,0.22);
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.18),
+                0 30px 100px -25px rgba(245,185,69,0.42),
+                0 0 60px 10px rgba(255,237,180,0.18);
   }
 }
 .pulse-glow-orange { animation: pulseGlowOrange 5.2s ease-in-out infinite; }
 @keyframes pulseGlowOrange {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(249,115,22,0.10),
-                0 30px 80px -30px rgba(249,115,22,0.18);
+    box-shadow: 0 0 0 1px rgba(249,115,22,0.06),
+                0 30px 80px -30px rgba(249,115,22,0.16);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(249,115,22,0.55),
-                0 30px 100px -25px rgba(249,115,22,0.55),
-                0 0 60px 10px rgba(253,186,116,0.22);
+    box-shadow: 0 0 0 1px rgba(249,115,22,0.18),
+                0 30px 100px -25px rgba(249,115,22,0.42),
+                0 0 60px 10px rgba(253,186,116,0.18);
   }
 }
 .pulse-glow-fuchsia { animation: pulseGlowFuchsia 4.8s ease-in-out infinite; }
 @keyframes pulseGlowFuchsia {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(236,72,153,0.10),
-                0 30px 80px -30px rgba(236,72,153,0.18);
+    box-shadow: 0 0 0 1px rgba(236,72,153,0.06),
+                0 30px 80px -30px rgba(236,72,153,0.16);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(236,72,153,0.60),
-                0 30px 100px -25px rgba(236,72,153,0.55),
-                0 0 60px 10px rgba(244,114,182,0.22);
+    box-shadow: 0 0 0 1px rgba(236,72,153,0.20),
+                0 30px 100px -25px rgba(236,72,153,0.42),
+                0 0 60px 10px rgba(244,114,182,0.18);
   }
 }
 
@@ -1662,41 +1674,63 @@ html { scroll-behavior: smooth; }
 }
 
 /* ────────────────────────────────────────────────────────────────
-   GLASS CARD REVEAL — CSS-only curtain entrance
+   GLASS CARD REVEAL — 6 LUSION-STYLE VARIED ENTRANCES (CSS-only)
    ────────────────────────────────────────────────────────────────
-   v5 (2026-05): Replaces framer-motion `whileInView` + IntersectionObserver
-   reveal that wasn't reliable on this site (cards stuck at
-   `clip-path: inset(100%)` — invisible — when the observer never fired).
+   v6 (2026-05): GlassCard picks one of these by `index` or `variant`
+   so a row of sibling cards each animates differently (avoids the
+   "synchronised, identical curtain rise" repetition the user flagged
+   as feeling flat / not lusion-style).
 
-   Plays unconditionally on mount via CSS, so cards are GUARANTEED to
-   become visible. The lusion curtain-rise look (translateY + clip-path
-   inset wipe) is preserved — just driven by CSS keyframes instead of
-   framer-motion. `animation-fill-mode: backwards` applies the `from`
-   state during any `animation-delay` window so cards render their
-   pre-entrance state (invisible) until the staggered delay elapses,
-   then animate cleanly into the final visible state.
+   All 6 are pure CSS keyframes — they ALWAYS play on mount, no
+   framer-motion `whileInView` / IntersectionObserver dependency that
+   was leaving cards permanently stuck at `clip-path: inset(100%)`
+   (invisible) on this deployed site when the observer never fired.
+
+   `animation-fill-mode: backwards` applies the `from` state during
+   any `animation-delay` window (so a delay={0.3} card stays invisible
+   for 0.3s then plays cleanly), and DROPS the transform on completion
+   so the float-card layer's continuous translateY and the
+   liquid-glass-3d hover tilt take over with no leftover conflict.
+
+   Pool order matches GlassCard.tsx VARIANTS array:
+     curtain → slide-left → wipe-diag → tilt-3d → slide-right → iris
    ──────────────────────────────────────────────────────────────── */
-@keyframes glassCardReveal {
-  from {
-    opacity: 0;
-    transform: translateY(60px);
-    clip-path: inset(100% 0 0 0);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    clip-path: inset(0 0 0 0);
-  }
+@keyframes glassCardCurtain {
+  from { opacity: 0; transform: translateY(80px) rotateX(8deg); clip-path: inset(100% 0 0 0); }
+  to   { opacity: 1; transform: translateY(0)   rotateX(0deg); clip-path: inset(0 0 0 0); }
+}
+@keyframes glassCardSlideLeft {
+  from { opacity: 0; transform: translateX(-120px); clip-path: inset(0 0 0 100%); }
+  to   { opacity: 1; transform: translateX(0);     clip-path: inset(0 0 0 0); }
+}
+@keyframes glassCardSlideRight {
+  from { opacity: 0; transform: translateX(120px); clip-path: inset(0 100% 0 0); }
+  to   { opacity: 1; transform: translateX(0);    clip-path: inset(0 0 0 0); }
+}
+@keyframes glassCardIris {
+  from { opacity: 0; transform: scale(0.86); clip-path: circle(0% at 50% 50%); }
+  to   { opacity: 1; transform: scale(1);    clip-path: circle(100% at 50% 50%); }
+}
+@keyframes glassCardTilt3D {
+  from { opacity: 0; transform: perspective(1500px) rotateY(-42deg) translateX(-40px); }
+  to   { opacity: 1; transform: perspective(1500px) rotateY(0deg)   translateX(0); }
+}
+@keyframes glassCardWipeDiag {
+  from { opacity: 0; clip-path: polygon(0 0, 0 0, 0 100%, 0 100%); }
+  to   { opacity: 1; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
 }
 
 .glass-card-reveal {
-  animation: glassCardReveal 1.2s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  /* `backwards` fill mode: the `from` state is applied during the
-     animation-delay window (so a delay={0.3} card is invisible for
-     0.3s then animates in), and removed when the animation finishes
-     (so the element ends in its natural styled state — no leftover
-     transform that would conflict with the float-card layer). */
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: backwards;
+  will-change: transform, opacity, clip-path;
 }
+.glass-card-reveal--curtain     { animation-name: glassCardCurtain;    animation-duration: 1.55s; }
+.glass-card-reveal--slide-left  { animation-name: glassCardSlideLeft;  animation-duration: 1.20s; }
+.glass-card-reveal--slide-right { animation-name: glassCardSlideRight; animation-duration: 1.20s; }
+.glass-card-reveal--iris        { animation-name: glassCardIris;       animation-duration: 1.35s; }
+.glass-card-reveal--tilt-3d     { animation-name: glassCardTilt3D;     animation-duration: 1.30s; }
+.glass-card-reveal--wipe-diag   { animation-name: glassCardWipeDiag;   animation-duration: 1.10s; }
 
 @media (prefers-reduced-motion: reduce) {
   .glass-card-reveal {

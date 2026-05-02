@@ -109,14 +109,17 @@ export default function PathCard({
     noReveal || size === "sm"
       ? {
           initial: false as const,
-          whileInView: undefined,
-          viewport: undefined,
+          animate: undefined,
           transition: undefined,
         }
       : {
           initial: { opacity: 0, y: 80, scale: 0.85, rotateX: 18 },
-          whileInView: { opacity: 1, y: 0, scale: 1, rotateX: 0 },
-          viewport: { once: true, margin: "-80px" },
+          // v6 (2026-05): switched from `whileInView` to `animate` so the
+          // entrance fires unconditionally on mount instead of waiting
+          // for the IntersectionObserver to fire — same observer race
+          // that was leaving GlassCards stuck invisible was also
+          // killing path-card illustrations on the homepage.
+          animate: { opacity: 1, y: 0, scale: 1, rotateX: 0 },
           transition: {
             duration: 1.0,
             delay: index * 0.12,

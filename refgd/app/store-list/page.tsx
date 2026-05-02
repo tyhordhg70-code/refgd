@@ -183,6 +183,7 @@ export default async function StoreListPage() {
                       key={b.n}
                       tint={b.tint}
                       delay={i * 0.12}
+                      index={i}
                       className="liquid-glass w-full max-w-md"
                     >
                       <div className="p-6 sm:p-7">
@@ -216,7 +217,7 @@ export default async function StoreListPage() {
           <ParallaxChapter intensity={0.4} className="py-8">
             <section className="relative">
               <div className="container-wide relative grid gap-5 lg:grid-cols-3">
-                <GlassCard tint="rose" className="lg:col-span-2">
+                <GlassCard tint="rose" index={2} className="lg:col-span-2">
                   <div className="relative overflow-hidden p-8 sm:p-10">
                     <EditableText
                       id="storelist.nonpay.title"
@@ -233,7 +234,7 @@ export default async function StoreListPage() {
                     />
                   </div>
                 </GlassCard>
-                <GlassCard tint="emerald" delay={0.15}>
+                <GlassCard tint="emerald" delay={0.15} index={4}>
                   <div className="relative grid items-center gap-6 overflow-hidden p-8 sm:p-10 sm:grid-cols-[auto_1fr]">
                     <div className="hidden sm:block">
                       <img

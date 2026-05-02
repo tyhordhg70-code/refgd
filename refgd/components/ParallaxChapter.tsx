@@ -66,11 +66,16 @@ export default function ParallaxChapter({
   const bgInitial = disable
     ? { opacity: 1 }
     : { opacity: 0, y: `${intensity * 12}%`, scale: 0.97 };
-  const bgWhileInView = { opacity: 1, y: "0%", scale: 1 };
+  const bgAnimate = { opacity: 1, y: "0%", scale: 1 };
 
   // Foreground: subtle 6% lift on enter, no continuous scroll motion.
   const fgInitial = disable ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 };
-  const fgWhileInView = { opacity: 1, y: 0 };
+  const fgAnimate = { opacity: 1, y: 0 };
+
+  // v6 (2026-05): switched from `whileInView` to `animate` so the
+  // chapter entrance plays on mount rather than depending on
+  // IntersectionObserver — the same observer race that was leaving
+  // GlassCards stuck invisible was making chapters feel "flat".
 
   return (
     <section className={`relative isolate ${className}`}>
@@ -78,8 +83,7 @@ export default function ParallaxChapter({
         <motion.div
           aria-hidden="true"
           initial={mounted ? bgInitial : { opacity: 0 }}
-          whileInView={bgWhileInView}
-          viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
+          animate={bgAnimate}
           transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
           suppressHydrationWarning
           className={`pointer-events-none z-0 ${bgClassName}`}
@@ -89,8 +93,7 @@ export default function ParallaxChapter({
       )}
       <motion.div
         initial={mounted ? fgInitial : undefined}
-        whileInView={fgWhileInView}
-        viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
+        animate={fgAnimate}
         transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
         suppressHydrationWarning
         className="relative z-10"

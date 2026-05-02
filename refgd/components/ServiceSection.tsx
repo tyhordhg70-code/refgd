@@ -275,6 +275,7 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
                 key={s.n}
                 tint={s.tint}
                 delay={i * 0.12}
+                index={i}
                 className=""
               >
                 <div className="relative overflow-hidden p-8 sm:p-10">
@@ -339,6 +340,7 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
                 key={w.h}
                 tint={w.tint}
                 delay={i * 0.1}
+                index={i + 3}
                 className=""
               >
                 <div className="relative overflow-hidden p-8">

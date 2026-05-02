@@ -27,8 +27,7 @@ export default function TrailerTitle3D({
       className={`relative mb-6 flex flex-col items-center justify-center text-center ${className}`}
       style={{ perspective: 900 }}
       initial="hidden"
-      whileInView="show"
-      viewport={{ once: true, margin: "-80px" }}
+      animate="show"
       data-testid="trailer-title-3d"
     >
       {/* Subtle glow halo behind the letters — pulses on a slow loop
@@ -110,8 +109,7 @@ export default function TrailerTitle3D({
             "linear-gradient(90deg, transparent, rgba(34,211,238,0.95), transparent)",
         }}
         initial={reduce ? { scaleX: 1 } : { scaleX: 0 }}
-        whileInView={{ scaleX: 1 }}
-        viewport={{ once: true, margin: "-80px" }}
+        animate={{ scaleX: 1 }}
         transition={{ duration: 1.2, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
       />
     </motion.div>

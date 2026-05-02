@@ -222,6 +222,27 @@ export default function PixelRainCosmic({
     // for its top to reach the viewport top. This removes the
     // "scroll a bit before rain starts" delay the user reported and
     // makes the transition feel continuous with the section above.
+    // v6 (2026-05): When the rain reaches full density (progress >= 0.92)
+    // we smooth-scroll the page past the rain runway so the user
+    // doesn't have to manually scroll through the rest of the empty
+    // sticky window to reach the next section. One-shot per mount.
+    let autoScrolled = false;
+    function maybeAutoScroll() {
+      if (autoScrolled) return;
+      if (progressRef.current < 0.92) return;
+      autoScrolled = true;
+      const r = W.getBoundingClientRect();
+      const targetY = window.scrollY + r.bottom + 1;
+      // honour reduced-motion: use jump rather than smooth scroll
+      const reduceMo = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      window.scrollTo({
+        top: targetY,
+        behavior: reduceMo ? "auto" : "smooth",
+      });
+    }
+
     function onScroll() {
       const r = W.getBoundingClientRect();
       const vh = window.innerHeight || 1;
@@ -231,6 +252,7 @@ export default function PixelRainCosmic({
       // from when its top first crossed the bottom edge.
       const traveled = vh - r.top;
       progressRef.current = clamp(traveled / span, 0, 1);
+      maybeAutoScroll();
     }
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });

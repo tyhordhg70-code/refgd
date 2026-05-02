@@ -13,8 +13,7 @@ export function Reveal({
   return (
     <motion.div
       initial={{ opacity: 0, y: 60, rotateX: 8 }}
-      whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
-      viewport={{ once: false, amount: 0.10 }}
+      animate={{ opacity: 1, y: 0, rotateX: 0 }}
       transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
       style={{ perspective: 1200 }}
       // framer-motion `initial` styles serialise to a `style="…"` attribute
@@ -38,8 +37,7 @@ export function ParallaxBlock({
   return (
     <motion.div
       initial={reduced ? { opacity: 1 } : { opacity: 0, y: amount }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: false, margin: "-12% 0px -12% 0px" }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: reduced ? 0 : 0.9, ease: [0.22, 1, 0.36, 1] }}
       style={{ position: "relative" }}
       suppressHydrationWarning

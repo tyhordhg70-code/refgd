@@ -348,8 +348,13 @@ export default function MusicPlayer() {
           className="group relative grid h-12 w-12 place-items-center rounded-full text-ink-950 transition active:scale-95"
           style={{
             background: "linear-gradient(135deg, #ffe28a, #f5b945 55%, #d99520)",
+            // v6 (2026-05): softened the hard 1px ring (was 0.85 alpha)
+            // and the inner halo. The previous values rendered as a
+            // visible hard outline on mobile, especially against the
+            // dark page background. Now: gentle 0.18 alpha rim + a
+            // wider, much softer 60px atmospheric halo.
             boxShadow:
-              "0 0 0 1px rgba(255,225,140,0.85), 0 12px 30px -8px rgba(245,185,69,0.6), 0 0 36px 6px rgba(245,185,69,0.35)",
+              "0 0 0 1px rgba(255,225,140,0.18), 0 14px 38px -12px rgba(245,185,69,0.45), 0 0 60px -8px rgba(245,185,69,0.30)",
           }}
         >
           <span

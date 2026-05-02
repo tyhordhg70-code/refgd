@@ -150,12 +150,18 @@ export default function YouTubeTheater({
         </div>
       ) : null}
 
-      {/* Distorted-mesh expansion entrance: the wrapper starts as a
-          tiny, irregular polygon (clip-path) with a heavy scale + skew
-          + blur filter, and "expands" into its proper rectangle as
-          the user scrolls it into view. Combined with feTurbulence
-          displacement on the SVG mesh below, the entrance reads as a
-          warped surface unwrinkling itself into a flat screen. */}
+      {/* Cinematic expansion entrance: the wrapper starts collapsed
+          (small scale + tilt + blur + offset clip-path) and "opens"
+          into a flat rectangle as the page mounts.
+          v6 (2026-05): removed the SVG `url(#refgd-yt-mesh)` filter
+          (feTurbulence + feDisplacementMap scale=60) — Chromium was
+          leaving the displacement permanently applied to the iframe,
+          making the deployed video look rippled / wavy / distorted
+          even after the entrance finished. The blur+scale entrance
+          alone reads as a clean cinematic "unfold" without the warp.
+          Also switched whileInView → animate so the entrance fires
+          on mount (no IntersectionObserver race that was leaving
+          the player partially un-revealed in some sessions). */}
       <motion.div
         ref={wrapRef}
         initial={{
@@ -163,20 +169,19 @@ export default function YouTubeTheater({
           scale: 0.55,
           rotateX: 22,
           rotateZ: -3,
-          filter: "blur(14px) url(#refgd-yt-mesh)",
+          filter: "blur(14px)",
           clipPath:
             "polygon(18% 22%, 82% 8%, 96% 78%, 12% 92%, 2% 50%)",
         }}
-        whileInView={{
+        animate={{
           opacity: 1,
           scale: 1,
           rotateX: 0,
           rotateZ: 0,
-          filter: "blur(0px) url(#refgd-yt-mesh)",
+          filter: "blur(0px)",
           clipPath:
             "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%)",
         }}
-        viewport={{ once: true, margin: "-12% 0px -12% 0px" }}
         transition={{
           duration: 1.4,
           ease: [0.16, 1, 0.3, 1],
@@ -191,20 +196,11 @@ export default function YouTubeTheater({
           transition: "box-shadow .45s ease",
         }}
       >
-        {/* SVG filter that the entrance clip-path/filter references. */}
-        <svg
-          aria-hidden
-          width="0"
-          height="0"
-          style={{ position: "absolute", inset: 0 }}
-        >
-          <defs>
-            <filter id="refgd-yt-mesh" x="-20%" y="-20%" width="140%" height="140%">
-              <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="7" />
-              <feDisplacementMap in="SourceGraphic" scale="60" />
-            </filter>
-          </defs>
-        </svg>
+        {/* v6 (2026-05): removed the SVG <filter id="refgd-yt-mesh">
+            (feTurbulence + feDisplacementMap scale=60) that used to
+            warp the entrance. Chromium kept the displacement applied
+            to the iframe even after the entrance finished, leaving
+            the deployed video visibly rippled / wavy / distorted. */}
         <div className="relative aspect-video w-full overflow-hidden bg-black">
           {activated ? (
             <iframe

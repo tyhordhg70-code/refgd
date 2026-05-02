@@ -33,8 +33,7 @@ export default function ScrollReveal3D({
     <motion.div
       ref={ref}
       initial={{ opacity: 0.6, y: 60 * intensity, rotateX: 18 * intensity, scale: 0.96 }}
-      whileInView={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-      viewport={{ once: true, margin: "-12% 0px -12% 0px" }}
+      animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
       transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
       style={{
         transformPerspective: 1400,
@@ -67,8 +66,7 @@ export function ScrollFloatImage({
   return (
     <motion.div
       initial={{ opacity: 0, y: amount, rotate: -3 }}
-      whileInView={{ opacity: 1, y: 0, rotate: 0 }}
-      viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
+      animate={{ opacity: 1, y: 0, rotate: 0 }}
       transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
       style={{ position: "relative" }}
       suppressHydrationWarning

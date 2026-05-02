@@ -5,39 +5,36 @@ import { type ReactNode } from "react";
 /**
  * GlassCard — Lusion.co-style glassmorphism panel.
  *
- * v5 (2026-05): CSS-only reveal.
+ * v6 (2026-05): CSS-driven varied entrances.
  *
- * Earlier versions used `framer-motion` `whileInView` + IntersectionObserver
- * to play a curtain-rise / clip-path mask entrance. On this site that
- * approach was unreliable — the observer occasionally never fired (parent
- * containing blocks created by ParallaxChapter's `transform`,
- * `content-visibility: auto` on mobile sections, the LoadingScreen overlay
- * delaying first paint, etc.) leaving cards stuck at their initial state
- * (`opacity: 0`, `clip-path: inset(100%)`) — i.e. INVISIBLE FOREVER.
+ *  • 6 lusion-style entrance variants (curtain, slide-left, slide-right,
+ *    iris, tilt-3d, wipe-diag). Each is a CSS @keyframes in globals.css
+ *    so it ALWAYS plays on mount — no framer-motion / IntersectionObserver
+ *    races (which had been leaving cards permanently stuck at
+ *    `clip-path: inset(100%)` — invisible — on this site).
  *
- * Symptom users saw: section headers ("WHY TRUST US?", "Get started today.",
- * "How it works", "Why choose us?", "Evade like a PRO", "Our comprehensive
- * solutions") rendered fine but the cards underneath were just dark space.
+ *  • Pass `variant` to force a specific entrance, OR `index` to rotate
+ *    through the variant pool so a row of sibling cards each animates
+ *    differently (no synchronised "every card does the same thing"
+ *    feel that the user complained about).
  *
- * Fix: drop framer-motion's whileInView entirely and use a CSS keyframe
- * animation (`.glass-card-reveal` in globals.css) that ALWAYS plays on
- * mount. CSS animations are guaranteed by the browser — they don't need
- * an IntersectionObserver, they don't care about parent transforms, and
- * they survive hydration races. The lusion curtain-rise look is preserved
- * (translateY + clip-path inset), just driven by CSS instead of JS.
+ *  • `delay` becomes the inline `animation-delay` so staggered card
+ *    cascades (`delay={i * 0.1}`) still work exactly the same.
  *
- * `delay` still works (`animationDelay` inline style) for staggered card
- * reveals. `reveal={false}` still skips the animation. Reduced-motion
- * users are respected via @media query in the CSS.
+ *  • CSS `animation-fill-mode: backwards` keeps the card invisible
+ *    during the delay window and removes the transform after the
+ *    animation ends — so the float-card layer's continuous translateY
+ *    and the liquid-glass-3d hover tilt take over cleanly with no
+ *    leftover transform conflict.
  *
- * Three-layer transform stack so the entrance, the continuous float
- * (float-card / float-card-2 / float-card-3) and the 3D hover tilt
- * (liquid-glass-3d) never fight each other:
- *
- *   Layer 1: <div .glass-card-reveal>   → CSS curtain entrance
- *   Layer 2: <div float-card>           → CSS float (translateY only)
- *   Layer 3: <div .liquid-glass-3d>     → hover tilt (rotateX/Y)
+ * Three-layer transform stack:
+ *   Layer 1: <div .glass-card-reveal--{variant}>  → CSS entrance
+ *   Layer 2: <div float-card>                     → CSS continuous float
+ *   Layer 3: <div .liquid-glass-3d>               → hover tilt
  */
+
+const VARIANTS = ["curtain", "slide-left", "wipe-diag", "tilt-3d", "slide-right", "iris"] as const;
+type RevealVariant = typeof VARIANTS[number];
 
 export default function GlassCard({
   children,
@@ -46,6 +43,8 @@ export default function GlassCard({
   reveal = true,
   delay = 0,
   elastic = true,
+  variant,
+  index,
 }: {
   children: ReactNode;
   className?: string;
@@ -53,6 +52,11 @@ export default function GlassCard({
   reveal?: boolean;
   delay?: number;
   elastic?: boolean;
+  /** Force a specific entrance variant. Wins over `index`. */
+  variant?: RevealVariant;
+  /** Card index in its row — picks a variant from the pool so
+   *  sibling cards don't animate identically. */
+  index?: number;
 }) {
   const reduced = useReducedMotion();
 
@@ -102,15 +106,18 @@ export default function GlassCard({
 
   const innerLayer = floatClasses ? <div className={floatClasses}>{surface}</div> : surface;
 
-  // No reveal requested OR reduced-motion preferred → render plain.
   if (!reveal || reduced) {
     return <div className="group">{innerLayer}</div>;
   }
 
-  // Reveal layer — CSS-only curtain rise. Always plays on mount.
+  // Pick variant — explicit `variant` prop wins, otherwise rotate
+  // through the pool by `index` so sibling cards differ.
+  const v: RevealVariant =
+    variant ?? VARIANTS[(((index ?? 0) % VARIANTS.length) + VARIANTS.length) % VARIANTS.length];
+
   return (
     <div
-      className="group glass-card-reveal will-change-transform"
+      className={`group glass-card-reveal glass-card-reveal--${v} will-change-transform`}
       style={{ animationDelay: `${delay}s` }}
     >
       {innerLayer}
