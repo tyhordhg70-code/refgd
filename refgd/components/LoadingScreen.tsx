@@ -49,14 +49,31 @@ const PHASES = [
 ];
 
 export default function LoadingScreen() {
-  const [progress, setProgress] = useState(0);
-  const [phase, setPhase] = useState(PHASES[0]);
-  const [visible, setVisible] = useState(true);
-  const [removed, setRemoved] = useState(false);
+  // ── Test/screenshot escape hatch ──────────────────────────────
+  // Append ?skip-loader=1 (or #skip-loader) to any URL to bypass
+  // the cinematic boot overlay completely. This exists so the
+  // agent (and the user) can take real visible-pixel screenshots
+  // of the page content without waiting 1.5–6 s for the loader to
+  // finish. Safe to ship: only activates with the explicit flag.
+  const skipFromUrl =
+    typeof window !== "undefined" &&
+    (/[?&]skip-loader=1\b/.test(window.location.search) ||
+      window.location.hash.includes("skip-loader"));
+
+  const [progress, setProgress] = useState(skipFromUrl ? 100 : 0);
+  const [phase, setPhase] = useState(skipFromUrl ? PHASES[4] : PHASES[0]);
+  const [visible, setVisible] = useState(!skipFromUrl);
+  const [removed, setRemoved] = useState(skipFromUrl);
   // Keep last reported value so the bar never goes backwards
   const lastShownRef = useRef(0);
 
   useEffect(() => {
+    if (skipFromUrl) {
+      // Restore body scroll/touch immediately on bypass.
+      document.body.style.overflow = "";
+      document.body.style.touchAction = "";
+      return;
+    }
     // Lock body so the user can't start scrolling on a half-warm tree
     const prevOverflow = document.body.style.overflow;
     const prevTouchAction = document.body.style.touchAction;
@@ -438,16 +455,22 @@ export default function LoadingScreen() {
         }}
       >
         <div
-          className="pulse-glow-violet"
           style={{
             display: "inline-grid",
             placeItems: "center",
             width: 104,
             height: 104,
             borderRadius: "50%",
+            // 5-stop radial fade with no border — eliminates the
+            // perceptible disc edge the user reported on the loader
+            // RG initials. Halo blooms outward, never a hard rim.
             background:
-              "radial-gradient(circle at 30% 30%, rgba(255,225,140,0.42), rgba(167,139,250,0.22) 55%, transparent 100%)",
-            border: "1px solid rgba(255,225,140,0.35)",
+              "radial-gradient(circle at 30% 30%," +
+              " rgba(255,225,140,0.55) 0%," +
+              " rgba(255,225,140,0.32) 28%," +
+              " rgba(167,139,250,0.20) 55%," +
+              " rgba(167,139,250,0.06) 78%," +
+              " transparent 100%)",
             marginBottom: 28,
           }}
         >

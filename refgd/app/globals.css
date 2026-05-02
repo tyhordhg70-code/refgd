@@ -338,28 +338,39 @@
   .pulse-glow-shadow {
     animation: none !important;
   }
+  /* Diffuse mobile glows — the previous `0 0 0 1px` rim was a
+     hard 1-pixel ring that the user described as a visible edge
+     around every card. Replaced with a 3-stop transparent radial
+     falloff (close+mid+far blur) that has no perceptible boundary
+     — pure halo light, no disc outline. */
   .pulse-glow-violet {
-    box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.40),
-                0 0 22px rgba(167, 139, 250, 0.30);
+    box-shadow: 0 0 12px rgba(167, 139, 250, 0.22),
+                0 0 28px rgba(167, 139, 250, 0.16),
+                0 0 56px rgba(167, 139, 250, 0.08);
   }
   .pulse-glow-cyan {
-    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.40),
-                0 0 22px rgba(34, 211, 238, 0.30);
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.22),
+                0 0 28px rgba(34, 211, 238, 0.16),
+                0 0 56px rgba(34, 211, 238, 0.08);
   }
   .pulse-glow-gold {
-    box-shadow: 0 0 0 1px rgba(255, 225, 140, 0.40),
-                0 0 22px rgba(255, 225, 140, 0.30);
+    box-shadow: 0 0 12px rgba(255, 225, 140, 0.22),
+                0 0 28px rgba(255, 225, 140, 0.16),
+                0 0 56px rgba(255, 225, 140, 0.08);
   }
   .pulse-glow-orange {
-    box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.40),
-                0 0 22px rgba(251, 146, 60, 0.30);
+    box-shadow: 0 0 12px rgba(251, 146, 60, 0.22),
+                0 0 28px rgba(251, 146, 60, 0.16),
+                0 0 56px rgba(251, 146, 60, 0.08);
   }
   .pulse-glow-fuchsia {
-    box-shadow: 0 0 0 1px rgba(244, 114, 182, 0.40),
-                0 0 22px rgba(244, 114, 182, 0.30);
+    box-shadow: 0 0 12px rgba(244, 114, 182, 0.22),
+                0 0 28px rgba(244, 114, 182, 0.16),
+                0 0 56px rgba(244, 114, 182, 0.08);
   }
   .pulse-glow-shadow {
-    box-shadow: 0 0 22px rgba(255, 255, 255, 0.20);
+    box-shadow: 0 0 14px rgba(255, 255, 255, 0.14),
+                0 0 36px rgba(255, 255, 255, 0.08);
   }
 }
 
@@ -853,10 +864,13 @@ html { scroll-behavior: smooth; }
 .liquid-glass:hover {
   transform: translateY(-4px);
   border-color: rgba(255,255,255,0.18);
+  /* Diffuse hover glow — removed the inset 1px rim that drew a
+     visible square outline inside the card. Two-stop bloom that
+     fades smoothly outward with no detectable boundary. */
   box-shadow:
     0 40px 90px -30px rgba(0,0,0,0.7),
-    0 0 0 1px rgba(255,255,255,0.06) inset,
-    0 0 60px -10px var(--lg-glow, rgba(167,139,250,0.45));
+    0 0 30px -8px var(--lg-glow, rgba(167,139,250,0.32)),
+    0 0 70px -10px var(--lg-glow, rgba(167,139,250,0.20));
 }
 .liquid-glass > * { position: relative; z-index: 2; }
 @media (prefers-reduced-motion: reduce) {

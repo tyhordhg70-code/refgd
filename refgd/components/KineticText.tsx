@@ -56,15 +56,41 @@ export default function KineticText({
     return <Plain className={className} style={style}>{value}</Plain>;
   }
 
-  const M = motion[Tag as keyof typeof motion] as any;
+  // Plain heading tag (NOT a motion component). The previous
+  // implementation made the heading a motion.* element with named
+  // variants ("hidden"/"show") and relied on parent→child variant
+  // propagation + `whileInView` (and later `animate="show"`) to
+  // drive the per-word reveal. Both approaches were fragile:
+  //
+  //   1. `whileInView` on the heading often never fired when the
+  //      heading was nested inside another <motion.div> that was
+  //      itself transforming (ServiceSection hero wraps the title
+  //      in a motion.div with initial:{opacity:0, y:36, scale:0.98}
+  //      and a 0.95s entrance). The IntersectionObserver race left
+  //      every KineticText headline (Get rewarded…, The Store List,
+  //      Select your region., Stop wasting time…) stuck at
+  //      {opacity:0, filter:blur(8px), translateY(110%)} forever.
+  //
+  //   2. Switching to `animate="show"` did not help because
+  //      framer-motion v11 named-variant propagation is broken when
+  //      an ANCESTOR motion component uses OBJECT-form initial/animate
+  //      (no named variants). The "show" state never reached the
+  //      child motion.span words — confirmed by inspecting the DOM:
+  //      the inner spans kept their SSR `style="opacity:0;..."`
+  //      attribute and never updated.
+  //
+  // Fix: drive each word's animation INDEPENDENTLY with its own
+  // `initial` + `animate` object-form props and a per-word delay
+  // computed from `delay + i * stagger`. No variant propagation, no
+  // viewport observers, no parent state required. Each word is a
+  // self-contained tween that always plays on mount and always
+  // reaches its final visible state. The stagger + duration + ease
+  // produce the exact same editorial reveal as before.
+  const HeadingTag = Tag as any;
   return (
-    <M
+    <HeadingTag
       className={className}
-      style={style}
-      initial="hidden"
-      whileInView="show"
-      viewport={{ once: false, margin: "-50px" }}
-      transition={{ staggerChildren: stagger, delayChildren: delay }}
+      style={{ lineHeight: 1.08, ...style }}
       aria-label={value}
     >
       {words.map((w, i) => (
@@ -72,29 +98,33 @@ export default function KineticText({
           key={i}
           // pb/pt give descenders + ascenders breathing room. Side
           // padding stops italic glyphs from being clipped at the
-          // word edges (fixes "Stop paying for other BS…" italic
-          // pull-quote letters touching / cropping).
-          className="inline-block overflow-hidden align-bottom"
+          // word edges. align-top keeps the mask box anchored from
+          // the top so the visible cap line stays in place when font
+          // sizes wrap to multiple lines.
+          className="inline-block overflow-hidden align-top"
           style={{
-            paddingBottom: "0.18em",
-            paddingTop: "0.06em",
-            paddingLeft: "0.05em",
-            paddingRight: "0.05em",
-            marginLeft: "-0.05em",
-            marginRight: "-0.05em",
+            paddingBottom: "0.22em",
+            paddingTop: "0.1em",
+            paddingLeft: "0.06em",
+            paddingRight: "0.06em",
+            marginLeft: "-0.06em",
+            marginRight: "-0.06em",
           }}
           aria-hidden="true"
         >
           <motion.span
             className="inline-block"
-            variants={{
-              hidden: { y: "110%", opacity: 0, filter: "blur(8px)" },
-              show: { y: "0%", opacity: 1, filter: "blur(0px)", transition: { duration: 0.85, ease: [0.25, 0.4, 0.25, 1] } },
+            initial={{ y: "110%", opacity: 0, filter: "blur(8px)" }}
+            animate={{ y: "0%", opacity: 1, filter: "blur(0px)" }}
+            transition={{
+              duration: 0.85,
+              delay: delay + i * stagger,
+              ease: [0.25, 0.4, 0.25, 1],
             }}
-            // SSR emits the `hidden` variant as a `style="opacity:0;…"`
-            // attribute. The client immediately re-formats the same values
-            // when framer-motion mounts, producing a benign string diff
-            // that React's reconciler reports as a hydration warning.
+            // SSR emits the `initial` prop as a `style="opacity:0;…"`
+            // attribute. The client re-formats the same values when
+            // framer-motion mounts → benign string diff React reports
+            // as a hydration warning. Suppress.
             suppressHydrationWarning
           >
             {w}
@@ -102,6 +132,6 @@ export default function KineticText({
           </motion.span>
         </span>
       ))}
-    </M>
+    </HeadingTag>
   );
 }
