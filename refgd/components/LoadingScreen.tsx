@@ -309,7 +309,15 @@ export default function LoadingScreen() {
       setPhase(PHASES[4]);
       cancelAnimationFrame(rafId);
 
-      timerA = window.setTimeout(() => setVisible(false), 280);
+      timerA = window.setTimeout(() => {
+        setVisible(false);
+        // Tell deferred entrance animations (CosmicJourney welcome
+        // headline, etc.) that the overlay is about to lift so they
+        // don't burn their first play behind a full-screen blocker.
+        try {
+          window.dispatchEvent(new CustomEvent("refgd:loading-complete"));
+        } catch {}
+      }, 280);
       timerB = window.setTimeout(() => {
         setRemoved(true);
         document.body.style.overflow = prevOverflow;

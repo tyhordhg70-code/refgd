@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Props = {
   text: string;
@@ -29,7 +29,23 @@ type Glyph = {
  *    once (whileInView) — completes regardless of scroll velocity.
  *  – Words are kept atomic (whiteSpace: nowrap) so the title never
  *    breaks mid-word ("STARTEARNING" splitting to "STARTEAR/NING").
- *  – Renders one motion span per glyph.
+ *
+ * Trigger architecture (Round 6.4):
+ *   Previously each glyph was its own `whileInView` motion.span. The
+ *   IntersectionObserver under `whileInView` reads the element's
+ *   transformed bounding-box, so a glyph initially translated by
+ *   `x:300px y:300px` was reported as far below the viewport even
+ *   when the headline itself was perfectly in view. Glyphs only
+ *   "entered view" once the user scrolled hundreds of px past the
+ *   headline, which the user observed as "Stop watching. Start
+ *   earning. only triggers when you scroll all the way down".
+ *
+ *   Now: the parent `<Tag>` carries `whileInView` and switches a
+ *   single variant from `hidden` → `show`. The variant cascade
+ *   propagates to every child motion.span automatically. The IO is
+ *   observing the headline's NORMAL layout box (no transforms), so
+ *   the explosion fires the moment the headline crosses the viewport
+ *   threshold like every other entrance on the page.
  */
 export default function ExplodeText({
   text,
@@ -40,13 +56,8 @@ export default function ExplodeText({
   hue = "167,139,250",
 }: Props) {
   const reduce = useReducedMotion();
-  const ref = useRef<HTMLDivElement | null>(null);
   const Tag = motion[as] as typeof motion.h2;
 
-  // Mobile-aware scatter: glyphs flying in from 420px on a 360px
-  // viewport push the entire row off-screen, breaking the assemble
-  // animation. Halve the radius below 640px so the explosion fits
-  // inside the headline's actual line-box.
   const [responsiveScatter, setResponsiveScatter] = useState(scatter);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -61,7 +72,6 @@ export default function ExplodeText({
     return () => window.removeEventListener("resize", apply);
   }, [scatter]);
 
-  // Build glyph data deterministically (SSR-safe).
   const glyphs = useMemo<Glyph[]>(() => {
     return text.split("").map((ch, i) => {
       const s = (i + 1) * 9301 + 49297;
@@ -81,9 +91,6 @@ export default function ExplodeText({
     });
   }, [text, responsiveScatter]);
 
-  // Group glyphs into word-runs separated by spaces. Each run renders
-  // inside a `whiteSpace: nowrap` wrapper so the line break only ever
-  // happens at the spaces between runs, never mid-word.
   const groups = useMemo(() => {
     const out: Array<{ kind: "word" | "space"; glyphs: Glyph[] }> = [];
     let buf: Glyph[] = [];
@@ -104,31 +111,21 @@ export default function ExplodeText({
 
   return (
     <Tag
-      ref={ref as never}
       className={className}
       style={{
         ...style,
-        // display:block so the headline takes full container width and
-        // wraps NATURALLY at the word-group boundaries on narrow
-        // viewports. Previously inline-block let the title grow as
-        // wide as its content and the right-side glyphs slid under
-        // the viewport edge on mobile, cutting "earning." in half.
         display: "block",
         textAlign: (style as any)?.textAlign ?? "center",
         textShadow: style?.textShadow ?? `0 0 30px rgba(${hue},0.45), 0 4px 40px rgba(0,0,0,0.95)`,
       }}
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, amount: 0.05, margin: "0px 0px -8% 0px" }}
       suppressHydrationWarning
       data-testid="explode-text"
     >
       {groups.map((group, gi) => {
         if (group.kind === "space") {
-          // Word gap. The editorial-display class applies a heavy
-          // negative letter-spacing (-0.045em) which collapses normal
-          // spaces between adjacent inline-blocks down to ~9px,
-          // making "Stop watching" visually render as "Stopwatching".
-          // We render an inline-block spacer with letter-spacing
-          // reset AND a real space character inside so textContent /
-          // screen-readers / copy-paste preserve the gap as well.
           return (
             <span
               key={`s-${gi}`}
@@ -155,41 +152,39 @@ export default function ExplodeText({
               return (
                 <motion.span
                   key={glyphIdx}
-                  initial={
+                  variants={
                     reduce
-                      ? { opacity: 0 }
+                      ? {
+                          hidden: { opacity: 0 },
+                          show: {
+                            opacity: 1,
+                            transition: { duration: 0.35, delay: g.delay },
+                          },
+                        }
                       : {
-                          opacity: 0,
-                          x: g.x,
-                          y: g.y,
-                          rotate: g.rot,
-                          filter: "blur(8px)",
+                          hidden: {
+                            opacity: 0,
+                            x: g.x,
+                            y: g.y,
+                            rotate: g.rot,
+                            filter: "blur(8px)",
+                          },
+                          show: {
+                            opacity: 1,
+                            x: 0,
+                            y: 0,
+                            rotate: 0,
+                            filter: "blur(0px)",
+                            transition: {
+                              duration: 0.85,
+                              delay: g.delay,
+                              ease: [0.22, 1, 0.36, 1],
+                            },
+                          },
                         }
                   }
-                  whileInView={{
-                    opacity: 1,
-                    x: 0,
-                    y: 0,
-                    rotate: 0,
-                    filter: "blur(0px)",
-                  }}
-                  viewport={{ once: true, amount: 0.05 }}
-                  transition={{
-                    duration: 0.85,
-                    delay: g.delay,
-                    ease: [0.22, 1, 0.36, 1],
-                  }}
                   style={{
                     display: "inline-block",
-                    // Italic glyphs (used by the BS pull-quote) have
-                    // ascenders / descenders that bleed past their
-                    // bounding-box. Combined with editorial-display's
-                    // -0.045em letter-spacing, adjacent inline-blocks
-                    // can visually clip each other and read as
-                    // "missing letters". A small horizontal padding
-                    // gives each glyph room to breathe; matching
-                    // negative margin keeps total advance width the
-                    // same so the headline still reads tight.
                     paddingLeft: "0.05em",
                     paddingRight: "0.05em",
                     marginLeft: "-0.05em",

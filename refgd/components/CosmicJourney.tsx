@@ -26,6 +26,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
   const [isMobile, setIsMobile] = useState(false);
   const [showMidFlight, setShowMidFlight] = useState(false);
+  // ──────────────────────────────────────────────────────────────────
+  // welcomeReady — gate the welcome headline until the LoadingScreen
+  // overlay has lifted. On a HARD page load the overlay sits in front
+  // of the page for ~1.5s while images / fonts / scenes warm up. The
+  // welcome headline used to start animating immediately on mount,
+  // so by the time the user actually saw the page the words were
+  // already settled in their final state ("welcome doesn't show on
+  // hard load — only on back-nav"). Now we wait for the loading-
+  // complete event (with a 2.4s fallback for routes that don't
+  // mount LoadingScreen) before the headline is told to play.
+  // ──────────────────────────────────────────────────────────────────
+  const [welcomeReady, setWelcomeReady] = useState(false);
 
   // Refs for direct DOM mutation during scroll
   const sectionRef      = useRef<HTMLElement>(null);
@@ -47,6 +59,27 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     sync();
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let done = false;
+    const trigger = () => {
+      if (done) return;
+      done = true;
+      setWelcomeReady(true);
+    };
+    window.addEventListener("refgd:loading-complete", trigger as EventListener);
+    // Fallback in case LoadingScreen isn't mounted on this route — the
+    // headline must NEVER be permanently invisible.
+    const t = window.setTimeout(trigger, 2400);
+    return () => {
+      window.removeEventListener(
+        "refgd:loading-complete",
+        trigger as EventListener,
+      );
+      window.clearTimeout(t);
+    };
   }, []);
 
   // ── Mount streaks ─────────────────────────────────────────────────
@@ -255,12 +288,22 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
               />
             )}
 
-            {/* ── 5. WELCOME headline ── */}
+            {/* ── 5. WELCOME headline — gated on LoadingScreen lift ── */}
             <motion.div
               className="container-wide pointer-events-none relative z-[5] flex flex-col items-center justify-center text-center"
               initial={reduced ? { opacity: 1, y: 0 } : { opacity: 0, y: 32, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={reduced ? { duration: 0 } : { duration: 1.0, ease: [0.16, 1, 0.3, 1], delay: 1.0 }}
+              animate={
+                reduced
+                  ? { opacity: 1, y: 0, scale: 1 }
+                  : welcomeReady
+                  ? { opacity: 1, y: 0, scale: 1 }
+                  : { opacity: 0, y: 32, scale: 0.95 }
+              }
+              transition={
+                reduced
+                  ? { duration: 0 }
+                  : { duration: 1.0, ease: [0.16, 1, 0.3, 1], delay: 0.05 }
+              }
             >
               <KineticText
                 as="h1"
@@ -268,7 +311,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
                 className="editorial-display text-balance uppercase text-white text-[clamp(2.5rem,9vw,7rem)] leading-[0.95] tracking-[-0.015em]"
                 style={{ textShadow: "0 4px 50px rgba(0,0,0,0.95), 0 0 60px rgba(245,185,69,0.45), 0 2px 14px rgba(0,0,0,0.95)" }}
                 stagger={0.08}
-                delay={1.1}
+                delay={0.15}
+                mountTrigger={welcomeReady}
               />
             </motion.div>
 

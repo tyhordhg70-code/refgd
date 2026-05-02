@@ -1,5 +1,6 @@
 import ChipScroll from "@/components/ChipScroll";
 import GlassCard from "@/components/GlassCard";
+import MeshEntrance from "@/components/MeshEntrance";
 import KineticText from "@/components/KineticText";
 import ParallaxIllustration from "@/components/ParallaxIllustration";
 import ParallaxChapter from "@/components/ParallaxChapter";
@@ -330,27 +331,35 @@ export default function EvadePage() {
         >
           <div className="container-wide relative grid gap-5 md:grid-cols-2">
             {FEATURES.map((f, i) => (
-              <GlassCard key={f.title} tint={f.tint} delay={i * 0.08} index={i + 2} className={i % 2 === 0 ? "float-card" : "float-card float-card-2"}>
-                <div className="relative overflow-hidden p-8">
-                  <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 opacity-25 mix-blend-screen" aria-hidden="true">
-                    <ParallaxIllustration kind={f.illo} accent={f.tint} size={140} />
+              <MeshEntrance
+                key={f.title}
+                delay={i * 0.09}
+                duration={1100}
+                warp={80}
+                blur={14}
+              >
+                <GlassCard tint={f.tint} index={i + 2} reveal={false} className={i % 2 === 0 ? "float-card" : "float-card float-card-2"}>
+                  <div className="relative overflow-hidden p-8">
+                    <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 opacity-25 mix-blend-screen" aria-hidden="true">
+                      <ParallaxIllustration kind={f.illo} accent={f.tint} size={140} />
+                    </div>
+                    <EditableText
+                      id={`evade.feature.${i}.title`}
+                      defaultValue={f.title}
+                      as="h3"
+                      className="relative heading-display text-2xl font-bold uppercase tracking-tight text-white"
+                      style={{ textShadow: "0 2px 16px rgba(0,0,0,0.8)" }}
+                    />
+                    <EditableText
+                      id={`evade.feature.${i}.body`}
+                      defaultValue={f.body}
+                      as="p"
+                      multiline
+                      className="relative mt-4 text-base leading-relaxed text-white/95"
+                    />
                   </div>
-                  <EditableText
-                    id={`evade.feature.${i}.title`}
-                    defaultValue={f.title}
-                    as="h3"
-                    className="relative heading-display text-2xl font-bold uppercase tracking-tight text-white"
-                    style={{ textShadow: "0 2px 16px rgba(0,0,0,0.8)" }}
-                  />
-                  <EditableText
-                    id={`evade.feature.${i}.body`}
-                    defaultValue={f.body}
-                    as="p"
-                    multiline
-                    className="relative mt-4 text-base leading-relaxed text-white/95"
-                  />
-                </div>
-              </GlassCard>
+                </GlassCard>
+              </MeshEntrance>
             ))}
           </div>
         </ParallaxChapter>

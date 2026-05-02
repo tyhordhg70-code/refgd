@@ -8,6 +8,7 @@ import {
   type ReactNode,
   type CSSProperties,
 } from "react";
+import MeshEntrance from "./MeshEntrance";
 
 /**
  * MeshExpansionReveal — bright glow flash + distorted wireframe
@@ -122,7 +123,20 @@ export default function MeshExpansionReveal({
   return (
     <div ref={containerRef} className={className} style={wrapperStyle}>
       <div className="relative">
-        {children}
+        {/* Box-itself entrance: lusion.co-style 3D distorted mesh that
+            warps the wrapped card on first viewport entry, then
+            settles to the final state with no residual GPU cost. The
+            wireframe / glow shockwave layers below still detonate
+            on top after the box has formed. */}
+        <MeshEntrance
+          duration={1200}
+          warp={isMobile ? 60 : 95}
+          blur={isMobile ? 10 : 16}
+          startScale={0.82}
+          startRotateX={-18}
+        >
+          {children}
+        </MeshEntrance>
 
         {phase === "playing" && (
           <>

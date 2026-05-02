@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import type { Store } from "@/lib/types";
 import { logoChainForStore } from "@/lib/logo";
 import { useEditContext } from "@/lib/edit-context";
+import MeshEntrance from "./MeshEntrance";
 
 const TAG_LABEL: Record<string, { label: string; cls: string }> = {
   fire:    { label: "🔥 hot",       cls: "bg-orange-500/15 text-orange-300 ring-orange-400/30" },
@@ -63,12 +64,15 @@ export default function StoreCard({
   // which is type-incompatible with React's `DragEvent<HTMLElement>`.
   // Putting the HTML drag handlers on the inner div sidesteps the conflict
   // entirely and keeps both layout animation AND native drag working.
+  // Lusion.co-style 3D mesh entrance — replaces the previous flat
+  // opacity/y fade. The MeshEntrance wrapper plays a one-shot
+  // SVG-displacement warp + perspective tilt + blur that settles to
+  // a clean static card so subsequent paints (hover, layout reorder,
+  // edit-mode overlays) stay zero-cost.
   return (
+    <MeshEntrance delay={Math.min(idx * 0.04, 0.4)} duration={950} warp={70} blur={12}>
     <motion.article
       layout
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: Math.min(idx * 0.015, 0.25) }}
       suppressHydrationWarning
       data-cursor="hover"
       data-cursor-label={store.name}
@@ -213,6 +217,7 @@ export default function StoreCard({
         )}
       </div>
     </motion.article>
+    </MeshEntrance>
   );
 }
 

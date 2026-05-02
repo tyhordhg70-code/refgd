@@ -7,6 +7,7 @@ import {
 } from "@/lib/categories-store";
 import ServiceSection from "@/components/ServiceSection";
 import GlassCard from "@/components/GlassCard";
+import MeshEntrance from "@/components/MeshEntrance";
 import KineticText from "@/components/KineticText";
 import ParallaxChapter from "@/components/ParallaxChapter";
 import { Reveal } from "@/components/Reveal";
@@ -179,32 +180,40 @@ export default async function StoreListPage() {
                 </Reveal>
                 <div className="mx-auto mt-8 grid max-w-6xl justify-items-center gap-5 md:grid-cols-2 lg:grid-cols-4 lg:justify-items-stretch">
                   {RULES_BLOCKS.map((b, i) => (
-                    <GlassCard
+                    <MeshEntrance
                       key={b.n}
-                      tint={b.tint}
                       delay={i * 0.12}
-                      index={i}
-                      className="liquid-glass w-full max-w-md"
+                      duration={1100}
+                      warp={75}
+                      blur={13}
+                      className="w-full max-w-md"
                     >
-                      <div className="p-6 sm:p-7">
-                        <div className="heading-display text-aurora text-5xl font-bold leading-none tracking-tight">
-                          {b.n}
+                      <GlassCard
+                        tint={b.tint}
+                        index={i}
+                        reveal={false}
+                        className="liquid-glass w-full max-w-md"
+                      >
+                        <div className="p-6 sm:p-7">
+                          <div className="heading-display text-aurora text-5xl font-bold leading-none tracking-tight">
+                            {b.n}
+                          </div>
+                          <EditableText
+                            id={`storelist.rule.${b.n}.h`}
+                            defaultValue={b.h}
+                            as="h3"
+                            className="heading-display mt-3 text-lg font-bold uppercase tracking-tight text-white"
+                          />
+                          <EditableText
+                            id={`storelist.rule.${b.n}.body`}
+                            defaultValue={b.body}
+                            as="p"
+                            multiline
+                            className="mt-3 text-sm font-medium leading-relaxed text-white/95"
+                          />
                         </div>
-                        <EditableText
-                          id={`storelist.rule.${b.n}.h`}
-                          defaultValue={b.h}
-                          as="h3"
-                          className="heading-display mt-3 text-lg font-bold uppercase tracking-tight text-white"
-                        />
-                        <EditableText
-                          id={`storelist.rule.${b.n}.body`}
-                          defaultValue={b.body}
-                          as="p"
-                          multiline
-                          className="mt-3 text-sm font-medium leading-relaxed text-white/95"
-                        />
-                      </div>
-                    </GlassCard>
+                      </GlassCard>
+                    </MeshEntrance>
                   ))}
                 </div>
               </div>

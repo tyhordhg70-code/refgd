@@ -1,28 +1,28 @@
 "use client";
-import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef, type ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { type ReactNode } from "react";
 
 /**
- * VanishWrapper — wraps a block of cards / content so it fades IN
- * as it enters the viewport, holds visible while in view, and fades
- * BACK OUT as it exits. On scroll reverse, the cycle plays in reverse,
- * so the block "vanishes and reappears" as the user moves up and down.
+ * VanishWrapper — wraps a block of cards / content with a one-shot
+ * scroll-into-view ENTRANCE only.
  *
- * The opacity / scale curve is keyed off the wrapper's own scroll
- * progress (0 → 1 across [start end] → [end start]):
- *   0.00 → 0.18 : fade IN
- *   0.18 → 0.78 : fully visible
- *   0.78 → 1.00 : fade OUT
+ * Earlier versions of this wrapper were tied to scroll progress and
+ * faded the wrapped block back OUT once the section scrolled past
+ * mid-screen. That caused the "What's Included" boxcards on the
+ * mentorship page to vanish + reappear every time the user scrolled
+ * past the section, which the user explicitly does not want — they
+ * want the entrance only. Now this is a thin wrapper around a single
+ * `whileInView` fade-in: the cards slide / fade in once and stay put
+ * forever after.
  *
- * Combined with a slight scale + Y drift so the entrance / exit feel
- * physical instead of a flat alpha cut.
+ * `drift` and `minScale` are kept in the API for backwards-compat with
+ * existing callers (`drift={50} minScale={0.92}`) so the props don't
+ * have to be removed everywhere.
  */
 export default function VanishWrapper({
   children,
   className = "",
-  /** How much vertical drift on entry/exit, in pixels. */
   drift = 36,
-  /** Minimum scale at the fade-in / fade-out edges. */
   minScale = 0.94,
 }: {
   children: ReactNode;
@@ -30,33 +30,21 @@ export default function VanishWrapper({
   drift?: number;
   minScale?: number;
 }) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "end start"],
-  });
+  const reduce = useReducedMotion();
 
-  const opacity = useTransform(
-    scrollYProgress,
-    [0, 0.18, 0.78, 1],
-    [0, 1, 1, 0]
-  );
-  const y = useTransform(
-    scrollYProgress,
-    [0, 0.18, 0.78, 1],
-    [drift, 0, 0, -drift]
-  );
-  const scale = useTransform(
-    scrollYProgress,
-    [0, 0.18, 0.78, 1],
-    [minScale, 1, 1, minScale]
-  );
+  if (reduce) {
+    return <div className={className}>{children}</div>;
+  }
 
   return (
     <motion.div
-      ref={ref}
-      style={{ opacity, y, scale, willChange: "opacity, transform" }}
       className={className}
+      initial={{ opacity: 0, y: drift, scale: minScale }}
+      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      viewport={{ once: true, margin: "0px 0px -10% 0px" }}
+      transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+      style={{ willChange: "opacity, transform" }}
+      suppressHydrationWarning
     >
       {children}
     </motion.div>

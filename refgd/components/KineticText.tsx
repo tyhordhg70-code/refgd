@@ -21,6 +21,7 @@ export default function KineticText({
   as: Tag = "h1",
   style,
   editId,
+  mountTrigger,
 }: {
   text: string;
   className?: string;
@@ -29,6 +30,15 @@ export default function KineticText({
   as?: keyof JSX.IntrinsicElements;
   style?: CSSProperties;
   editId?: string;
+  /**
+   * When defined, the headline switches from `whileInView` (which can
+   * fire while a full-screen overlay is up and burn the animation
+   * before the user sees it) to a mount-triggered animation that only
+   * plays once `mountTrigger` flips to `true`. Used by CosmicJourney
+   * so the welcome headline waits for the LoadingScreen to lift before
+   * its words slide in.
+   */
+  mountTrigger?: boolean;
 }) {
   const reduced = useReducedMotion();
   const ctx = useEditContext();
@@ -57,13 +67,15 @@ export default function KineticText({
   }
 
   const M = motion[Tag as keyof typeof motion] as any;
+  const useMountMode = mountTrigger !== undefined;
   return (
     <M
       className={className}
       style={style}
       initial="hidden"
-      whileInView="show"
-      viewport={{ once: true, amount: 0.1 }}
+      {...(useMountMode
+        ? { animate: mountTrigger ? "show" : "hidden" }
+        : { whileInView: "show", viewport: { once: true, amount: 0.1 } })}
       transition={{ staggerChildren: stagger, delayChildren: delay }}
       aria-label={value}
     >

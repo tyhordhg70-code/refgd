@@ -65,14 +65,17 @@ export default function ChipScroll({
     offset: ["start start", "end end"],
   });
 
-  // Caption stays visible from page-load through nearly the whole scroll.
-  // It only dims at the very end of the timeline, just before the next
-  // section begins. This fixes "experience freedom disappears after a
-  // few seconds on page load" — it now never disappears unless the user
-  // has actually scrolled past the entire hero runway.
-  const captionOpacity = useTransform(scrollYProgress, [0.0, 0.05, 0.92, 1.0], [1, 1, 1, 0.0]);
+  // The hero scene is INVISIBLE at scroll progress 0 and ramps in over
+  // the first ~5 % of the runway. This fixes "the scrolling thing
+  // appears at page load instead of when the user starts scrolling" —
+  // the procedural canvas + caption + scroll prompt all sit at opacity
+  // 0 until a scroll gesture begins, then bloom in together. Once
+  // they're in, they stay visible across the rest of the runway and
+  // only fade at the very end before the next section.
+  const sceneOpacity   = useTransform(scrollYProgress, [0.0, 0.04], [0, 1]);
+  const captionOpacity = useTransform(scrollYProgress, [0.0, 0.04, 0.92, 1.0], [0, 1, 1, 0]);
   const captionY       = useTransform(scrollYProgress, [0.0, 1.0], [0, -24]);
-  const scrollPromptOpacity = useTransform(scrollYProgress, [0, 0.1], [1, 0]);
+  const scrollPromptOpacity = useTransform(scrollYProgress, [0.0, 0.02, 0.1], [0, 1, 0]);
 
   // ── Preload frames ──────────────────────────────────────────────
   useEffect(() => {
@@ -346,14 +349,14 @@ export default function ChipScroll({
     ro.observe(cnv);
     resize();
 
-    // ── PRELOAD: first paint immediately on mount so the canvas
-    //    isn't a blank rectangle until the user scrolls. Without this
-    //    the procedural scene only draws once scrollYProgress fires a
-    //    "change" event, which doesn't happen until the first scroll —
-    //    so users on the evade page saw a black canvas for a beat
-    //    after the loading screen lifted ("the scene loading takes
-    //    too long"). Now the scene is rendered at progress=0 the
-    //    instant the component mounts.
+    // PRELOAD strategy (Round 6.4):
+    //   The canvas is rendered with a CSS opacity tied to scroll
+    //   progress (sceneOpacity above) so the user does NOT see the
+    //   procedural scene at page load — it only blooms in once they
+    //   start scrolling. We still warm the canvas with one paint at
+    //   p=0 so the bitmap is ready the moment scroll lifts opacity
+    //   above zero (otherwise the first scrolled pixel would show a
+    //   blank black rectangle for a frame).
     paint(0);
 
     // Tell the LoadingScreen the cinematic scene is warm and ready.
@@ -404,10 +407,11 @@ export default function ChipScroll({
       }}
     >
       <div className="sticky top-0 flex h-screen w-full items-center justify-center overflow-hidden">
-        <canvas
+        <motion.canvas
           ref={canvasRef}
           className="block h-full w-full"
-          style={{ display: "block" }}
+          style={{ display: "block", opacity: sceneOpacity }}
+          suppressHydrationWarning
         />
 
         {/* Loading spinner — only shown until frames preload OR fallback engages */}
