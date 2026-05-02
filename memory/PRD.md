@@ -1,83 +1,52 @@
-# PRD — Home Page Scroll/Animation Fix
+# PRD — RefundGod (refgd) Site
 
 ## Original Problem Statement
-Undo latest commit. After undo it fix the issues for mobile and PC on home page:
-- Welcome animation should complete and finish in one scroll and immediately take users to Choose your path to mastery.
-- Hard scrolling should not skip the entire animation.
-- Fix the white overlay layer above “you have arrived”.
-- Path to mastery cards should start with card 1 visible, not card 2.
-- Card-to-card scroll animation should complete in one scroll.
-- Card 5 should be viewable before the page scrolls down.
+Render deployments / changes were not reflecting on the live site at https://refgd.onrender.com/, even when rolling back super far in Render. The user wanted a clean rollback to commit `09b9c48` to actually become visible on the live site.
 
-Follow-up report from user:
-- Hard scrolling on the homepage still skipped the welcome animation.
-- Scrolling could create a bottom overlay/boxed artifact.
-- Scrolling back up from the bottom made animations/layout behave incorrectly.
-- The five path cards should change only on vertical scrolling, not sideways scrolling.
-- Hard downward scrolling must be strictly locked so unrevealed cards cannot be skipped.
-- After the fifth card, normal vertical page scrolling must resume.
+## Architecture
+- **Stack:** Next.js 14 App Router, deployed via Render (`rootDir: refgd` in `render.yaml`).
+- **Repo:** https://github.com/tyhordhg70-code/refgd
+- **Live URL:** https://refgd.onrender.com/
+- **Single source of truth:** `/refgd/` subdirectory (the only directory Render builds).
 
-Latest desktop/mobile refinement request:
-- Desktop should show all five path cards at once.
-- Desktop should add a scroll-controlled cinematic 3D camera fly-by with diagonal zoom and sideways motion.
-- Mobile should remain unchanged from the fixed one-card vertical scroll stepper.
+## Root Cause Identified (this session)
+Two parallel Next.js codebases existed:
+- `/app` and `/components` at repo root (NOT used by Render).
+- `/refgd/app` and `/refgd/components` (Render's `rootDir`, the only thing actually deployed).
 
-## Architecture Decisions
-- Reverted the latest commit with a git revert commit before implementing new targeted fixes.
-- Kept existing Next.js/Framer Motion homepage structure.
-- Replaced fragile scroll-runway card behavior with a one-scroll locked stepper that works on mobile and desktop.
-- Added a document-capture scroll/touch gate for the hero so hard wheel/swipe gestures are intercepted before native scrolling can skip sections.
-- Tightened the hero-to-paths handoff to recalculate its target live, preventing layout shifts from landing short or skipping past paths.
-- Removed the upward hero auto-gate that could interfere when users scrolled back from the bottom of the page.
-- Converted path cards from a sideways carousel motion into an in-place vertical-scroll card stepper.
-- Split path-card behavior by breakpoint: desktop uses all-cards-visible camera fly-by; mobile keeps the locked one-card stepper.
+The user kept editing the **root copy**, but Render only ever built `/refgd/`. Every change at the root was a silent no-op for the live site, and Render rollbacks could not undo polish changes that lived in the wrong folder.
 
-## Implemented
-- CosmicJourney now maps bright warp progress to the sticky runway and prevents the pale/white arrival overlay.
-- One hard scroll from top/header lands at the paths section instead of skipping to Telegram/footer.
-- Path cards start on card 1 and advance exactly one card per vertical wheel/swipe.
-- Horizontal/sideways wheel input no longer changes cards.
-- Card 5 “BUY 4 YOU” is reachable and the next down-scroll resumes normal page scroll.
-- Returning above the paths section resets the stepper to card 1 so repeat journeys do not restart on card 5.
-- Added key `data-testid` hooks for path cards and controls.
-- Removed the visible carousel frame/box around the card stepper to avoid the bottom overlay artifact.
-- 2026-04-29: Added desktop-only all-five-cards layout with scroll-controlled diagonal zoom/sideways 3D camera fly-by.
-- 2026-04-29: Preserved mobile one-card stepper behavior and scroll lock.
-- 2026-04-29: Added graceful empty-store fallback for `/store-list` when preview/dev database env vars are absent, preventing the linked path card from opening a 500 page.
-- 2026-04-29: Fixed FactoryIllustration SVG coordinate hydration mismatch by rounding generated gear coordinates.
-- 2026-04-29: Smoothed the first homepage scroll gate with a controlled ease-in-out handoff and header-aware landing offset so Path to Mastery no longer opens with the headline cut off.
-- 2026-04-29: Added reverse one-scroll handoff from Path to Mastery back to the WELCOME hero.
-- 2026-04-29: Locked mobile card-step scrolling to the current scrollY so card changes no longer drag the page down at the same time.
-- 2026-04-29: Reduced heavy home animation costs by lowering WebGL particle counts/pixel ratio, capping galaxy render rate, reducing scroll rain density, and simplifying desktop card motion.
-- 2026-04-29: Fixed intermittent HomeCTAButton hydration mismatch by separating editable/non-editable label rendering and adding stable CTA test IDs.
+A previous fork attempted to "fix" this by porting polish-state files from root INTO `/refgd/` (commit `37754de`), which silently undid the user's `0aa62c0` rollback and caused the live site to keep serving the polish version.
 
-## Verification
-- `npx tsc --noEmit` passes.
-- Self-tested mobile 390x800 and desktop 1920x800 hard-scroll from top/header.
-- Self-tested card progression from card 1 through card 5.
-- Testing agent initially found the top/header edge case; it was fixed and self-verified afterward.
-- 2026-04-29: `npx tsc --noEmit` passes after strict scroll-lock fixes.
-- 2026-04-29: Self-tested desktop and mobile hard-scroll flows, card 1→5 progression, post-card-5 vertical resume, and top reset.
-- 2026-04-29: Testing agent iteration 2 passed requested frontend scroll regressions at 100%; no frontend bugs found.
-- 2026-04-29: `npx tsc --noEmit` passes after desktop camera fly-by and route fallback changes.
-- 2026-04-29: Self-tested desktop homepage: all five cards render, `paths-desktop-camera-flyby` appears, camera transform changes through scroll, and card 1 link reaches `/store-list` without a 500.
-- 2026-04-29: Self-tested mobile homepage: desktop fly-by is hidden, `paths-scroll-stepper` remains active, and card 1 starts visible.
-- 2026-04-29: Testing agent iteration 3 verified requested desktop/mobile animation behavior; reported `/store-list` 500 was fixed afterward and self-tested.
-- 2026-04-29: Rechecked `/exclusive-mentorships` scroll logs after SVG fix; hydration error is gone, only browser WebGL performance warnings remain.
-- 2026-04-29: `npx tsc --noEmit` passes after scroll-smoothing, card-lock, performance, and CTA hydration fixes.
-- 2026-04-29: Self-tested desktop hard wheel: lands with Path to Mastery visible and all five desktop cards visible; wheel-up returns to the hero in one controlled scroll.
-- 2026-04-29: Self-tested mobile hard wheel: lands with intro visible and card 1 active; four downward card steps advance to card 5 with zero `window.scrollY` delta.
-- 2026-04-29: Testing agent iteration 4 passed all requested desktop/mobile core scroll flows; it found an intermittent HomeCTAButton hydration warning, which was fixed and self-verified with a clean console check.
+## Fix Applied (2026-05-02)
+1. **Reverted commit `37754de`** so `/refgd/` matches `09b9c48` exactly. The intended rollback now actually deploys.
+2. **Deleted the duplicate root `/app` and `/components`** directories so future edits can only happen in `/refgd/`.
+3. **Removed the temporary `refgd_deploy_fix.patch`** artifact created during the previous fork's manual port.
+4. **Pushed commit `92f38d1`** to `origin/main`. Render auto-deployed.
+
+## Verified Live (2026-05-02)
+- Render rebuilt: home-page chunk hash changed from `page-6e20c65dc74bfbb7.js` → `page-653ced3efe6ef82e.js`.
+- HTML payload dropped from ~206 KB → ~189 KB (polish DOM removed).
+- Polish-only classes (`hb-orb`, `hb-aurora`, `hb-star`) returned 0 matches in live HTML — confirming polish layers are gone.
+- Screenshot of https://refgd.onrender.com/ shows the 09b9c48 baseline: simple WELCOME headline + 3D wireframe shapes, no DOM cinematic layer.
+
+## Implemented (this session)
+- 2026-05-02: Reverted incorrect refgd/ port (37754de) so live site actually shows 09b9c48 rollback.
+- 2026-05-02: Removed duplicate root-level `/app` and `/components` directories.
+- 2026-05-02: Removed leftover `refgd_deploy_fix.patch` from previous session.
+- 2026-05-02: Verified Render redeployed and rollback content is live.
 
 ## Backlog
+
 ### P0
-- None remaining for the reported homepage scroll/card issue or latest desktop fly-by request after iteration 3 + self-tests.
-- None remaining for the follow-up laggy/skip/cut-off/card-scroll report after iteration 4 + self-tests.
+- None.
 
 ### P1
-- Add automated regression script for hero hard-scroll and path stepper.
-- Add automated regression coverage for desktop camera fly-by and mobile stepper breakpoint split.
-- Re-run a production-build console check for the homepage hydration fix before launch.
+- User to **revoke the GitHub Personal Access Token** (`ghu_4JPtgg…`) that was pasted in chat last session. Go to https://github.com/settings/tokens.
 
 ### P2
-- Tune visual pacing/spacing of the large desktop card stepper if the client wants a denser layout.
+- If user wants the LoadingScreen-stuck-at-95% bug fixed without restoring the rest of the polish chain, cherry-pick only commit `f535e8b` ("Make LoadingScreen dismiss in <=1.5s + skip on subsequent visits") onto current main.
+- If user wants the lusion/nomoo lag-strategy home-page scroll feel back, cherry-pick `990467c`, `8487551`, `fe5eba0` onto current main (these only touch `refgd/components/CosmicJourney.tsx`).
+
+## Critical Note for Future Edits
+**ALL code edits MUST be made inside `/refgd/` only.** The root `/app` and `/components` folders no longer exist. `render.yaml` has `rootDir: refgd` so anything outside that subfolder is ignored by Render.
