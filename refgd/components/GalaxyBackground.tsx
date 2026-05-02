@@ -97,11 +97,7 @@ export default function GalaxyBackground() {
   }, []);
 
   return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-0"
-      style={{ isolation: "isolate" }}
-    >
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0">
       {/* Static gradients — render FIRST so the WebGL canvas paints on top.
           Without this ordering the dark vignette completely hides the
           worker-rendered planet, halo, nebulas and warp streaks. */}
