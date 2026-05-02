@@ -93,11 +93,21 @@ export default function GalaxyBackground() {
             "radial-gradient(ellipse 65% 50% at 50% 45%, transparent 0%, transparent 12%, rgba(5,6,10,0.55) 50%, rgba(5,6,10,0.92) 80%, rgb(5,6,10) 100%)",
         }}
       />
+      {/* v6.8 (2026-05): top vignette previously started at full
+          opaque rgb(5,6,10) for the first 25 vh of the viewport,
+          which read on every page as a "horizontal black strip"
+          locked to the top of the viewport (it did NOT scroll with
+          the page because GalaxyBackground is `fixed inset-0`).
+          The user reported this as "the black strip on home page
+          and evasion and mentorship page". Softened: starts at
+          0.55 alpha and fades over 35 vh so the top stars and
+          colour wash are still visible while the AnnouncementBanner
+          and Nav still get enough darkening for legibility. */}
       <div
-        className="absolute inset-x-0 top-0 h-[45vh]"
+        className="absolute inset-x-0 top-0 h-[35vh]"
         style={{
           background:
-            "linear-gradient(to bottom, rgb(5,6,10) 0%, rgba(5,6,10,0.92) 25%, rgba(5,6,10,0.5) 60%, transparent 100%)",
+            "linear-gradient(to bottom, rgba(5,6,10,0.55) 0%, rgba(5,6,10,0.32) 45%, transparent 100%)",
         }}
       />
       {/* Bottom vignette darkens the lower 55vh so foreground text/cards

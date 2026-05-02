@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion, useReducedMotion, useInView } from "framer-motion";
+import { useEntranceReady } from "@/lib/loading-screen-gate";
 
 /**
  * PathCardCameraFly
@@ -63,10 +64,16 @@ export default function PathCardCameraFly({ index, children }: Props) {
     margin: "-15% 0px -15% 0px",
   });
   const [shouldAnimate, setShouldAnimate] = useState(false);
+  // Defer the camera-fly trigger until the loading splash has lifted
+  // so the cards do not silently land in their final pose behind the
+  // splash overlay (the user reported "page load animation for home
+  // page is not visible after loading screen but when coming back to
+  // it from another page it shows" — that's exactly this).
+  const entranceReady = useEntranceReady();
 
   useEffect(() => {
-    if (inView) setShouldAnimate(true);
-  }, [inView]);
+    if (inView && entranceReady) setShouldAnimate(true);
+  }, [inView, entranceReady]);
 
   const a = ANCHORS[index % ANCHORS.length];
 

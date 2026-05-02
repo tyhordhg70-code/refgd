@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEntranceReady } from "@/lib/loading-screen-gate";
 
 /**
  * MeshEntrance — lusion.co-style 3D distorted mesh entrance.
@@ -49,9 +50,15 @@ export default function MeshEntrance({
   const wrapRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const dispRef = useRef<SVGFEDisplacementMapElement>(null);
+  // Gate the mesh entrance until the loading splash has lifted —
+  // otherwise above-the-fold mesh-wrapped sections (e.g. the home
+  // Telegram CTA) silently complete their warp behind the splash
+  // overlay and the user sees a static box when the splash fades.
+  const entranceReady = useEntranceReady();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!entranceReady) return;
     const wrap = wrapRef.current;
     const inner = innerRef.current;
     const disp = dispRef.current;
@@ -130,7 +137,7 @@ export default function MeshEntrance({
       io.disconnect();
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [id, delay, duration, warp, blur, startScale, startRotateX]);
+  }, [id, delay, duration, warp, blur, startScale, startRotateX, entranceReady]);
 
   return (
     <div ref={wrapRef} className={className}>

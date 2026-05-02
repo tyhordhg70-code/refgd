@@ -9,6 +9,7 @@ import {
   type CSSProperties,
 } from "react";
 import MeshEntrance from "./MeshEntrance";
+import { useEntranceReady } from "@/lib/loading-screen-gate";
 
 /**
  * MeshExpansionReveal — bright glow flash + distorted wireframe
@@ -69,16 +70,21 @@ export default function MeshExpansionReveal({
 
   // ──────────────────────────────────────────────────────────────
   // GUARANTEED FIRST PLAY — fires unconditionally 1400 ms after
-  // mount regardless of intersection. This bypasses all the IO
-  // edge-cases that have been blamed for "burst never plays" in
-  // the previous rounds.
+  // the loading splash has lifted, regardless of intersection.
+  // This bypasses all the IO edge-cases that have been blamed for
+  // "burst never plays" in the previous rounds, while ensuring the
+  // burst doesn't fire SILENTLY behind the splash overlay (which
+  // is what made the home-page entrance invisible to first-time
+  // visitors).
   // ──────────────────────────────────────────────────────────────
+  const entranceReady = useEntranceReady();
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!entranceReady) return;
     const t = window.setTimeout(() => fire(), 1400);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [entranceReady]);
 
   // ──────────────────────────────────────────────────────────────
   // Re-trigger on viewport re-entry. After the first guaranteed

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { useEntranceReady } from "@/lib/loading-screen-gate";
 
 /**
  * PrismShard — entrance specifically used for the Evade-Cancelations
@@ -29,9 +30,14 @@ export default function PrismShard({
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
+  // Defer the prism-shard entrance until the loading splash has
+  // lifted so the Evade FEATURES grid above the fold doesn't burn
+  // its first play behind the splash overlay.
+  const entranceReady = useEntranceReady();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!entranceReady) return;
     const wrap = wrapRef.current;
     const inner = innerRef.current;
     if (!wrap || !inner) return;
@@ -118,7 +124,7 @@ export default function PrismShard({
       io.disconnect();
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [delay, duration]);
+  }, [delay, duration, entranceReady]);
 
   return (
     <div ref={wrapRef} className={className}>

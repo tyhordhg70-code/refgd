@@ -1,6 +1,7 @@
 "use client";
 import { motion, useReducedMotion } from "framer-motion";
 import { type ReactNode } from "react";
+import { useEntranceReady } from "@/lib/loading-screen-gate";
 
 /**
  * VanishWrapper — wraps a block of cards / content with a one-shot
@@ -31,6 +32,11 @@ export default function VanishWrapper({
   minScale?: number;
 }) {
   const reduce = useReducedMotion();
+  // Defer the whileInView trigger until the loading splash has lifted
+  // so above-the-fold blocks don't burn their entrance fade behind
+  // the splash overlay (the user-visible bug: "page load animation
+  // for home page is not visible after loading screen").
+  const entranceReady = useEntranceReady();
 
   if (reduce) {
     return <div className={className}>{children}</div>;
@@ -40,8 +46,12 @@ export default function VanishWrapper({
     <motion.div
       className={className}
       initial={{ opacity: 0, y: drift, scale: minScale }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, margin: "0px 0px -10% 0px" }}
+      {...(entranceReady
+        ? {
+            whileInView: { opacity: 1, y: 0, scale: 1 },
+            viewport: { once: true, margin: "0px 0px -10% 0px" },
+          }
+        : {})}
       transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
       style={{ willChange: "opacity, transform" }}
       suppressHydrationWarning

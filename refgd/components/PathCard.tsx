@@ -3,6 +3,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import Tilt3D from "./Tilt3D";
 import PathIllustration, { type PathIllustrationKind } from "./PathIllustration";
+import { useEntranceReady } from "@/lib/loading-screen-gate";
 
 interface PathCardProps {
   index: number;
@@ -105,6 +106,16 @@ export default function PathCard({
   // visual styling (fonts, padding, radius, aspect) while still
   // dropping the viewport-triggered animation that would otherwise
   // strand off-screen-x cards at their initial transform.
+  //
+  // `entranceReady` defers the whileInView trigger until the loading
+  // splash has lifted. While the splash is up, scroll is locked and
+  // the IntersectionObserver behind whileInView would otherwise fire
+  // immediately for above-the-fold cards (the path cards on /), with
+  // `once: true` ensuring the entrance is consumed silently behind
+  // the overlay. Holding the cards at their `initial` state until the
+  // splash lifts means they animate INTO view the moment the user
+  // can actually see them.
+  const entranceReady = useEntranceReady();
   const revealProps =
     noReveal || size === "sm"
       ? {
@@ -118,8 +129,17 @@ export default function PathCard({
           // and a low `amount: 0.05` threshold so the cards reliably
           // animate AS they scroll into view (lusion-style), but never
           // burn through their entrance during the LoadingScreen.
-          whileInView: { opacity: 1, y: 0, scale: 1, rotateX: 0 },
-          viewport: { once: true, amount: 0.05 },
+          // v6.8 (2026-05): only attach `whileInView` once the splash
+          // has lifted; before that we keep `animate` undefined so
+          // framer holds the card at its `initial` transform.
+          ...(entranceReady
+            ? {
+                whileInView: { opacity: 1, y: 0, scale: 1, rotateX: 0 },
+                viewport: { once: true, amount: 0.05 },
+              }
+            : {
+                animate: undefined,
+              }),
           transition: {
             duration: 1.0,
             delay: index * 0.12,

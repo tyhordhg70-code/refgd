@@ -1,6 +1,7 @@
 "use client";
 import { useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEntranceReady } from "@/lib/loading-screen-gate";
 
 /**
  * GlassCard — Lusion.co-style glassmorphism panel.
@@ -126,9 +127,18 @@ export default function GlassCard({
   // off-screen cards do NOT burn their entrance animation while the
   // LoadingScreen overlay is up. Once the IO fires we add the variant
   // class — the keyframe runs and the card lands in its final state.
+  //
+  // `entranceReady` defers BOTH the immediate-reveal shortcut (for
+  // above-the-fold cards) and the IO setup itself until the loading
+  // splash has lifted. Without this gate, cards above the fold would
+  // call setRevealed(true) on first mount — silently playing their
+  // entrance keyframe behind the splash overlay so the user sees the
+  // already-finished card when the splash fades.
   const ref = useRef<HTMLDivElement | null>(null);
   const [revealed, setRevealed] = useState(false);
+  const entranceReady = useEntranceReady();
   useEffect(() => {
+    if (!entranceReady) return;
     const el = ref.current;
     if (!el) return;
     // If the card is already visible on first paint (above-the-fold
@@ -155,7 +165,7 @@ export default function GlassCard({
     );
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+  }, [entranceReady]);
 
   return (
     <div

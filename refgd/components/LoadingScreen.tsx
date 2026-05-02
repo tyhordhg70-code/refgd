@@ -1,6 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { markLoadingActive, markLoadingComplete } from "@/lib/loading-screen-gate";
+
+// Module-import side-effect: mark the loading screen as active
+// SYNCHRONOUSLY before any other component reads the gate flag.
+// The layout imports <LoadingScreen> at the top of <body>, ahead
+// of every entrance component in the page tree, so this flag is
+// already set when GlassCard / PathCard / MeshEntrance / etc.
+// run their mount-time `useEntranceReady()` initializer.
+markLoadingActive();
 
 /**
  * LoadingScreen — full-screen cinematic boot overlay with a REAL
@@ -312,11 +321,12 @@ export default function LoadingScreen() {
       timerA = window.setTimeout(() => {
         setVisible(false);
         // Tell deferred entrance animations (CosmicJourney welcome
-        // headline, etc.) that the overlay is about to lift so they
-        // don't burn their first play behind a full-screen blocker.
-        try {
-          window.dispatchEvent(new CustomEvent("refgd:loading-complete"));
-        } catch {}
+        // headline, GlassCard / PathCard / MeshEntrance / etc. via
+        // useEntranceReady) that the overlay is about to lift so
+        // they don't burn their first play behind a full-screen
+        // blocker. markLoadingComplete clears the gate flag and
+        // dispatches `refgd:loading-complete` in one call.
+        markLoadingComplete();
       }, 280);
       timerB = window.setTimeout(() => {
         setRemoved(true);

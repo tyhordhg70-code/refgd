@@ -21,8 +21,27 @@ export default function Footer() {
   const pathname = usePathname();
   if (pathname === "/") return null;
 
+  // v6.8 (2026-05): the previous styling — `bg-ink-900` (#0a0c14)
+  // with `border-t border-white/5` — created a hard horizontal band
+  // where the page (sitting over the global galaxy backdrop, which
+  // fades to #05060a at its bottom) abruptly stepped UP four points
+  // of lightness into the footer. The user reported this as "the
+  // black strip" on every page that has a footer (evade-cancelations
+  // and exclusive-mentorships). We now drop the opaque background
+  // and the white-alpha border and let the footer sit directly over
+  // the galaxy with a gentle gradient blend at its top edge so the
+  // transition is invisible. The sub-footer divider is also softened
+  // for the same reason.
   return (
-    <footer className="relative z-[2] border-t border-white/5 bg-ink-900">
+    <footer className="relative z-[2] bg-transparent">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 -top-24 h-24"
+        style={{
+          background:
+            "linear-gradient(to bottom, transparent 0%, rgba(5,6,10,0.55) 60%, rgba(5,6,10,0.85) 100%)",
+        }}
+      />
       <div className="container-px grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Logo className="h-10 w-auto" />
@@ -63,7 +82,7 @@ export default function Footer() {
           </ul>
         </div>
       </div>
-      <div className="border-t border-white/5">
+      <div className="border-t border-white/[0.04]">
         <div className="container-px flex flex-col items-center justify-between gap-2 py-4 text-xs text-white/40 sm:flex-row">
           <p>© {new Date().getFullYear()} RefundGod. All rights reserved.</p>
           <p>Self-hosted build · v1.0</p>
