@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion, useReducedMotion, useInView } from "framer-motion";
-import { useEntranceReady } from "@/lib/loading-screen-gate";
 
 /**
  * PathCardCameraFly
@@ -64,16 +63,18 @@ export default function PathCardCameraFly({ index, children }: Props) {
     margin: "-15% 0px -15% 0px",
   });
   const [shouldAnimate, setShouldAnimate] = useState(false);
-  // Defer the camera-fly trigger until the loading splash has lifted
-  // so the cards do not silently land in their final pose behind the
-  // splash overlay (the user reported "page load animation for home
-  // page is not visible after loading screen but when coming back to
-  // it from another page it shows" — that's exactly this).
-  const entranceReady = useEntranceReady();
-
+  // v6.10 (2026-05): the loading-screen entrance gate was REMOVED
+  // here. The path cards live BELOW the CosmicJourney hero (the
+  // welcome scene takes the full first viewport), so the cards are
+  // never visible-but-hidden-behind-the-splash. The gate, combined
+  // with the strict tri-state read, was stranding cards at their
+  // off-screen initial transform (x ±160, z -280, opacity 0) when
+  // the loading flag hadn't propagated to this module yet — which
+  // is exactly what the user reported as "path cards not scrollable,
+  // illustrations gone".
   useEffect(() => {
-    if (inView && entranceReady) setShouldAnimate(true);
-  }, [inView, entranceReady]);
+    if (inView) setShouldAnimate(true);
+  }, [inView]);
 
   const a = ANCHORS[index % ANCHORS.length];
 
