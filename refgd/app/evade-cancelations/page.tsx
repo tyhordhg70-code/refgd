@@ -108,12 +108,20 @@ export default function EvadePage() {
           has its own distinct atmosphere, sitting above the global
           galaxy backdrop. Subtle radial accents reinforce a "vault"
           mood without overpowering text. */}
+      {/* v6.9 — page-wide overlay used to start at rgba(8,8,32,0.65)
+          at 0 % (top), which on first paint and after the splash
+          fades stamped a hard dark band across the entire upper
+          viewport (the user reported this as "the black screen
+          upon loading is still there"). Now the top stop is fully
+          transparent so the GalaxyBackground reads through, and
+          the deep blue/violet only fades in from the middle of
+          the page downward where it actually does scenic work. */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 -z-[1]"
         style={{
           background:
-            "radial-gradient(ellipse 80% 60% at 20% 0%, rgba(30,18,90,0.55), transparent 60%), radial-gradient(ellipse 70% 60% at 80% 100%, rgba(82,28,140,0.55), transparent 60%), linear-gradient(180deg, rgba(8,8,32,0.65) 0%, rgba(18,8,40,0.78) 50%, rgba(10,4,32,0.88) 100%)",
+            "radial-gradient(ellipse 80% 60% at 20% 0%, rgba(30,18,90,0.32), transparent 60%), radial-gradient(ellipse 70% 60% at 80% 100%, rgba(82,28,140,0.55), transparent 60%), linear-gradient(180deg, rgba(8,8,32,0) 0%, rgba(18,8,40,0.55) 55%, rgba(10,4,32,0.78) 100%)",
         }}
       />
 
@@ -228,7 +236,7 @@ export default function EvadePage() {
                 <div className="relative p-8">
                   <EditableText
                     id="evade.intro.body2"
-                    defaultValue="During the checkout process, you are assigned a fraud score, and if it reaches a certain threshold, your current and future orders may be cancelled. Our methods keep that score invisible."
+                    defaultValue="During the checkout process, you are assigned a fraud score, and if it reaches a certain threshold, your current and future orders may be cancelled."
                     as="p"
                     multiline
                     className="relative text-base leading-relaxed text-white/95 sm:text-lg"
@@ -274,8 +282,13 @@ export default function EvadePage() {
             />
             {/* Solutions floating illustration — transparent man+shield
                 +locks artwork sits inside this chapter, animated with
-                bob + scroll parallax for visual energy. */}
-            <div className="mt-10 mb-4 flex justify-center">
+                bob + scroll parallax for visual energy.
+                v6.9 — vertical spacing tightened (was mt-10 mb-4 + a
+                second mt-8 below for ~88 px of empty band between
+                image and cards). User reported "huge space gap
+                between image and the words". Now mt-2 mb-0 + mt-3
+                grid for a tight magazine-style stack. */}
+            <div className="mt-2 mb-0 flex justify-center">
               <FloatingArt
                 src="/uploads/sol-locks.webp"
                 alt="Comprehensive security solutions — checklist, shields, locks."
@@ -284,7 +297,7 @@ export default function EvadePage() {
                 spin={3}
               />
             </div>
-            <div className="mt-8 grid gap-5 lg:grid-cols-3">
+            <div className="mt-3 grid gap-5 lg:grid-cols-3">
               {[
                 { id: "evade.solution.0", body: "Avoid account bans and cancellations by learning how to properly and efficiently place large orders without account aging.", tint: "amber" as const,  illo: "spark"      as const, glow: "pulse-glow"        },
                 { id: "evade.solution.1", body: "Gain insights into avoiding rebills or winning against an existing rebill, plus understanding anti-fraud systems, user behaviour analysis, order fraud scores, and the latest algorithms used by online stores.", tint: "cyan"  as const, illo: "encryption" as const, glow: "pulse-glow-cyan"   },
@@ -307,25 +320,11 @@ export default function EvadePage() {
               ))}
             </div>
 
-            {/* The new money-phone illustration — sits centred directly
-                below the "credit lines up to $10,000" boxcard so it's
-                clearly tied to that specific solution. Transparent +
-                animated (parallax drift handled inside the divider).
-                Spacing tightened (no mt-12 wrapper, compact divider)
-                so there's no large empty band above and below. */}
-            <div className="mt-4 flex justify-center">
-              <div className="w-full max-w-2xl">
-                <EvadeIllustrationDivider
-                  src="/uploads/money-phone.png"
-                  alt="Anonymous credit lines up to $10,000 powering checkout on a phone."
-                  align="center"
-                  glow="violet"
-                  height={260}
-                  caption="— credit lines, fully anonymous"
-                  compact
-                />
-              </div>
-            </div>
+            {/* v6.9 — the money-phone divider with caption
+                "— credit lines, fully anonymous" was removed at
+                user request (redundant with the credit-lines copy
+                already in the third solution card, and was
+                creating a visible empty band below the cards). */}
           </div>
         </ParallaxChapter>
       </ReorderableSection>
@@ -395,13 +394,15 @@ export default function EvadePage() {
           ReorderableSection (i.e. after pricing) — that's why the
           band was previously appearing in the wrong place. */}
       <ReorderableSection sectionId="stake-divider">
+        {/* v6.9 — caption "— what's at stake · what we protect"
+            removed; the chapter 03 title (now "Our reputation at
+            stake") carries the message on its own. */}
         <EvadeIllustrationDivider
           src="/uploads/credit-cash.png"
           alt="Credit and cash flow — what's at stake when accounts get banned."
           align="center"
           glow="amber"
           height={300}
-          caption="— what's at stake · what we protect"
         />
       </ReorderableSection>
 
@@ -421,9 +422,9 @@ export default function EvadePage() {
           <div className="container-wide relative">
             <ChapterHeader
               chapterEditId="evade.ch3.eyebrow"
-              chapterDefault="chapter 03 / trust"
+              chapterDefault="chapter 03 / reputation"
               titleEditId="evade.ch3.title"
-              titleDefault="Why trust us?"
+              titleDefault="Our reputation at stake."
               accent="amber"
             />
             <div className="mt-14 grid gap-5 lg:grid-cols-3">
@@ -494,15 +495,19 @@ export default function EvadePage() {
               id="evade.pricing.lead"
               defaultValue="Our pricing — select your plan:"
               as="p"
-              className="mt-6 text-base text-white/80"
+              className="mt-3 text-base text-white/80"
             />
-            <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {/* v6.9 — was mt-12 + mb-6 inside each card image, which
+                left a visible empty band between the lead copy and
+                the card contents. Tightened to mt-5 / mb-3 and the
+                image now bobs gently (pricing-img-bob keyframe in
+                globals.css) so it reads as a living illustration
+                instead of a static thumbnail. */}
+            <div className="mt-5 grid gap-6 md:grid-cols-3">
               {PRICING.map((p, i) => (
                 <GlassCard key={p.title} tint={p.tint} delay={i * 0.1} index={i + 3} className="pulse-glow float-card">
                   <div className="relative flex h-full flex-col p-8">
-                    {/* Hero image — fitted INSIDE the box, ABOVE the
-                        text. No more low-opacity background wash. */}
-                    <div className="relative mx-auto mb-6 flex h-44 w-full items-center justify-center">
+                    <div className="relative mx-auto mb-3 flex h-44 w-full items-center justify-center">
                       <div
                         aria-hidden
                         className="pointer-events-none absolute inset-0"
@@ -517,7 +522,8 @@ export default function EvadePage() {
                         alt={p.title}
                         loading="lazy"
                         decoding="async"
-                        className="relative h-full w-auto max-w-full object-contain drop-shadow-[0_18px_40px_rgba(0,0,0,0.55)]"
+                        className="pricing-img-bob relative h-full w-auto max-w-full object-contain drop-shadow-[0_18px_40px_rgba(0,0,0,0.55)]"
+                        style={{ animationDelay: `${i * 0.6}s` }}
                       />
                     </div>
 

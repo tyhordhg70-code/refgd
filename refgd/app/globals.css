@@ -1756,3 +1756,22 @@ html { scroll-behavior: smooth; }
     clip-path: none !important;
   }
 }
+
+/* v6.9 — gentle bob for the Get-Started pricing card hero
+   images. Pure transform, GPU-only, ~4 s loop. The user
+   reported the static thumbnails as feeling lifeless, so
+   each card now drifts a few px up and down with a tiny
+   tilt. animation-delay is set inline per-card so the three
+   images don't bob in unison. */
+@keyframes pricingImgBob {
+  0%   { transform: translateY(0)     rotate(0deg);   }
+  50%  { transform: translateY(-10px) rotate(-1.2deg);}
+  100% { transform: translateY(0)     rotate(0deg);   }
+}
+.pricing-img-bob {
+  animation: pricingImgBob 4.2s ease-in-out infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pricing-img-bob { animation: none; }
+}

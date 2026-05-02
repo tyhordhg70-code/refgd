@@ -7,7 +7,7 @@ import {
 } from "@/lib/categories-store";
 import ServiceSection from "@/components/ServiceSection";
 import GlassCard from "@/components/GlassCard";
-import MeshEntrance from "@/components/MeshEntrance";
+import CinematicCard3D from "@/components/CinematicCard3D";
 import KineticText from "@/components/KineticText";
 import ParallaxChapter from "@/components/ParallaxChapter";
 import { Reveal } from "@/components/Reveal";
@@ -180,12 +180,20 @@ export default async function StoreListPage() {
                 </Reveal>
                 <div className="mx-auto mt-8 grid max-w-6xl justify-items-center gap-5 md:grid-cols-2 lg:grid-cols-4 lg:justify-items-stretch">
                   {RULES_BLOCKS.map((b, i) => (
-                    <MeshEntrance
+                    // v6.9 — was MeshEntrance with feTurbulence +
+                    // feDisplacementMap (the user reported the
+                    // blur+ripple as making them dizzy). Replaced
+                    // with CinematicCard3D's "shuffle" variant: a
+                    // fast 3D rotateX + translateY snap with a
+                    // hard accent rim that flashes on entrance and
+                    // settles to a thin static glow. No blur, no
+                    // displacement — sharp the whole way.
+                    <CinematicCard3D
                       key={b.n}
-                      delay={i * 0.12}
-                      duration={1100}
-                      warp={75}
-                      blur={13}
+                      variant="shuffle"
+                      accent={b.tint}
+                      delay={i * 0.09}
+                      duration={680}
                       className="w-full max-w-md"
                     >
                       <GlassCard
@@ -213,7 +221,7 @@ export default async function StoreListPage() {
                           />
                         </div>
                       </GlassCard>
-                    </MeshEntrance>
+                    </CinematicCard3D>
                   ))}
                 </div>
               </div>

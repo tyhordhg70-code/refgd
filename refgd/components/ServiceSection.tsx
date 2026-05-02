@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Reveal } from "./Reveal";
 import KineticText from "./KineticText";
 import GlassCard from "./GlassCard";
+import CinematicCard3D from "./CinematicCard3D";
 import MagneticButton from "./MagneticButton";
 import InteractiveParticles from "./InteractiveParticles";
 import ParallaxIllustration from "./ParallaxIllustration";
@@ -271,11 +272,25 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
           </Reveal>
           <div className="mt-16 grid gap-6 md:grid-cols-3">
             {STEPS.map((s, i) => (
-              <GlassCard
+              // v6.9 — was a plain GlassCard with default reveal.
+              // Per user request the How-it-works boxcards now get
+              // a fast cinematic 3D flip-in with a hard accent
+              // edge-glow that flashes on entrance and settles to
+              // a thin static rim. CinematicCard3D uses pure 3D
+              // transforms (no SVG displacement) so it is sharp
+              // and never reads as dizzy/blurry.
+              <CinematicCard3D
                 key={s.n}
-                tint={s.tint}
+                variant="flip"
+                accent={s.tint as any}
                 delay={i * 0.12}
+                duration={720}
+              >
+              <GlassCard
+                tint={s.tint}
+                delay={0}
                 index={i}
+                reveal={false}
                 className=""
               >
                 <div className="relative overflow-hidden p-8 sm:p-10">
@@ -307,6 +322,7 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
                   </div>
                 </div>
               </GlassCard>
+              </CinematicCard3D>
             ))}
           </div>
         </div>
