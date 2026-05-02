@@ -11,7 +11,7 @@ import {
 } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { EffectCards, Pagination } from "swiper/modules";
+import { Pagination } from "swiper/modules";
 import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
@@ -350,11 +350,17 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
       }}
     >
       <Swiper
-        effect="cards"
-        modules={[EffectCards, Pagination]}
-        // EffectCards has no face-count limit — it's a stacked card
-        // deck, so all 5 path cards live in the stack at once and
-        // swipe through 1→2→3→4→5 with no physical bound issue.
+        // v6.10.4: plain horizontal slide effect (no 3D effect plugin).
+        // Previous attempts (EffectCube → EffectCards) both had
+        // problems: cube was hard-capped at 4 faces (couldn't show
+        // card 3+), and cards stacked back slides visibly behind the
+        // top card creating "tiny pieces in the back" flicker as
+        // each PathCard re-mounted its cinematic reveal. Plain slide
+        // effect: each card slides cleanly off-screen left/right,
+        // only the active card is visible at any moment, no back-
+        // stack peek, no per-effect render thrash. All 5 cards
+        // reachable.
+        modules={[Pagination]}
         loop={false}
         grabCursor
         speed={520}
@@ -398,19 +404,6 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         resistanceRatio={0.55}
         onSwiper={(s) => setActiveIndex(s.realIndex)}
         onSlideChange={(s) => setActiveIndex(s.realIndex)}
-        // EffectCards stack tuning. perSlideOffset=8 stacks the
-        // back cards 8 px behind the top card so the user can see
-        // there's a deck behind it. perSlideRotate=2 gives each
-        // back card a tiny 2° rotation so the stack looks tactile
-        // (like a real deck of cards on a table). slideShadows off
-        // because the path cards already have their own gradient
-        // ring and accent glow — extra shadow muddies the look.
-        cardsEffect={{
-          perSlideOffset: 8,
-          perSlideRotate: 2,
-          rotate: true,
-          slideShadows: false,
-        }}
         pagination={{ clickable: true }}
         className="h-full w-full"
       >

@@ -72,7 +72,16 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     window.addEventListener("refgd:loading-complete", trigger as EventListener);
     // Fallback in case LoadingScreen isn't mounted on this route — the
     // headline must NEVER be permanently invisible.
-    const t = window.setTimeout(trigger, 2400);
+    // v6.10.4: bumped from 2400 → 6000 ms to match useEntranceReady's
+    // safety. The previous 2.4 s fallback FIRED BEFORE the genuine
+    // `refgd:loading-complete` event on hard loads (LoadingScreen
+    // takes ~2.6 s end-to-end: 1.5 s minStall + 280 ms wait + 800 ms
+    // fade + 820 ms post-fade gate-defer). The fallback would win by
+    // ~200 ms and start the welcome animation while the splash was
+    // still mid-fade, so the entrance played invisibly behind the
+    // splash. 6 s matches the LoadingScreen Promise.all hard ceiling
+    // so the fallback only kicks in if the real event never fires.
+    const t = window.setTimeout(trigger, 6000);
     return () => {
       window.removeEventListener(
         "refgd:loading-complete",
@@ -210,10 +219,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
               animate={{ opacity: 1 }}
               transition={reduced ? { duration: 0 } : { duration: 0.8, ease: "easeOut" }}
               style={{
+                // v6.10.4: removed the gold ellipse at 50% 80%. With
+                // filter: blur(40px) and 0.35 alpha that radial rendered
+                // as a horizontal gold band glued to the bottom of the
+                // welcome viewport — the user repeatedly reported this
+                // as a "gradient strip on bottom" of the home page.
+                // Removing it (and softening the cyan to 0.22 alpha so
+                // the right side no longer has a visible cyan halo)
+                // leaves the violet wash up top to colour the planet
+                // backdrop, with no edge-aligned coloured bands.
                 background:
-                  "radial-gradient(ellipse at 28% 32%, rgba(167,139,250,0.50) 0%, transparent 45%)," +
-                  "radial-gradient(ellipse at 75% 60%, rgba(34,211,238,0.42) 0%, transparent 50%)," +
-                  "radial-gradient(ellipse at 50% 80%, rgba(245,185,69,0.35) 0%, transparent 50%)",
+                  "radial-gradient(ellipse at 28% 32%, rgba(167,139,250,0.42) 0%, transparent 50%)," +
+                  "radial-gradient(ellipse at 75% 50%, rgba(34,211,238,0.22) 0%, transparent 55%)",
                 filter: "blur(40px)",
               }}
             />
