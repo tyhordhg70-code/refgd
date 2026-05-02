@@ -71,7 +71,249 @@ export default function AnimatedTelegramBox() {
           0%   { transform:rotate(0deg) }
           100% { transform:rotate(360deg) }
         }
+        /* ── Lusion-style wireframe mesh ── */
+        @keyframes tg-mesh-spin {
+          0%   { transform: translate(-50%,-50%) rotateX(62deg) rotateZ(0deg) }
+          100% { transform: translate(-50%,-50%) rotateX(62deg) rotateZ(360deg) }
+        }
+        @keyframes tg-mesh-pulse {
+          0%,100% { opacity: 0.55 }
+          50%     { opacity: 0.95 }
+        }
+        /* Turbulence-driven ripple on the wireframe sphere — animates
+           the SVG <feTurbulence baseFrequency> via custom property so
+           the whole mesh subtly ripples like a lusion data-distort. */
+        @property --tg-noise {
+          syntax: "<number>";
+          inherits: false;
+          initial-value: 0.018;
+        }
+        @keyframes tg-mesh-noise {
+          0%,100% { --tg-noise: 0.012 }
+          50%     { --tg-noise: 0.038 }
+        }
+        @keyframes tg-mesh-displace {
+          0%,100% { transform: translate(0px, 0px) }
+          25%     { transform: translate(2px, -3px) }
+          50%     { transform: translate(-1px, 4px) }
+          75%     { transform: translate(-3px, -2px) }
+        }
+        /* Secondary ribbon mesh — a wide elliptical band that orbits
+           the sphere on a different axis, tilted forward, so the
+           composition reads as multi-axis rather than one tilted disc. */
+        @keyframes tg-ribbon-spin {
+          0%   { transform: translate(-50%,-50%) rotateX(78deg) rotateY(0deg) rotateZ(20deg) }
+          100% { transform: translate(-50%,-50%) rotateX(78deg) rotateY(360deg) rotateZ(20deg) }
+        }
+        /* Grid pan moves the inner background; outer wrapper does
+           the perspective + warp so transform doesn't conflict. */
+        @keyframes tg-grid-pan {
+          0%   { background-position: 0 0,    0 0 }
+          100% { background-position: 0 -88px, 0 -88px }
+        }
+        @keyframes tg-warp {
+          0%,100% { transform: translate(-50%,-50%) perspective(700px) rotateX(64deg) skewY(0deg) }
+          25%     { transform: translate(-50%,-50%) perspective(700px) rotateX(64deg) skewY(1.4deg) }
+          75%     { transform: translate(-50%,-50%) perspective(700px) rotateX(64deg) skewY(-1.4deg) }
+        }
       `}</style>
+
+      {/* ────── Lusion-style 3D mesh layer ──────
+          Recedes into the box via CSS perspective + rotateX so it reads
+          as a warped grid floor; a wireframe sphere sits on top of it
+          slowly rotating. Pure CSS / SVG — no WebGL, no JS rAF.
+          Skipped on mobile to keep the box calm on small screens.
+          Under prefers-reduced-motion we still RENDER the mesh as a
+          static visual, but skip the rotation/warp keyframes (handled
+          inline via the `reduced` flag below). This way the design
+          upgrade lands for motion-sensitive users too. */}
+      {!isMobile && (
+        <>
+          {/* Recessed grid floor — outer wrapper handles the perspective
+              + warp transform; the inner grid moves via background-position
+              so the two animations don't trample each other. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-[78%] h-[120%] w-[160%] opacity-60"
+            style={{
+              transform: "translate(-50%,-50%) perspective(700px) rotateX(64deg)",
+              animation: reduced ? undefined : "tg-warp 11s ease-in-out infinite",
+              filter: "drop-shadow(0 0 14px rgba(167,139,250,0.4))",
+              maskImage:
+                "radial-gradient(ellipse 60% 80% at 50% 30%, #000 0%, #000 40%, transparent 80%)",
+              WebkitMaskImage:
+                "radial-gradient(ellipse 60% 80% at 50% 30%, #000 0%, #000 40%, transparent 80%)",
+            }}
+          >
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgba(167,139,250,0.45) 1px, transparent 1px)," +
+                  "linear-gradient(90deg, rgba(34,211,238,0.45) 1px, transparent 1px)",
+                backgroundSize: "44px 44px, 44px 44px",
+                animation: reduced ? undefined : "tg-grid-pan 6s linear infinite",
+              }}
+            />
+          </div>
+
+          {/* Wireframe sphere — built from concentric ellipses + radial
+              meridians so it reads as a 3D mesh. Slowly rotates around
+              a tilted Z so the meridians appear to revolve. */}
+          <svg
+            aria-hidden="true"
+            viewBox="-110 -110 220 220"
+            className="pointer-events-none absolute left-1/2 top-1/2 z-[1] h-[78%] w-[78%]"
+            style={{
+              transform: "translate(-50%,-50%) rotateX(62deg) rotateZ(0deg)",
+              animation: reduced
+                ? undefined
+                : "tg-mesh-spin 22s linear infinite, tg-mesh-pulse 9s ease-in-out infinite",
+              filter:
+                "drop-shadow(0 0 24px rgba(34,211,238,0.55)) drop-shadow(0 0 40px rgba(167,139,250,0.35))",
+              maxWidth: 520,
+              maxHeight: 520,
+            }}
+          >
+            <defs>
+              <linearGradient id="tg-mesh-stroke" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%"   stopColor="#7be7ff" stopOpacity="0.95" />
+                <stop offset="50%"  stopColor="#a78bfa" stopOpacity="0.85" />
+                <stop offset="100%" stopColor="#f5b945" stopOpacity="0.75" />
+              </linearGradient>
+              <radialGradient id="tg-mesh-core" cx="50%" cy="50%" r="50%">
+                <stop offset="0%"  stopColor="rgba(255,255,255,0.7)" />
+                <stop offset="60%" stopColor="rgba(167,139,250,0.15)" />
+                <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+              </radialGradient>
+              {/* Turbulence + displacement filter — gives the wireframe
+                  the lusion-style "data-distortion" wobble. The
+                  baseFrequency animates between 0.012 and 0.038 over 7s
+                  so the mesh subtly breathes/melts in place rather than
+                  sitting as a static geometric primitive. */}
+              {!reduced && (
+                <filter id="tg-mesh-distort" x="-30%" y="-30%" width="160%" height="160%">
+                  <feTurbulence type="fractalNoise" baseFrequency="0.028" numOctaves="3" seed="3">
+                    <animate
+                      attributeName="baseFrequency"
+                      dur="6s"
+                      values="0.018;0.062;0.030;0.054;0.018"
+                      repeatCount="indefinite"
+                    />
+                    <animate
+                      attributeName="seed"
+                      dur="9s"
+                      values="3;7;11;5;3"
+                      repeatCount="indefinite"
+                    />
+                  </feTurbulence>
+                  <feDisplacementMap in="SourceGraphic" scale="14">
+                    <animate
+                      attributeName="scale"
+                      dur="5.5s"
+                      values="6;18;9;16;6"
+                      repeatCount="indefinite"
+                    />
+                  </feDisplacementMap>
+                </filter>
+              )}
+            </defs>
+            {/* Glow core (outside filter so the soft glow stays smooth) */}
+            <circle cx="0" cy="0" r="100" fill="url(#tg-mesh-core)" />
+            {/* All wireframe geometry goes inside the distort group so
+                turbulence ripples the latitudes, longitudes and vertex
+                dots together as one cohesive mesh. */}
+            <g filter={reduced ? undefined : "url(#tg-mesh-distort)"}>
+              {/* Latitude rings — bumped from 7 to 11 with denser inner
+                  bands to read as a high-resolution mesh. */}
+              {[100, 92, 84, 74, 64, 52, 40, 28, 18, 10, 4].map((rx, i) => (
+                <ellipse
+                  key={`lat-${i}`}
+                  cx="0"
+                  cy="0"
+                  rx={rx}
+                  ry={rx * 0.32}
+                  fill="none"
+                  stroke="url(#tg-mesh-stroke)"
+                  strokeWidth={i < 3 ? 0.85 : 0.55}
+                  strokeOpacity={0.35 + (i % 3) * 0.2}
+                />
+              ))}
+              {/* Longitude meridians — bumped from 12 to 18 (every 10°). */}
+              {Array.from({ length: 18 }).map((_, i) => (
+                <line
+                  key={`lon-${i}`}
+                  x1="-100"
+                  y1="0"
+                  x2="100"
+                  y2="0"
+                  stroke="url(#tg-mesh-stroke)"
+                  strokeWidth="0.5"
+                  strokeOpacity={0.42}
+                  transform={`rotate(${i * 10})`}
+                />
+              ))}
+              {/* Vertex dots — outer + middle rings + extra inner ring. */}
+              {[100, 74, 40].map((rx, ringI) =>
+                Array.from({ length: 18 }).map((_, i) => {
+                  const ang = (i * 20 * Math.PI) / 180;
+                  const cx = Math.cos(ang) * rx;
+                  const cy = Math.sin(ang) * rx * 0.32;
+                  return (
+                    <circle
+                      key={`v-${ringI}-${i}`}
+                      cx={cx}
+                      cy={cy}
+                      r={ringI === 0 ? 1.4 : 1}
+                      fill="#fff"
+                      fillOpacity={0.9}
+                    />
+                  );
+                }),
+              )}
+            </g>
+          </svg>
+
+          {/* ── Secondary ribbon mesh ──
+              An orbital band that crosses the sphere on a different
+              axis. Uses a different rotation keyframe (rotateY rather
+              than rotateZ) so the two meshes appear to revolve
+              independently — that mismatch is what makes lusion
+              compositions feel alive instead of mechanical. */}
+          <svg
+            aria-hidden="true"
+            viewBox="-110 -110 220 220"
+            className="pointer-events-none absolute left-1/2 top-1/2 z-[2] h-[88%] w-[88%] mix-blend-screen"
+            style={{
+              transform: "translate(-50%,-50%) rotateX(78deg) rotateY(0deg) rotateZ(20deg)",
+              animation: reduced
+                ? undefined
+                : "tg-ribbon-spin 28s linear infinite",
+              filter:
+                "drop-shadow(0 0 18px rgba(34,211,238,0.45)) drop-shadow(0 0 30px rgba(245,185,69,0.25))",
+              maxWidth: 560,
+              maxHeight: 560,
+              opacity: 0.92,
+            }}
+          >
+            <g filter={reduced ? undefined : "url(#tg-mesh-distort)"}>
+              {[105, 95, 88].map((rx, i) => (
+                <ellipse
+                  key={`rib-${i}`}
+                  cx="0"
+                  cy="0"
+                  rx={rx}
+                  ry={rx * 0.18}
+                  fill="none"
+                  stroke="url(#tg-mesh-stroke)"
+                  strokeWidth={0.6}
+                  strokeOpacity={0.55 - i * 0.12}
+                />
+              ))}
+            </g>
+          </svg>
+        </>
+      )}
 
       {/* ── Stars ── */}
       {Array.from({ length: STARS }).map((_, i) => {

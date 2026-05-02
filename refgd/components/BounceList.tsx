@@ -161,8 +161,8 @@ function Row({
       <motion.li
         initial={
           reduce
-            ? { opacity: 0 }
-            : { opacity: 0.001, y: 24, scale: 0.97 }
+            ? { opacity: 1 }
+            : { opacity: 0, y: 24, scale: 0.97 }
         }
         whileInView={
           reduce
@@ -179,7 +179,14 @@ function Row({
                 },
               }
         }
-        viewport={{ once: true, margin: "0px 0px -10% 0px" }}
+        // Trigger as soon as ANY part of the row enters the viewport
+        // (margin 0px) and use a generous root-margin so the observer
+        // fires even when the row is in a sticky-column container.
+        // The previous "-10%" inset meant rows had to be 10% inside
+        // the viewport before animating in, which combined with the
+        // VanishWrapper opacity drop left rows stuck at 0.001 opacity
+        // and invisible.
+        viewport={{ once: true, margin: "200px 0px 200px 0px" }}
         className="group relative isolate"
         suppressHydrationWarning
         data-testid={`bounce-list-item-${index}`}

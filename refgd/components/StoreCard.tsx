@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import type { Store } from "@/lib/types";
 import { logoChainForStore } from "@/lib/logo";
 import { useEditContext } from "@/lib/edit-context";
@@ -63,17 +63,33 @@ export default function StoreCard({
   // which is type-incompatible with React's `DragEvent<HTMLElement>`.
   // Putting the HTML drag handlers on the inner div sidesteps the conflict
   // entirely and keeps both layout animation AND native drag working.
+  //
+  // Entrance: lusion-style "blur-rise" — y:34 + blur:10px → 0/0 with
+  // a soft staggered delay, only when the card scrolls into view.
+  // `once:true` keeps the card revealed if the user scrolls past
+  // and back. Reduced-motion users see the card appear immediately
+  // with no transform or filter (avoids the per-grid-card opacity:0
+  // trap). Stagger now uses a wave that resets per row of ~6 so a
+  // long grid doesn't have a 100-step staircase delay.
+  const reduced = useReducedMotion();
+  const stagger = reduced ? 0 : Math.min((idx % 12) * 0.04, 0.45);
+  const entrance = reduced
+    ? { initial: false as const, animate: undefined }
+    : {
+        initial: { opacity: 0, y: 34, filter: "blur(10px)" },
+        whileInView: { opacity: 1, y: 0, filter: "blur(0px)" },
+        viewport: { once: true, amount: 0.2, margin: "0px 0px -8% 0px" },
+      };
   return (
     <motion.article
       layout
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: Math.min(idx * 0.015, 0.25) }}
+      {...entrance}
+      transition={{ duration: 0.7, delay: stagger, ease: [0.16, 1, 0.3, 1] }}
       suppressHydrationWarning
       data-cursor="hover"
       data-cursor-label={store.name}
       data-testid={`store-card-${store.id}`}
-      whileHover={{ y: -4 }}
+      whileHover={reduced ? undefined : { y: -4 }}
       className={`group relative ${store.prismaticGlow ? "p-[1.5px]" : "p-px"} rounded-2xl ${
         store.prismaticGlow ? "prismatic-border" : "bg-white/10"
       } transition-shadow duration-300 hover:shadow-[0_30px_70px_-25px_rgba(245,185,69,0.5)] ${
