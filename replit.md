@@ -25,3 +25,15 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+
+## Integrations
+
+### GitHub (conn_github_01KQEAN2QD8S3RV9GEW97RZX1G)
+- Uses `@replit/connectors-sdk` via the Replit proxy pattern
+- Helper: `artifacts/api-server/src/lib/github.ts` — exports `githubRequest(path, options)`
+- Routes: `artifacts/api-server/src/routes/github.ts`
+  - `GET /api/github/user` — authenticated user info
+  - `GET /api/github/repos` — list user repositories
+  - `GET /api/github/repos/:owner/:repo` — get a specific repo
+  - `GET /api/github/repos/:owner/:repo/issues` — list issues
+  - `GET /api/github/repos/:owner/:repo/pulls` — list pull requests
