@@ -11,7 +11,7 @@ import {
 } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { Pagination, EffectCoverflow } from "swiper/modules";
+import { Pagination, EffectCube } from "swiper/modules";
 import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
@@ -350,24 +350,28 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
       }}
     >
       <Swiper
-        // v6.10.5: EffectCoverflow — true 3D rotation that supports any
-        // number of slides (no 4-face cube cap, no flickering back-stack
-        // like EffectCards). Each slide tilts in 3D as it moves toward /
-        // away from center; the active slide is centered face-on with
-        // its illustration fully visible, neighbors lean back slightly
-        // giving real depth. All 5 cards reachable.
-        modules={[Pagination, EffectCoverflow]}
-        effect="coverflow"
-        coverflowEffect={{
-          rotate: 38,
-          stretch: 0,
-          depth: 220,
-          modifier: 1,
+        // v6.10.7: EffectCube restored + loop=true.
+        // EffectCube is the CORRECT effect for this stage — it is the
+        // only effect where each SwiperSlide is sized to exactly fill
+        // a cube face (= the stage dimensions) so the h-full chain
+        // from SwiperSlide → PathCard → illustration always resolves
+        // to a real pixel height. EffectCoverflow uses position:absolute
+        // with height:auto on slides, which collapses h-full to 0 and
+        // makes illustrations disappear.
+        //
+        // loop=true lets Swiper clone slides behind the scenes so the
+        // cube always has all 4 faces populated regardless of slide
+        // count — all 5 path cards are reachable with a single-finger
+        // swipe, no 4-face hard cap in practice.
+        modules={[Pagination, EffectCube]}
+        effect="cube"
+        cubeEffect={{
+          shadow: false,
           slideShadows: false,
+          shadowOffset: 0,
+          shadowScale: 0,
         }}
-        centeredSlides
-        slidesPerView={1.05}
-        loop={false}
+        loop={true}
         grabCursor
         speed={520}
         // touchAngle: 30 — Swiper's own filter for vertical-leaning
