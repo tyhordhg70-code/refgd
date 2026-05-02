@@ -98,9 +98,13 @@ export default function GalaxyBackground() {
 
   return (
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0">
-      {/* Static gradients — render FIRST so the WebGL canvas paints on top.
-          Without this ordering the dark vignette completely hides the
-          worker-rendered planet, halo, nebulas and warp streaks. */}
+      {/* WebGL canvas — control is transferred to the Web Worker */}
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 h-full w-full"
+        style={{ mixBlendMode: "screen" }}
+      />
+      {/* Static gradients — always visible, cost nothing */}
       <div
         className="absolute inset-0"
         style={{
@@ -130,15 +134,6 @@ export default function GalaxyBackground() {
           background:
             "linear-gradient(to top, rgb(10,12,20) 0%, rgba(10,12,20,0.95) 22%, rgba(10,12,20,0.65) 55%, transparent 100%)",
         }}
-      />
-      {/* WebGL canvas — control is transferred to the Web Worker.
-          mix-blend-mode: screen makes the planet/halo/nebulas brighten
-          through the dark vignette gradients above instead of being
-          painted-over by them. */}
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 h-full w-full"
-        style={{ mixBlendMode: "screen" }}
       />
     </div>
   );
