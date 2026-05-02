@@ -305,8 +305,24 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
         e.stopImmediatePropagation();
         return;
       }
-      if (ax + ay < 4) return;
-      if (ay > ax) {
+      // ── Tuned thresholds (after user report "can't scroll past
+      // card 2"). Previous logic was too strict: any gesture with
+      // ay > ax (even by 1 px) was classified as vertical and
+      // blocked Swiper for the rest of the touch. Real thumb
+      // arcs on a phone almost always have a small vertical
+      // component, so most horizontal flicks were being
+      // misclassified as vertical and the cube wouldn't advance.
+      //
+      // New rule: only block Swiper when the gesture is CLEARLY
+      // vertical AND has moved a meaningful distance:
+      //   • require at least 12 px of total motion before deciding
+      //   • require ay > ax * 1.7  (ratio test — not just bigger,
+      //     noticeably bigger)
+      //   • require ay >= 10 px of vertical travel
+      // Anything else commits to horizontal so Swiper sees the
+      // entire gesture and can advance the cube cleanly.
+      if (ax + ay < 12) return;
+      if (ay > ax * 1.7 && ay >= 10) {
         decided = "v";
         e.stopImmediatePropagation();
       } else {
