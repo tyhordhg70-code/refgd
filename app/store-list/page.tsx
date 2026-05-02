@@ -316,13 +316,19 @@ export default async function StoreListPage() {
           <ParallaxChapter intensity={0.45} className="pt-6 pb-20">
             <section className="relative" id="region">
               <div className="container-wide relative">
+                {/*
+                  "Select your region" filter card. Was 78-88%
+                  opaque — same "black card" problem as the hero
+                  above. Dropped to 22%/30% so the cosmic backdrop
+                  bleeds through and the card reads as glass.
+                */}
                 <div
                   className="mb-10 rounded-[2rem] border border-white/10 px-6 py-8 sm:px-10 sm:py-10"
                   style={{
                     background:
-                      "linear-gradient(160deg, rgba(15,10,30,0.78), rgba(8,6,18,0.88))",
-                    backdropFilter: "blur(10px)",
-                    WebkitBackdropFilter: "blur(10px)",
+                      "linear-gradient(160deg, rgba(15,10,30,0.22), rgba(8,6,18,0.30))",
+                    backdropFilter: "blur(14px) saturate(120%)",
+                    WebkitBackdropFilter: "blur(14px) saturate(120%)",
                   }}
                 >
                   <div className="grid items-end gap-6 sm:grid-cols-[1fr_auto]">
