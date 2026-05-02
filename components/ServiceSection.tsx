@@ -164,25 +164,28 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
         >
           <div className="w-full max-w-3xl text-center md:max-w-[58%] md:text-left">
             {/*
-              Headline backdrop. Was previously a near-opaque dark
-              rectangle (rgba(7,6,14,0.78) → 0.62 → 0.78) which user
-              reported as a "black card" sitting on top of the cosmic
-              background — read as a hard ugly box instead of glass.
-              Dropped opacity from 78% to 22% so the cosmic backdrop
-              shows through; kept the subtle border + backdrop blur
-              + drop shadow so the headline still has contrast and
-              its own depth without looking like an opaque slab.
+              Headline backdrop. The dark-tinted gradient kept reading
+              as a "black card" no matter how low the opacity went,
+              because the cosmic backdrop behind the hero is mostly
+              empty space (no color to bleed through). Switched to a
+              true glassmorphism look: white tint at 4-7% alpha so the
+              card stays bright/airy regardless of what's behind it,
+              with a crisper border + amber accent line on top so it
+              still reads as an intentional surface rather than naked
+              text floating in space.
             */}
             <div
-              className="inline-block rounded-[2rem] border border-white/10 px-4 py-5 sm:px-9 sm:py-7 sm:rounded-[2.5rem]"
+              className="relative inline-block overflow-hidden rounded-[2rem] border border-white/15 px-4 py-5 sm:px-9 sm:py-7 sm:rounded-[2.5rem]"
               style={{
                 background:
-                  "linear-gradient(160deg, rgba(7,6,14,0.22), rgba(7,6,14,0.10) 35%, rgba(7,6,14,0.22))",
-                backdropFilter: "blur(14px) saturate(115%)",
-                WebkitBackdropFilter: "blur(14px) saturate(115%)",
-                boxShadow: "0 40px 120px -40px rgba(0,0,0,0.6)",
+                  "linear-gradient(160deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 50%, rgba(255,255,255,0.06) 100%)",
+                backdropFilter: "blur(18px) saturate(140%)",
+                WebkitBackdropFilter: "blur(18px) saturate(140%)",
+                boxShadow:
+                  "0 40px 120px -40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)",
               }}
             >
+              <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/60 to-transparent" />
               <KineticText
                 as="h1"
                 editId="service.hero.title"
@@ -437,23 +440,21 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
         <section className="container-wide">
           <Reveal>
             {/*
-              "Awarded #1 service" CTA card. Was 88-92% opaque
-              (rgba(40,22,4,0.88) → rgba(20,12,4,0.92)) which
-              user reported as another solid "black card" that
-              broke the cosmic flow. Dropped to 32%/40% so the
-              warm amber tint glazes the cosmic backdrop instead
-              of blocking it. Border + amber top accent line +
-              drop shadow keep the CTA prominence intact.
+              "Awarded #1 service" CTA card. Dark amber-tinted bg
+              still read as a heavy slab; switched to white-glass
+              with a subtle amber wash so the CTA glows like warm
+              glass instead of blocking the cosmic backdrop. The
+              amber border + top accent line keep the brand cue.
             */}
             <div
-              className="pulse-glow relative overflow-hidden rounded-[2.5rem] border border-amber-400/40 p-10 text-center sm:p-16"
+              className="pulse-glow relative overflow-hidden rounded-[2.5rem] border border-amber-400/45 p-10 text-center sm:p-16"
               style={{
                 background:
-                  "linear-gradient(160deg, rgba(40,22,4,0.32) 0%, rgba(20,12,4,0.40) 100%)",
-                backdropFilter: "blur(20px) saturate(140%)",
-                WebkitBackdropFilter: "blur(20px) saturate(140%)",
+                  "linear-gradient(160deg, rgba(255,255,255,0.06) 0%, rgba(245,185,69,0.10) 50%, rgba(255,255,255,0.05) 100%)",
+                backdropFilter: "blur(22px) saturate(150%)",
+                WebkitBackdropFilter: "blur(22px) saturate(150%)",
                 boxShadow:
-                  "0 50px 140px -30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)",
+                  "0 50px 140px -30px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.10), 0 0 60px -20px rgba(245,185,69,0.35)",
               }}
             >
               <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/80 to-transparent" />

@@ -130,25 +130,25 @@ export default async function StoreListPage() {
             <section id="storelist" className="relative">
               <div className="container-wide relative">
                 {/*
-                  "The Store List" hero card. Was 95-98% opaque
-                  (rgba(15,10,30,0.95) → rgba(8,6,18,0.98)) which
-                  user reported as a "black card" — completely
-                  killed the cosmic backdrop. Dropped to 28% / 35%
-                  alpha so the nebula bleeds through and the card
-                  reads as actual glass. Kept border + drop shadow
-                  + inset highlight for depth.
+                  "The Store List" hero card. Dark-tinted gradients
+                  kept reading as a black slab even at 28% alpha
+                  because the cosmic bg behind it is mostly empty
+                  space. Switched to white-glass tint (3-7% alpha)
+                  so it stays bright/airy regardless of backdrop —
+                  classic glassmorphism, not a darkening overlay.
                 */}
                 <div
-                  className="mx-auto max-w-2xl rounded-[2.5rem] border border-white/10 px-6 py-8 text-center sm:px-10 sm:py-10"
+                  className="relative mx-auto max-w-2xl overflow-hidden rounded-[2.5rem] border border-white/15 px-6 py-8 text-center sm:px-10 sm:py-10"
                   style={{
                     background:
-                      "linear-gradient(160deg, rgba(15,10,30,0.28), rgba(8,6,18,0.35))",
-                    backdropFilter: "blur(18px) saturate(125%)",
-                    WebkitBackdropFilter: "blur(18px) saturate(125%)",
+                      "linear-gradient(160deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 50%, rgba(167,139,250,0.06) 100%)",
+                    backdropFilter: "blur(20px) saturate(140%)",
+                    WebkitBackdropFilter: "blur(20px) saturate(140%)",
                     boxShadow:
-                      "0 40px 120px -30px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.05)",
+                      "0 40px 120px -30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.10)",
                   }}
                 >
+                  <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/60 to-transparent" />
                   <ChapterPill
                     editId="storelist.hero.eyebrow"
                     defaultValue="chapter 05 / curated · 480+ stores"
@@ -317,20 +317,24 @@ export default async function StoreListPage() {
             <section className="relative" id="region">
               <div className="container-wide relative">
                 {/*
-                  "Select your region" filter card. Was 78-88%
-                  opaque — same "black card" problem as the hero
-                  above. Dropped to 22%/30% so the cosmic backdrop
-                  bleeds through and the card reads as glass.
+                  "Select your region" filter card. Same dark-slab
+                  issue as the hero — switched to white-glass tint
+                  so it stays bright over empty cosmic space. Subtle
+                  violet wash gives it a hint of color without
+                  reverting to a darkening overlay.
                 */}
                 <div
-                  className="mb-10 rounded-[2rem] border border-white/10 px-6 py-8 sm:px-10 sm:py-10"
+                  className="relative mb-10 overflow-hidden rounded-[2rem] border border-white/15 px-6 py-8 sm:px-10 sm:py-10"
                   style={{
                     background:
-                      "linear-gradient(160deg, rgba(15,10,30,0.22), rgba(8,6,18,0.30))",
-                    backdropFilter: "blur(14px) saturate(120%)",
-                    WebkitBackdropFilter: "blur(14px) saturate(120%)",
+                      "linear-gradient(160deg, rgba(255,255,255,0.06) 0%, rgba(167,139,250,0.08) 50%, rgba(255,255,255,0.04) 100%)",
+                    backdropFilter: "blur(18px) saturate(140%)",
+                    WebkitBackdropFilter: "blur(18px) saturate(140%)",
+                    boxShadow:
+                      "0 30px 80px -30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.10)",
                   }}
                 >
+                  <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-200/50 to-transparent" />
                   <div className="grid items-end gap-6 sm:grid-cols-[1fr_auto]">
                     <div>
                       <ChapterPill
