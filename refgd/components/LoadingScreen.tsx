@@ -310,7 +310,12 @@ export default function LoadingScreen() {
     // (the cap). Users (and screenshot tooling) saw the splash stuck
     // at "90 %" and the page never became interactive. Race the whole
     // bundle against a 10 s ceiling so the splash ALWAYS clears.
-    const ceilingPromise = new Promise<void>((r) => window.setTimeout(r, 10000));
+    // 4 s = MIN_DURATION (1.5 s) + ~2.5 s headroom. Long enough for
+    // every real signal to resolve on a healthy load; short enough
+    // that a true hang (slow CDN font, never-resolving load event)
+    // clears before the user gives up. Previously had no ceiling at
+    // all — splash visibly stalled at 90/95 % indefinitely.
+    const ceilingPromise = new Promise<void>((r) => window.setTimeout(r, 4000));
     Promise.race([
       Promise.all([
         fontsReadyPromise,
