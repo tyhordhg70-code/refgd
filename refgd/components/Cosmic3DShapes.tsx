@@ -45,10 +45,9 @@ export default function Cosmic3DShapes() {
   // the path cards have the full GPU budget to themselves.
   if (isMobile) return null;
 
-  // Sizes tuned per breakpoint
-  const cubeSize = isMobile ? 70 : 130;
+  // Sizes tuned per breakpoint. Cube + pyramid removed — see render
+  // body comment — so only the gyro size is used here now.
   const gyroSize = isMobile ? 90 : 170;
-  const pyrSize  = isMobile ? 80 : 150;
 
   return (
     <div
@@ -57,30 +56,15 @@ export default function Cosmic3DShapes() {
       className="pointer-events-none fixed inset-0 z-[1] overflow-hidden"
       style={{ contain: "layout paint" }}
     >
-      {/* Cube — top-right */}
-      <div
-        className="shape-3d-stage"
-        style={{
-          right: isMobile ? "6%" : "8%",
-          top: isMobile ? "12%" : "14%",
-          width: cubeSize,
-          height: cubeSize,
-          opacity: 0.55,
-          animationDelay: "0s",
-        }}
-      >
-        <div
-          className="shape-cube"
-          style={{ ["--half" as any]: `${cubeSize / 2}px` }}
-        >
-          <div className="face face-f" />
-          <div className="face face-b" />
-          <div className="face face-r" />
-          <div className="face face-l" />
-          <div className="face face-t" />
-          <div className="face face-d" />
-        </div>
-      </div>
+      {/*
+       * Cube + diamond REMOVED.
+       * The earlier wireframe cube + tilted diamond read as visible
+       * rectangular boxes hanging in the dark page background — even
+       * after the faces were softened to glow panels (no border).
+       * The user's complaint was unambiguous: glow with sharp
+       * rectangle edges. We keep only the gyroscope (which reads as
+       * a sphere) so the cosmos still has a single subtle 3D anchor.
+       */}
 
       {/* Gyroscope — middle-left */}
       <div
@@ -102,26 +86,7 @@ export default function Cosmic3DShapes() {
         </div>
       </div>
 
-      {/* Octahedron diamond — lower-right (desktop only) */}
-      {!isMobile && (
-        <div
-          className="shape-3d-stage"
-          style={{
-            right: "10%",
-            bottom: "16%",
-            width: pyrSize,
-            height: pyrSize,
-            opacity: 0.5,
-            animationDelay: "2.8s",
-          }}
-        >
-          <div className="shape-pyr">
-            <div className="plane plane-1" />
-            <div className="plane plane-2" />
-            <div className="plane plane-3" />
-          </div>
-        </div>
-      )}
+      {/* Diamond REMOVED — see comment above. */}
     </div>
   );
 }

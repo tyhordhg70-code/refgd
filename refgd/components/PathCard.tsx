@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import Tilt3D from "./Tilt3D";
 import PathIllustration, { type PathIllustrationKind } from "./PathIllustration";
 
@@ -89,6 +89,8 @@ export default function PathCard({
     ? { href, target: "_blank", rel: "noopener noreferrer" }
     : { href };
 
+  const reduced = useReducedMotion();
+
   const floatDelay = `${(index * 0.55).toFixed(2)}s`;
   const floatDuration = `${7 + (index % 3) * 0.6}s`;
   const aspect = size === "lg" ? "aspect-[4/5]" : size === "sm" ? "aspect-[3/4]" : "aspect-[3/4]";
@@ -106,8 +108,16 @@ export default function PathCard({
   // dropping the viewport-triggered animation that would otherwise
   // strand off-screen-x cards at their initial transform.
   const revealProps =
-    noReveal || size === "sm"
+    noReveal || size === "sm" || reduced
       ? {
+          // Reduced-motion / mobile carousel / dense grid: no entrance,
+          // render at final state immediately. Reduced-motion users
+          // were seeing all desktop path cards stay at opacity:0 +
+          // y:80 + rotateX:18 because IntersectionObserver fired but
+          // framer-motion still respected the `initial` until the
+          // `whileInView` transition completed (and reduced-motion
+          // duration:0 made the transition imperceptible without
+          // also ensuring the final state rendered immediately).
           initial: false as const,
           whileInView: undefined,
           viewport: undefined,
@@ -161,14 +171,19 @@ export default function PathCard({
         className="group relative h-full"
         data-cursor="hover"
         data-cursor-label={title}
-        // Static 3D pose. The carousel sets `perspective: 1400px`
-        // on the section, so this rotateX gives the card real
-        // depth — it leans back ~6° as if standing on a stage.
-        // No animation: pose is identical at every scroll
-        // position, so iOS never has to interpolate transform
-        // values mid-swipe and the result is a solid 3D look
-        // with zero per-frame cost.
-        style={{ transform: "translateZ(0)" }}
+        // No `translateZ(0)` here. The previous version created an
+        // extra GPU layer for every card; combined with the Swiper
+        // cube's own 3D context and overflow:hidden on the slide,
+        // iOS Safari aggressively evicted the inner illustration
+        // layer mid-scroll — users saw the card frame stay but the
+        // illustration "vanish" until they tapped or paused. Letting
+        // the cube parent own the only 3D context fixes it. Backface
+        // visibility kept visible so iOS never culls the back of the
+        // card if the cube edges momentarily face away.
+        style={{
+          WebkitBackfaceVisibility: "visible",
+          backfaceVisibility: "visible",
+        }}
       >
         <Tag
           {...linkProps}

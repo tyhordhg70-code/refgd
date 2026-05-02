@@ -12,6 +12,7 @@ import EvadeIllustrationDivider from "@/components/EvadeIllustrationDivider";
 import TrailerTitle3D from "@/components/TrailerTitle3D";
 import ChapterHeader from "@/components/ChapterHeader";
 import FloatingArt from "@/components/FloatingArt";
+import RevealImage from "@/components/RevealImage";
 import SceneActivator from "@/components/SceneActivator";
 
 export const metadata = {
@@ -171,7 +172,7 @@ export default function EvadePage() {
             Completes in ONE scroll-pass and reverses if the visitor
             scrolls back up, giving a clean transition in either
             direction between the trailer and the editorial chapters. */}
-        <PixelRainCosmic accent="#7dd3fc" scrollLength={1.8} />
+        <PixelRainCosmic accent="#7dd3fc" scrollLength={0.6} />
       </ReorderableSection>
 
       <ReorderableSection sectionId="intro">
@@ -206,7 +207,7 @@ export default function EvadePage() {
               />
             </div>
             <div className="mt-6 grid gap-6 md:grid-cols-2">
-              <GlassCard tint="cyan" className="pulse-glow-cyan">
+              <GlassCard tint="cyan" index={0} className="pulse-glow-cyan">
                 <div className="relative p-8">
                   <EditableText
                     id="evade.intro.body1"
@@ -217,7 +218,7 @@ export default function EvadePage() {
                   />
                 </div>
               </GlassCard>
-              <GlassCard tint="violet" delay={0.1}>
+              <GlassCard tint="violet" index={1} delay={0.1}>
                 <div className="relative p-8">
                   <EditableText
                     id="evade.intro.body2"
@@ -283,7 +284,7 @@ export default function EvadePage() {
                 { id: "evade.solution.1", body: "Gain insights into avoiding rebills or winning against an existing rebill, plus understanding anti-fraud systems, user behaviour analysis, order fraud scores, and the latest algorithms used by online stores.", tint: "cyan"  as const, illo: "encryption" as const, glow: "pulse-glow-cyan"   },
                 { id: "evade.solution.2", body: "Remain completely anonymous while surfing the internet and placing your orders under a forged identity with credit lines up to $10,000.", tint: "violet" as const, illo: "globe"      as const, glow: "pulse-glow-violet" },
               ].map((c, i) => (
-                <GlassCard key={i} tint={c.tint} delay={i * 0.1} className={`${c.glow} float-card${i === 1 ? " float-card-2" : ""}`}>
+                <GlassCard key={i} index={i} tint={c.tint} delay={i * 0.1} className={`${c.glow} float-card${i === 1 ? " float-card-2" : ""}`}>
                   <div className="relative overflow-hidden p-7">
                     <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 opacity-25 mix-blend-screen" aria-hidden="true">
                       <ParallaxIllustration kind={c.illo} accent={c.tint} size={130} />
@@ -336,7 +337,7 @@ export default function EvadePage() {
         >
           <div className="container-wide relative grid gap-5 md:grid-cols-2">
             {FEATURES.map((f, i) => (
-              <GlassCard key={f.title} tint={f.tint} delay={i * 0.08} className={i % 2 === 0 ? "float-card" : "float-card float-card-2"}>
+              <GlassCard key={f.title} index={i} tint={f.tint} delay={i * 0.08} className={i % 2 === 0 ? "float-card" : "float-card float-card-2"}>
                 <div className="relative overflow-hidden p-8">
                   <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 opacity-25 mix-blend-screen" aria-hidden="true">
                     <ParallaxIllustration kind={f.illo} accent={f.tint} size={140} />
@@ -408,7 +409,7 @@ export default function EvadePage() {
             />
             <div className="mt-14 grid gap-5 lg:grid-cols-3">
               {TRUST.map((c, i) => (
-                <GlassCard key={c.title} tint={["cyan","violet","amber"][i] as any} delay={i * 0.1} className="float-card">
+                <GlassCard key={c.title} index={i} tint={["cyan","violet","amber"][i] as any} delay={i * 0.1} className="float-card">
                   <div className="relative overflow-hidden p-7">
                     <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 opacity-25 mix-blend-screen" aria-hidden="true">
                       <ParallaxIllustration kind={c.illo} accent={["cyan","violet","amber"][i] as any} size={120} />
@@ -478,7 +479,7 @@ export default function EvadePage() {
             />
             <div className="mt-12 grid gap-6 md:grid-cols-3">
               {PRICING.map((p, i) => (
-                <GlassCard key={p.title} tint={p.tint} delay={i * 0.1} className="pulse-glow float-card">
+                <GlassCard key={p.title} index={i} tint={p.tint} delay={i * 0.1} className="pulse-glow float-card">
                   <div className="relative flex h-full flex-col p-8">
                     {/* Hero image — fitted INSIDE the box, ABOVE the
                         text. No more low-opacity background wash. */}
@@ -492,13 +493,15 @@ export default function EvadePage() {
                           filter: "blur(12px)",
                         }}
                       />
-                      <img
-                        src={p.img}
-                        alt={p.title}
-                        loading="lazy"
-                        decoding="async"
-                        className="relative h-full w-auto max-w-full object-contain drop-shadow-[0_18px_40px_rgba(0,0,0,0.55)]"
-                      />
+                      <RevealImage from="bottom" delay={0.05 + i * 0.06} className="relative h-full w-auto max-w-full">
+                        <img
+                          src={p.img}
+                          alt={p.title}
+                          loading="lazy"
+                          decoding="async"
+                          className="relative h-full w-auto max-w-full object-contain drop-shadow-[0_18px_40px_rgba(0,0,0,0.55)]"
+                        />
+                      </RevealImage>
                     </div>
 
                     <EditableText
