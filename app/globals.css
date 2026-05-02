@@ -1,0 +1,1857 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Swiper carousel + 3D cube effect (used by mobile path-card carousel). */
+@import "swiper/css";
+@import "swiper/css/effect-cube";
+@import "swiper/css/pagination";
+
+/* Override Swiper pagination bullets to match the page palette. */
+.swiper-pagination-bullet {
+  background: rgba(255, 255, 255, 0.35) !important;
+  opacity: 1 !important;
+  width: 8px !important;
+  height: 8px !important;
+}
+.swiper-pagination-bullet-active {
+  background: rgb(255, 215, 130) !important;
+  width: 22px !important;
+  border-radius: 9999px !important;
+  transition: width 200ms ease;
+}
+/* Soft cube-face shadow tweaks: lighter so card content stays readable. */
+.swiper-cube-shadow {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 0, 0, 0.55),
+    transparent 70%
+  ) !important;
+}
+
+/* Critical: by default Swiper applies `touch-action: pan-y` only on the
+   `.swiper-horizontal` variant. The cube-effect Swiper *removes* that
+   default and sets `touch-action: none` on the .swiper element, which
+   means every touch landing on the cube surface gets swallowed by the
+   gesture handler — including pure-vertical drags meant to scroll the
+   page. Android users reported being "stuck on pathcard 2": they
+   couldn't scroll past the carousel because Swiper claimed every drag.
+   Force `touch-action: pan-y` back on so the BROWSER handles vertical
+   scroll while Swiper still handles horizontal swipes (filtered by
+   `touchAngle: 35` in PathsHorizontalReveal.tsx). */
+[data-testid="paths-mobile-track"] .swiper {
+  touch-action: pan-y !important;
+}
+[data-testid="paths-mobile-track"] .swiper-wrapper,
+[data-testid="paths-mobile-track"] .swiper-cube,
+[data-testid="paths-mobile-track"] .swiper-slide {
+  touch-action: pan-y !important;
+}
+
+@layer base {
+  :root {
+    --bg: 5 6 10;
+    --fg: 240 240 250;
+    --gold: 245 185 69;
+  }
+  /* Lock horizontal scrolling site-wide. `overflow-x: clip` is the
+     modern way to do this without breaking sticky / fixed children
+     (overflow:hidden creates a scroll container). Apply on body and
+     on every top-level main/section so an oversized illustration deep
+     in the tree can't push the layout sideways either. */
+  body {
+    overflow-x: clip;
+  }
+  main {
+    overflow-x: clip;
+  }
+  html, body {
+    background: rgb(var(--bg));
+    color: rgb(var(--fg));
+    font-family: "Geist", "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-feature-settings: "ss01", "ss02", "cv01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  /* framer-motion's `useScroll({ target })` checks
+     `getComputedStyle(container).position !== "static"` where
+     `container` defaults to `document.documentElement`. Promoting
+     <html> (and <body>/<main> for ancestor chains) to relative
+     silences the project-wide "container has a non-static position"
+     warning without affecting layout. */
+  html { position: relative; }
+  body { position: relative; }
+  main { position: relative; }
+  ::selection {
+    background: rgba(245, 185, 69, 0.35);
+    color: white;
+  }
+  body.cursor-none,
+  body.cursor-none * {
+    cursor: none !important;
+  }
+}
+
+@layer components {
+  .container-px {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+  .container-wide {
+    @apply mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-10;
+  }
+  .glass {
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+    border: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(12px);
+  }
+  .glass-strong {
+    background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(28px) saturate(140%);
+    -webkit-backdrop-filter: blur(28px) saturate(140%);
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 font-semibold tracking-wide text-ink-950 transition;
+    background: linear-gradient(135deg, #ffe28a, #f5b945 50%, #d99520);
+    box-shadow: 0 10px 40px -10px rgba(245,185,69,0.45);
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 48px -10px rgba(245,185,69,0.6);
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-white/85 transition hover:border-white/20 hover:bg-white/10;
+  }
+  .heading-display {
+    font-family: "Clash Display", "Space Grotesk", "Geist", system-ui, sans-serif;
+    letter-spacing: -0.025em;
+    font-weight: 600;
+  }
+  .editorial-display {
+    font-family: "Clash Display", "Space Grotesk", "Geist", system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.045em;
+    /* line-height was 0.88 — too tight, caused descenders/ascenders to
+       overlap when titles wrapped (visible on /exclusive-mentorships).
+       1.02 keeps the chiseled editorial feel without collisions. */
+    line-height: 1.02;
+  }
+  .prismatic-border {
+    background: linear-gradient(135deg,#ff6ad5,#c779d0,#4bc0c8,#feac5e,#ff6ad5);
+    background-size: 200% 200%;
+    animation: prism 8s ease infinite;
+  }
+  .prismatic-text {
+    background: linear-gradient(120deg,#ff6ad5,#c779d0,#4bc0c8,#feac5e,#ff6ad5);
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    text-shadow: 0 0 36px rgba(199,121,208,0.35);
+    animation: prism 8s ease infinite;
+  }
+  .text-aurora {
+    background: linear-gradient(110deg, #ffe28a 10%, #ffffff 38%, #f5b945 60%, #ffe28a 90%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: aurora 10s ease-in-out infinite;
+  }
+  /* Animated cyan→violet→cyan eyebrow text. Replaces the dim
+     violet-300 used for "— what's included" labels which were hard
+     to read against the cosmic backdrop. Crisp, punchy, and clearly
+     not white (which would have collided with the white title below). */
+  .gradient-eyebrow {
+    background: linear-gradient(110deg, #67e8f9 0%, #c4b5fd 35%, #f0abfc 65%, #67e8f9 100%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    /* Halo behind the gradient text — drop-shadow renders the glow
+       on the gradient pixels so the label is legible on dark cosmic
+       backgrounds at 10–12px font sizes. */
+    filter:
+      drop-shadow(0 0 10px rgba(167, 139, 250, 0.7))
+      drop-shadow(0 0 22px rgba(103, 232, 249, 0.45));
+    animation: aurora 8s ease-in-out infinite;
+  }
+  .noise {
+    position: relative;
+  }
+  .noise::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.05;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9'/></filter><rect width='200' height='200' filter='url(%23n)' opacity='0.7'/></svg>");
+  }
+}
+
+/* ─── Custom cursor ─── */
+.custom-cursor-dot {
+  position: fixed;
+  top: 0; left: 0;
+  width: 10px;
+  height: 10px;
+  background: #ffe28a;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 9999;
+  box-shadow: 0 0 14px rgba(255,225,140,0.95), 0 0 28px rgba(245,185,69,0.55);
+  transition: opacity 0.2s;
+  will-change: transform;
+}
+.custom-cursor-ring {
+  position: fixed;
+  top: 0; left: 0;
+  width: 42px;
+  height: 42px;
+  border: 1.5px solid rgba(255,225,140,0.85);
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 9998;
+  box-shadow: 0 0 24px rgba(255,225,140,0.18);
+  transition: width 0.25s cubic-bezier(0.25,0.4,0.25,1),
+              height 0.25s cubic-bezier(0.25,0.4,0.25,1),
+              border-color 0.2s,
+              background 0.2s,
+              opacity 0.2s;
+  will-change: transform;
+}
+.custom-cursor-ring.is-down { transform-origin: center; }
+.custom-cursor-ring[data-hover="link"] {
+  width: 60px; height: 60px;
+  background: rgba(255,225,140,0.10);
+  border-color: rgba(255,225,140,1);
+  mix-blend-mode: normal;
+}
+.custom-cursor-ring[data-hover="hover"] {
+  width: 80px; height: 80px;
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.85);
+}
+.custom-cursor-ring[data-hover="big"] {
+  width: 110px; height: 110px;
+  background: radial-gradient(circle, rgba(245,185,69,0.25), rgba(245,185,69,0));
+  border-color: rgba(245,185,69,0.9);
+}
+.custom-cursor-label {
+  position: fixed;
+  top: 0; left: 0;
+  pointer-events: none;
+  z-index: 9997;
+  font-family: "Clash Display", system-ui, sans-serif;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: #ffe28a;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+/* ─── Marquee ─── */
+@keyframes marquee-track {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+.marquee {
+  animation: marquee-track var(--marquee-duration, 30s) linear infinite;
+}
+.marquee-reverse {
+  animation: marquee-track var(--marquee-duration, 30s) linear infinite reverse;
+}
+
+/* ─── ChipScroll runway ───
+ * Trim the pin distance vs. the original 400vh so the hero releases
+ * the user faster — especially important on mobile where 400vh of
+ * sticky scroll feels endless. Desktop: 250vh, ≤ md: 180vh. */
+.chipscroll-runway { height: 250vh; }
+@media (max-width: 768px) {
+  .chipscroll-runway { height: 180vh; }
+}
+
+@keyframes aurora {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* particle canvas baseline */
+.particles-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ─── Pulsating gradient orbs (used in Hero3D + page backdrops) ─── */
+.orb {
+  filter: blur(120px);
+  pointer-events: none;
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+}
+.orb-1 { background: radial-gradient(circle, rgba(245,185,69,0.55), transparent 65%);
+         animation: orbPulse 8s ease-in-out infinite; }
+.orb-2 { background: radial-gradient(circle, rgba(167,139,250,0.55), transparent 65%);
+         animation: orbPulse 10s ease-in-out -2s infinite; }
+.orb-3 { background: radial-gradient(circle, rgba(34,211,238,0.45), transparent 65%);
+         animation: orbPulse 12s ease-in-out -4s infinite; }
+.orb-4 { background: radial-gradient(circle, rgba(244,114,182,0.40), transparent 65%);
+         animation: orbPulse 9s ease-in-out -6s infinite; }
+
+@keyframes orbPulse {
+  0%, 100% { transform: scale(1)   translate(0, 0);    opacity: 0.55; }
+  50%      { transform: scale(1.18) translate(3%, -3%); opacity: 1;    }
+}
+
+/* ─── Floating particle / orbit keyframes (for inline animation styles) ─── */
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0)    rotate(0deg);  }
+  50%      { transform: translateY(-14px) rotate(0.5deg); }
+}
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.55; transform: scale(1);    }
+  50%      { opacity: 1;    transform: scale(1.04); }
+}
+@keyframes orbit {
+  from { transform: translate(-50%, -50%) rotate(0deg)   translateY(var(--orbit-r, -30vh)) translateZ(60px); }
+  to   { transform: translate(-50%, -50%) rotate(360deg) translateY(var(--orbit-r, -30vh)) translateZ(60px); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.animate-spin { animation: spin 1s linear infinite; }
+
+/* ─── Mobile: kill infinite box-shadow paint animations ────────
+ * `pulse-glow-*` and friends animate `box-shadow` from a low to a
+ * high blur radius on a 5 s loop. Box-shadow is NOT a compositor-
+ * only property — every keyframe forces a paint pass for the
+ * affected element. On mobile that's enough to choke the
+ * compositor while the user is scrolling, which is the actual
+ * source of the "telegram box still laggy" complaint (the
+ * telegram CTA card uses `pulse-glow-violet`). It also explains
+ * the "glow for each box on top is cut off" report — the desktop
+ * keyframes peak at ~130 px of shadow reach, way more than the
+ * carousel track's vertical headroom can fit, so the glow gets
+ * clipped by `overflow-y-hidden`.
+ *
+ * Mobile fix: stop the animation outright and substitute a static
+ * 22 px-reach glow that stays inside the carousel track headroom
+ * and costs the GPU nothing per frame. The colour cast per
+ * pulse-glow-* class is preserved so the visual hierarchy of the
+ * cards (gold / cyan / violet / orange / fuchsia) stays intact.
+ */
+@media (max-width: 768px) {
+  .pulse-glow-violet,
+  .pulse-glow-cyan,
+  .pulse-glow-gold,
+  .pulse-glow-orange,
+  .pulse-glow-fuchsia,
+  .pulse-glow-shadow {
+    animation: none !important;
+  }
+  /* Mobile static glows — REMOVED the `0 0 0 1px rgba(...)` hard
+   * ring on every variant (user complaint: "all glow animations
+   * and box cards have glow that looks weird that has borders to
+   * it doesnt look like a natural glow"). Each glow is now three
+   * concentric box-shadows of decreasing opacity that fade to
+   * fully-transparent by the outer edge — natural light falloff
+   * with no visible boundary line. */
+  .pulse-glow-violet {
+    box-shadow: 0 0 24px rgba(167, 139, 250, 0.32),
+                0 0 56px rgba(167, 139, 250, 0.18),
+                0 0 110px rgba(167, 139, 250, 0.08);
+  }
+  .pulse-glow-cyan {
+    box-shadow: 0 0 24px rgba(34, 211, 238, 0.32),
+                0 0 56px rgba(34, 211, 238, 0.18),
+                0 0 110px rgba(34, 211, 238, 0.08);
+  }
+  .pulse-glow-gold {
+    box-shadow: 0 0 24px rgba(255, 225, 140, 0.32),
+                0 0 56px rgba(255, 225, 140, 0.18),
+                0 0 110px rgba(255, 225, 140, 0.08);
+  }
+  .pulse-glow-orange {
+    box-shadow: 0 0 24px rgba(251, 146, 60, 0.32),
+                0 0 56px rgba(251, 146, 60, 0.18),
+                0 0 110px rgba(251, 146, 60, 0.08);
+  }
+  .pulse-glow-fuchsia {
+    box-shadow: 0 0 24px rgba(244, 114, 182, 0.32),
+                0 0 56px rgba(244, 114, 182, 0.18),
+                0 0 110px rgba(244, 114, 182, 0.08);
+  }
+  .pulse-glow-shadow {
+    box-shadow: 0 0 24px rgba(255, 255, 255, 0.20),
+                0 0 56px rgba(255, 255, 255, 0.10),
+                0 0 110px rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* ─── Telegram CTA box — mobile-only compositor animations ──── */
+/* Used by AnimatedTelegramBox on the mobile path so we don't have
+   to wake JS/framer-motion on every animation frame. Both
+   keyframes touch only `opacity` and `transform`, the two
+   compositor-only properties — they will not cause layout or
+   paint, so iOS Safari can run them on the GPU even while the
+   user is scrolling. */
+@keyframes telegramTwinkle {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 0.95; }
+}
+.telegram-star {
+  animation-name: telegramTwinkle;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  will-change: opacity;
+}
+@keyframes telegramRingSpin {
+  to { transform: translateY(-50%) rotate(360deg); }
+}
+.telegram-ring {
+  animation: telegramRingSpin 90s linear infinite;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: rgb(10,12,20); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #2a2f47, #1a1d2c);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover { background: #f5b945; }
+
+/* Smooth scroll */
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .marquee, .marquee-reverse { animation: none; }
+  .pulse-glow, .float-card, .pulsating-overlay-a, .pulsating-overlay-b,
+  .chess-float, .prismatic-glow::before, .prismatic-glow::after { animation: none !important; }
+}
+
+/* ─── Site-wide pulsating gradient overlay ──────────────────────── */
+.pulsating-overlay-a {
+  background: radial-gradient(ellipse at 18% 22%, rgba(245,185,69,0.07) 0%, transparent 45%),
+              radial-gradient(ellipse at 82% 78%, rgba(167,139,250,0.07) 0%, transparent 45%);
+  filter: blur(40px);
+  animation: pulsateA 14s ease-in-out infinite;
+}
+.pulsating-overlay-b {
+  background: radial-gradient(ellipse at 80% 20%, rgba(34,211,238,0.05) 0%, transparent 45%),
+              radial-gradient(ellipse at 20% 78%, rgba(244,114,182,0.05) 0%, transparent 45%);
+  filter: blur(60px);
+  animation: pulsateB 18s ease-in-out infinite;
+}
+@keyframes pulsateA {
+  0%, 100% { opacity: 0.5; transform: scale(1)    rotate(0deg); }
+  50%      { opacity: 1;   transform: scale(1.06) rotate(8deg); }
+}
+@keyframes pulsateB {
+  0%, 100% { opacity: 0.4; transform: scale(1.05) rotate(2deg); }
+  50%      { opacity: 0.85;transform: scale(0.98) rotate(-6deg); }
+}
+
+/* ─── Pulsating box-shadow for glass cards ──────────────────────────
+   Glow refactor (Apr 2026): the previous keyframes used a hard
+   `0 0 0 1px rgba(...)` shadow as a coloured rim around every card.
+   That 1px ring has zero blur, so it always rendered as a crisp
+   coloured outline — which the user described as "glow looks weird,
+   has borders to it, doesn't look like a natural glow". The fix is
+   to drop the hard ring entirely and rely on stacked, large-blur
+   outer shadows whose alpha tapers off past the spread radius. The
+   result reads as a soft halo bleeding into the surrounding dark
+   background instead of a fenced rectangle of colour.
+   Each glow now uses three concentric outer shadows:
+     • near halo (blur 32, spread -6) — close colour wash
+     • mid halo (blur 64, spread 0)   — broader glow
+     • far halo (blur 110, spread 0)  — atmospheric bloom
+   No `0 0 0 1px` ring → no visible glow boundary. */
+.pulse-glow {
+  animation: pulseGlowShadow 4.5s ease-in-out infinite;
+}
+@keyframes pulseGlowShadow {
+  0%, 100% {
+    box-shadow: 0 0 32px -6px rgba(245,185,69,0.18),
+                0 0 64px rgba(245,185,69,0.10),
+                0 30px 110px rgba(245,185,69,0.10);
+  }
+  50% {
+    box-shadow: 0 0 32px -6px rgba(245,185,69,0.42),
+                0 0 64px rgba(245,185,69,0.28),
+                0 30px 110px rgba(167,139,250,0.18);
+  }
+}
+.pulse-glow-violet { animation: pulseGlowViolet 5s ease-in-out infinite; }
+@keyframes pulseGlowViolet {
+  0%, 100% {
+    box-shadow: 0 0 32px -6px rgba(167,139,250,0.18),
+                0 0 64px rgba(167,139,250,0.10),
+                0 30px 110px rgba(167,139,250,0.10);
+  }
+  50% {
+    box-shadow: 0 0 32px -6px rgba(167,139,250,0.45),
+                0 0 64px rgba(167,139,250,0.30),
+                0 30px 110px rgba(34,211,238,0.18);
+  }
+}
+.pulse-glow-cyan { animation: pulseGlowCyan 5s ease-in-out infinite; }
+@keyframes pulseGlowCyan {
+  0%, 100% {
+    box-shadow: 0 0 32px -6px rgba(34,211,238,0.18),
+                0 0 64px rgba(34,211,238,0.10),
+                0 30px 110px rgba(34,211,238,0.10);
+  }
+  50% {
+    box-shadow: 0 0 32px -6px rgba(34,211,238,0.45),
+                0 0 64px rgba(34,211,238,0.28),
+                0 30px 110px rgba(167,139,250,0.18);
+  }
+}
+.pulse-glow-gold { animation: pulseGlowGold 4.6s ease-in-out infinite; }
+@keyframes pulseGlowGold {
+  0%, 100% {
+    box-shadow: 0 0 32px -6px rgba(245,185,69,0.18),
+                0 0 64px rgba(245,185,69,0.10),
+                0 30px 110px rgba(255,225,140,0.10);
+  }
+  50% {
+    box-shadow: 0 0 32px -6px rgba(245,185,69,0.45),
+                0 0 64px rgba(245,185,69,0.32),
+                0 30px 110px rgba(255,225,140,0.20);
+  }
+}
+.pulse-glow-orange { animation: pulseGlowOrange 5.2s ease-in-out infinite; }
+@keyframes pulseGlowOrange {
+  0%, 100% {
+    box-shadow: 0 0 32px -6px rgba(249,115,22,0.18),
+                0 0 64px rgba(249,115,22,0.10),
+                0 30px 110px rgba(249,115,22,0.10);
+  }
+  50% {
+    box-shadow: 0 0 32px -6px rgba(249,115,22,0.45),
+                0 0 64px rgba(249,115,22,0.28),
+                0 30px 110px rgba(253,186,116,0.20);
+  }
+}
+.pulse-glow-fuchsia { animation: pulseGlowFuchsia 4.8s ease-in-out infinite; }
+@keyframes pulseGlowFuchsia {
+  0%, 100% {
+    box-shadow: 0 0 32px -6px rgba(236,72,153,0.18),
+                0 0 64px rgba(236,72,153,0.10),
+                0 30px 110px rgba(236,72,153,0.10);
+  }
+  50% {
+    box-shadow: 0 0 32px -6px rgba(236,72,153,0.48),
+                0 0 64px rgba(236,72,153,0.30),
+                0 30px 110px rgba(244,114,182,0.20);
+  }
+}
+
+/* ─── Floating card utility ────────────────────────────────────── */
+.float-card {
+  animation: floatCard 8s ease-in-out infinite;
+  will-change: transform;
+}
+.float-card-2 { animation-delay: -2s; }
+.float-card-3 { animation-delay: -4s; }
+@keyframes floatCard {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0); }
+  50%      { transform: translate3d(0, -10px, 0) rotate(0.4deg); }
+}
+
+/* ─── Chess piece float ────────────────────────────────────────── */
+.chess-float {
+  animation: chessFloat 6s ease-in-out infinite;
+  will-change: transform, filter;
+  filter: drop-shadow(0 14px 30px rgba(167,139,250,0.45));
+}
+@keyframes chessFloat {
+  0%, 100% {
+    transform: translateY(0) rotate(0);
+    filter: drop-shadow(0 14px 30px rgba(167,139,250,0.45));
+  }
+  50% {
+    transform: translateY(-12px) rotate(0.4deg);
+    filter: drop-shadow(0 22px 50px rgba(167,139,250,0.85));
+  }
+}
+
+/* ─── Prismatic glow border (registered properties + fallback) ─── */
+@property --pg-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.prismatic-glow {
+  position: relative;
+  isolation: isolate;
+  padding: var(--pg-thickness, 1.5px);
+  border-radius: var(--pg-radius, 1.5rem);
+  background:
+    conic-gradient(from var(--pg-angle, 0deg),
+      #ff6ad5, #c779d0, #4bc0c8, #feac5e, #ffe28a, #ff6ad5);
+  animation: prismaticSpin 6s linear infinite;
+  box-shadow:
+    0 0 30px calc(8px * var(--pg-intensity, 1)) rgba(199,121,208,0.45),
+    0 0 60px calc(16px * var(--pg-intensity, 1)) rgba(75,192,200,0.3);
+}
+.prismatic-glow-inner {
+  border-radius: calc(var(--pg-radius, 1.5rem) - 1px);
+  background: rgb(var(--bg));
+  height: 100%;
+}
+@keyframes prismaticSpin {
+  to { --pg-angle: 360deg; }
+}
+@supports not (background: conic-gradient(from 0deg, red, blue)) {
+  .prismatic-glow {
+    background: linear-gradient(135deg, #ff6ad5, #c779d0, #4bc0c8, #feac5e, #ff6ad5);
+    background-size: 300% 300%;
+    animation: prism 8s ease infinite;
+  }
+}
+@keyframes prism {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* ─── Mobile typography taming ─────────────────────────────────── */
+@media (max-width: 640px) {
+  .editorial-display {
+    /* Keep enough breathing room so wrapped multi-line titles on small
+       screens don't overlap descenders/ascenders. Slightly tighter than
+       desktop's 1.02 but never below 1.0. */
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+  }
+  /* H1 hero kicker is one short word ("WELCOME") — safe to compress
+     marginally so it dominates the viewport without overlap. */
+  h1.editorial-display { line-height: 1.0; }
+  .container-px { padding-left: 1rem; padding-right: 1rem; }
+  .container-wide { padding-left: 1rem; padding-right: 1rem; }
+}
+@media (max-width: 480px) {
+  /* foldable / tiny phones */
+  .editorial-display { letter-spacing: -0.03em; }
+}
+
+/* ─── Mobile/tablet performance — cut expensive effects ─────────── */
+@media (max-width: 1024px) {
+  /* Drop the second pulsating overlay layer entirely on tablets;
+     keep only the primary one for atmosphere. */
+  .pulsating-overlay-b { display: none; }
+}
+
+/* ─── Mobile stability — kill viewport-resize induced flicker ───── */
+@media (max-width: 768px) {
+  /* Tame the heavy 120px orb blur on mobile — keeps the look but
+     halves the GPU rasterization cost which causes stutter on the
+     first frame after the address bar resizes. */
+  .orb { filter: blur(80px); }
+  .pulsating-overlay-a { filter: blur(28px); opacity: 0.35 !important; }
+  /* Soften the warm radial brightening on tiny screens so darker
+     panels never look like they have a "white" patch on them. */
+  .orb-1 { background: radial-gradient(circle, rgba(245,185,69,0.40), transparent 65%); }
+  .orb-2 { background: radial-gradient(circle, rgba(167,139,250,0.42), transparent 65%); }
+  .orb-3 { background: radial-gradient(circle, rgba(34,211,238,0.32), transparent 65%); }
+  .orb-4 { background: radial-gradient(circle, rgba(244,114,182,0.30), transparent 65%); }
+
+  /* `backdrop-filter` is the single biggest cause of scroll jank on
+     mobile Safari/Chrome — every scroll frame re-rasterizes a blur of
+     everything underneath. Drop it for the chapter intro card and the
+     glass-strong path cards on touch screens; the visual difference is
+     negligible against our dark cosmic backdrop, the smoothness gain
+     is huge. */
+  .paths-intro {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .glass-strong {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Stop iOS Safari from intercepting vertical drags as a viewport
+     pan (which is what makes the scroll feel "jumpy" once the
+     address bar collapses). */
+  html, body {
+    overscroll-behavior-y: none;
+  }
+}
+@media (pointer: coarse) {
+  /* Touch primary devices: no custom cursor, no hover-only embellishments. */
+  .custom-cursor-dot,
+  .custom-cursor-ring,
+  .custom-cursor-label { display: none !important; }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   LedTicker — LED matrix marquee
+   ───────────────────────────────────────────────────────────────── */
+.led-ticker {
+  --led-accent: #f59e0b;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(245,158,11,0.06) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(8,6,18,0.85), rgba(15,10,30,0.85));
+  position: relative;
+  isolation: isolate;
+}
+.led-ticker::before,
+.led-ticker::after {
+  content: "";
+  position: absolute; inset: 0;
+  pointer-events: none;
+}
+.led-ticker::before {
+  /* dot grid */
+  background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1.2px);
+  background-size: 6px 6px;
+  z-index: 0;
+}
+.led-ticker::after {
+  /* edge fade */
+  background: linear-gradient(90deg, rgba(8,6,18,1) 0%, transparent 8%, transparent 92%, rgba(8,6,18,1) 100%);
+  z-index: 2;
+}
+.led-ticker-mask {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+.led-ticker-track {
+  display: flex;
+  width: max-content;
+  animation: led-track var(--led-duration, 30s) linear infinite;
+  will-change: transform;
+}
+.led-ticker:hover .led-ticker-track {
+  animation-play-state: paused;
+}
+.led-ticker-group {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.led-ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.4rem;
+  padding: 0.85rem 1.6rem;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--led-accent);
+  text-shadow:
+    0 0 4px var(--led-accent),
+    0 0 12px color-mix(in oklab, var(--led-accent) 60%, transparent),
+    0 0 22px color-mix(in oklab, var(--led-accent) 35%, transparent);
+}
+.led-ticker-sep {
+  font-style: normal;
+  color: rgba(255,255,255,0.45);
+  font-size: 0.7em;
+  letter-spacing: 0;
+}
+@keyframes led-track {
+  from { transform: translate3d(0,0,0); }
+  to   { transform: translate3d(-50%,0,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .led-ticker-track { animation: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   CoinFlip3D — 3D CSS coin
+   ───────────────────────────────────────────────────────────────── */
+.coin-flip-wrap { perspective: 900px; }
+.coin-flip-3d {
+  position: relative;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.coin-face {
+  position: absolute; inset: 0;
+  border-radius: 9999px;
+  backface-visibility: hidden;
+  display: grid; place-items: center;
+  box-shadow:
+    inset 0 0 0 6px rgba(0,0,0,0.55),
+    inset 0 0 24px rgba(0,0,0,0.6),
+    0 30px 80px -20px rgba(245,185,69,0.45);
+}
+.coin-back { transform: rotateY(180deg); }
+.coin-face-inner {
+  position: absolute; inset: 8%;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255,255,255,0.18), transparent 55%),
+    radial-gradient(circle at 70% 70%, rgba(0,0,0,0.4), transparent 60%),
+    radial-gradient(circle, rgba(245,185,69,0.18), rgba(15,10,5,0.92));
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 8%;
+}
+.coin-label {
+  font-family: var(--font-display, "Playfair Display"), serif;
+  font-weight: 900;
+  font-size: clamp(1.1rem, 0.6rem + 1.6vw, 1.9rem);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 0 rgba(0,0,0,0.55), 0 0 24px rgba(245,185,69,0.45);
+}
+.coin-sub {
+  display: block;
+  margin-top: 0.35rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.4em;
+  color: rgba(255,255,255,0.7);
+}
+.coin-edge {
+  position: absolute; inset: 0;
+  border-radius: 9999px;
+  transform: rotateY(90deg) translateZ(0);
+  height: 100%;
+  width: 14px;
+  left: calc(50% - 7px);
+  opacity: 0.6;
+}
+@media (prefers-reduced-motion: reduce) {
+  .coin-flip-3d { animation: none !important; transform: rotateY(0) !important; }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Elastic card expansion (BounceList "open" state)
+   ───────────────────────────────────────────────────────────────── */
+.bounce-elastic {
+  cursor: pointer;
+}
+.bounce-elastic-content {
+  overflow: hidden;
+  transition: max-height 600ms cubic-bezier(0.22, 1.6, 0.36, 1),
+              opacity 320ms ease,
+              padding 600ms cubic-bezier(0.22, 1.6, 0.36, 1);
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+}
+.bounce-elastic.is-open .bounce-elastic-content {
+  max-height: 480px;
+  opacity: 1;
+  padding-top: 0.85rem;
+}
+.bounce-elastic-arrow {
+  transition: transform 380ms cubic-bezier(0.22, 1.6, 0.36, 1);
+}
+.bounce-elastic.is-open .bounce-elastic-arrow {
+  transform: rotate(180deg);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Liquid-glass refraction card (rules & similar)
+   ───────────────────────────────────────────────────────────────── */
+.liquid-glass {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(160deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)),
+    rgba(15,10,30,0.55);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border-radius: 1.4rem;
+  border: 1px solid rgba(255,255,255,0.10);
+  overflow: hidden;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 420ms ease,
+              border-color 420ms ease;
+}
+.liquid-glass::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  pointer-events: none;
+  background:
+    radial-gradient(220px 220px at var(--lg-x, 30%) var(--lg-y, 20%),
+      rgba(255,255,255,0.18), transparent 60%);
+  mix-blend-mode: screen;
+  opacity: 0.85;
+  transition: opacity 320ms ease;
+  z-index: 1;
+}
+.liquid-glass::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.07), transparent 35%),
+    linear-gradient(315deg, rgba(255,255,255,0.05), transparent 35%);
+  z-index: 0;
+}
+.liquid-glass:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255,255,255,0.18);
+  box-shadow:
+    0 40px 90px -30px rgba(0,0,0,0.7),
+    0 0 30px -8px var(--lg-glow, rgba(167,139,250,0.30)),
+    0 0 70px -12px var(--lg-glow, rgba(167,139,250,0.20));
+}
+.liquid-glass > * { position: relative; z-index: 2; }
+@media (prefers-reduced-motion: reduce) {
+  .liquid-glass, .liquid-glass:hover { transform: none; transition: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Lazy-scroll camera perspective (page-level subtle tilt)
+   ───────────────────────────────────────────────────────────────── */
+.scroll-camera {
+  perspective: 1400px;
+  transform-style: preserve-3d;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Mobile / tablet polish for new components & long-form pages
+   ───────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* LED ticker — slightly tighter on phones so each item fits */
+  .led-ticker-item {
+    padding: 0.7rem 1.1rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    gap: 1rem;
+  }
+  /* Ensure the scroll-camera atmosphere image doesn't fight scrolling
+     on iOS where backgroundAttachment:fixed can cause jank */
+  .scroll-camera > [aria-hidden][style*="background-attachment"] {
+    background-attachment: scroll !important;
+  }
+  /* Bounce list elastic body keeps a comfortable touch target */
+  .bounce-elastic { -webkit-tap-highlight-color: transparent; }
+  .bounce-elastic.is-open .bounce-elastic-content { max-height: 600px; }
+}
+
+@media (max-width: 480px) {
+  /* Coin shrinks further on the smallest phones */
+  .coin-label { font-size: 1rem; letter-spacing: 0.14em; }
+  .coin-sub   { font-size: 0.55rem; letter-spacing: 0.3em; }
+  /* Liquid-glass loses the heavy hover translate so taps don't shift */
+  .liquid-glass:hover { transform: none; }
+}
+
+/* Scrolling products marquee — slow horizontal pan of the products
+   illustration on store-list, between rules and store grid. */
+@keyframes scrollProducts {
+  from { background-position: center, 0 center; }
+  to   { background-position: center, -200% center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="animation: scrollProducts"] { animation: none !important; }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   ScrollRain — vertical streak shower driven by scroll velocity
+   ───────────────────────────────────────────────────────────────── */
+@keyframes scrollRainFall {
+  0%   { transform: translate3d(0, -30vh, 0); opacity: 0; }
+  10%  { opacity: 0.85; }
+  90%  { opacity: 0.85; }
+  100% { transform: translate3d(0, 130vh, 0); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="scroll-rain"] { display: none !important; }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Liquid-glass 3D — elastic deformation hover (GlassCard v2)
+   The card stretches like jelly on hover instead of rigidly scaling:
+   border-radius asymmetrises, edges skew, then snap back via spring.
+   ───────────────────────────────────────────────────────────────── */
+.liquid-glass-3d {
+  position: relative;
+  isolation: isolate;
+  transform: perspective(1100px) rotateX(0deg) rotateY(0deg) scale(1) skewX(0deg);
+  transform-style: preserve-3d;
+  transition:
+    transform 540ms cubic-bezier(0.68, -0.45, 0.27, 1.45),
+    border-radius 540ms cubic-bezier(0.68, -0.45, 0.27, 1.45),
+    box-shadow 420ms ease,
+    border-color 420ms ease;
+  will-change: transform, border-radius;
+}
+.liquid-glass-3d:hover {
+  transform: perspective(1100px) rotateX(2.5deg) rotateY(-3.5deg) scale(1.025) skewX(-0.7deg) translateY(-6px);
+  border-radius: 36px 26px 34px 28px / 32px 30px 28px 34px;
+  border-color: rgba(255,255,255,0.32);
+  box-shadow:
+    0 50px 110px -25px rgba(0,0,0,0.78),
+    0 0 70px -10px rgba(167,139,250,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.10);
+}
+@media (prefers-reduced-motion: reduce) {
+  .liquid-glass-3d, .liquid-glass-3d:hover,
+  .liquid-glass-mobile {
+    transform: none;
+    border-radius: 1.5rem;
+    transition: none;
+    animation: none !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   liquid-glass-mobile — continuous "breathing" mesh deformation
+   for touch devices. Mobile users never trigger :hover, so the
+   regular liquid-glass-3d hover effect is invisible to them. This
+   keyframe loops a subtle border-radius asymmetric morph + skew +
+   scale so every elastic GlassCard visibly deforms on its own.
+   Desktop (hover-capable) devices skip this loop and rely on the
+   :hover effect instead.
+   ───────────────────────────────────────────────────────────────── */
+@keyframes chapterPillPulse {
+  0%, 100% { transform: scale(1); opacity: 0.95; }
+  50%      { transform: scale(1.35); opacity: 1; }
+}
+
+@keyframes liquidMeshBreathe {
+  0% {
+    border-radius: 30px 26px 28px 32px / 28px 30px 26px 30px;
+    transform: perspective(1100px) rotateX(0deg) rotateY(0deg) scale(1) skewX(0deg);
+  }
+  33% {
+    border-radius: 48px 18px 44px 22px / 36px 26px 38px 24px;
+    transform: perspective(1100px) rotateX(1.5deg) rotateY(-1.2deg) scale(1.012) skewX(-0.6deg);
+  }
+  66% {
+    border-radius: 18px 46px 22px 44px / 24px 38px 26px 36px;
+    transform: perspective(1100px) rotateX(-1.4deg) rotateY(1.4deg) scale(1.012) skewX(0.6deg);
+  }
+  100% {
+    border-radius: 30px 26px 28px 32px / 28px 30px 26px 30px;
+    transform: perspective(1100px) rotateX(0deg) rotateY(0deg) scale(1) skewX(0deg);
+  }
+}
+@media (hover: none) {
+  .liquid-glass-mobile {
+    animation: liquidMeshBreathe 6.5s ease-in-out infinite;
+    will-change: transform, border-radius;
+  }
+  /* Hover transform never fires on touch — disable so animation isn't
+     overridden by the static :hover stylesheet rule. */
+  .liquid-glass-3d:hover {
+    transform: none;
+  }
+}
+/* Desktop (hover-capable) devices skip the breathe loop entirely. */
+@media (hover: hover) {
+  .liquid-glass-mobile {
+    animation: none;
+  }
+}
+
+/* Payment "PAY" PNG floats on a slow loop, like the wasting-time
+   illustration. Used in the storelist Payment card. */
+@keyframes paymentPayBob {
+  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+  50%      { transform: translateY(-12px) rotate(1.5deg); }
+}
+.payment-pay-img {
+  animation: paymentPayBob 4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .payment-pay-img { animation: none; }
+}
+
+/* LED display — give the LedJoySection text a marquee-style anti-alias
+   tweak so glyphs read crisper on top of the dot matrix. */
+.led-display {
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum" 1, "kern" 1;
+}
+
+/* ── Lightweight mobile star field ──
+ * Compositor-only background animation for mobile. Each star is
+ * a 2-3 px white dot with a slow opacity twinkle. Opacity
+ * animations are GPU-only (no paint), so 12 stars cost
+ * effectively nothing per frame — completely different from the
+ * WebGL Galaxy or the 120-px-blur orbs we removed. */
+.lite-star {
+  position: absolute;
+  border-radius: 9999px;
+  background: #ffffff;
+  animation: liteStarTwinkle var(--lite-star-dur, 5s) ease-in-out infinite;
+  animation-delay: var(--lite-star-delay, 0s);
+  will-change: opacity;
+}
+@keyframes liteStarTwinkle {
+  0%, 100% { opacity: 0.18; }
+  50%      { opacity: 0.85; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lite-star { animation: none; opacity: 0.4; }
+}
+
+/* ── Mobile drifting nebula ──
+ * A single radial-gradient div animated only with translate3d.
+ * The transform is GPU-only and the keyframe runs over 60-90 s,
+ * so the per-frame cost is essentially zero — but the slow
+ * drift gives the page real depth like coloured cosmic dust. */
+.lite-nebula {
+  position: absolute;
+  border-radius: 9999px;
+  /* No `filter: blur(...)` — radial-gradient already produces a
+   * soft falloff. blur() forces an additional rasterization pass
+   * that's expensive on integrated GPUs. The gradient alone
+   * gives the right "cloud" look at near-zero compositor cost. */
+  opacity: 0.9;
+  animation: liteNebulaDrift var(--nebula-dur, 75s) ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes liteNebulaDrift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(var(--nebula-x, 8vw), var(--nebula-y, -4vh), 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lite-nebula { animation: none; }
+}
+
+/* ─── MOBILE PERFORMANCE KILL-SWITCH ──────────────────────────
+ * The user reported the page feels laggy on iPhone. The home
+ * page runs >15 simultaneous infinite CSS animations across
+ * background overlays, glow rings, marquees, prismatic spins,
+ * etc. Each one continuously triggers paint or composite work
+ * on the mobile GPU. Together with native scroll-snapping they
+ * starve the compositor and produce the "everything is laggy"
+ * symptom.
+ *
+ * On viewports ≤ 768px we pause every infinite background
+ * animation outright. Visual hierarchy is preserved (gradients,
+ * static glows, colour cast) — only the perpetual motion is
+ * removed. This gives the mobile compositor enough headroom to
+ * keep scroll at 60 fps and render the carousel focus
+ * transition smoothly. */
+@media (max-width: 768px) {
+  .orb,
+  .pulsating-overlay-a,
+  .pulsating-overlay-b,
+  .telegram-ring,
+  .telegram-star,
+  .float-card,
+  .chess-float,
+  .prismatic-glow::before,
+  .prismatic-glow::after,
+  .marquee,
+  .marquee-reverse,
+  .led-track,
+  .pulse-glow-shadow,
+  .prism-bg::before,
+  .prism-bg::after,
+  .aurora-bg::before,
+  .aurora-bg::after,
+  [class*="animate-spin"] {
+    animation: none !important;
+  }
+  /* Marquee tracks: when paused they need to stay readable. */
+  .marquee, .marquee-reverse {
+    transform: none !important;
+  }
+  /* Static fallback opacity for telegram stars — keep them visible
+     after the twinkle is removed. */
+  .telegram-star {
+    opacity: 0.55;
+  }
+}
+
+/* ── No vertical scroll-snap on mobile ──
+   We previously set `scroll-snap-type: y proximity` on <html> with
+   `scroll-snap-align: start` on the telegram <section>. In theory
+   `proximity` only snaps when the user naturally lands close, but
+   in practice on iOS Safari this combination produced two bad
+   behaviours that the user explicitly complained about:
+     • "A light swipe back up from the telegram box forces me back
+        down." — the proximity snap was treating any small upward
+        flick as 'still close to the snap point' and rubber-banding
+        the viewport back DOWN to the telegram section's start.
+     • "Can't scroll down on path cards." — once the snap point
+        was satisfied, fighting the snap to leave the section took
+        more drag than a typical thumb gesture, so the page felt
+        locked.
+   No vertical snap is required — the path cards have their OWN
+   horizontal snap on the carousel track, which is unaffected.
+   Vertical scrolling is now fully native on mobile. */
+
+
+/* ────────────────────────────────────────────────────────────────
+ * Pure-CSS replacements for framer-motion infinite animations on
+ * mobile. Critical perf principle: every keyframe below animates
+ * ONLY `transform` and `opacity` — both compositor-thread safe
+ * properties on iOS Safari + Android Chrome. The browser runs the
+ * entire animation on the GPU without ever waking up JavaScript.
+ *
+ * These replace what was previously 5 framer-motion <motion.div>
+ * orbs, 1 framer-motion cube-stage float, and 5 framer-motion
+ * constellation-dot pulses. All visual motion preserved; per-frame
+ * JS cost on the scroll thread eliminated.
+ * ──────────────────────────────────────────────────────────────── */
+
+@keyframes floatOrb {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: var(--orb-min, 0.32); }
+  25%      { transform: translate3d(var(--orb-dx, 4px), var(--orb-dy-up, -16px), 0); opacity: var(--orb-max, 0.78); }
+  50%      { transform: translate3d(0, 0, 0); opacity: var(--orb-min, 0.32); }
+  75%      { transform: translate3d(var(--orb-dx-neg, -3px), var(--orb-dy-down, 6px), 0); opacity: var(--orb-max, 0.78); }
+}
+
+.float-orb {
+  animation-name: floatOrb;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  will-change: transform, opacity;
+}
+
+@keyframes cubeFloat {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -10px, 0); }
+}
+
+.cube-float {
+  animation: cubeFloat 4.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes constellationDotPulse {
+  0%, 100% { transform: scale(0.8); opacity: 0.4; }
+  50%      { transform: scale(1.4); opacity: 1; }
+}
+
+.constellation-dot {
+  animation-name: constellationDotPulse;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .float-orb, .cube-float, .constellation-dot { animation: none; }
+}
+
+
+/* ────────────────────────────────────────────────────────────────
+ * 3D Wireframe Background Shapes — pure CSS, compositor-only.
+ *
+ * Three primitives are exposed:
+ *   .shape-cube  — six wire-frame faces, slow XY rotation
+ *   .shape-gyro  — three perpendicular rings (atom / gyroscope)
+ *   .shape-pyr   — four-face wireframe pyramid (octahedron-ish)
+ *
+ * Every animation tweaks ONLY `transform` — the entire spin is
+ * composited on the GPU, never touches the JS thread. They are
+ * decorative and `pointer-events:none` so they never interfere
+ * with scrolling or interaction.
+ * ──────────────────────────────────────────────────────────────── */
+
+@keyframes shape-rotate-1 {
+  from { transform: rotateX(0deg) rotateY(0deg); }
+  to   { transform: rotateX(360deg) rotateY(360deg); }
+}
+@keyframes shape-rotate-2 {
+  from { transform: rotateX(0deg) rotateZ(0deg); }
+  to   { transform: rotateX(-360deg) rotateZ(360deg); }
+}
+@keyframes shape-rotate-3 {
+  from { transform: rotateY(0deg) rotateZ(0deg); }
+  to   { transform: rotateY(360deg) rotateZ(-360deg); }
+}
+@keyframes shape-drift-y {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -18px, 0); }
+}
+
+.shape-3d-stage {
+  position: absolute;
+  pointer-events: none;
+  transform-style: preserve-3d;
+  perspective: 800px;
+  will-change: transform;
+  animation: shape-drift-y 9s ease-in-out infinite;
+}
+
+/* ── Cube ── */
+.shape-cube {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: shape-rotate-1 28s linear infinite;
+  will-change: transform;
+}
+.shape-cube > .face {
+  position: absolute;
+  inset: 0;
+  /* No hard border — the user's previous build showed sharp
+     rectangular outlines reading as CSS boxes rather than glow.
+     Now each face is a soft luminous panel: transparent fill,
+     rounded corners, multi-layer blurred glow inside + out so the
+     edges fade into the background instead of being a visible
+     1 px stroke. */
+  border: none;
+  border-radius: 22%;
+  background:
+    radial-gradient(ellipse at center,
+      rgba(167,139,250,0.10) 0%,
+      rgba(34,211,238,0.05)  55%,
+      transparent            85%);
+  box-shadow:
+    inset 0 0 38px rgba(167,139,250,0.22),
+    inset 0 0 14px rgba(255,225,140,0.10),
+    0 0 36px rgba(167,139,250,0.18);
+  opacity: 0.7;
+}
+.shape-cube > .face-f { transform: translateZ(var(--half)); }
+.shape-cube > .face-b { transform: rotateY(180deg) translateZ(var(--half)); }
+.shape-cube > .face-r { transform: rotateY(90deg)  translateZ(var(--half)); }
+.shape-cube > .face-l { transform: rotateY(-90deg) translateZ(var(--half)); }
+.shape-cube > .face-t { transform: rotateX(90deg)  translateZ(var(--half)); }
+.shape-cube > .face-d { transform: rotateX(-90deg) translateZ(var(--half)); }
+
+/* ── Gyroscope (atom-style 3 perpendicular rings) ── */
+.shape-gyro {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: shape-rotate-2 32s linear infinite;
+  will-change: transform;
+}
+.shape-gyro > .ring {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(103, 232, 249, 0.32);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 18px rgba(167, 139, 250, 0.18),
+    0 0 22px rgba(34, 211, 238, 0.12);
+  background:
+    radial-gradient(circle at 50% 50%, transparent 60%, rgba(167,139,250,0.05) 100%);
+}
+.shape-gyro > .ring-1 { transform: rotateX(0deg)   rotateY(0deg); }
+.shape-gyro > .ring-2 { transform: rotateX(60deg)  rotateY(30deg); }
+.shape-gyro > .ring-3 { transform: rotateX(120deg) rotateY(60deg); }
+/* Small core dot */
+.shape-gyro > .core {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 6px; height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(255, 225, 140, 0.95);
+  box-shadow: 0 0 18px rgba(255, 225, 140, 0.95), 0 0 36px rgba(167,139,250,0.6);
+}
+
+/* ── Octahedron-ish: 2 rotated squares forming a wireframe diamond ── */
+.shape-pyr {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: shape-rotate-3 24s linear infinite;
+  will-change: transform;
+}
+.shape-pyr > .plane {
+  position: absolute;
+  inset: 0;
+  /* Same soft-glow treatment as the cube faces — the previous
+     hard 1 px solid border rendered as visible diamond outlines
+     in the page background. Now each plane is a soft fuchsia
+     orb with rounded edges that blend into the cosmic backdrop. */
+  border: none;
+  border-radius: 30%;
+  background:
+    radial-gradient(ellipse at center,
+      rgba(244,114,182,0.10) 0%,
+      rgba(167,139,250,0.05) 55%,
+      transparent            85%);
+  box-shadow:
+    inset 0 0 36px rgba(244,114,182,0.22),
+    inset 0 0 12px rgba(255,225,140,0.08),
+    0 0 32px rgba(244,114,182,0.15);
+  opacity: 0.7;
+}
+.shape-pyr > .plane-1 { transform: rotateY(0deg)   rotateX(45deg); }
+.shape-pyr > .plane-2 { transform: rotateY(60deg)  rotateX(45deg); }
+.shape-pyr > .plane-3 { transform: rotateY(120deg) rotateX(45deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .shape-cube, .shape-gyro, .shape-pyr, .shape-3d-stage { animation: none; }
+}
+
+/* ── PathIllustration CSS animations ──────────────────────────────
+ * All 24 previously-framer-motion infinite loops. Transform+opacity
+ * only — pure compositor thread, zero JS per frame.
+ * .pi-paused * → pauses inactive Swiper slides via CSS class (no JS).
+ * ──────────────────────────────────────────────────────────────── */
+@keyframes pi-breathe  { 0%,100%{opacity:.85} 50%{opacity:1} }
+@keyframes pi-dim      { 0%,100%{opacity:.7}  50%{opacity:1} }
+@keyframes pi-pulse    { 0%,100%{opacity:.4}  50%{opacity:1} }
+@keyframes pi-beam     { 0%,100%{opacity:.08} 50%{opacity:.22} }
+@keyframes pi-win-a    { 0%,100%{opacity:.6}  50%{opacity:1} }
+@keyframes pi-win-b    { 0%,100%{opacity:1}   50%{opacity:.6} }
+@keyframes pi-float4   { 0%,100%{transform:translateY(0)}    50%{transform:translateY(-4px)} }
+@keyframes pi-float6   { 0%,100%{transform:translateY(0)}    50%{transform:translateY(-6px)} }
+@keyframes pi-float8   { 0%,100%{transform:translateY(0)}    50%{transform:translateY(-8px)} }
+@keyframes pi-float10  { 0%,100%{transform:translateY(0)}    50%{transform:translateY(-10px)} }
+@keyframes pi-scale-sm { 0%,100%{transform:scale(1)}         50%{transform:scale(1.04)} }
+@keyframes pi-scale-lg { 0%,100%{transform:scale(1)}         50%{transform:scale(1.05)} }
+@keyframes pi-spin     { to{transform:rotate(360deg)} }
+@keyframes pi-twinkle  { 0%,100%{transform:scale(.6);opacity:.4} 50%{transform:scale(1.2);opacity:1} }
+@keyframes pi-sale     { 0%,100%{transform:rotate(-4deg) translateY(0)} 50%{transform:rotate(6deg) translateY(-3px)} }
+@keyframes pi-arrow    { 0%,100%{transform:translateX(-30px);opacity:0} 8%{opacity:.85} 50%{transform:translateX(0);opacity:.85} 92%{opacity:0} }
+@keyframes pi-bag      { 0%,100%{transform:translateY(0) rotate(-3deg)} 50%{transform:translateY(-10px) rotate(3deg)} }
+@keyframes pi-sparkle  { 0%,100%{transform:scale(.8);opacity:.6} 50%{transform:scale(1.2);opacity:1} }
+
+
+@keyframes pi-enter { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+.pi-paused * { animation-play-state: paused !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pi-animated * { animation: none !important; }
+}
+
+
+/* ─────────────────────────────────────────────────────────────────
+ * CashbackScene — pure-CSS keyframes ("Get rewarded for shopping
+ * online · ahh, the joy of cashback"). All animations are
+ * compositor-only (transform + opacity) so they cost nothing on the
+ * JS thread and run smoothly on iPhone alongside Lenis smoothing.
+ * ──────────────────────────────────────────────────────────────── */
+.cs-stage {
+  /* Establish a fixed positioning context — every child below uses
+     absolute positioning to stack on the stage. perspective gives
+     the credit-card tilt a real 3D feel. */
+  perspective: 1400px;
+  isolation: isolate;
+}
+
+/* AURORA HALO — multi-stop animated conic that sweeps gold→violet→
+   cyan→fuchsia behind the credit card. The conic provides the colour
+   wash, a radial soft-mask + blur turns it into a halo glow rather
+   than a hard wheel. The sweep + breathing animation are split onto
+   inner/outer layers so the conic angle and the scale don't trample
+   each other. */
+.cs-aurora {
+  position: absolute;
+  inset: -8%;
+  border-radius: 9999px;
+  background:
+    /* Bright golden hot-spot in the centre */
+    radial-gradient(
+      circle at 50% 45%,
+      rgba(255, 225, 140, 0.55),
+      rgba(167, 139, 250, 0.18) 40%,
+      transparent 70%
+    ),
+    /* Multi-stop conic for the lusion-like prismatic glow */
+    conic-gradient(
+      from var(--cs-aurora-angle, 0deg) at 50% 50%,
+      rgba(245, 185, 69, 0.42),
+      rgba(232, 121, 249, 0.38) 25%,
+      rgba(34, 211, 238, 0.34) 50%,
+      rgba(167, 139, 250, 0.42) 75%,
+      rgba(245, 185, 69, 0.42) 100%
+    );
+  filter: blur(34px);
+  transform: scale(1);
+  opacity: 0.88;
+}
+@property --cs-aurora-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.cs-aurora--anim {
+  animation:
+    cs-aurora-breath 6s ease-in-out infinite,
+    cs-aurora-spin   18s linear infinite;
+}
+@keyframes cs-aurora-breath {
+  0%, 100% { transform: scale(1);    opacity: 0.78; }
+  50%      { transform: scale(1.10); opacity: 1;    }
+}
+@keyframes cs-aurora-spin {
+  to { --cs-aurora-angle: 360deg; }
+}
+
+/* PULSE RINGS — each ring scales out from card centre and fades */
+.cs-ring {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 28%; height: 28%;
+  margin-left: -14%; margin-top: -14%;
+  border: 2px solid rgba(255, 225, 140, 0.85);
+  border-radius: 9999px;
+  opacity: 0;
+  transform: scale(0.6);
+  animation: cs-ring 3.6s ease-out infinite;
+  box-shadow: 0 0 22px rgba(255, 225, 140, 0.55);
+}
+@keyframes cs-ring {
+  0%   { opacity: 0;   transform: scale(0.6); border-color: rgba(255,225,140,0.95); }
+  10%  { opacity: 0.95; }
+  100% { opacity: 0;   transform: scale(2.2); border-color: rgba(167,139,250,0.05); }
+}
+
+/* CARD WRAPPER — float + subtle 3D tilt loop */
+.cs-card-wrap {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 78%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 28px 50px rgba(245, 185, 69, 0.35));
+}
+.cs-card-wrap--anim { animation: cs-card-float 6s ease-in-out infinite; }
+@keyframes cs-card-float {
+  0%, 100% { transform: translate(-50%, -50%) rotateX(0deg)  rotateY(-6deg) translateY(0); }
+  50%      { transform: translate(-50%, -52%) rotateX(-3deg) rotateY(6deg)  translateY(-6px); }
+}
+.cs-card { display: block; }
+
+/* WALLET on the right edge of the stage */
+.cs-wallet {
+  position: absolute;
+  right: 4%; bottom: 8%;
+  width: 28%;
+  filter: drop-shadow(0 18px 28px rgba(0,0,0,0.55));
+}
+.cs-wallet--anim { animation: cs-wallet-bob 4.4s ease-in-out infinite; }
+@keyframes cs-wallet-bob {
+  0%, 100% { transform: translateY(0)   rotate(-1deg); }
+  50%      { transform: translateY(-6px) rotate(2deg); }
+}
+
+/* COINS ARCING into the wallet — three independent arcs, all driven
+ * by transform-only keyframes. Origin is the centre of the stage. */
+.cs-coin {
+  position: absolute;
+  left: 30%; top: 28%;
+  width: 44px; height: 44px;
+  margin-left: -22px; margin-top: -22px;
+  filter: drop-shadow(0 6px 10px rgba(255, 208, 107, 0.65));
+  opacity: 0;
+}
+.cs-coin svg { display: block; }
+.cs-coin--1 { animation: cs-arc-1 3s ease-in infinite; }
+.cs-coin--2 { animation: cs-arc-2 3.4s ease-in infinite; }
+.cs-coin--3 { animation: cs-arc-3 3.8s ease-in infinite; }
+@keyframes cs-arc-1 {
+  0%   { opacity: 0; transform: translate(-110%, -40%) rotate(-30deg) scale(0.6); }
+  15%  { opacity: 1; }
+  60%  { opacity: 1; transform: translate( 80%,  -90%) rotate(120deg) scale(1.1); }
+  90%  { opacity: 1; transform: translate(150%,  150%) rotate(220deg) scale(0.9); }
+  100% { opacity: 0; transform: translate(160%,  170%) rotate(260deg) scale(0.7); }
+}
+@keyframes cs-arc-2 {
+  0%   { opacity: 0; transform: translate(-90%,  10%) rotate(0deg)   scale(0.65); }
+  15%  { opacity: 1; }
+  55%  { opacity: 1; transform: translate( 70%, -110%) rotate(140deg) scale(1.05); }
+  90%  { opacity: 1; transform: translate(160%,  140%) rotate(240deg) scale(0.85); }
+  100% { opacity: 0; transform: translate(170%,  160%) rotate(300deg) scale(0.7); }
+}
+@keyframes cs-arc-3 {
+  0%   { opacity: 0; transform: translate(-100%, 60%) rotate(-20deg) scale(0.6); }
+  15%  { opacity: 1; }
+  50%  { opacity: 1; transform: translate( 60%, -50%) rotate(110deg) scale(1.1); }
+  90%  { opacity: 1; transform: translate(155%, 150%) rotate(230deg) scale(0.9); }
+  100% { opacity: 0; transform: translate(165%, 170%) rotate(280deg) scale(0.7); }
+}
+
+/* FALLING CASH BILLS */
+.cs-rain {
+  position: absolute;
+  inset: -8% 0 0 0;
+  pointer-events: none;
+}
+.cs-bill {
+  position: absolute;
+  top: 0;
+  --cs-sway: 0px;
+  animation: cs-fall linear infinite;
+  filter: drop-shadow(0 6px 12px rgba(34, 197, 94, 0.45));
+}
+@keyframes cs-fall {
+  0%   { transform: translate3d(0, -10%,  0) rotate(-12deg); opacity: 0; }
+  8%   { opacity: 0.95; }
+  50%  { transform: translate3d(var(--cs-sway), 50%, 0) rotate(8deg); opacity: 1; }
+  92%  { opacity: 0.9; }
+  100% { transform: translate3d(0, 110%, 0) rotate(-6deg); opacity: 0; }
+}
+
+/* SPARKLE BURSTS */
+.cs-sparkles { position: absolute; inset: 0; }
+.cs-spark {
+  position: absolute;
+  width: 6px; height: 6px;
+  margin-left: -3px; margin-top: -3px;
+  border-radius: 9999px;
+  animation: cs-spark ease-in-out infinite;
+}
+@keyframes cs-spark {
+  0%, 100% { transform: scale(0.4); opacity: 0;   }
+  50%      { transform: scale(1.2); opacity: 1;   }
+}
+
+/* CHIPS — floating textual badges that orbit the card */
+.cs-chip {
+  position: absolute;
+  font-family: "Clash Display", system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 225, 140, 0.55);
+  background: rgba(8, 7, 18, 0.6);
+  color: #ffe28a;
+  text-shadow: 0 0 12px rgba(255, 225, 140, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: cs-chip-bob 5s ease-in-out infinite;
+}
+.cs-chip--a { left: 12%; top: 24%; animation-delay: 0s;   }
+.cs-chip--b { right: 10%; top: 18%; animation-delay: 0.7s; color: #b196ff; border-color: rgba(167,139,250,0.55); text-shadow: 0 0 12px rgba(167,139,250,0.6); }
+.cs-chip--c { left: 18%; bottom: 18%; animation-delay: 1.4s; color: #7be0a8; border-color: rgba(123,224,168,0.55); text-shadow: 0 0 12px rgba(123,224,168,0.6); }
+@keyframes cs-chip-bob {
+  0%, 100% { transform: translateY(0)    rotate(-2deg); }
+  50%      { transform: translateY(-6px) rotate(2deg);  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-aurora--anim,
+  .cs-card-wrap--anim,
+  .cs-wallet--anim,
+  .cs-ring,
+  .cs-bill,
+  .cs-coin,
+  .cs-spark,
+  .cs-chip { animation: none !important; }
+}
+
+/* ─── pi-halo (added for PathIllustration aurora pulse) ─── */
+@keyframes pi-halo  { 0%,100%{transform:scale(1);opacity:.55} 50%{transform:scale(1.08);opacity:.85} }
+
+/* ────────────────────────────────────────────────────────────────
+   MOBILE PERFORMANCE — high-impact GPU offload (no animation removal)
+   ────────────────────────────────────────────────────────────────
+   The user reported the home page felt laggy on mobile but explicitly
+   asked to KEEP every animation. The compositor is being starved by
+   a few high-cost CSS properties — primarily large `backdrop-filter:
+   blur(...)` radii on full-bleed glass cards. Below we cap or relax
+   those properties on mobile only. Animations themselves are
+   untouched. Visually the difference is negligible against the dark
+   cosmic backdrop; perceptually scroll smoothness improves
+   dramatically.
+   ──────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* 1. CAP BACKDROP-BLUR RADIUS.
+        Tailwind classes `backdrop-blur-2xl` (40px), `backdrop-blur-xl`
+        (24px), `backdrop-blur-lg` (16px), and `backdrop-blur-md`
+        (12px) each force a re-rasterization of everything beneath
+        the layer on every scroll frame. The cost is non-linear in
+        the blur radius. Clamping to 6px keeps the glass-on-glass
+        effect intact while restoring 60fps scroll on iPhone. */
+  .backdrop-blur-2xl,
+  .backdrop-blur-xl,
+  .backdrop-blur-lg,
+  .backdrop-blur-md {
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+  }
+
+  /* 2. PROMOTE CARDS to their own GPU layer so the compositor scrolls
+        them as a single texture instead of repainting their inner
+        content (gradient + border + shadow + blur) each frame. */
+  .group.will-change-transform > div,
+  [class*="rounded-3xl"][class*="border"] {
+    transform: translateZ(0);
+  }
+
+  /* 3. REDUCE PER-FRAME PAINT for the heavy CashbackScene SVG
+        layers. We KEEP every animation — but force them onto the
+        GPU compositor (transform/opacity only) and prevent the
+        browser from re-rasterizing the underlying SVG geometry
+        each tick.
+
+        IMPORTANT: do NOT apply `transform: translateZ(0)` to every
+        descendant — that declaration OVERWRITES the static `transform:
+        translate(-50%, -50%)` centering on `.cs-card-wrap` (and the
+        margin-offsets on coins/chips when their keyframe animation
+        is paused mid-cycle), which is exactly what made the storelist
+        mobile illustration look "broken" — credit card jumped to
+        top-left, coins/chips lost their stacking. Use `will-change`
+        on the stage itself for compositor promotion instead. */
+  .cs-stage {
+    will-change: transform;
+    backface-visibility: hidden;
+  }
+
+  /* SCALE the fixed-pixel pieces (coins, chips, bills, wallet stroke
+     widths) proportionally to the stage. Desktop stage is 520px and
+     these sizes were tuned for it; on mobile the stage is 260px so
+     anything in fixed px renders ~2x oversized and visually breaks
+     the layout. Using calc() against `--cs-size` keeps them
+     proportional at any size. */
+  .cs-coin {
+    width:  calc(var(--cs-size, 520px) * 0.085);
+    height: calc(var(--cs-size, 520px) * 0.085);
+    margin-left: calc(var(--cs-size, 520px) * -0.0425);
+    margin-top:  calc(var(--cs-size, 520px) * -0.0425);
+  }
+  .cs-coin svg { width: 100%; height: 100%; }
+  .cs-chip {
+    font-size: calc(var(--cs-size, 520px) * 0.022);
+    padding: calc(var(--cs-size, 520px) * 0.010) calc(var(--cs-size, 520px) * 0.020);
+    letter-spacing: 0.18em;
+  }
+
+  /* 4. CONTAIN LARGE OFF-SCREEN BLOCKS so layout work scales with
+        what's on screen, not with what's on the page. `contain:
+        layout paint` lets the browser skip layout/paint for
+        descendants when the section is far off-screen, without
+        hiding the element from the layout flow (no scroll-jank). */
+  main > *,
+  section[class*="container"],
+  section[id] {
+    contain: layout paint;
+  }
+
+  /* 5. HOVER-TILT (liquid-glass-3d) needs a perspective + transform
+        on the parent that creates a stacking context — on touch
+        devices the perspective alone is enough to keep the GPU
+        compositor allocating extra layers per card. Drop the
+        perspective on touch so each card collapses back to a flat
+        compositor layer. The hover tilt itself is irrelevant on
+        touch (no hover) so the visual is identical. */
+  .liquid-glass-3d,
+  .liquid-glass-mobile {
+    perspective: none !important;
+    transform-style: flat !important;
+  }
+}
+
+/* On TOUCH-FIRST devices (any screen size, includes large tablets):
+   no expensive hover effects, no extra layer creation. */
+@media (hover: none) and (pointer: coarse) {
+  .liquid-glass-3d:hover,
+  .liquid-glass-mobile:hover {
+    /* Cancel hover transforms — they create new layers on tap-and-hold
+       and produce visible repaint flashes during scroll on iOS. */
+    transform: none !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────────────────────────
+   MOBILE PERFORMANCE — content-visibility off-screen skip
+   ────────────────────────────────────────────────────────────────
+   The single biggest mobile win possible without removing animations.
+
+   The home page has multiple long sections (cosmic hero, paths cube,
+   chapters, telegram CTA, footer). On mobile the browser was paying
+   layout + paint + style cost for ALL of them on every scroll frame,
+   even though only one section is visible at a time. With
+   `content-visibility: auto`, the browser SKIPS that work entirely
+   for sections that aren't near the viewport — and resumes it
+   automatically when the user scrolls them into view.
+
+   - Targets `[data-section-id]` on every <ReorderableSection> wrapper.
+   - The hero section is excluded so the first scene paints
+     immediately on initial load (no placeholder flash).
+   - `contain-intrinsic-size: auto 800px` reserves a believable
+     placeholder height so the scrollbar/page geometry doesn't jump
+     as sections render. The `auto` keyword lets the browser cache
+     the real measured size after first render.
+   - framer-motion's `whileInView` / IntersectionObserver still fires
+     correctly when sections enter the viewport — content-visibility
+     auto delegates to the same intersection logic the browser uses
+     internally.
+   ──────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  [data-section-id]:not([data-section-id="hero"]) {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 800px;
+  }
+}
+
+/* ─── HomeBackground DOM cinematic layer ──────────────────────────── */
+/* Drifting gradient orbs — slow translate+scale loop, opacity breath. */
+.hb-orb {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  filter: blur(20px);
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+  animation: hb-orb-drift ease-in-out infinite;
+  transform: translate(-50%, -50%);
+}
+@keyframes hb-orb-drift {
+  0%, 100% { transform: translate(-50%, -50%) scale(1)    rotate(0deg);   opacity: 0.55; }
+  25%      { transform: translate(-44%, -56%) scale(1.06) rotate(40deg);  opacity: 0.75; }
+  50%      { transform: translate(-56%, -44%) scale(1.10) rotate(80deg);  opacity: 0.85; }
+  75%      { transform: translate(-50%, -52%) scale(1.04) rotate(40deg);  opacity: 0.65; }
+}
+
+/* Aurora streamer — slow horizontal drift + fade breath. */
+.hb-aurora {
+  position: absolute;
+  inset: 18% -10% auto -10%;
+  width: 120%;
+  height: 60vh;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.6;
+  will-change: transform, opacity;
+  animation: hb-aurora-drift 22s ease-in-out infinite;
+}
+@keyframes hb-aurora-drift {
+  0%, 100% { transform: translate3d(-4%, 0, 0)  scaleY(1);    opacity: 0.55; }
+  50%      { transform: translate3d( 4%, -6%, 0) scaleY(1.10); opacity: 0.85; }
+}
+
+/* Twinkling DOM stars — small dot, slow opacity+scale loop. */
+.hb-star {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  opacity: 0;
+  will-change: opacity, transform;
+  animation-name: hb-star-twinkle;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  transform: translate(-50%, -50%) scale(0.6);
+}
+@keyframes hb-star-twinkle {
+  0%, 100% { opacity: 0;    transform: translate(-50%, -50%) scale(0.6); }
+  50%      { opacity: 0.95; transform: translate(-50%, -50%) scale(1.0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hb-orb, .hb-aurora, .hb-star { animation: none !important; }
+  .hb-star { opacity: 0.6; }
+  .hb-orb  { opacity: 0.55; }
+}
