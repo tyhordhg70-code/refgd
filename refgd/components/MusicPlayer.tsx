@@ -348,28 +348,27 @@ export default function MusicPlayer() {
           className="group relative grid h-12 w-12 place-items-center rounded-full text-ink-950 transition active:scale-95"
           style={{
             background: "linear-gradient(135deg, #ffe28a, #f5b945 55%, #d99520)",
-            // Diffuse multi-stop glow — three concentric shadows of
-            // decreasing opacity that fade to invisible by the outer
-            // edge. Removed the `0 0 0 1px` ring AND the `36px 6px`
-            // hard-spread halo — those were the visible "boxed-in"
-            // borders the user complained about. Now the glow just
-            // breathes outward like real light.
-            boxShadow:
-              "0 12px 28px -10px rgba(245,185,69,0.55), 0 0 36px 0 rgba(245,185,69,0.28), 0 0 80px 0 rgba(245,185,69,0.16), 0 0 140px 0 rgba(245,185,69,0.08)",
+            // Subtle drop shadow ONLY — the visible glow comes from the
+            // big blurred halo span behind the button (see below). Keeps
+            // the button itself looking grounded without contributing a
+            // bounded box-shadow disc.
+            boxShadow: "0 8px 22px -6px rgba(0,0,0,0.55)",
           }}
         >
-          {/* Soft outer halo — a separately-blurred layer behind the
-              button so the glow has a true diffuse falloff that
-              cannot be drawn with box-shadow alone. Sits OUTSIDE the
-              button via negative inset, then filter:blur softens
-              every edge. */}
+          {/* TRUE diffuse halo behind the button — a much larger
+              blurred span so the falloff has real radial extent. The
+              previous version used -inset-6 (24 px) with a 5-stop
+              gradient, which still showed a visible disc edge against
+              the dark cosmos. Now -inset-16 (64 px) on each side, plus
+              a heavier blur, so the glow legitimately fades into the
+              background with no perceptible boundary. */}
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute -inset-6 rounded-full"
+            className="pointer-events-none absolute -inset-16 rounded-full"
             style={{
               background:
-                "radial-gradient(circle, rgba(245,185,69,0.45) 0%, rgba(245,185,69,0.18) 35%, rgba(245,185,69,0.06) 60%, rgba(245,185,69,0) 80%)",
-              filter: "blur(10px)",
+                "radial-gradient(circle, rgba(245,185,69,0.55) 0%, rgba(245,185,69,0.28) 18%, rgba(245,185,69,0.14) 35%, rgba(245,185,69,0.06) 55%, rgba(245,185,69,0.02) 75%, rgba(245,185,69,0) 100%)",
+              filter: "blur(22px)",
               animation: "pulseGlow 2.4s ease-in-out infinite",
             }}
           />

@@ -237,8 +237,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       style={{ height: isMobile ? "180svh" : "215svh" }}
     >
       <div
-        className="sticky top-0 grid w-full place-items-center overflow-hidden"
-        style={{ height: "100svh", contain: "layout paint" }}
+        className="sticky top-0 grid w-full place-items-center"
+        style={{ height: "100svh", contain: "layout" }}
       >
         {/* ── WELCOME headline (the only DOM cinematic now) ──
             All other visuals (planet/halo/nebula/warp streaks) are
@@ -256,11 +256,34 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           // framer-motion transform once scrolling begins.
           style={{ transformOrigin: "50% 50%" }}
         >
+          {/* True diffuse halo BEHIND the headline — a separately-
+              positioned span that uses filter:blur so the glow has
+              real radial falloff with no rectangular edge. The
+              previous text-shadow approach got clipped by every
+              parent's bounding box and produced a visible HORIZONTAL
+              BAR around the text. This halo extends well past the
+              text and fades through 5 stops to fully transparent. */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+            style={{
+              width: "120%",
+              maxWidth: "1200px",
+              aspectRatio: "5 / 2",
+              background:
+                "radial-gradient(ellipse at center, rgba(245,185,69,0.42) 0%, rgba(245,185,69,0.22) 22%, rgba(167,139,250,0.10) 48%, rgba(245,185,69,0.04) 70%, transparent 90%)",
+              filter: "blur(28px)",
+              zIndex: -1,
+            }}
+          />
           <KineticText
             as="h1"
             text={kicker}
             className="editorial-display text-balance uppercase text-white text-[clamp(2.5rem,9vw,7rem)] leading-[0.95] tracking-[-0.015em]"
-            style={{ textShadow: "0 4px 50px rgba(0,0,0,0.95), 0 0 60px rgba(245,185,69,0.45), 0 2px 14px rgba(0,0,0,0.95)" }}
+            // Text-shadow now ONLY does the dark legibility shadow.
+            // Coloured glow comes from the halo span above which has
+            // no text-shadow extent limit and doesn't get clipped.
+            style={{ textShadow: "0 2px 12px rgba(0,0,0,0.85), 0 4px 28px rgba(0,0,0,0.7)" }}
             stagger={0.08}
             delay={1.1}
           />

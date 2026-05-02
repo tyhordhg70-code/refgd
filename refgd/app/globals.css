@@ -1729,14 +1729,18 @@ html { scroll-behavior: smooth; }
   }
 
   /* 4. CONTAIN LARGE OFF-SCREEN BLOCKS so layout work scales with
-        what's on screen, not with what's on the page. `contain:
-        layout paint` lets the browser skip layout/paint for
-        descendants when the section is far off-screen, without
-        hiding the element from the layout flow (no scroll-jank). */
+        what's on screen, not with what's on the page.
+        IMPORTANT: only `contain: layout` here — NOT `contain: paint`.
+        `paint` containment clips every box-shadow / text-shadow /
+        filter glow at the section's bounding box, which produced
+        the hard RECTANGULAR EDGES on every glow on the site
+        (sound button, WELCOME headline, glass cards, etc). The
+        layout containment alone still gives us the scroll-perf
+        benefit without sabotaging the visual design. */
   main > *,
   section[class*="container"],
   section[id] {
-    contain: layout paint;
+    contain: layout;
   }
 
   /* 5. HOVER-TILT (liquid-glass-3d) needs a perspective + transform
@@ -1819,18 +1823,28 @@ html { scroll-behavior: smooth; }
 /* Aurora streamer — slow horizontal drift + fade breath. */
 .hb-aurora {
   position: absolute;
-  inset: 18% -10% auto -10%;
+  /* Was `inset: 18% -10% auto -10%` with height: 60vh — that pinned
+     the aurora to the lower 60% of the viewport and produced a
+     visible coloured "band" sitting on top of the dark cosmos at
+     the bottom of the hero. Now centred on the upper half with a
+     softer mask so it reads as ambient light, not a horizontal
+     stripe. Opacity also dialled down. */
+  inset: 6% -10% auto -10%;
   width: 120%;
-  height: 60vh;
+  height: 50vh;
   pointer-events: none;
   mix-blend-mode: screen;
-  opacity: 0.6;
+  opacity: 0.42;
   will-change: transform, opacity;
   animation: hb-aurora-drift 22s ease-in-out infinite;
+  /* Soft elliptical mask kills the rectangular cutoff at the bottom
+     edge of the SVG container that was reading as a hard band. */
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 0%, #000 50%, transparent 95%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 0%, #000 50%, transparent 95%);
 }
 @keyframes hb-aurora-drift {
-  0%, 100% { transform: translate3d(-4%, 0, 0)  scaleY(1);    opacity: 0.55; }
-  50%      { transform: translate3d( 4%, -6%, 0) scaleY(1.10); opacity: 0.85; }
+  0%, 100% { transform: translate3d(-4%, 0, 0)  scaleY(1);    opacity: 0.38; }
+  50%      { transform: translate3d( 4%, -6%, 0) scaleY(1.10); opacity: 0.62; }
 }
 
 /* Twinkling DOM stars — small dot, slow opacity+scale loop. */
