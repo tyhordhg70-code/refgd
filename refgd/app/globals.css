@@ -1660,3 +1660,49 @@ html { scroll-behavior: smooth; }
     contain-intrinsic-size: auto 800px;
   }
 }
+
+/* ────────────────────────────────────────────────────────────────
+   GLASS CARD REVEAL — CSS-only curtain entrance
+   ────────────────────────────────────────────────────────────────
+   v5 (2026-05): Replaces framer-motion `whileInView` + IntersectionObserver
+   reveal that wasn't reliable on this site (cards stuck at
+   `clip-path: inset(100%)` — invisible — when the observer never fired).
+
+   Plays unconditionally on mount via CSS, so cards are GUARANTEED to
+   become visible. The lusion curtain-rise look (translateY + clip-path
+   inset wipe) is preserved — just driven by CSS keyframes instead of
+   framer-motion. `animation-fill-mode: backwards` applies the `from`
+   state during any `animation-delay` window so cards render their
+   pre-entrance state (invisible) until the staggered delay elapses,
+   then animate cleanly into the final visible state.
+   ──────────────────────────────────────────────────────────────── */
+@keyframes glassCardReveal {
+  from {
+    opacity: 0;
+    transform: translateY(60px);
+    clip-path: inset(100% 0 0 0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.glass-card-reveal {
+  animation: glassCardReveal 1.2s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  /* `backwards` fill mode: the `from` state is applied during the
+     animation-delay window (so a delay={0.3} card is invisible for
+     0.3s then animates in), and removed when the animation finishes
+     (so the element ends in its natural styled state — no leftover
+     transform that would conflict with the float-card layer). */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-card-reveal {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+  }
+}
