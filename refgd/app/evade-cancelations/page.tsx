@@ -13,6 +13,10 @@ import EvadeIllustrationDivider from "@/components/EvadeIllustrationDivider";
 import TrailerTitle3D from "@/components/TrailerTitle3D";
 import ChapterHeader from "@/components/ChapterHeader";
 import FloatingArt from "@/components/FloatingArt";
+/* v6.13.15 — Pricing card thumbnails migrated to EditableImage so
+   admin can swap them, apply animation templates, scale + adjust
+   spacing from the popover. */
+import EditableImage from "@/components/EditableImage";
 
 export const metadata = {
   title: "Evade Cancelations — RefundGod",
@@ -213,11 +217,12 @@ export default function EvadePage() {
                 bobbing gently with parallax depth. */}
             <div className="mt-10 mb-2 flex justify-center">
               <FloatingArt
+                editId="evade.art.vault"
                 src="/uploads/evade-vault.webp"
                 alt="Stealth-vault — the gateway to your anonymous setup."
                 size={300}
-                bobAmplitude={20}
-                spin={4}
+                bobAmplitude={10}
+                spin={1.2}
               />
             </div>
             <div className="mt-6 grid gap-6 md:grid-cols-2">
@@ -254,6 +259,7 @@ export default function EvadePage() {
             the "Evade like a PRO" section above, where it visually
             belongs with the chapter copy. */}
         <EvadeIllustrationDivider
+          editId="evade.divider.secShield"
           src="/uploads/sec-shield.webp"
           /* v6.13.6 — height tightened 520 → 360 and `compact` set so
              the section uses py-0 instead of py-1 sm:py-2. Combined
@@ -295,11 +301,12 @@ export default function EvadePage() {
                 grid for a tight magazine-style stack. */}
             <div className="mt-2 mb-0 flex justify-center">
               <FloatingArt
+                editId="evade.art.solLocks"
                 src="/uploads/sol-locks.webp"
                 alt="Comprehensive security solutions — checklist, shields, locks."
                 size={360}
-                bobAmplitude={22}
-                spin={3}
+                bobAmplitude={10}
+                spin={1.2}
               />
             </div>
             <div className="mt-3 grid gap-5 lg:grid-cols-3">
@@ -403,6 +410,7 @@ export default function EvadePage() {
             removed; the chapter 03 title (now "Our reputation at
             stake") carries the message on its own. */}
         <EvadeIllustrationDivider
+          editId="evade.divider.creditCash"
           src="/uploads/credit-cash.png"
           alt="Credit and cash flow — what's at stake when accounts get banned."
           align="center"
@@ -527,13 +535,20 @@ export default function EvadePage() {
                           filter: "blur(12px)",
                         }}
                       />
-                      <img
-                        src={p.img}
+                      {/* v6.13.15 — was a plain <img>; now <EditableImage>
+                          so admin can swap the thumbnail, apply an
+                          animation template (the popover sets the same
+                          atpl-* class onto the img), scale, or adjust
+                          spacing below. The `pricing-img-bob` class is
+                          kept by default for the existing gentle bob
+                          and the per-card stagger via animationDelay. */}
+                      <EditableImage
+                        id={`evade.pricing.${i}.img`}
+                        defaultSrc={p.img}
                         alt={p.title}
-                        loading="lazy"
-                        decoding="async"
+                        wrapperClassName="relative block h-full"
+                        wrapperStyle={{ animationDelay: `${i * 0.6}s` }}
                         className="pricing-img-bob relative h-full w-auto max-w-full object-contain drop-shadow-[0_18px_40px_rgba(0,0,0,0.55)]"
-                        style={{ animationDelay: `${i * 0.6}s` }}
                       />
                     </div>
 
