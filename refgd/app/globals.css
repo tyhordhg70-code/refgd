@@ -457,43 +457,19 @@
  * pulse-glow-* class is preserved so the visual hierarchy of the
  * cards (gold / cyan / violet / orange / fuchsia) stays intact.
  */
-@media (max-width: 768px) {
-  .pulse-glow-violet,
-  .pulse-glow-cyan,
-  .pulse-glow-gold,
-  .pulse-glow-orange,
-  .pulse-glow-fuchsia,
-  .pulse-glow-shadow {
-    animation: none !important;
-  }
-  /* v6 (2026-05): Softened hard 1px coloured rings (was 0.40 alpha, now 0.12)
-     and replaced the outer-ring 22px halo with a wider, much softer 50px
-     bloom so the cards have a gentle atmospheric glow instead of the
-     "hard edge" the user reported across desktop and mobile. */
-  .pulse-glow-violet {
-    box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.12),
-                0 0 50px -12px rgba(167, 139, 250, 0.35);
-  }
-  .pulse-glow-cyan {
-    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.12),
-                0 0 50px -12px rgba(34, 211, 238, 0.35);
-  }
-  .pulse-glow-gold {
-    box-shadow: 0 0 0 1px rgba(255, 225, 140, 0.12),
-                0 0 50px -12px rgba(255, 225, 140, 0.35);
-  }
-  .pulse-glow-orange {
-    box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.12),
-                0 0 50px -12px rgba(251, 146, 60, 0.35);
-  }
-  .pulse-glow-fuchsia {
-    box-shadow: 0 0 0 1px rgba(244, 114, 182, 0.12),
-                0 0 50px -12px rgba(244, 114, 182, 0.35);
-  }
-  .pulse-glow-shadow {
-    box-shadow: 0 0 22px rgba(255, 255, 255, 0.20);
-  }
-}
+/* v6.13.18 — Mobile pulse-glow override REMOVED.
+   Previously this @media (max-width: 768px) block force-disabled
+   the pulse keyframes (`animation: none !important`) and
+   replaced them with a static, very soft 0.35-alpha box-shadow
+   halo. User reported "no glow on path cards" — the static halo
+   at that low alpha was visually invisible against the dark
+   cosmic backdrop. Removing the mobile override means mobile
+   now inherits the same animated keyframe pulse as desktop
+   (defined further down: pulseGlowGold/Cyan/Violet/Orange/
+   Fuchsia, each 4.6–5.2s, peaks at ~0.55 alpha). The halos are
+   now visibly breathing on every viewport. If iOS Safari shows
+   compositor jank we can re-introduce a tighter mobile variant
+   with shorter spread but never touching `animation: none`. */
 
 /* ─── Telegram CTA box — mobile-only compositor animations ──── */
 /* Used by AnimatedTelegramBox on the mobile path so we don't have
