@@ -34,17 +34,16 @@ export default function LedJoySection() {
     <section
       ref={ref}
       aria-label="Ahhh, feel the joy of cashback"
-      /* User request: section was a full 100svh which left a lot of empty
-         vertical space above and below the LED text. Reduced to 60svh
-         so the beat plays tightly between the hero and Act 2 instead
-         of forcing a near-full viewport scroll past empty room. Also
-         dropped the heavy py default so the AHHHH sign sits higher
-         in the viewport (visible immediately on entry). */
-      /* v6.13.6 — items-center vertically centred the LED text in
-         a 60svh box, leaving a chunk of empty galaxy ABOVE it. User
-         asked for the text to sit higher, so we anchor to the top
-         of the section and add a smaller top padding instead. */
-      className="relative isolate flex min-h-[60svh] w-full items-start justify-center overflow-hidden pt-2 pb-12 sm:pt-4 sm:pb-16"
+      /* v6.13.11 — RESTORED to a full 100svh own-screen beat. The
+         user explicitly wants this to be its own dedicated screen
+         since the AHHHH letter-fly + tagline word-slide animation
+         needs the visual real-estate to land. Earlier shrinks
+         (60svh + items-start) made the beat feel like a label
+         tucked between two sections instead of the cinematic
+         pause it was designed as. Centred vertically + horizontally
+         so the LED text sits in the middle of the viewport when
+         the beat triggers. */
+      className="relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden py-12 sm:py-16"
     >
 
       <div className="container-wide relative z-10 grid place-items-center text-center">
