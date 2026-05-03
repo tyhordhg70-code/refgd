@@ -107,12 +107,26 @@ export default function LoadingScreen() {
   // render returns null without flashing the overlay for a frame.
   const [progress, setProgress] = useState(100);
   const [phase, setPhase] = useState(PHASES[4]);
-  const [visible, setVisible] = useState(() =>
-    typeof window === "undefined" ? true : !alreadyLoadedThisSession(),
-  );
-  const [removed, setRemoved] = useState(() =>
-    typeof window === "undefined" ? false : alreadyLoadedThisSession(),
-  );
+  /* v6.13.59 — Initial state MUST be identical between SSR and the
+     very first client render, otherwise React #418 (hydration
+     mismatch) detonates the whole tree.
+
+     Previously these initialisers read `alreadyLoadedThisSession()`
+     directly, which inspects sessionStorage. SSR always returned
+     {visible:true, removed:false}; a returning visitor's first CSR
+     returned {visible:false, removed:true} → the server emitted the
+     splash overlay, the client hydrated with `null`, and React
+     bailed on hydration with the symptom seen in production
+     (Minified React error #418 in the console, then the page falls
+     back to client-only render and any state captured during SSR
+     is discarded).
+
+     Fix: always start in the SSR-equivalent "splash visible" state.
+     The mount-effect below then immediately jumps to removed=true
+     for returning visitors, so they see at most one ~16 ms frame
+     of the overlay instead of an aborted hydration. */
+  const [visible, setVisible] = useState(true);
+  const [removed, setRemoved] = useState(false);
   // Keep last reported value so the bar never goes backwards
   const lastShownRef = useRef(0);
 
@@ -131,6 +145,12 @@ export default function LoadingScreen() {
       // Make sure the entrance gate is open for any component that
       // mounted after us.
       markLoadingComplete();
+      // v6.13.59 — Hide the splash immediately. Initial state is now
+      // {visible:true, removed:false} for SSR/hydration parity, so
+      // without these calls a returning visitor would stay on the
+      // overlay until they navigated.
+      setVisible(false);
+      setRemoved(true);
       return;
     }
     // Lock body so the user can't start scrolling on a half-warm tree
