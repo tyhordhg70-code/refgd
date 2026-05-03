@@ -181,7 +181,11 @@ export default function PathCard({
         // prism backstage. Each card's delay is staggered by index
         // so neighbouring cards float out of phase.
         style={{
-          animation: `floatSlow ${floatDuration} ease-in-out ${floatDelay} infinite`,
+          // v6.13.3: floatSlowMobile (5 px lift) instead of floatSlow
+          // (14 px lift). The prism face has overflow:hidden, so the
+          // 14 px desktop amplitude was clipping the chip + top of
+          // the illustration each cycle.
+          animation: `floatSlowMobile ${floatDuration} ease-in-out ${floatDelay} infinite`,
           willChange: "transform",
         }}
       >
