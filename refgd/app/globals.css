@@ -1934,6 +1934,50 @@ html { scroll-behavior: smooth; }
 .atpl-glow-cycle   { animation: atpl-glow-cycle   9.0s ease-in-out infinite; will-change: filter;    }
 .atpl-zoom-breathe { animation: atpl-zoom-breathe 5.5s ease-in-out infinite; will-change: transform; }
 
+/* v6.13.28 — iPad / foldable-phone flicker guard.
+   The codebase has 30+ permanent `will-change` declarations
+   (.atpl-*, .glass-card-reveal, .pulse-glow-*, scroll-driven
+   wrappers, etc.). On iPad and on unfolded foldables, Safari's
+   GPU memory budget is much tighter than on iPhone or desktop;
+   when too many elements are simultaneously promoted to their
+   own compositing layer the browser starts evicting and re-
+   creating layers behind the scenes, which the user sees as
+   "whole page flickers".
+
+   Targeting: touch-only pointers (`hover: none`) at iPad-mini
+   through small-laptop widths (700–1366 px). Phones below 700
+   are unaffected (no flicker reports there); desktops above
+   1366 use mice and have the GPU headroom anyway.
+
+   - `will-change: auto` on every element drops the layer-
+     promotion hint — Safari will still composite as needed
+     mid-animation but won't reserve a permanent layer.
+   - The infinite halo / shimmer / glow keyframes that were
+     the heaviest contributors are downgraded to a single very
+     slow opacity step so they read as "alive" without
+     burning GPU cycles continuously.
+
+   Net effect on iPad/foldable: no flicker, slightly tamer
+   ambient motion, no visible content change. Phones and
+   desktops are untouched. */
+@media (hover: none) and (min-width: 700px) and (max-width: 1366px) {
+  *,
+  *::before,
+  *::after {
+    will-change: auto !important;
+  }
+  .pulse-glow-cyan,
+  .pulse-glow-violet,
+  .pulse-glow-amber,
+  .pulse-glow {
+    animation: none !important;
+  }
+  .atpl-shimmer,
+  .atpl-glow-cycle {
+    animation: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .atpl-float, .atpl-pulse, .atpl-tilt, .atpl-shimmer,
   .atpl-3d-bob, .atpl-spin-slow, .atpl-glow-cycle, .atpl-zoom-breathe {
