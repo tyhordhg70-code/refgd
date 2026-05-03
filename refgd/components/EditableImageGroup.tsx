@@ -26,7 +26,7 @@
  * the `order` property has effect. Pass `className` to override.
  */
 
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { useEditContext } from "@/lib/edit-context";
 
 type GroupShape = {
@@ -36,6 +36,27 @@ type GroupShape = {
   indexOf: (childId: string) => number;
   moveUp: (childId: string) => void;
   moveDown: (childId: string) => void;
+  /* v6.13.35 — Native HTML5 drag-and-drop reorder. The previous
+     implementation only exposed up/down arrow buttons inside the
+     edit popover, which the user described as "admin still cant
+     drag drop rearrange images". These four fields let an
+     <EditableImage> wire its wrapper directly into the group's
+     drag state:
+       startDrag(id) — called from onDragStart of the dragged child
+       hoverDrag(id) — called from onDragOver of any potential drop
+                       target so siblings can show a "drop here"
+                       outline
+       endDrag()     — called from onDragEnd to clear UI state
+       dropOn(id)    — called from onDrop of the target; reorders
+                       so the dragged child is placed AT the target
+                       child's current position (siblings shift
+                       around it). */
+  dragId: string | null;
+  overId: string | null;
+  startDrag: (childId: string) => void;
+  hoverDrag: (childId: string) => void;
+  endDrag: () => void;
+  dropOn: (targetChildId: string) => void;
 };
 
 const Ctx = createContext<GroupShape | null>(null);
@@ -84,6 +105,12 @@ export default function EditableImageGroup({
   const persist = (next: string[]) =>
     setValue(`imagegroup.${id}.order`, JSON.stringify(next));
 
+  // v6.13.35 — drag-state lives in component state (not context-
+  // memoized) because it changes on every dragover and we want the
+  // outline-on-hover sibling to re-render in real time.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+
   const ctx = useMemo<GroupShape>(
     () => ({
       groupId: id,
@@ -103,9 +130,39 @@ export default function EditableImageGroup({
         [next[i + 1], next[i]] = [next[i], next[i + 1]];
         persist(next);
       },
+      dragId,
+      overId,
+      startDrag: (childId) => setDragId(childId),
+      hoverDrag: (childId) => {
+        // Only show outline on a sibling, never on the card you're
+        // currently dragging (it's already visually "lifted").
+        if (dragId && childId !== dragId) setOverId(childId);
+      },
+      endDrag: () => {
+        setDragId(null);
+        setOverId(null);
+      },
+      dropOn: (targetChildId) => {
+        const src = dragId;
+        setDragId(null);
+        setOverId(null);
+        if (!src || src === targetChildId) return;
+        const from = order.indexOf(src);
+        const to = order.indexOf(targetChildId);
+        if (from < 0 || to < 0) return;
+        const next = [...order];
+        next.splice(from, 1);
+        // Insert at target's CURRENT index. If we removed an earlier
+        // entry the target's index shifted left by 1 — splice's
+        // semantics handle this naturally because we already mutated
+        // the array before computing the insertion point.
+        const adjusted = from < to ? to - 1 : to;
+        next.splice(adjusted, 0, src);
+        persist(next);
+      },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [id, order.join("|")],
+    [id, order.join("|"), dragId, overId],
   );
 
   return (
