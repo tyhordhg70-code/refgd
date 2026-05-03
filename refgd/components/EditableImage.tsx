@@ -26,6 +26,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { CSSProperties, DragEvent as ReactDragEvent } from "react";
 import { useEditContext } from "@/lib/edit-context";
 import { useEditableImageGroup } from "./EditableImageGroup";
@@ -64,20 +65,37 @@ export default function EditableImage({
   const [popOpen, setPopOpen] = useState(false);
   const [draftSrc, setDraftSrc] = useState(src);
   const popRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLSpanElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  /* v6.13.43 — Anchor rect for the portal-rendered popover. We re-measure
+     on open + on every scroll/resize so the popover follows the image
+     even when the user scrolls the page mid-edit. */
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
 
   useEffect(() => setDraftSrc(src), [src]);
 
-  // Click-outside dismiss
+  // Click-outside dismiss + anchor tracking while popover is open.
   useEffect(() => {
     if (!popOpen) return;
+    const measure = () => {
+      const r = wrapperRef.current?.getBoundingClientRect();
+      if (r) setAnchorRect(r);
+    };
+    measure();
     const onDoc = (e: MouseEvent) => {
-      if (popRef.current && !popRef.current.contains(e.target as Node)) {
-        setPopOpen(false);
-      }
+      const t = e.target as Node;
+      if (popRef.current && popRef.current.contains(t)) return;
+      if (wrapperRef.current && wrapperRef.current.contains(t)) return;
+      setPopOpen(false);
     };
     window.addEventListener("mousedown", onDoc);
-    return () => window.removeEventListener("mousedown", onDoc);
+    window.addEventListener("scroll", measure, true);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("mousedown", onDoc);
+      window.removeEventListener("scroll", measure, true);
+      window.removeEventListener("resize", measure);
+    };
   }, [popOpen]);
 
   const applySrc = (next: string) => {
@@ -215,8 +233,18 @@ export default function EditableImage({
     }
   };
 
+  /* v6.13.43 — Compute portal popover position. Anchored just below the
+     image; if it would overflow the right edge of the viewport we shift
+     it left so it stays fully on-screen. Width fixed to 22rem (352px). */
+  const POP_W = 352;
+  const popLeft = anchorRect
+    ? Math.max(8, Math.min(anchorRect.left, (typeof window !== "undefined" ? window.innerWidth : 1024) - POP_W - 8))
+    : 0;
+  const popTop = anchorRect ? anchorRect.bottom + 8 : 0;
+
   return (
     <span
+      ref={wrapperRef}
       className={`relative ${wrapperClassName} ${
         editing
           ? "rounded-lg outline outline-2 outline-offset-2 transition-[outline-color,box-shadow] " +
@@ -263,10 +291,11 @@ export default function EditableImage({
         draggable={false}
       />
 
-      {editing && popOpen && (
+      {editing && popOpen && anchorRect && typeof document !== "undefined" && createPortal(
         <div
           ref={popRef}
-          className="absolute left-0 top-full z-[85] mt-2 w-[22rem] max-w-[92vw] space-y-3 rounded-xl border border-white/15 bg-ink-900/95 p-3 text-xs text-white shadow-2xl backdrop-blur-xl"
+          style={{ position: "fixed", top: popTop, left: popLeft, width: POP_W, zIndex: 100000 }}
+          className="space-y-3 rounded-xl border border-white/15 bg-ink-900/98 p-3 text-xs text-white shadow-2xl backdrop-blur-xl"
         >
           <div className="text-[10px] uppercase tracking-widest text-white/45">
             Image · {id}
@@ -400,7 +429,8 @@ export default function EditableImage({
               Close
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </span>
   );
