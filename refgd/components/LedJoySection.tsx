@@ -1,7 +1,7 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
-import { useRef } from "react";
+import { motion, useReducedMotion, useInView } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * LedJoySection
@@ -22,6 +22,64 @@ import { useRef } from "react";
 export default function LedJoySection() {
   const ref = useRef<HTMLElement | null>(null);
   const reduce = useReducedMotion();
+  /* v6.13.36 — Restored a real "play when in view" trigger after the
+     v6.13.32 fire-on-mount approach broke the beat in the opposite
+     way: by the time visitors scrolled down to the LED section the
+     animation had already completed off-screen, so they saw static
+     letters with no animation — exactly the "AHH feel joy animation
+     is gone" report.
+
+     This implementation uses framer's `useInView` with a generous
+     `amount: 0.05` + `margin: "200px 0px 200px 0px"` so the trigger
+     fires WELL before the section is fully in view (avoiding the
+     iOS Safari coalesced-IO problem from v6.13.19). On top of that,
+     a polling fallback flips the trigger on once the section's
+     bounding rect crosses the viewport — covering the rare case
+     where the IntersectionObserver still doesn't fire (back/forward
+     restore, low-power mode, etc.). */
+  const inViewIO = useInView(ref, {
+    once: true,
+    amount: 0.05,
+    margin: "200px 0px 200px 0px",
+  });
+  const [played, setPlayed] = useState(false);
+  useEffect(() => {
+    if (inViewIO) {
+      setPlayed(true);
+      return;
+    }
+    if (reduce) {
+      setPlayed(true);
+      return;
+    }
+    let cancelled = false;
+    const poll = () => {
+      if (cancelled || played) return;
+      const el = ref.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight || 0;
+      // Fire if the section's top edge is within 200px below the
+      // viewport bottom, OR any part of it is above the viewport
+      // bottom and below the top.
+      if (r.top - 200 <= vh && r.bottom >= 0) {
+        setPlayed(true);
+      }
+    };
+    window.addEventListener("scroll", poll, { passive: true });
+    window.addEventListener("touchmove", poll, { passive: true });
+    window.addEventListener("resize", poll);
+    const id = window.setInterval(poll, 600);
+    poll();
+    return () => {
+      cancelled = true;
+      window.removeEventListener("scroll", poll);
+      window.removeEventListener("touchmove", poll);
+      window.removeEventListener("resize", poll);
+      window.clearInterval(id);
+    };
+  }, [inViewIO, played, reduce]);
+  const play = played;
   // v6.13.19 — REPLACED `useInView` + state-driven `animate={inView ? ... : undefined}`
   // with framer's `whileInView` API on each <motion.span> below.
   // Root cause of "ahh feel joy animation gone": the previous
@@ -56,40 +114,34 @@ export default function LedJoySection() {
          the beat triggers. */
       className="relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden py-12 sm:py-16"
     >
-      {/* v6.13.32 — Two user reports about the falling cash:
-          (a) "cash should fall right from the top of the letters
-              ahh feel joy not top of the page" — previously the
-              container was `absolute inset-0`, so bills entered
-              from -150% of their own height above the section's
-              top edge. The section is min-h-100svh and the AHH
-              text sits centred, so bills appeared to spawn near
-              the top of the viewport (well above the letters)
-              and then fall through the letters. Now the cash
-              container starts at top:32% (just above where the
-              centred AHH text begins), so bills enter from just
-              above the letters and fall past them downward.
-          (b) "Storelist should not have cash on desktop on get
-              rewarded page" — `md:hidden` removes the cash overlay
-              entirely on desktop. The LED text alone reads as the
-              cinematic beat there; the cash is a mobile-only
-              flourish. */}
+      {/* v6.13.36 — Cash redesign per user report: "cash animation
+          all cash should be in full shape and go further down never
+          cut off cash on first appearance".
+          Previous (v6.13.33) container had `overflow-hidden` AND
+          bills entered from `translateY(-150%)` so on the first frame
+          each bill's top half was sliced off by the container edge
+          — the user saw a half-bill emerging from a hard line.
+          Fixes:
+          • Removed `overflow-hidden` so a bill is never sliced.
+          • Container now extends WELL past the section bottom
+            (`-bottom-[60vh]`) so bills can keep falling and exit
+            cleanly off the bottom of the page instead of being
+            cropped at the section edge ("go further down").
+          • New keyframe: bills appear at FULL SHAPE (translateY 0%,
+            opacity 0) at the top of the container, fade in over the
+            first 12% of the cycle, ride down to translateY ~150%
+            and fade out. No more entering from above with a sliced
+            top half. */}
       <div
         aria-hidden="true"
-        /* v6.13.33 — Bumped top from 32% → 44%. With min-h-100svh
-           and items-center, the AHH text top edge sits at roughly
-           42–45% of the section height on a typical iPhone, so
-           top:32% was still ~12% above the letters and the user
-           still saw bills "above" the LED beat. 44% pins the cash
-           container's top edge at (or just above) the AHH text's
-           top edge so bills enter visually FROM the letters. */
-        className="pointer-events-none absolute inset-x-0 bottom-0 top-[44%] z-0 overflow-hidden md:hidden"
+        className="pointer-events-none absolute inset-x-0 -bottom-[60vh] top-[42%] z-0 md:hidden"
       >
         <style>{`
           @keyframes ledCashFall {
-            0%   { transform: translate3d(0, -150%, 0) rotate(var(--rot, -8deg)); opacity: 0; }
-            15%  { opacity: 0.9; }
-            55%  { transform: translate3d(calc(var(--sway, 8px)), 50%, 0) rotate(calc(var(--rot, -8deg) * -1)); opacity: 0.85; }
-            100% { transform: translate3d(calc(var(--sway, 8px) * -1), 150%, 0) rotate(var(--rot, -8deg)); opacity: 0; }
+            0%   { transform: translate3d(0, 0%, 0) rotate(var(--rot, -8deg)); opacity: 0; }
+            12%  { opacity: 0.95; }
+            55%  { transform: translate3d(calc(var(--sway, 8px)), 75%, 0) rotate(calc(var(--rot, -8deg) * -1)); opacity: 0.9; }
+            100% { transform: translate3d(calc(var(--sway, 8px) * -1), 170%, 0) rotate(var(--rot, -8deg)); opacity: 0; }
           }
         `}</style>
         {[
@@ -171,10 +223,14 @@ export default function LedJoySection() {
                  anything that has to fire to make the letters
                  appear. */
               initial={reduce ? { opacity: 1 } : { opacity: 0, x: 360, skewX: -28 }}
-              animate={{ opacity: 1, x: 0, skewX: 0 }}
+              animate={
+                reduce || play
+                  ? { opacity: 1, x: 0, skewX: 0 }
+                  : { opacity: 0, x: 360, skewX: -28 }
+              }
               transition={{
                 duration: 0.32,
-                delay: i * 0.07,
+                delay: play ? i * 0.07 : 0,
                 ease: [0.16, 1, 0.3, 1],
               }}
               className="inline-block"
@@ -207,12 +263,16 @@ export default function LedJoySection() {
               key={i}
               /* v6.13.32 — same gate-removal as AHHH letters above. */
               initial={reduce ? { opacity: 1 } : { opacity: 0, x: 220 }}
-              animate={{ opacity: 1, x: 0 }}
+              animate={
+                reduce || play
+                  ? { opacity: 1, x: 0 }
+                  : { opacity: 0, x: 220 }
+              }
               transition={{
                 duration: 0.28,
                 // Words start AFTER the AHHH letters finish. AHHH ends
                 // around 0.07*4 + 0.32 = 0.6s.
-                delay: 0.7 + i * 0.12,
+                delay: play ? 0.7 + i * 0.12 : 0,
                 ease: [0.16, 1, 0.3, 1],
               }}
               className="inline-block"
