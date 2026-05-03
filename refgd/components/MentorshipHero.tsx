@@ -132,14 +132,70 @@ export default function MentorshipHero({
                   "radial-gradient(ellipse 60% 50% at 50% 35%, rgba(124,58,237,0.45), transparent 65%), radial-gradient(ellipse 70% 50% at 50% 70%, rgba(34,211,238,0.22), transparent 70%)",
               }}
             />
-            {/* Star field via repeating radial gradients */}
+            {/* v6.13.52 — Animated star field. The user reported
+                "mentorship page stars should be animated"; previous
+                layer was a static set of radial-gradient dots that
+                read as flat noise. Now: TWO overlapping star layers
+                that twinkle (opacity pulse) and drift (subtle
+                translate + scale). Plus a NEW layer of bigger
+                "shooting" stars that periodically streak across.
+                All inline keyframes so we don't grow globals.css for
+                a single use-site. */}
+            <style>{`
+              @keyframes mhTwinkleA {
+                0%, 100% { opacity: 0.55; transform: translate3d(0, 0, 0) scale(1); }
+                50%      { opacity: 1;    transform: translate3d(-4px, -6px, 0) scale(1.05); }
+              }
+              @keyframes mhTwinkleB {
+                0%, 100% { opacity: 0.35; transform: translate3d(0, 0, 0) scale(1); }
+                50%      { opacity: 0.95; transform: translate3d(6px, 4px, 0) scale(1.08); }
+              }
+              @keyframes mhShoot {
+                0%   { transform: translate3d(-30%, 30%, 0); opacity: 0; }
+                10%  { opacity: 1; }
+                40%  { opacity: 1; }
+                100% { transform: translate3d(130%, -80%, 0); opacity: 0; }
+              }
+            `}</style>
             <div
-              className="absolute inset-0 opacity-70"
+              className="absolute inset-0"
               style={{
                 backgroundImage:
                   "radial-gradient(1.5px 1.5px at 18% 22%, white, transparent 60%), radial-gradient(1px 1px at 78% 14%, white, transparent 60%), radial-gradient(1.2px 1.2px at 32% 58%, white, transparent 60%), radial-gradient(1px 1px at 64% 76%, white, transparent 60%), radial-gradient(1.5px 1.5px at 88% 88%, white, transparent 60%), radial-gradient(1px 1px at 12% 80%, white, transparent 60%)",
+                animation: stable ? undefined : "mhTwinkleA 4.2s ease-in-out infinite",
+                willChange: "transform, opacity",
               }}
             />
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage:
+                  "radial-gradient(1px 1px at 8% 12%, white, transparent 60%), radial-gradient(1.4px 1.4px at 42% 28%, white, transparent 60%), radial-gradient(1px 1px at 68% 42%, white, transparent 60%), radial-gradient(1.2px 1.2px at 92% 60%, white, transparent 60%), radial-gradient(1px 1px at 24% 92%, white, transparent 60%), radial-gradient(1.5px 1.5px at 56% 8%, white, transparent 60%), radial-gradient(1px 1px at 82% 24%, white, transparent 60%), radial-gradient(1.2px 1.2px at 14% 50%, white, transparent 60%)",
+                animation: stable ? undefined : "mhTwinkleB 5.8s ease-in-out infinite 0.7s",
+                willChange: "transform, opacity",
+              }}
+            />
+            {/* Shooting-star streaks — subtle, mostly off, but every
+                so often a thin diagonal trail crosses the layer. */}
+            {!stable && [0, 6, 11, 17].map((delay, i) => (
+              <span
+                key={`shoot-${i}`}
+                aria-hidden
+                className="absolute"
+                style={{
+                  left: `${(i * 23) % 80}%`,
+                  top: `${(i * 17) % 70}%`,
+                  width: 110,
+                  height: 1.5,
+                  background:
+                    "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.85) 50%, transparent 100%)",
+                  filter: "drop-shadow(0 0 4px rgba(255,255,255,0.85))",
+                  transform: "rotate(-28deg)",
+                  animation: `mhShoot ${10 + i * 2}s ease-out ${delay}s infinite`,
+                  willChange: "transform, opacity",
+                }}
+              />
+            ))}
           </motion.div>
 
           {/* Layer 2 — orbital rings (now scroll-rotated and scaled) */}
