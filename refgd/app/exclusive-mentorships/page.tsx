@@ -1,3 +1,9 @@
+/* v6.13.50 — Opt this page out of static prerendering so admin
+   content edits saved to DB surface immediately to live visitors
+   (was being frozen at build time, which is the user-reported
+   "past edits live in edit state and not live"). */
+export const dynamic = "force-dynamic";
+
 import { Reveal } from "@/components/Reveal";
 import ChapterPill from "@/components/ChapterPill";
 import MentorshipHero from "@/components/MentorshipHero";
