@@ -323,9 +323,16 @@
    and pair this keyframe with 8 px of padding inside the prism
    face wrapper (PathsHorizontalReveal.tsx) so the 2 % grow has
    real headroom to expand into without ever touching the face edge. */
+/* v6.13.9 — bumped amplitude from 1.02 → 1.04 (and added a small
+   filter-brightness pulse) so the breathing reads as a clearly
+   "floating/alive" motion rather than the previous near-invisible
+   2 % pulse the user called barely noticeable. The matching prism
+   face wrapper now provides 12 px of padding (≈ 8.6 px grow each
+   side at peak), so the larger amplitude still cannot reach the
+   face edge — nothing breaks. */
 @keyframes floatBreathe {
-  0%, 100% { transform: scale(1);    }
-  50%      { transform: scale(1.02); }
+  0%, 100% { transform: scale(1);    filter: brightness(1)    drop-shadow(0 6px 14px rgba(0,0,0,0.45)); }
+  50%      { transform: scale(1.04); filter: brightness(1.07) drop-shadow(0 18px 30px rgba(0,0,0,0.6));  }
 }
 @keyframes pulseGlow {
   0%, 100% { opacity: 0.55; transform: scale(1);    }
