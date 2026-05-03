@@ -2,6 +2,7 @@
 import { ReactNode } from "react";
 import { useEditContext } from "@/lib/edit-context";
 import MagneticButton from "@/components/MagneticButton";
+import EditorIsland from "@/components/EditorIsland";
 
 /**
  * EditableLinkButton — a MagneticButton whose `href` is admin-editable.
@@ -12,21 +13,23 @@ import MagneticButton from "@/components/MagneticButton";
  * the standard EditContext setValue pipeline (Save / Discard / Undo
  * all just work, same as EditableText).
  */
-export default function EditableLinkButton({
-  id,
-  defaultUrl,
-  variant = "primary",
-  external = true,
-  className = "",
-  children,
-}: {
+type EditableLinkButtonProps = {
   id: string;
   defaultUrl: string;
   variant?: "primary" | "ghost" | "outline";
   external?: boolean;
   className?: string;
   children: ReactNode;
-}) {
+};
+
+function EditableLinkButtonInner({
+  id,
+  defaultUrl,
+  variant = "primary",
+  external = true,
+  className = "",
+  children,
+}: EditableLinkButtonProps) {
   const ctx = useEditContext();
   const url = ctx.getValue(id, defaultUrl);
   const adminEditing = ctx.isAdmin && ctx.editMode;
@@ -60,5 +63,13 @@ export default function EditableLinkButton({
         {children}
       </MagneticButton>
     </div>
+  );
+}
+
+export default function EditableLinkButton(props: EditableLinkButtonProps) {
+  return (
+    <EditorIsland id={props.id}>
+      <EditableLinkButtonInner {...props} />
+    </EditorIsland>
   );
 }
