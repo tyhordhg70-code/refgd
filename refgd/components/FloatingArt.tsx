@@ -135,15 +135,22 @@ export default function FloatingArt({
                its bob keyframe + scroll parallax untouched. Saved
                scale is applied on the img via a CSS scale() composed
                with framer's animate so admin scale + bob coexist. */
-            <div
-              style={{
-                transform: savedMove.transform,
+            style={{
+                /* v6.13.65 — stack scale + translate into a single transform
+                   string. The previous approach used a CSS variable
+                   [&>img]:scale-[var(--rg-saved-scale)] which Tailwind expanded
+                   into its compound-transform shorthand (--tw-translate-x etc.)
+                   that CLOBBERED framer-motion's transform on the inner img,
+                   making admin-set scale never apply in public view. Stacking
+                   scale onto the wrapper's own transform avoids Tailwind's
+                   transform shorthand entirely and composes cleanly with
+                   framer's bob/scroll-y on the img inside. */
+                transform: [savedMove.transform, savedScale !== 1 ? `scale(${savedScale})` : null]
+                  .filter(Boolean)
+                  .join(" ") || undefined,
+                transformOrigin: "center",
                 marginBottom: savedMb !== 0 ? `${savedMb}px` : undefined,
-                ...(savedScale !== 1
-                  ? { ["--rg-saved-scale" as string]: String(savedScale) }
-                  : {}),
               }}
-              className={savedScale !== 1 ? "[&>img]:scale-[var(--rg-saved-scale)] [&>img]:origin-center" : undefined}
             >
             <motion.img
               src={src}
