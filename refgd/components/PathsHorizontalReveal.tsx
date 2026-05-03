@@ -9,7 +9,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
@@ -304,42 +304,38 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
   const N = cards.length;
   const reduced = useReducedMotion();
 
-  // ── v6.12: card-flip stage ────────────────────────────────────
-  // Earlier v6.11.x renderings stacked all 5 cards in a real 3D
-  // pentagonal prism. On iOS Safari this produced (a) bleed-through
-  // from back faces, (b) side-face peek past the active card, and
-  // (c) compositor flicker from 5 simultaneously 3D-transformed
-  // SVG subtrees. A visibility gate masked it at rest but the
-  // transition itself still showed all 5 cards rotating, which
-  // rendered as a flickery mess on the user's iPhone.
+  // ── v6.13: TRUE 3D pentagonal prism rotation ─────────────────
+  // The user wants the 3D-cube feel back. We build a real
+  // N-sided prism (N=5) and rotate it as a single rigid body
+  // around the Y axis. Each card is a face at angle i·θ where
+  // θ = 360°/N = 72°, pushed out by inradius r = W/(2·tan(π/N))
+  // ≈ 0.688·W so adjacent faces meet edge-to-edge. The prism
+  // container is then rotated by -active·θ to bring the active
+  // face to the front, and pulled back by translateZ(-r) so the
+  // active face lands at z=0 (its natural unscaled size).
   //
-  // This rewrite draws ONLY the active card at rest, and exactly
-  // TWO cards (outgoing + incoming) for ~480 ms during a swipe.
-  // Each card flips around the Y axis like a real playing card:
-  //   outgoing: rotateY(0)        →  rotateY(-direction · 90°)
-  //   incoming: rotateY(direction · 90°) → rotateY(0)
-  // No back faces ever exist, no side cards poke out, and iOS
-  // never has more than 2 transformed SVGs alive at once.
-  //
-  // Direction is +1 when advancing (swipe-left / next), -1 when
-  // going back (swipe-right / previous). Tapping a non-adjacent
-  // pagination dot picks direction by sign of (target − current).
+  // What used to break this earlier (v6.11.x):
+  //   1. iOS Safari hid SVG content under 3D-rotated parents
+  //      because of a framer-motion `transform` attribute
+  //      conflict on the inner <motion.g> elements. That was
+  //      the real bug — fixed in PathIllustration.tsx by wrapping
+  //      every `<motion.g transform="translate(...)" animate={...}>`
+  //      in a static <g transform>. With the fix, the prism can
+  //      rotate freely and child SVGs stay visible.
+  //   2. Side-face bleed-through. Solved by a solid card
+  //      background + backface-visibility hidden on each face.
 
   const [active, setActive] = useState(0);
-  const [direction, setDirection] = useState<1 | -1>(1);
   const goTo = (next: number) => {
     if (next === active || next < 0 || next >= N) return;
-    setDirection(next > active ? 1 : -1);
     setActive(next);
   };
+
   // ── Pointer-event swipe handler with vertical-scroll release ──
-  // The gesture is treated as horizontal (= card flip) by default
-  // and only released to the document's vertical scroll when the
-  // user has moved ≥ 10 px vertically AND |dy| > 1.7·|dx|.
-  // We commit the flip on pointerup based on horizontal distance
-  // (≥ 60 px or ≥ 25 % of stage width). No mid-gesture follow:
-  // the card stays put while the finger drags and only animates
-  // on release. This avoids any "ghost trailing card" rendering.
+  // Horizontal by default; release to vertical scroll if the user
+  // has moved ≥ 10 px vertically AND |dy| > 1.7·|dx|. Commit the
+  // rotation on pointerup based on horizontal distance (≥ 60 px
+  // or ≥ 25 % of stage width). No mid-gesture follow.
   const stageRef = useRef<HTMLDivElement>(null);
   const startX = useRef<number | null>(null);
   const startY = useRef(0);
@@ -394,7 +390,11 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
     activePointerId.current = null;
   };
 
-  // ── Per-card render helper (apply mobile-specific props) ───────
+  // ── Per-card render helper. Only the active face animates —
+  // back faces are mounted but their inner illustration timers
+  // are paused (animated:false) so we don't run 5×N infinite
+  // animations at once. noReveal disables the desktop entrance
+  // animation per card; the whole prism gets ONE entrance below.
   const renderCard = (card: ReactNode, i: number) => {
     if (!isValidElement(card)) return card;
     return cloneElement(
@@ -403,16 +403,27 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
     );
   };
 
-  // Flip animation parameters. AnimatePresence with mode="wait"
-  // ensures the outgoing card finishes before the incoming card
-  // starts — there is NEVER a moment where two SVG illustrations
-  // are visible side-by-side. The flip itself is one continuous
-  // 3D rotation: the new card enters from rotateY(direction · 90°)
-  // and lands at 0°. The outgoing card simultaneously fades and
-  // rotates to -direction · 90°. Because mode="wait" sequences
-  // them, the iOS compositor only ever has 1 transformed SVG
-  // alive at any instant.
-  const flipDuration = reduced ? 0 : 0.45;
+  // Pentagonal prism geometry. theta in radians for the inradius
+  // formula; degrees for CSS rotateY().
+  const theta = 360 / N;                       // 72°
+  const inradiusFactor = 1 / (2 * Math.tan(Math.PI / N)); // ≈ 0.688
+
+  // The prism rotates by -active·theta to face the active card.
+  const prismRotation = -active * theta;
+
+  // We need the live face width to compute translateZ(r). We
+  // measure the stage on mount + resize via a layout effect.
+  const [faceWidth, setFaceWidth] = useState(320);
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const measure = () => setFaceWidth(el.offsetWidth || 320);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const r = faceWidth * inradiusFactor;
 
   return (
     <motion.div
@@ -420,8 +431,8 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
       className="mx-auto"
       style={{
         width: "min(92vw, 440px)",
-        // 1:1.42 keeps the same aspect the old cube used so the
-        // surrounding page layout doesn't shift.
+        // 1:1.42 keeps the cube/prism aspect identical to the
+        // previous version so surrounding layout doesn't shift.
         aspectRatio: "1 / 1.42",
         perspective: "1400px",
       }}
@@ -436,48 +447,51 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
         style={{
           transformStyle: "preserve-3d",
           touchAction: "pan-y",
-          // Solid dark backstop so even mid-flip there is never a
-          // window through to the page background or to a stale
-          // previous card frame.
-          background: "rgb(8,8,16)",
-          borderRadius: 18,
-          overflow: "hidden",
+          // The prism container itself is invisible; each face
+          // carries its own solid background.
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={finishGesture}
         onPointerCancel={finishGesture}
       >
-        <AnimatePresence mode="wait" initial={false} custom={direction}>
-          <motion.div
-            key={active}
-            data-testid={`paths-mobile-slide-${active + 1}`}
-            className="absolute inset-0"
-            custom={direction}
-            initial={
-              reduced
-                ? { opacity: 1 }
-                : { rotateY: direction * 90, opacity: 0 }
-            }
-            animate={{ rotateY: 0, opacity: 1 }}
-            exit={
-              reduced
-                ? { opacity: 0 }
-                : { rotateY: -direction * 90, opacity: 0 }
-            }
-            transition={{ duration: flipDuration, ease: [0.22, 1, 0.36, 1] }}
-            style={{
-              transformOrigin: "center center",
-              backfaceVisibility: "hidden",
-              WebkitBackfaceVisibility: "hidden",
-              background: "rgb(8,8,16)",
-              borderRadius: 18,
-              overflow: "hidden",
-            }}
-          >
-            {renderCard(cards[active], active)}
-          </motion.div>
-        </AnimatePresence>
+        {/* Inner prism wrapper — this is the rotating rigid body. */}
+        <div
+          className="absolute inset-0"
+          style={{
+            transformStyle: "preserve-3d",
+            // Pull the prism backward by r so the active face sits
+            // exactly at z=0 (no perspective scaling on the front).
+            transform: `translateZ(${-r}px) rotateY(${prismRotation}deg)`,
+            transition: reduced
+              ? "none"
+              : "transform 600ms cubic-bezier(0.22, 1, 0.36, 1)",
+            willChange: "transform",
+          }}
+        >
+          {cards.map((card, i) => (
+            <div
+              key={i}
+              data-testid={`paths-mobile-slide-${i + 1}`}
+              className="absolute inset-0"
+              style={{
+                transform: `rotateY(${i * theta}deg) translateZ(${r}px)`,
+                transformOrigin: "center center",
+                backfaceVisibility: "hidden",
+                WebkitBackfaceVisibility: "hidden",
+                // Solid backstop so back faces never show through.
+                background: "rgb(8,8,16)",
+                borderRadius: 18,
+                overflow: "hidden",
+                // Only the active face accepts pointer/touch — the
+                // others are visually hidden behind the prism.
+                pointerEvents: i === active ? "auto" : "none",
+              }}
+            >
+              {renderCard(card, i)}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Pagination dots — clickable */}
