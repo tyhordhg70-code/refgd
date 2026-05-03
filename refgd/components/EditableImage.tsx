@@ -114,14 +114,46 @@ function EditableImageInner({
     setPopOpen(false);
   };
 
-  const onFile = (file: File) => {
-    if (file.size > 4 * 1024 * 1024) {
-      alert("Image must be under 4 MB.");
+  /* v6.13.58 — File uploads now POST to /api/admin/upload and store
+     the returned `/uploads/<hash>.<ext>` URL, instead of reading the
+     file as a base64 data URL.
+
+     Why this matters: the previous FileReader path stored a ~5.3 MB
+     text blob (for a 4 MB image) inside the content_blocks row. When
+     the admin then clicked Publish, that blob was packed into the
+     PUT /api/admin/content JSON body together with every other
+     pending edit. Render / Next.js silently rejects bodies past
+     ~4 MB, so the entire batch failed — and because the toolbar
+     reports a single boolean from flush(), every queued edit
+     (the new image src AND the scale/animation/margin tweaks the
+     user made in the same popover) appeared to "revert" the moment
+     they exited edit mode and refreshed. Routing through the
+     dedicated upload endpoint keeps the PUT body tiny and lets
+     all pending edits actually persist. */
+  const onFile = async (file: File) => {
+    if (file.size > 8 * 1024 * 1024) {
+      alert("Image must be under 8 MB.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => applySrc(String(reader.result || ""));
-    reader.readAsDataURL(file);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/admin/upload", {
+        method: "POST",
+        credentials: "same-origin",
+        body: fd,
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert(`Upload failed: ${(j as { error?: string }).error ?? res.status}`);
+        return;
+      }
+      const { url } = (await res.json()) as { url: string };
+      applySrc(url);
+    } catch (err) {
+      console.error("[editable-image] upload failed", err);
+      alert("Upload failed. Check the console for details.");
+    }
   };
 
   /* v6.13.41 — Scale is now applied to the IMG element, NOT to the
