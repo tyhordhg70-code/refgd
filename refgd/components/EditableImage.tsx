@@ -26,7 +26,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, DragEvent as ReactDragEvent } from "react";
 import { useEditContext } from "@/lib/edit-context";
 import { useEditableImageGroup } from "./EditableImageGroup";
 import { ANIMATION_TEMPLATES } from "@/lib/image-presets";
@@ -104,8 +104,95 @@ export default function EditableImage({
     ...(group ? { order: group.indexOf(id) } : {}),
   };
 
+  /* v6.13.35 — Drag-and-drop affordances. Two distinct behaviours
+     are wired into the SAME wrapper element:
+
+     (1) Internal sibling reorder (only when this image lives inside
+         an <EditableImageGroup>). The wrapper becomes draggable in
+         admin/edit mode; onDragStart/Over/Drop talk to the group
+         context which mutates the persisted order array.
+
+     (2) External file drop. Admins can drag an image file straight
+         off their desktop onto ANY EditableImage to set that
+         image's source — no need to open the popover and click
+         "Upload file…". This works on every EditableImage, group
+         or no group.
+
+     Both share the same onDrop handler; we discriminate by checking
+     `e.dataTransfer.types` — "Files" wins (user is dropping a real
+     file from the OS), otherwise it's an internal sibling drag.
+     `isDragOver` drives a visible amber ring so the admin gets
+     unambiguous feedback about where the drop will land. */
+  const [isDragOver, setIsDragOver] = useState(false);
+  const draggable = editing && Boolean(group);
+  const showOverRing = isDragOver || (group?.overId === id);
+
+  const onWrapperDragStart = (e: ReactDragEvent) => {
+    if (!draggable || !group) return;
+    group.startDrag(id);
+    // Required by Firefox to actually start a drag.
+    e.dataTransfer.setData("text/plain", id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+  const onWrapperDragEnd = () => {
+    if (group) group.endDrag();
+    setIsDragOver(false);
+  };
+  const onWrapperDragOver = (e: ReactDragEvent) => {
+    if (!editing) return;
+    const types = Array.from(e.dataTransfer.types);
+    const isFile = types.includes("Files");
+    const isReorder = group && group.dragId && group.dragId !== id;
+    if (!isFile && !isReorder) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = isFile ? "copy" : "move";
+    if (isReorder && group) group.hoverDrag(id);
+    setIsDragOver(true);
+  };
+  const onWrapperDragLeave = () => setIsDragOver(false);
+  const onWrapperDrop = (e: ReactDragEvent) => {
+    if (!editing) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("image/")) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOver(false);
+      onFile(file);
+      return;
+    }
+    if (group && group.dragId && group.dragId !== id) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOver(false);
+      group.dropOn(id);
+    }
+  };
+
   return (
-    <span className={`relative ${wrapperClassName}`} style={compoundStyle}>
+    <span
+      className={`relative ${wrapperClassName} ${
+        editing
+          ? "rounded-lg outline outline-2 outline-offset-2 transition-[outline-color,box-shadow] " +
+            (showOverRing
+              ? "outline-amber-300 [box-shadow:0_0_0_4px_rgba(245,185,69,0.18)]"
+              : "outline-transparent")
+          : ""
+      }`}
+      style={compoundStyle}
+      draggable={draggable}
+      onDragStart={onWrapperDragStart}
+      onDragEnd={onWrapperDragEnd}
+      onDragOver={onWrapperDragOver}
+      onDragLeave={onWrapperDragLeave}
+      onDrop={onWrapperDrop}
+      title={
+        editing
+          ? group
+            ? "Click to edit • Drag to reorder • Drop an image file to replace"
+            : "Click to edit • Drop an image file to replace"
+          : undefined
+      }
+    >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src || defaultSrc}
