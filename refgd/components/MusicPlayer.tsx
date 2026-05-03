@@ -338,27 +338,13 @@ export default function MusicPlayer() {
           announcement banner / nav. Bright amber glow + pulsing ring so
           it is always findable against the dark cosmos. */}
       <div className="fixed bottom-5 right-5 z-[60] sm:bottom-6 sm:right-6">
-        {/* v6.10.5 — soft halo behind the button. The amber circle
-            itself has a hard solid edge against the dark cosmos no
-            matter how diffuse its boxShadow is, because the BUTTON
-            IS the lit shape. Painting a separate, larger, heavily-
-            blurred amber disc BEHIND the button gives the eye a
-            true gradient falloff into the background — the visible
-            edge of the lit area is now the blurred halo, not the
-            crisp button rim. */}
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-          style={{
-            width: 96,
-            height: 96,
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(245,185,69,0.55) 0%, rgba(245,185,69,0.18) 45%, rgba(245,185,69,0) 75%)",
-            filter: "blur(14px)",
-            zIndex: -1,
-          }}
-        />
+        {/* v6.13.1: removed the amber halo disc entirely. The
+            previous wide blurred radial gradient still read as a
+            "hard glow" against the dark cosmos because its 55%
+            centre alpha + 14 px blur still left a clearly visible
+            amber wash 50 px out from the button. The button itself
+            now stands alone with no halo — the gradient amber fill
+            is enough visual weight without any surrounding glow. */}
         <button
           type="button"
           onClick={() => setMuted((m) => !m)}
@@ -369,20 +355,9 @@ export default function MusicPlayer() {
           className="group relative grid h-12 w-12 place-items-center rounded-full text-ink-950 transition active:scale-95"
           style={{
             background: "linear-gradient(135deg, #ffe28a, #f5b945 55%, #d99520)",
-            // No boxShadow on the button itself — the blurred halo
-            // sibling above provides ALL the glow falloff. Earlier
-            // versions tried to stack multiple boxShadow halos but
-            // boxShadow is masked by the button's circular border-
-            // radius so the visible amber disc still had a crisp
-            // rim, which the user reported as "hard edge glow".
             boxShadow: "none",
           }}
         >
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 rounded-full"
-            style={{ animation: "pulseGlow 2.4s ease-in-out infinite" }}
-          />
           {muted ? (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="relative">
               <path d="M11 5 6 9H2v6h4l5 4V5z" />
