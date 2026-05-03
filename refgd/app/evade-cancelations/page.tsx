@@ -244,22 +244,19 @@ export default function EvadePage() {
               titleDefault="Evade like a PRO."
               accent="cyan"
             />
-            {/* Floating lock illustration relocated INSIDE this section
-                per request — sits between the title and the intro cards,
-                bobbing gently with parallax depth. */}
-            <div className="mt-10 mb-2 flex justify-center">
-              <FloatingArt
-                editId="evade.art.vault"
-                src="/uploads/evade-vault.webp"
-                alt="Stealth-vault — the gateway to your anonymous setup."
-                size={300}
-                bobAmplitude={10}
-                /* v6.13.19 — spin override removed; FloatingArt now
-                   defaults to spin=0 (no rotate) to kill the
-                   "distorted illustration" report on this page. */
-              />
-            </div>
-            <div className="mt-6 grid gap-6 md:grid-cols-2">
+            {/* v6.13.35 — Floating lock now lives INSIDE the chapter's
+                box-cards row on desktop (lg+) per user request: "on
+                desktop add the floating lock inside evade like a pro
+                box". The lock becomes the middle column of a
+                1fr / 240px / 1fr grid, visually wedged BETWEEN the
+                two intro cards as if the cards form one extended
+                "box" and the lock sits inside it.
+                On md (tablet) the cards stay side-by-side (2 cols)
+                with the lock spanning both columns above them.
+                On mobile (<md) everything stacks vertically with
+                the lock first. `items-center` keeps the lock
+                vertically centered against the two cards on lg. */}
+            <div className="mt-6 grid items-center gap-6 md:grid-cols-2 lg:grid-cols-[1fr_240px_1fr]">
               <GlassCard tint="cyan" index={1} className="pulse-glow-cyan">
                 <div className="relative p-8">
                   <EditableText
@@ -271,6 +268,19 @@ export default function EvadePage() {
                   />
                 </div>
               </GlassCard>
+              {/* On <md the lock is rendered first (stacked above the
+                  cards). On md it spans both columns and shows
+                  ABOVE the row. On lg it slots in as the middle
+                  grid column between the two cards. */}
+              <div className="order-first flex justify-center md:col-span-2 lg:order-none lg:col-span-1">
+                <FloatingArt
+                  editId="evade.art.vault"
+                  src="/uploads/evade-vault.webp"
+                  alt="Stealth-vault — the gateway to your anonymous setup."
+                  size={260}
+                  bobAmplitude={10}
+                />
+              </div>
               <GlassCard tint="violet" delay={0.1} index={4}>
                 <div className="relative p-8">
                   <EditableText
