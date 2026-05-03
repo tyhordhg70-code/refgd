@@ -546,78 +546,88 @@ html { scroll-behavior: smooth; }
    capped at 0.18 so the cards still breathe in their accent colour
    but no longer have a discernible outline edge. The wider 60px
    secondary halo carries the colour energy now. */
+/* v6.13.36 — Tightened ALL pulse-glow halos. User report:
+   "storelist has all hard glow boxcards now also for some reason".
+   Storelist box cards (rules / payment / region / etc.) carry
+   `pulse-glow*` classes that animate an INFINITE coloured halo
+   on the surface itself. The previous keyframes pushed a wide
+   `0 0 60px 10px rgba(...)` secondary halo at peak — the same
+   body-level `overflow-x: clip` (set in globals.css ~line 43)
+   that we identified for the hover halo (v6.13.35) was clipping
+   THIS halo too on cards anchored near the viewport edges,
+   leaving a visible vertical line of colour pulsing at the
+   right side of the page on every cycle.
+   Fix: dropped the wide secondary halo entirely on every
+   pulse-glow variant; trimmed the primary 100px shadow to 60px
+   with a deeper negative spread so it stays compact and never
+   crosses a viewport edge. Cards still breathe in their accent
+   colour, just no longer paint a colour bar at the page edge. */
 .pulse-glow {
   animation: pulseGlowShadow 4.5s ease-in-out infinite;
 }
 @keyframes pulseGlowShadow {
   0%, 100% {
     box-shadow: 0 0 0 1px rgba(255,225,140,0.06),
-                0 30px 80px -30px rgba(245,185,69,0.16);
+                0 24px 60px -32px rgba(245,185,69,0.14);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(255,225,140,0.18),
-                0 30px 100px -25px rgba(245,185,69,0.42),
-                0 0 60px 10px rgba(167,139,250,0.16);
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.16),
+                0 26px 70px -28px rgba(245,185,69,0.32);
   }
 }
 .pulse-glow-violet { animation: pulseGlowViolet 5s ease-in-out infinite; }
 @keyframes pulseGlowViolet {
   0%, 100% {
     box-shadow: 0 0 0 1px rgba(167,139,250,0.06),
-                0 30px 80px -30px rgba(167,139,250,0.16);
+                0 24px 60px -32px rgba(167,139,250,0.14);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(167,139,250,0.18),
-                0 30px 100px -25px rgba(167,139,250,0.42),
-                0 0 60px 10px rgba(34,211,238,0.16);
+    box-shadow: 0 0 0 1px rgba(167,139,250,0.16),
+                0 26px 70px -28px rgba(167,139,250,0.32);
   }
 }
 .pulse-glow-cyan { animation: pulseGlowCyan 5s ease-in-out infinite; }
 @keyframes pulseGlowCyan {
   0%, 100% {
     box-shadow: 0 0 0 1px rgba(34,211,238,0.06),
-                0 30px 80px -30px rgba(34,211,238,0.16);
+                0 24px 60px -32px rgba(34,211,238,0.14);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(34,211,238,0.18),
-                0 30px 100px -25px rgba(34,211,238,0.40),
-                0 0 60px 10px rgba(167,139,250,0.16);
+    box-shadow: 0 0 0 1px rgba(34,211,238,0.16),
+                0 26px 70px -28px rgba(34,211,238,0.32);
   }
 }
 .pulse-glow-gold { animation: pulseGlowGold 4.6s ease-in-out infinite; }
 @keyframes pulseGlowGold {
   0%, 100% {
     box-shadow: 0 0 0 1px rgba(255,225,140,0.06),
-                0 30px 80px -30px rgba(245,185,69,0.16);
+                0 24px 60px -32px rgba(245,185,69,0.14);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(255,225,140,0.18),
-                0 30px 100px -25px rgba(245,185,69,0.42),
-                0 0 60px 10px rgba(255,237,180,0.18);
+    box-shadow: 0 0 0 1px rgba(255,225,140,0.16),
+                0 26px 70px -28px rgba(245,185,69,0.32);
   }
 }
 .pulse-glow-orange { animation: pulseGlowOrange 5.2s ease-in-out infinite; }
 @keyframes pulseGlowOrange {
   0%, 100% {
     box-shadow: 0 0 0 1px rgba(249,115,22,0.06),
-                0 30px 80px -30px rgba(249,115,22,0.16);
+                0 24px 60px -32px rgba(249,115,22,0.14);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(249,115,22,0.18),
-                0 30px 100px -25px rgba(249,115,22,0.42),
-                0 0 60px 10px rgba(253,186,116,0.18);
+    box-shadow: 0 0 0 1px rgba(249,115,22,0.16),
+                0 26px 70px -28px rgba(249,115,22,0.32);
   }
 }
 .pulse-glow-fuchsia { animation: pulseGlowFuchsia 4.8s ease-in-out infinite; }
 @keyframes pulseGlowFuchsia {
   0%, 100% {
     box-shadow: 0 0 0 1px rgba(236,72,153,0.06),
-                0 30px 80px -30px rgba(236,72,153,0.16);
+                0 24px 60px -32px rgba(236,72,153,0.14);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(236,72,153,0.20),
-                0 30px 100px -25px rgba(236,72,153,0.42),
-                0 0 60px 10px rgba(244,114,182,0.18);
+    box-shadow: 0 0 0 1px rgba(236,72,153,0.16),
+                0 26px 70px -28px rgba(236,72,153,0.32);
   }
 }
 
