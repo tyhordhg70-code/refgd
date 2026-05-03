@@ -1903,3 +1903,54 @@ html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
   .pricing-img-bob { animation: none; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+ * v6.13.14 — ANIMATION TEMPLATES
+ * ─────────────────────────────────────────────────────────────────────
+ * Templates exposed in the EditableImage admin popover (see
+ * components/EditableImage.tsx + lib/image-presets.ts).
+ *
+ * Each is a GPU-only infinite loop applied to the <img> via className.
+ * Pure transform/opacity/filter so they compose on the GPU thread,
+ * never trigger layout, and never fight Lenis smooth-scroll.
+ *
+ * Durations are deliberately co-prime so when an admin applies the
+ * same template to several images side-by-side they fall out of
+ * sync over time and don't read as one synchronised marching beat.
+ * ──────────────────────────────────────────────────────────────────── */
+
+@keyframes atpl-float       { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes atpl-pulse       { 0%, 100% { transform: scale(1); }     50% { transform: scale(1.05); } }
+@keyframes atpl-tilt        { 0%, 100% { transform: perspective(800px) rotateY(-8deg); } 50% { transform: perspective(800px) rotateY(8deg); } }
+@keyframes atpl-shimmer {
+  0%, 100% { filter: brightness(1)    drop-shadow(0 12px 18px rgba(0,0,0,0.45)); }
+  50%      { filter: brightness(1.12) drop-shadow(0 16px 24px rgba(0,0,0,0.5)) drop-shadow(0 0 18px rgba(255,237,180,0.55)); }
+}
+@keyframes atpl-3d-bob {
+  0%   { transform: perspective(900px) rotateY(-6deg) rotateX( 2deg) translate3d(-4px,-3px,12px); }
+  50%  { transform: perspective(900px) rotateY( 6deg) rotateX(-2deg) translate3d( 4px, 4px, 0px); }
+  100% { transform: perspective(900px) rotateY(-6deg) rotateX( 2deg) translate3d(-4px,-3px,12px); }
+}
+@keyframes atpl-spin-slow   { to { transform: rotate(360deg); } }
+@keyframes atpl-glow-cycle {
+  0%, 100% { filter: drop-shadow(0 0 12px rgba(245,185,69,0.55))  drop-shadow(0 0  0 transparent); }
+  33%      { filter: drop-shadow(0 0 14px rgba(167,139,250,0.55)) drop-shadow(0 0  6px rgba(167,139,250,0.40)); }
+  66%      { filter: drop-shadow(0 0 14px rgba( 34,211,238,0.55)) drop-shadow(0 0  6px rgba( 34,211,238,0.40)); }
+}
+@keyframes atpl-zoom-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+
+.atpl-float        { animation: atpl-float        4.5s ease-in-out infinite; will-change: transform; }
+.atpl-pulse        { animation: atpl-pulse        3.6s ease-in-out infinite; will-change: transform; }
+.atpl-tilt         { animation: atpl-tilt         6.0s ease-in-out infinite; will-change: transform; }
+.atpl-shimmer      { animation: atpl-shimmer      5.0s ease-in-out infinite; will-change: filter;    }
+.atpl-3d-bob       { animation: atpl-3d-bob       7.0s ease-in-out infinite; will-change: transform; }
+.atpl-spin-slow    { animation: atpl-spin-slow   30.0s linear      infinite; will-change: transform; }
+.atpl-glow-cycle   { animation: atpl-glow-cycle   9.0s ease-in-out infinite; will-change: filter;    }
+.atpl-zoom-breathe { animation: atpl-zoom-breathe 5.5s ease-in-out infinite; will-change: transform; }
+
+@media (prefers-reduced-motion: reduce) {
+  .atpl-float, .atpl-pulse, .atpl-tilt, .atpl-shimmer,
+  .atpl-3d-bob, .atpl-spin-slow, .atpl-glow-cycle, .atpl-zoom-breathe {
+    animation: none !important;
+  }
+}
