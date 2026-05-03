@@ -264,7 +264,122 @@
     },
   ];
 
-  /* ---------- UI ---------- */
+  
+  /* ---------- Gift Cards (spawngc.gg-mirrored filters) ---------- */
+
+  /* v6.13.70 — Real filter metadata extracted directly from spawngc.gg's
+     Next.js RSC stream. Categories, Availability flags, and US states
+     match exactly what spawngc shows on /products. The actual product
+     list is behind login on spawngc, so the cards array is empty until
+     credentials are supplied (then a follow-up scrape pass will populate
+     buy4u.giftcards.items[] in DB). All filter labels are EditableText
+     so admin can rename them. Filter UI is fully functional client-side. */
+  const SPAWNGC_CATEGORIES = ["Food And Restaurants", "Gas Stations", "Retail", "Groceries", "Entertainment"];
+  const SPAWNGC_AVAILABILITY = ["In Stock", "Best Selling", "Instant Delivery", "PIN", "PDF", "Pass2U", "Online", "In-Store"];
+  const SPAWNGC_STATES = ["AL","AK","AS","AZ","AR","CA","CO","CT","DE","DC","FM","FL","GA","GU","HI","ID","IL","IN","IA","KS","KY","LA","ME","MH","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","MP","OH","OK","OR","PW","PA","PR","RI","SC","SD","TN","TX","UT","VT","VI","VA","WA","WV","WI","WY"];
+
+  type GiftCard = { key: string; name: string; brand: string; category: string; state?: string; availability: string[]; image?: string; price?: string };
+
+  /* Empty until spawngc credentials supplied. Admin can also add cards
+     manually via the inline editor by editing buy4u.giftcards.* keys. */
+  const SPAWNGC_CARDS: GiftCard[] = [];
+
+  function GiftCardsSection() {
+    const [cat, setCat] = useState<string>("");
+    const [state, setState] = useState<string>("");
+    const [avail, setAvail] = useState<string>("");
+    const [q, setQ] = useState("");
+
+    const filtered = useMemo(() => {
+      return SPAWNGC_CARDS.filter((c) => {
+        if (cat && c.category !== cat) return false;
+        if (state && c.state !== state) return false;
+        if (avail && !c.availability.includes(avail)) return false;
+        if (q && !c.name.toLowerCase().includes(q.toLowerCase()) && !c.brand.toLowerCase().includes(q.toLowerCase())) return false;
+        return true;
+      });
+    }, [cat, state, avail, q]);
+
+    return (
+      <section
+        id="buy4u-giftcards"
+        className="scroll-mt-24 rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8"
+      >
+        <div className="mb-4 flex items-center gap-3">
+          <span className="text-3xl" aria-hidden="true">🎁</span>
+          <h2 className="heading-display text-2xl font-bold uppercase tracking-tight text-white">
+            <EditableText id="buy4u.giftcards.label" defaultValue="Gift Cards" />
+          </h2>
+        </div>
+
+        <EditableText
+          id="buy4u.giftcards.intro"
+          defaultValue="Gift card catalog mirrored from spawngc.gg. Filter by category, US state, and availability — full inventory population is in progress (spawngc requires login, see admin notes)."
+          as="p"
+          multiline
+          className="text-base leading-relaxed text-white/85"
+        />
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Category</span>
+            <select value={cat} onChange={(e) => setCat(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60">
+              <option value="">All categories</option>
+              {SPAWNGC_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-white/55">State</span>
+            <select value={state} onChange={(e) => setState(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60">
+              <option value="">All states</option>
+              {SPAWNGC_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Availability</span>
+            <select value={avail} onChange={(e) => setAvail(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60">
+              <option value="">Any availability</option>
+              {SPAWNGC_AVAILABILITY.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Search</span>
+            <input
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Brand or name…"
+              className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60"
+            />
+          </label>
+        </div>
+
+        {SPAWNGC_CARDS.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-amber-300/30 bg-amber-400/[0.06] px-5 py-6 text-center">
+            <p className="text-sm font-semibold uppercase tracking-wider text-amber-200">Catalog being indexed</p>
+            <p className="mt-2 text-sm text-white/75">
+              spawngc.gg requires login to view inventory. The full catalog will appear here once a scrape pass with credentials is run. Filters above are already wired with the real category, state, and availability lists from spawngc.gg.
+            </p>
+          </div>
+        ) : (
+          <>
+            <p className="mt-3 text-xs text-white/55">{filtered.length} of {SPAWNGC_CARDS.length} cards</p>
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+              {filtered.map((c) => (
+                <div key={c.key} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                  {c.image && <img src={c.image} alt={c.name} className="aspect-[4/3] w-full rounded-xl object-cover" />}
+                  <p className="mt-2 text-center text-xs font-semibold leading-tight text-white">{c.name}</p>
+                  {c.price && <p className="mt-1 text-center text-[11px] text-white/55">{c.price}</p>}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+    );
+  }
+  
+/* ---------- UI ---------- */
 
   function logoFor(domain?: string): string | null {
     if (!domain) return null;
@@ -489,7 +604,11 @@
         <SectionPillNav />
 
         <div className="space-y-8">
-          {SECTIONS.map((s) => <SectionBlock key={s.id} section={s} />)}
+          {SECTIONS.map((s) =>
+            s.id === "giftcards"
+              ? <GiftCardsSection key={s.id} />
+              : <SectionBlock key={s.id} section={s} />
+          )}
         </div>
 
         {isAdmin && (
