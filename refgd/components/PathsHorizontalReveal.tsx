@@ -318,6 +318,34 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
   const dragRef = useRef(0);
   const setDragBoth = (v: number) => { dragRef.current = v; setDrag(v); };
 
+  // ── At-rest visibility gate ────────────────────────────────────
+  // The user reported "I can see swiped cards behind". That's
+  // because the prism is geometrically a real pentagonal prism:
+  // the side faces (cards 1 and 4 when card 0 is front) extend
+  // ~31 % past the active card's edges, and the back faces (cards
+  // 2 and 3) bleed THROUGH any translucent area of the active
+  // card. Even with an opaque backdrop the side faces are still
+  // poking out past the visible card boundary.
+  //
+  // Solution: at rest, only the active face is visible. During a
+  // swipe gesture or a click-to-jump animation, ALL faces become
+  // visible briefly so the user sees the rotation. Once the
+  // 520 ms snap transition completes we hide everything except
+  // the new active face again. Result: a clean single-card view
+  // when not interacting, with a real 3D rotation visible during
+  // the change.
+  //
+  // Bonus: this also drops iOS Safari from rendering 5 stacked
+  // 3D-transformed SVGs to just 1 at rest, which kills the
+  // residual flickering the user reported.
+  const [transitioning, setTransitioning] = useState(false);
+  useEffect(() => {
+    setTransitioning(true);
+    const t = window.setTimeout(() => setTransitioning(false), 600);
+    return () => window.clearTimeout(t);
+  }, [active]);
+  const isInteracting = transitioning || drag !== 0;
+
   const stageRef = useRef<HTMLDivElement>(null);
   const faceWidth = useRef(0);
   const faceDepth = useRef(0);
@@ -484,6 +512,15 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
                 animated: i === active,
               })
             : card;
+          // Visibility gate: only the active face is visible at
+          // rest. During a swipe (drag !== 0) or a snap transition
+          // (transitioning === true) ALL faces are visible so the
+          // user sees the 3D rotation. After the 600 ms gate
+          // expires we hide non-active faces again. `visibility:
+          // hidden` (rather than display:none) preserves the
+          // layout and lets CSS transitions on opacity play
+          // smoothly when the visibility is toggled.
+          const visible = isInteracting || i === active;
           return (
             <div
               key={i}
@@ -501,6 +538,21 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
                 // on a 3D-transformed parent unpredictably hides
                 // child <svg> content — exactly what was wiping the
                 // path-card illustrations under EffectCreative.
+                //
+                // Solid backstop colour (defence in depth): even if
+                // some translucent layer slips through, each face
+                // has its own opaque dark backing so the card
+                // contents behind it can never bleed through.
+                background: "rgb(8,8,16)",
+                // At-rest visibility gate (see comment above the
+                // useState).
+                visibility: visible ? "visible" : "hidden",
+                opacity: visible ? 1 : 0,
+                transition: "opacity 220ms ease, visibility 0s linear 220ms",
+                // While interacting, transition opacity in immediately:
+                ...(visible
+                  ? { transition: "opacity 220ms ease, visibility 0s" }
+                  : {}),
               }}
             >
               {renderedCard}
