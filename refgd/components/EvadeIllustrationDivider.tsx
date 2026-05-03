@@ -21,10 +21,16 @@ export default function EvadeIllustrationDivider({
   glow = "violet",
   caption,
   height = 360,
-  /** When true, no halo backdrop is rendered behind the artwork
-   *  (used for cases where the image is already a fully transparent
-   *  PNG and any halo wash would compete with the page galaxy). */
-  transparent = false,
+  /** v6.13.19 — DEFAULT flipped false → true. The radial-gradient
+   *  halo behind the image was painting a 20-px-blurred coloured
+   *  wash that, on the dark cosmic page background, read as a
+   *  dark band ABOVE and BELOW the artwork — the "evade page
+   *  black bar" the user kept reporting. Defaulting to
+   *  transparent means the image now floats over the bare page
+   *  galaxy with no extra backdrop, which is what every Evade
+   *  page caller ends up wanting anyway. Callers can opt back
+   *  in with `transparent={false}` if they need the halo. */
+  transparent = true,
   /** Tighter vertical padding — used for divider bands that should
    *  feel inline with adjacent sections instead of floating apart. */
   compact = false,
