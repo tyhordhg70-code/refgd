@@ -75,7 +75,14 @@ export default function LedJoySection() {
               flourish. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 top-[32%] z-0 overflow-hidden md:hidden"
+        /* v6.13.33 — Bumped top from 32% → 44%. With min-h-100svh
+           and items-center, the AHH text top edge sits at roughly
+           42–45% of the section height on a typical iPhone, so
+           top:32% was still ~12% above the letters and the user
+           still saw bills "above" the LED beat. 44% pins the cash
+           container's top edge at (or just above) the AHH text's
+           top edge so bills enter visually FROM the letters. */
+        className="pointer-events-none absolute inset-x-0 bottom-0 top-[44%] z-0 overflow-hidden md:hidden"
       >
         <style>{`
           @keyframes ledCashFall {
