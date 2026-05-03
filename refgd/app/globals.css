@@ -309,6 +309,48 @@
   0%, 100% { opacity: 0.55; transform: scale(1);    }
   50%      { opacity: 1;    transform: scale(1.04); }
 }
+/* v6.13.6 — Site-wide slow pulsating gradient for the global page
+   background. Replaces the previously flat ink-950 black with a
+   continuously breathing deep-violet → indigo → ink wash. The hue
+   shift is intentionally tiny so it never competes with the
+   editorial content — it just keeps the page feeling alive instead
+   of dead-flat. ~22 s cycle so a casual viewer sees colour evolve
+   without it ever feeling busy. */
+@keyframes bgPulseSlow {
+  0% {
+    background-position: 0% 0%, 100% 100%, 50% 50%;
+    filter: hue-rotate(0deg) saturate(1.0);
+  }
+  50% {
+    background-position: 30% 20%, 70% 80%, 60% 40%;
+    filter: hue-rotate(14deg) saturate(1.18);
+  }
+  100% {
+    background-position: 0% 0%, 100% 100%, 50% 50%;
+    filter: hue-rotate(0deg) saturate(1.0);
+  }
+}
+/* v6.13.6 — Cinematic 3D entrance for the "Stop wasting time" hero
+   illustration. The previous opacity+scale was too plain; this
+   sweeps the figure in from a tilted plane with a chromatic-glow
+   that resolves to a clean drop-shadow. Single-shot via
+   whileInView, then settles to natural state. */
+@keyframes wastingTimeCine {
+  0% {
+    opacity: 0;
+    transform: perspective(1200px) translate3d(-40px, 28px, -120px) rotateY(-22deg) rotateX(8deg) scale(0.86);
+    filter: drop-shadow(0 0 0 rgba(245,185,69,0)) drop-shadow(0 0 0 rgba(167,139,250,0)) blur(6px);
+  }
+  55% {
+    opacity: 1;
+    filter: drop-shadow(8px 0 12px rgba(245,185,69,0.35)) drop-shadow(-8px 0 12px rgba(167,139,250,0.35)) blur(0px);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1200px) translate3d(0, 0, 0) rotateY(0deg) rotateX(0deg) scale(1);
+    filter: drop-shadow(0 30px 50px rgba(0,0,0,0.55)) drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent) blur(0px);
+  }
+}
 @keyframes orbit {
   from { transform: translate(-50%, -50%) rotate(0deg)   translateY(var(--orbit-r, -30vh)) translateZ(60px); }
   to   { transform: translate(-50%, -50%) rotate(360deg) translateY(var(--orbit-r, -30vh)) translateZ(60px); }
