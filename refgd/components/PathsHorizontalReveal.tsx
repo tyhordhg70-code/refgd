@@ -9,7 +9,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
@@ -302,101 +302,57 @@ function MobileFloatOrbs() {
  */
 function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
   const N = cards.length;
-  const FACE_ANGLE = 360 / N;
   const reduced = useReducedMotion();
 
+  // ── v6.12: card-flip stage ────────────────────────────────────
+  // Earlier v6.11.x renderings stacked all 5 cards in a real 3D
+  // pentagonal prism. On iOS Safari this produced (a) bleed-through
+  // from back faces, (b) side-face peek past the active card, and
+  // (c) compositor flicker from 5 simultaneously 3D-transformed
+  // SVG subtrees. A visibility gate masked it at rest but the
+  // transition itself still showed all 5 cards rotating, which
+  // rendered as a flickery mess on the user's iPhone.
+  //
+  // This rewrite draws ONLY the active card at rest, and exactly
+  // TWO cards (outgoing + incoming) for ~480 ms during a swipe.
+  // Each card flips around the Y axis like a real playing card:
+  //   outgoing: rotateY(0)        →  rotateY(-direction · 90°)
+  //   incoming: rotateY(direction · 90°) → rotateY(0)
+  // No back faces ever exist, no side cards poke out, and iOS
+  // never has more than 2 transformed SVGs alive at once.
+  //
+  // Direction is +1 when advancing (swipe-left / next), -1 when
+  // going back (swipe-right / previous). Tapping a non-adjacent
+  // pagination dot picks direction by sign of (target − current).
+
   const [active, setActive] = useState(0);
-  // Drag fraction in units of one face. -1 = swiped fully right
-  // (next face), +1 = swiped fully left (previous face). Reset to
-  // 0 the moment the gesture ends.
-  //
-  // We MIRROR this in `dragRef` so finishGesture (called from a
-  // pointerup handler that may fire in the same tick as the last
-  // pointermove) reads the real latest value and not a stale one
-  // from a not-yet-flushed React state update.
-  const [drag, setDrag] = useState(0);
-  const dragRef = useRef(0);
-  const setDragBoth = (v: number) => { dragRef.current = v; setDrag(v); };
-
-  // ── At-rest visibility gate ────────────────────────────────────
-  // The user reported "I can see swiped cards behind". That's
-  // because the prism is geometrically a real pentagonal prism:
-  // the side faces (cards 1 and 4 when card 0 is front) extend
-  // ~31 % past the active card's edges, and the back faces (cards
-  // 2 and 3) bleed THROUGH any translucent area of the active
-  // card. Even with an opaque backdrop the side faces are still
-  // poking out past the visible card boundary.
-  //
-  // Solution: at rest, only the active face is visible. During a
-  // swipe gesture or a click-to-jump animation, ALL faces become
-  // visible briefly so the user sees the rotation. Once the
-  // 520 ms snap transition completes we hide everything except
-  // the new active face again. Result: a clean single-card view
-  // when not interacting, with a real 3D rotation visible during
-  // the change.
-  //
-  // Bonus: this also drops iOS Safari from rendering 5 stacked
-  // 3D-transformed SVGs to just 1 at rest, which kills the
-  // residual flickering the user reported.
-  const [transitioning, setTransitioning] = useState(false);
-  useEffect(() => {
-    setTransitioning(true);
-    const t = window.setTimeout(() => setTransitioning(false), 600);
-    return () => window.clearTimeout(t);
-  }, [active]);
-  const isInteracting = transitioning || drag !== 0;
-
-  const stageRef = useRef<HTMLDivElement>(null);
-  const faceWidth = useRef(0);
-  const faceDepth = useRef(0);
-
-  // Recompute the prism inradius from the live face width. For a
-  // regular N-gon with side W, the inradius (distance from centre
-  // to side mid-point) is r = W / (2·tan(π/N)). We expose r as a
-  // CSS variable so the face transforms can use it directly.
-  useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
-    const update = () => {
-      const w = stage.offsetWidth;
-      faceWidth.current = w;
-      const r = w / (2 * Math.tan(Math.PI / N));
-      faceDepth.current = r;
-      stage.style.setProperty("--face-depth", `${r}px`);
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(stage);
-    return () => ro.disconnect();
-  }, [N]);
-
+  const [direction, setDirection] = useState<1 | -1>(1);
+  const goTo = (next: number) => {
+    if (next === active || next < 0 || next >= N) return;
+    setDirection(next > active ? 1 : -1);
+    setActive(next);
+  };
   // ── Pointer-event swipe handler with vertical-scroll release ──
-  // Same release rule the old Swiper-based version used: a gesture
-  // is treated as horizontal (= prism rotate) by default and only
-  // released to the document's vertical scroll when the user has
-  // moved ≥ 10 px vertically AND |dy| > 1.7·|dx|.
+  // The gesture is treated as horizontal (= card flip) by default
+  // and only released to the document's vertical scroll when the
+  // user has moved ≥ 10 px vertically AND |dy| > 1.7·|dx|.
+  // We commit the flip on pointerup based on horizontal distance
+  // (≥ 60 px or ≥ 25 % of stage width). No mid-gesture follow:
+  // the card stays put while the finger drags and only animates
+  // on release. This avoids any "ghost trailing card" rendering.
+  const stageRef = useRef<HTMLDivElement>(null);
   const startX = useRef<number | null>(null);
   const startY = useRef(0);
   const decided = useRef<"h" | "v" | null>(null);
-  const activeAtStart = useRef(0);
-  // Track the SPECIFIC pointer that started the gesture. Any
-  // events from a second finger (multi-touch) are ignored — they
-  // can no longer corrupt the dx/dy or accidentally commit.
   const activePointerId = useRef<number | null>(null);
 
   const onPointerDown = (e: React.PointerEvent) => {
-    // Only the primary touch starts a swipe. Pinch / second-finger
-    // events bail out so they can't mutate dx during a real drag.
     if (!e.isPrimary) return;
     if (activePointerId.current !== null) return;
     activePointerId.current = e.pointerId;
     startX.current = e.clientX;
     startY.current = e.clientY;
     decided.current = null;
-    activeAtStart.current = active;
-    // Capture the pointer so subsequent move/up events route here
-    // even if the finger leaves the carousel bounds (no premature
-    // commit from pointerleave on a fast drag).
     try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch {}
   };
 
@@ -413,22 +369,10 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
         decided.current = "v";
         startX.current = null;
         activePointerId.current = null;
-        setDragBoth(0);
         return;
       }
       decided.current = "h";
     }
-    if (decided.current !== "h") return;
-    // Negative dx = swiping left = advance to next face = positive drag.
-    const fraction = -dx / Math.max(1, faceWidth.current);
-    const clamped = Math.max(-1, Math.min(1, fraction));
-    // Edge resistance: rubber-band when trying to drag past the
-    // first or last face. Past the boundary, drag is divided by 3.
-    const wouldGo = activeAtStart.current + clamped;
-    let final = clamped;
-    if (wouldGo < 0) final = -activeAtStart.current + (clamped + activeAtStart.current) / 3;
-    if (wouldGo > N - 1) final = (N - 1 - activeAtStart.current) + (clamped - (N - 1 - activeAtStart.current)) / 3;
-    setDragBoth(final);
   };
 
   const finishGesture = (e?: React.PointerEvent) => {
@@ -437,29 +381,38 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
       activePointerId.current = null;
       return;
     }
+    const dx = (e?.clientX ?? startX.current) - startX.current;
     startX.current = null;
     decided.current = null;
-    // Read the LATEST drag value from the ref — `drag` state may
-    // not have flushed yet between the last pointermove and this
-    // pointerup, which previously caused a stale-state commit
-    // landing on the wrong card.
-    const d = dragRef.current;
-    let next = activeAtStart.current;
-    if (d > 0.18) next = Math.min(N - 1, activeAtStart.current + 1);
-    else if (d < -0.18) next = Math.max(0, activeAtStart.current - 1);
-    setActive(next);
-    setDragBoth(0);
+    const w = stageRef.current?.offsetWidth ?? 320;
+    const threshold = Math.min(60, w * 0.25);
+    if (dx <= -threshold) goTo(Math.min(N - 1, active + 1));
+    else if (dx >= threshold) goTo(Math.max(0, active - 1));
     if (e && activePointerId.current !== null) {
       try { (e.target as Element).releasePointerCapture?.(activePointerId.current); } catch {}
     }
     activePointerId.current = null;
   };
 
-  const rotation = -(active + drag) * FACE_ANGLE;
-  // While the finger is down (drag != 0) we want a 1:1 follow with
-  // no transition. After release (drag === 0) we let the snap-back
-  // animation play.
-  const isDragging = drag !== 0;
+  // ── Per-card render helper (apply mobile-specific props) ───────
+  const renderCard = (card: ReactNode, i: number) => {
+    if (!isValidElement(card)) return card;
+    return cloneElement(
+      card as ReactElement<{ noReveal?: boolean; animated?: boolean }>,
+      { noReveal: true, animated: i === active },
+    );
+  };
+
+  // Flip animation parameters. AnimatePresence with mode="wait"
+  // ensures the outgoing card finishes before the incoming card
+  // starts — there is NEVER a moment where two SVG illustrations
+  // are visible side-by-side. The flip itself is one continuous
+  // 3D rotation: the new card enters from rotateY(direction · 90°)
+  // and lands at 0°. The outgoing card simultaneously fades and
+  // rotates to -direction · 90°. Because mode="wait" sequences
+  // them, the iOS compositor only ever has 1 transformed SVG
+  // alive at any instant.
+  const flipDuration = reduced ? 0 : 0.45;
 
   return (
     <motion.div
@@ -470,9 +423,6 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
         // 1:1.42 keeps the same aspect the old cube used so the
         // surrounding page layout doesn't shift.
         aspectRatio: "1 / 1.42",
-        // Perspective gives the rotation real depth. 1400 px is far
-        // enough that face foreshortening looks natural without
-        // making the prism feel like it's behind glass.
         perspective: "1400px",
       }}
       initial={reduced ? false : { opacity: 0, y: 60, scale: 0.88 }}
@@ -485,83 +435,52 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
         className="relative h-full w-full"
         style={{
           transformStyle: "preserve-3d",
-          // Pull the prism back by `r` so the active face sits at
-          // z=0 (= natural display size with no perspective scale).
-          transform: `translateZ(calc(-1 * var(--face-depth, 0px))) rotateY(${rotation}deg)`,
-          transition: isDragging
-            ? "none"
-            : "transform 520ms cubic-bezier(0.22, 1, 0.36, 1)",
           touchAction: "pan-y",
+          // Solid dark backstop so even mid-flip there is never a
+          // window through to the page background or to a stale
+          // previous card frame.
+          background: "rgb(8,8,16)",
+          borderRadius: 18,
+          overflow: "hidden",
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={finishGesture}
         onPointerCancel={finishGesture}
-        onPointerLeave={finishGesture}
       >
-        {cards.map((card, i) => {
-          const renderedCard = isValidElement(card)
-            ? cloneElement(card as ReactElement<{ noReveal?: boolean; animated?: boolean }>, {
-                // Mobile carousel still uses the noReveal layout
-                // (flat anchor, no per-card framer-motion entrance)
-                // because the entrance animation is now driven by
-                // the prism's outer motion.div above. animated only
-                // on the active face — saves ~100 framer-motion rAF
-                // callbacks per second across the inactive faces.
-                noReveal: true,
-                animated: i === active,
-              })
-            : card;
-          // Visibility gate: only the active face is visible at
-          // rest. During a swipe (drag !== 0) or a snap transition
-          // (transitioning === true) ALL faces are visible so the
-          // user sees the 3D rotation. After the 600 ms gate
-          // expires we hide non-active faces again. `visibility:
-          // hidden` (rather than display:none) preserves the
-          // layout and lets CSS transitions on opacity play
-          // smoothly when the visibility is toggled.
-          const visible = isInteracting || i === active;
-          return (
-            <div
-              key={i}
-              data-testid={`paths-mobile-slide-${i + 1}`}
-              className="absolute inset-0"
-              style={{
-                // Each face: rotate to its prism position, then
-                // translate outward by the inradius so it sits on
-                // the prism's lateral surface.
-                transform: `rotateY(${i * FACE_ANGLE}deg) translateZ(var(--face-depth, 0px))`,
-                borderRadius: 18,
-                overflow: "hidden",
-                // CRITICALLY: no `backface-visibility: hidden`. iOS
-                // Safari has a long-standing bug where that property
-                // on a 3D-transformed parent unpredictably hides
-                // child <svg> content — exactly what was wiping the
-                // path-card illustrations under EffectCreative.
-                //
-                // Solid backstop colour (defence in depth): even if
-                // some translucent layer slips through, each face
-                // has its own opaque dark backing so the card
-                // contents behind it can never bleed through.
-                background: "rgb(8,8,16)",
-                // At-rest visibility gate (see comment above the
-                // useState).
-                visibility: visible ? "visible" : "hidden",
-                opacity: visible ? 1 : 0,
-                transition: "opacity 220ms ease, visibility 0s linear 220ms",
-                // While interacting, transition opacity in immediately:
-                ...(visible
-                  ? { transition: "opacity 220ms ease, visibility 0s" }
-                  : {}),
-              }}
-            >
-              {renderedCard}
-            </div>
-          );
-        })}
+        <AnimatePresence mode="wait" initial={false} custom={direction}>
+          <motion.div
+            key={active}
+            data-testid={`paths-mobile-slide-${active + 1}`}
+            className="absolute inset-0"
+            custom={direction}
+            initial={
+              reduced
+                ? { opacity: 1 }
+                : { rotateY: direction * 90, opacity: 0 }
+            }
+            animate={{ rotateY: 0, opacity: 1 }}
+            exit={
+              reduced
+                ? { opacity: 0 }
+                : { rotateY: -direction * 90, opacity: 0 }
+            }
+            transition={{ duration: flipDuration, ease: [0.22, 1, 0.36, 1] }}
+            style={{
+              transformOrigin: "center center",
+              backfaceVisibility: "hidden",
+              WebkitBackfaceVisibility: "hidden",
+              background: "rgb(8,8,16)",
+              borderRadius: 18,
+              overflow: "hidden",
+            }}
+          >
+            {renderCard(cards[active], active)}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
-      {/* Pagination dots — clickable, mirrors Swiper's pagination */}
+      {/* Pagination dots — clickable */}
       <div
         className="mt-6 flex items-center justify-center gap-2"
         role="tablist"
@@ -574,7 +493,7 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
             role="tab"
             aria-selected={i === active}
             aria-label={`Show card ${i + 1}`}
-            onClick={() => setActive(i)}
+            onClick={() => goTo(i)}
             className="rounded-full transition-all duration-300"
             style={{
               height: 8,
