@@ -188,7 +188,20 @@ export default async function HomePage() {
                   having it fire while their eye is still tracking the
                   scroll past it. */}
               <MeshExpansionReveal borderRadius="2.5rem">
-                <div className="relative overflow-hidden rounded-[2.5rem] border border-white/[0.10] sm:pulse-glow-violet">
+                {/* v6.13.16 — Removed `sm:pulse-glow-violet`. The user
+                    reported "home page glows instead of black"; the
+                    actual source was THIS Telegram CTA wrapper, not
+                    the path cards. The pulse-glow-violet class threw
+                    a continuous violet halo box-shadow around the
+                    16:6 cinematic CTA box on every viewport ≥ sm,
+                    which read as the dominant "glow" on the page.
+                    Replaced with a neutral dark drop-shadow that
+                    keeps the card visually grounded without colour
+                    bleed. The animated mesh shockwave + the inner
+                    AnimatedTelegramBox both still fire on view, so
+                    the section keeps its kinetic energy without the
+                    always-on accent halo. */}
+                <div className="relative overflow-hidden rounded-[2.5rem] border border-white/[0.10] sm:shadow-[0_30px_80px_-20px_rgba(0,0,0,0.85)]">
                   {/*
                     v6.13.1: removed the mobile aspect-[4/5] lock.
                     The previous 4:5 aspect ratio + overflow:hidden
