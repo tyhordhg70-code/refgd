@@ -56,21 +56,34 @@ export default function LedJoySection() {
          the beat triggers. */
       className="relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden py-12 sm:py-16"
     >
-      {/* v6.13.13 — Slight cash animation pinned to the section's
-          bottom 35 vh (NOT inside the centred container, so the
-          bills drift up from the actual viewport bottom rather
-          than the bottom of the centred LED-text container which
-          would float them halfway up the screen). */}
+      {/* v6.13.20 — Cash now FALLS FROM ABOVE rather than drifting
+          UP from the bottom. Two user reports addressed:
+          (1) "Money should fall on top from ahh feel joy" — flipped
+              the animation direction. Bills start ABOVE the section
+              (translateY(-150%)) and fall DOWN past the LED text to
+              below the section (translateY(150%)).
+          (2) "Cut off from the cash when falling on first frames" —
+              the previous version pinned bills to the BOTTOM of a
+              `h-[35svh]` container with `bottom-0`, so on the very
+              first paint frame each bill was sitting half-clipped at
+              the bottom edge of an overflow-hidden box (the 110%
+              starting offset wasn't enough on small phones to hide
+              them fully). Now: container fills the FULL section
+              (inset-0), each bill is `top-0` and starts at -150%
+              (entirely ABOVE the container's clip box) so the bill
+              is invisible at frame 0 and only enters the visible
+              region as the fall progresses — no half-clipped
+              first-frame paint, ever. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-[35svh] overflow-hidden"
+        className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
       >
         <style>{`
-          @keyframes ledCashDrift {
-            0%   { transform: translate3d(0, 110%, 0) rotate(var(--rot, -8deg)); opacity: 0; }
-            15%  { opacity: 0.85; }
-            60%  { transform: translate3d(calc(var(--sway, 8px)), -40%, 0) rotate(calc(var(--rot, -8deg) * -1)); opacity: 0.7; }
-            100% { transform: translate3d(calc(var(--sway, 8px) * -1), -160%, 0) rotate(var(--rot, -8deg)); opacity: 0; }
+          @keyframes ledCashFall {
+            0%   { transform: translate3d(0, -150%, 0) rotate(var(--rot, -8deg)); opacity: 0; }
+            15%  { opacity: 0.9; }
+            55%  { transform: translate3d(calc(var(--sway, 8px)), 50%, 0) rotate(calc(var(--rot, -8deg) * -1)); opacity: 0.85; }
+            100% { transform: translate3d(calc(var(--sway, 8px) * -1), 150%, 0) rotate(var(--rot, -8deg)); opacity: 0; }
           }
         `}</style>
         {[
@@ -85,7 +98,7 @@ export default function LedJoySection() {
         ].map((b, i) => (
           <span
             key={i}
-            className="absolute bottom-0"
+            className="absolute top-0"
             style={{
               left: b.left,
               width: b.size,
@@ -94,7 +107,7 @@ export default function LedJoySection() {
               ["--sway" as string]: b.sway,
               animation: reduce
                 ? undefined
-                : `ledCashDrift ${b.dur} ${b.delay} ease-in-out infinite`,
+                : `ledCashFall ${b.dur} ${b.delay} ease-in-out infinite`,
               willChange: "transform, opacity",
             }}
           >
