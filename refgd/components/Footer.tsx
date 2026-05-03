@@ -2,36 +2,38 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "./Logo";
+import EditableLink from "./EditableLink";
+import EditableText from "./EditableText";
 
 /**
  * Site-wide footer.
  *
  * Hidden on the home page (`/`).
  *
- * The home page is a curated cinematic landing experience: warp
- * intro → path cards → telegram CTA. A standard "Site / More /
- * Connect" link footer beneath that breaks the storytelling rhythm
- * — the user explicitly asked for it to be removed there. Every
- * other page (store-list, mentorships, etc.) still gets the
- * footer for navigation/SEO. We use `usePathname` so the
- * conditional happens at render time on the client, which keeps
- * the layout server component a static include.
+ * v6.13.38 — Every label, URL, column heading, the tagline and the
+ * copyright text are now ADMIN-EDITABLE through the standard
+ * EditContext pipeline. Stable ids are namespaced under `footer.*`
+ * so they're easy to spot in the content-blocks table.
  */
+const COL1_LINKS = [
+  { id: 0, href: "/", label: "Home" },
+  { id: 1, href: "/store-list", label: "Store List" },
+  { id: 2, href: "/exclusive-mentorships", label: "Mentorships" },
+];
+const COL2_LINKS = [
+  { id: 0, href: "/evade-cancelations", label: "Evade Cancelations" },
+  { id: 1, href: "/top-tier-methods", label: "Top-tier Methods" },
+  { id: 2, href: "/vouches", label: "Vouches" },
+];
+const COL3_LINKS = [
+  { id: 0, href: "https://t.me/refundlawfirm", label: "Group Chat (Telegram)", external: true },
+  { id: 1, href: "https://refundgod.bgng.io/", label: "Shop Methods", external: true },
+];
+
 export default function Footer() {
   const pathname = usePathname();
   if (pathname === "/") return null;
 
-  // v6.8 (2026-05): the previous styling — `bg-ink-900` (#0a0c14)
-  // with `border-t border-white/5` — created a hard horizontal band
-  // where the page (sitting over the global galaxy backdrop, which
-  // fades to #05060a at its bottom) abruptly stepped UP four points
-  // of lightness into the footer. The user reported this as "the
-  // black strip" on every page that has a footer (evade-cancelations
-  // and exclusive-mentorships). We now drop the opaque background
-  // and the white-alpha border and let the footer sit directly over
-  // the galaxy with a gentle gradient blend at its top edge so the
-  // transition is invisible. The sub-footer divider is also softened
-  // for the same reason.
   return (
     <footer className="relative z-[2] bg-transparent">
       <div
@@ -45,47 +47,91 @@ export default function Footer() {
       <div className="container-px grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Logo className="h-10 w-auto" />
-          <p className="mt-3 max-w-xs text-sm text-white/70">
-            Refunds, replacements & exclusive mentorships. Encrypted process,
-            global reach, 5+ years experience.
-          </p>
+          <EditableText
+            id="footer.tagline"
+            defaultValue="Refunds, replacements & exclusive mentorships. Encrypted process, global reach, 5+ years experience."
+            as="p"
+            className="mt-3 max-w-xs text-sm text-white/70"
+            multiline
+          />
         </div>
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-white/60">Site</h3>
+          <EditableText
+            id="footer.col1.title"
+            defaultValue="Site"
+            as="h3"
+            className="text-xs font-semibold uppercase tracking-widest text-white/60"
+          />
           <ul className="mt-3 space-y-1.5 text-sm text-white/75">
-            <li><Link href="/" className="hover:text-white">Home</Link></li>
-            <li><Link href="/store-list" className="hover:text-white">Store List</Link></li>
-            <li><Link href="/exclusive-mentorships" className="hover:text-white">Mentorships</Link></li>
+            {COL1_LINKS.map((l) => (
+              <li key={l.id}>
+                <EditableLink
+                  idHref={`footer.col1.${l.id}.href`}
+                  defaultHref={l.href}
+                  idLabel={`footer.col1.${l.id}.label`}
+                  defaultLabel={l.label}
+                  className="hover:text-white"
+                />
+              </li>
+            ))}
           </ul>
         </div>
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-white/60">More</h3>
+          <EditableText
+            id="footer.col2.title"
+            defaultValue="More"
+            as="h3"
+            className="text-xs font-semibold uppercase tracking-widest text-white/60"
+          />
           <ul className="mt-3 space-y-1.5 text-sm text-white/75">
-            <li><Link href="/evade-cancelations" className="hover:text-white">Evade Cancelations</Link></li>
-            <li><Link href="/top-tier-methods" className="hover:text-white">Top-tier Methods</Link></li>
-            <li><Link href="/vouches" className="hover:text-white">Vouches</Link></li>
+            {COL2_LINKS.map((l) => (
+              <li key={l.id}>
+                <EditableLink
+                  idHref={`footer.col2.${l.id}.href`}
+                  defaultHref={l.href}
+                  idLabel={`footer.col2.${l.id}.label`}
+                  defaultLabel={l.label}
+                  className="hover:text-white"
+                />
+              </li>
+            ))}
           </ul>
         </div>
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-white/60">Connect</h3>
+          <EditableText
+            id="footer.col3.title"
+            defaultValue="Connect"
+            as="h3"
+            className="text-xs font-semibold uppercase tracking-widest text-white/60"
+          />
           <ul className="mt-3 space-y-1.5 text-sm text-white/75">
-            <li>
-              <a href="https://t.me/refundlawfirm" target="_blank" rel="noopener noreferrer" className="hover:text-white">
-                Group Chat (Telegram)
-              </a>
-            </li>
-            <li>
-              <a href="https://refundgod.bgng.io/" target="_blank" rel="noopener noreferrer" className="hover:text-white">
-                Shop Methods
-              </a>
-            </li>
+            {COL3_LINKS.map((l) => (
+              <li key={l.id}>
+                <EditableLink
+                  idHref={`footer.col3.${l.id}.href`}
+                  defaultHref={l.href}
+                  idLabel={`footer.col3.${l.id}.label`}
+                  defaultLabel={l.label}
+                  external={l.external}
+                  className="hover:text-white"
+                />
+              </li>
+            ))}
           </ul>
         </div>
       </div>
       <div className="border-t border-white/[0.04]">
         <div className="container-px flex flex-col items-center justify-between gap-2 py-4 text-xs text-white/60 sm:flex-row">
-          <p>© {new Date().getFullYear()} RefundGod. All rights reserved.</p>
-          <p>Self-hosted build · v1.0</p>
+          <EditableText
+            id="footer.copyright"
+            defaultValue={`© ${new Date().getFullYear()} RefundGod. All rights reserved.`}
+            as="p"
+          />
+          <EditableText
+            id="footer.build"
+            defaultValue="Self-hosted build · v1.0"
+            as="p"
+          />
         </div>
       </div>
     </footer>
