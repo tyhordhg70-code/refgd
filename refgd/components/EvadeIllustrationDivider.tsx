@@ -1,6 +1,8 @@
 "use client";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
+import EditableImage from "./EditableImage";
+import { useEditContext } from "@/lib/edit-context";
 
 /**
  * EvadeIllustrationDivider — between-section illustration band that
@@ -26,6 +28,11 @@ export default function EvadeIllustrationDivider({
   /** Tighter vertical padding — used for divider bands that should
    *  feel inline with adjacent sections instead of floating apart. */
   compact = false,
+  /** v6.13.15 — when set, the divider image becomes admin-editable
+   *  under this content id (swap, animation template, scale,
+   *  spacing). The framer parallax-y is suppressed in admin mode
+   *  so the popover anchors stably while editing. */
+  editId,
 }: {
   src: string;
   alt: string;
@@ -35,7 +42,10 @@ export default function EvadeIllustrationDivider({
   height?: number;
   transparent?: boolean;
   compact?: boolean;
+  editId?: string;
 }) {
+  const { isAdmin, editMode } = useEditContext();
+  const editing = isAdmin && editMode && Boolean(editId);
   const ref = useRef<HTMLDivElement | null>(null);
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -115,22 +125,41 @@ export default function EvadeIllustrationDivider({
                   bar between sections. Replaced with a much softer
                   shadow (12 px blur, 0.35 alpha) that doesn't read
                   as a separate bar against the page wash. */}
-          <motion.img
-            src={src}
-            alt={alt}
-            loading="eager"
-            decoding="async"
-            style={{
-              y,
-              maxHeight: height,
-              maxWidth: "80vw",
-              width: "auto",
-              height: "auto",
-              filter: "drop-shadow(0 8px 12px rgba(0,0,0,0.35))",
-            }}
-            className="relative z-10 object-contain"
-            suppressHydrationWarning
-          />
+          {editing && editId ? (
+            /* Admin editing — render EditableImage so the click-to-edit
+               popover works. The framer parallax-y is suppressed
+               here so the popover anchors stably; the admin can
+               apply an animation template from the popover instead. */
+            <EditableImage
+              id={editId}
+              defaultSrc={src}
+              alt={alt}
+              wrapperClassName="relative z-10 block"
+              wrapperStyle={{
+                maxHeight: height,
+                maxWidth: "80vw",
+              }}
+              className="object-contain"
+            />
+          ) : (
+            <motion.img
+              src={src}
+              alt={alt}
+              loading="eager"
+              decoding="async"
+              data-editable-id={editId}
+              style={{
+                y,
+                maxHeight: height,
+                maxWidth: "80vw",
+                width: "auto",
+                height: "auto",
+                filter: "drop-shadow(0 8px 12px rgba(0,0,0,0.35))",
+              }}
+              className="relative z-10 object-contain"
+              suppressHydrationWarning
+            />
+          )}
         </div>
         {caption ? (
           <p className="mt-4 text-center text-xs uppercase tracking-[0.5em] text-white/55">
