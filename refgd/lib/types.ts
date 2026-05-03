@@ -1,13 +1,13 @@
 export type Region = "USA" | "CAD" | "EU" | "UK";
 
-export type StoreCategory =
-  | "Electronics"
-  | "Clothing"
-  | "Jewelry"
-  | "Food"
-  | "Meal Plans"
-  | "Home"
-  | "Other";
+/* v6.13.36 — Loosened from a fixed 7-member union to `string` so
+   admin-added custom categories (e.g. "Beauty", "Toys", "Auto")
+   can persist on stores end-to-end. The canned 7 still drive the
+   default ordering / labels via the CANNED_CATEGORIES constant
+   in lib/categories-store.ts and CATEGORY_LABEL in components.
+   This preserves all existing usages — every prior `StoreCategory`
+   literal is still a valid `string`. */
+export type StoreCategory = string;
 
 export type StoreTag = "fire" | "diamond" | "crown" | "global" | "new";
 
