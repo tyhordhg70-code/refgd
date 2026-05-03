@@ -7,7 +7,15 @@ import CustomCursor from "@/components/CustomCursor";
 import PulsatingOverlay from "@/components/PulsatingOverlay";
 import GalaxyBackground from "@/components/GalaxyBackground";
 import Cosmic3DShapes from "@/components/Cosmic3DShapes";
-import LoadingScreen from "@/components/LoadingScreen";
+/* v6.13.10 — LoadingScreen removed per user request ("loading scene
+   still happens it shouldn't load"). The cinematic boot overlay
+   added a hard ~1.5-2.4 s gate before any scrolling was allowed,
+   which the user found intrusive. With it gone, entrance components
+   that previously gated on `useEntranceReady()` now see the gate
+   flag as `undefined` — the gate hook (loading-screen-gate.ts) was
+   updated to treat `undefined` as "ready" so all entrance animations
+   play immediately on first paint instead of waiting for an event
+   that will never fire. */
 import SmoothScroll from "@/components/SmoothScroll";
 import EditProvider from "@/lib/edit-context";
 import EditorToolbar from "@/components/EditorToolbar";
@@ -87,10 +95,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {/* Lenis-powered smooth scroll for the entire site (no-op for
             users with prefers-reduced-motion). */}
         <SmoothScroll />
-        {/* Cinematic boot overlay — locks the page for ~2.4 s while
-            the React tree mounts behind it so all GPU layers, fonts
-            and images are warm before the user can scroll. */}
-        <LoadingScreen />
+        {/* v6.13.10 — <LoadingScreen /> removed (see import note). */}
         <EditProvider initialAdmin={initialAdmin} initialContent={initialContent}>
           {/* Site-wide continuous WebGL galaxy field — every page scrolls
               over the same scene so transitions feel like one journey. */}
