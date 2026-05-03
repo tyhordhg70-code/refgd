@@ -302,7 +302,23 @@ export default function EditableImage({
           : undefined
       }
     >
-      {editing && <MoveHandle id={id} positionClassName="-right-3 -top-3" />}
+      {editing && (
+        <MoveHandle
+          id={id}
+          positionClassName="-right-3 -top-3"
+          /* v6.13.53 — When this image is part of an
+             EditableImageGroup, releasing the MoveHandle drag over
+             a sibling reorders the group via CSS `order` instead
+             of leaving a translate3d offset. Cleanly closes the
+             "blank gap where I moved it from / overlap at the
+             destination" report on both desktop and mobile. */
+          onDropTo={
+            group
+              ? (targetId) => group.reorder(id, targetId)
+              : undefined
+          }
+        />
+      )}
       {/* v6.13.45 — Scale lives on an OUTER span, animation lives on the
           <img>. Animation templates (float / rotate / pulse / etc.)
           drive the `transform` property via CSS keyframes; an animated
