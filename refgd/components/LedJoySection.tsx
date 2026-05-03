@@ -66,51 +66,88 @@ export default function LedJoySection() {
           cashback hero), so this guarantees the letters animate even
           on the most degenerate Safari case. */
   const [played, setPlayed] = useState(false);
-  useEffect(() => {
-      /* v6.13.67 — STRICT IN-VIEW TRIGGER ONLY.
-         The previous v6.13.39 / v6.13.51 stack of four triggers
-         (loose IO with 50% rootMargin, rAF poll with 1.4× viewport
-         threshold, first-scroll listener, and 3.5s wall-clock
-         fallback) ALL fired well before the visitor actually reached
-         the section. The result was that `play` flipped to true
-         within ~3.5s of page load, the AHHHH letter fly-in + tagline
-         slide + cash bills cascade animations all completed
-         OFF-SCREEN, and by the time the user scrolled down to the
-         LED beat the letters were sitting at their final state
-         — exactly the "doesnt fly in on scroll" report.
+  /* v6.13.68 — Debug instrumentation. When the page is loaded with
+       ?debug=1 the section renders a fixed-position pill in the top-
+       right corner showing live: play state, intersectionRatio, scroll
+       position, and section bounding-rect top/bottom relative to the
+       viewport. This makes it possible to see exactly why the IO is
+       not firing in the user's browser. The overlay is gated on the
+       query param so normal visitors never see it. */
+    const [debug, setDebug] = useState<{
+      enabled: boolean;
+      ratio: number;
+      isIntersecting: boolean;
+      rectTop: number;
+      rectBottom: number;
+      vh: number;
+      scrollY: number;
+      fired: boolean;
+    }>({ enabled: false, ratio: 0, isIntersecting: false, rectTop: 0, rectBottom: 0, vh: 0, scrollY: 0, fired: false });
 
-         This implementation uses a SINGLE strict IntersectionObserver
-         with threshold 0.3 (30% of the section visible) and no
-         rootMargin expansion. The animation only fires once the user
-         has actually scrolled the section into clear view. The
-         `played` state is sticky so the animation only plays the
-         first time. There is intentionally no rAF poll, no scroll
-         listener, no time-based fallback — those were the bugs. If
-         a visitor with prefers-reduced-motion never scrolls into the
-         section they simply never see the beat, which is the
-         acceptable trade-off for guaranteeing the in-view fly-in
-         works for the 99% of visitors who do scroll. */
+    useEffect(() => {
+      /* v6.13.67 — STRICT IN-VIEW TRIGGER ONLY. */
       const el = ref.current;
+      if (typeof window === "undefined") return;
+      const sp = new URLSearchParams(window.location.search);
+      const debugOn = sp.get("debug") === "1";
+      if (debugOn) setDebug((d) => ({ ...d, enabled: true }));
+
       if (!el || !("IntersectionObserver" in window)) {
-        // Degenerate environment — show letters at final state immediately
-        // so they aren't permanently hidden.
         setPlayed(true);
+        if (debugOn) setDebug((d) => ({ ...d, fired: true }));
         return;
       }
       const io = new IntersectionObserver(
         (entries) => {
           for (const e of entries) {
+            if (debugOn) {
+              const r = e.boundingClientRect;
+              setDebug((d) => ({
+                ...d,
+                ratio: e.intersectionRatio,
+                isIntersecting: e.isIntersecting,
+                rectTop: Math.round(r.top),
+                rectBottom: Math.round(r.bottom),
+                vh: window.innerHeight,
+                scrollY: Math.round(window.scrollY),
+              }));
+            }
             if (e.isIntersecting && e.intersectionRatio >= 0.3) {
               setPlayed(true);
+              if (debugOn) setDebug((d) => ({ ...d, fired: true }));
               io.disconnect();
               break;
             }
           }
         },
-        { threshold: [0, 0.1, 0.2, 0.3, 0.5, 0.75, 1] },
+        { threshold: [0, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1] },
       );
       io.observe(el);
-      return () => io.disconnect();
+
+      /* Debug-mode-only: also tick scroll position so the overlay
+         updates while the user is scrolling. */
+      let onScroll: (() => void) | null = null;
+      if (debugOn) {
+        onScroll = () => {
+          const node = ref.current;
+          if (!node) return;
+          const r = node.getBoundingClientRect();
+          setDebug((d) => ({
+            ...d,
+            rectTop: Math.round(r.top),
+            rectBottom: Math.round(r.bottom),
+            vh: window.innerHeight,
+            scrollY: Math.round(window.scrollY),
+          }));
+        };
+        window.addEventListener("scroll", onScroll, { passive: true });
+        onScroll();
+      }
+
+      return () => {
+        io.disconnect();
+        if (onScroll) window.removeEventListener("scroll", onScroll);
+      };
     }, []);
   const play = played;
   // v6.13.19 — REPLACED `useInView` + state-driven `animate={inView ? ... : undefined}`
@@ -147,6 +184,42 @@ export default function LedJoySection() {
          the beat triggers. */
       className="relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden py-12 sm:py-16"
     >
+      {/* v6.13.68 — debug overlay (only renders when ?debug=1). */}
+        {debug.enabled && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: "fixed",
+              top: 8,
+              right: 8,
+              zIndex: 99999,
+              padding: "8px 12px",
+              background: "rgba(0,0,0,0.85)",
+              color: debug.fired ? "#86efac" : "#fbbf24",
+              border: `2px solid ${debug.fired ? "#22c55e" : "#f59e0b"}`,
+              borderRadius: 8,
+              fontFamily: "ui-monospace, monospace",
+              fontSize: 11,
+              lineHeight: 1.4,
+              whiteSpace: "pre",
+              pointerEvents: "none",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.6)",
+            }}
+          >
+            {[
+              `LedJoy debug v6.13.68`,
+              `played   : ${played}`,
+              `fired    : ${debug.fired}`,
+              `isInView : ${debug.isIntersecting}`,
+              `ratio    : ${debug.ratio.toFixed(3)}`,
+              `rect.top : ${debug.rectTop}px`,
+              `rect.bot : ${debug.rectBottom}px`,
+              `viewportH: ${debug.vh}px`,
+              `scrollY  : ${debug.scrollY}px`,
+              `threshold: 0.30 (must hit)`,
+            ].join("\n")}
+          </div>
+        )}
       {/* v6.13.36 — Cash redesign per user report: "cash animation
           all cash should be in full shape and go further down never
           cut off cash on first appearance".
