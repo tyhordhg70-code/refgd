@@ -1,4 +1,5 @@
 "use client";
+import EditorIsland from "@/components/EditorIsland";
 
 /**
  * MoveHandle — drag-to-reposition affordance for editable elements.
@@ -57,7 +58,14 @@ type PushedRecord = {
   origInline: string; // original style.transform string
 };
 
-export default function MoveHandle({
+type MoveHandleProps = {
+  id: string;
+  className?: string;
+  positionClassName?: string;
+  onDropTo?: (targetId: string) => void;
+};
+
+function MoveHandleInner({
   id,
   className = "",
   positionClassName = "-right-2 -top-2",
@@ -382,3 +390,11 @@ function cssEscape(s: string): string {
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
 type _Unused = CSSProperties;
+
+export default function MoveHandle(props: MoveHandleProps) {
+  return (
+    <EditorIsland id={props.id}>
+      <MoveHandleInner {...props} />
+    </EditorIsland>
+  );
+}
