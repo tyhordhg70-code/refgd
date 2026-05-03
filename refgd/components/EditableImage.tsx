@@ -274,9 +274,9 @@ export default function EditableImage({
               onChange={(e) => setValue(`${id}.anim`, e.target.value)}
               className="w-full rounded-md border border-white/10 bg-white/5 px-2 py-1.5 outline-none focus:border-amber-300/60"
             >
-              <option value="">— None —</option>
+              <option value="" className="bg-ink-900 text-white">— None —</option>
               {ANIMATION_TEMPLATES.map((t) => (
-                <option key={t.cls} value={t.cls}>{t.label}</option>
+                <option key={t.cls} value={t.cls} className="bg-ink-900 text-white">{t.label}</option>
               ))}
             </select>
           </label>
