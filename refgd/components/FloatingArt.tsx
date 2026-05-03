@@ -44,8 +44,17 @@ export default function FloatingArt({
   alt,
   size = 320,
   side = "center",
-  bobAmplitude = 10,
-  spin = 1.2,
+  bobAmplitude = 8,
+  /* v6.13.19 — DEFAULT spin dropped 1.2 → 0. User reported
+     "evade illustration distorted" again even after the
+     v6.13.15 reduction. Any non-zero rotate keyframe applied
+     to a transparent PNG with internal asymmetric content (the
+     vault, the locks scene) reads as a shear because the eye
+     uses the artwork's own edges as a stability reference. Bob
+     alone gives the float life without ever rotating the
+     image. Callers can opt back in with `spin={1}` if they
+     pass a square symmetric asset. */
+  spin = 0,
   className = "",
   editId,
 }: Props) {
