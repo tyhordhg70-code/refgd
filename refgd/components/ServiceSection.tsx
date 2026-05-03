@@ -199,9 +199,16 @@ const WHY = [
  * The store-list page splits the section so the LedJoySection ("AHHHH …
  * feel the joy of cashback") can sit DIRECTLY between Act 1 and Act 2.
  */
-export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = {}) {
+export default function ServiceSection(
+  { slice, noBg }: { slice?: "hero" | "rest"; noBg?: boolean } = {},
+) {
   const showHero = !slice || slice === "hero";
   const showRest = !slice || slice === "rest";
+  /* v6.13.36 — `noBg` opt-out so the storelist page can paint ONE
+     continuous bg+orb mesh across the whole document instead of
+     letting the hero's intrinsic `bg-ink-950 + orbs` block the
+     page-level mesh from showing through. */
+  const heroBg = noBg ? "" : "bg-ink-950";
   return (
     <div id="service" className="relative isolate scroll-mt-16">
       {showHero && (
@@ -233,7 +240,7 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
            sliced. Forcing 100svh on mobile gives the headline +
            cashback scene their own dedicated screen, matching
            desktop's 92svh treatment. */
-        className="relative isolate flex w-full flex-col items-center justify-center overflow-hidden bg-ink-950 min-h-[100svh] pt-8 pb-16 md:flex-row md:items-center md:py-0 md:min-h-[92svh]"
+        className={`relative isolate flex w-full flex-col items-center justify-center overflow-hidden ${heroBg} min-h-[100svh] pt-8 pb-16 md:flex-row md:items-center md:py-0 md:min-h-[92svh]`}
         data-cursor="big"
         /* v6.13.34 — Anchor for SkipToStoreListButton's
            IntersectionObserver. The button fades in while this
@@ -241,12 +248,16 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
            past it. */
         data-skip-anchor="cashback"
       >
-        {/* mesh orbs + gradient ambience */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          <div className="orb orb-1 absolute left-[10%] top-[15%] h-[60vh] w-[60vh] rounded-full" />
-          <div className="orb orb-2 absolute right-[8%] top-[28%] h-[55vh] w-[55vh] rounded-full" />
-          <div className="orb orb-3 absolute left-[40%] bottom-[10%] h-[50vh] w-[50vh] rounded-full" />
-        </div>
+        {/* mesh orbs + gradient ambience — skipped when noBg is set
+            (e.g. on the storelist page, which paints its OWN
+            page-level orb mesh that runs the full document height). */}
+        {!noBg && (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+            <div className="orb orb-1 absolute left-[10%] top-[15%] h-[60vh] w-[60vh] rounded-full" />
+            <div className="orb orb-2 absolute right-[8%] top-[28%] h-[55vh] w-[55vh] rounded-full" />
+            <div className="orb orb-3 absolute left-[40%] bottom-[10%] h-[50vh] w-[50vh] rounded-full" />
+          </div>
+        )}
 
         {/* CASHBACK 3D scene — desktop only, decorative on the right.
             On mobile we drop it entirely so the headline always fits
