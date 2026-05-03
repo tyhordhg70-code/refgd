@@ -91,7 +91,25 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           }}
         />
       </head>
-      <body className="min-h-screen bg-ink-950 text-white antialiased">
+      {/* v6.13.26 — body bg was solid `bg-ink-950` (#05060a,
+          near-black). Anywhere the GalaxyBackground worker
+          hadn't yet repainted (boot delay, iOS Low Power Mode
+          which auto-bails the worker via prefers-reduced-
+          motion, or in-between worker frames during fast
+          scroll) you saw the body's near-black bg as a "brief
+          black bar" during scroll. Replaced with a deep
+          violet→ink vertical gradient so any body show-through
+          is atmospheric (matches the GalaxyBackground vibe)
+          instead of a hard black void. The Tailwind class is
+          kept as a non-rendering fallback for environments
+          where inline styles don't apply. */}
+      <body
+        className="min-h-screen bg-ink-950 text-white antialiased"
+        style={{
+          background:
+            "linear-gradient(180deg, #0c0822 0%, #0a0a1c 35%, #06060f 70%, #05060a 100%)",
+        }}
+      >
         {/* Lenis-powered smooth scroll for the entire site (no-op for
             users with prefers-reduced-motion). */}
         <SmoothScroll />
