@@ -33,11 +33,26 @@ const ACCENT_TO_HEX: Record<string, { primary: string; secondary: string; soft: 
 function PathIllustrationContent({
   kind,
   accent,
+  noFilter = false,
 }: {
   kind: PathIllustrationKind;
   accent: keyof typeof ACCENT_TO_HEX;
+  /**
+   * v6.12.1 — when true, ALL `filter="url(#pi-glow-…)"` references
+   * inside this SVG are dropped. iOS Safari has a long-standing
+   * WebKit bug (rdar://15553285 / WebKit bug #95820) where an SVG
+   * <filter> element fails to evaluate when the SVG sits under a
+   * `transform: rotateY(...)` 3D-transformed parent: the filtered
+   * element becomes invisible (and on some builds the entire SVG
+   * stops painting). The mobile path-card carousel had this exact
+   * setup (SVG inside a 3D-rotated AnimatePresence wrapper), which
+   * caused the user's repeated "illustrations missing" report.
+   * The mobile call-site passes noFilter so the artwork still
+   * renders cleanly without the soft glow halo.
+   */
 }) {
   const c = ACCENT_TO_HEX[accent];
+  const glowFilter = noFilter ? undefined : `url(#pi-glow-${kind})`;
 
   return (
     <motion.svg
@@ -126,7 +141,7 @@ function PathIllustrationContent({
               cy={p.y}
               r={p.r}
               fill={c.secondary}
-              filter={`url(#pi-glow-${kind})`}
+              filter={glowFilter}
             />
           </motion.g>
         ))}
@@ -139,7 +154,7 @@ function PathIllustrationContent({
 function StoreScene({ c, kind }: { c: any; kind: string }) {
   return (
     <motion.g
-      filter={`url(#pi-glow-${kind})`}
+      filter={glowFilter}
       animate={{ y: [0, -4, 0] }}
       transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
     >
@@ -187,7 +202,7 @@ function StoreScene({ c, kind }: { c: any; kind: string }) {
 /* ─────────────────────────── SHIELD ────────────────────────── */
 function ShieldScene({ c, kind }: { c: any; kind: string }) {
   return (
-    <g filter={`url(#pi-glow-${kind})`}>
+    <g filter={glowFilter}>
       {/* Shield body — gentle breathing */}
       <motion.g
         transform="translate(200,260)"
@@ -236,7 +251,7 @@ function ShieldScene({ c, kind }: { c: any; kind: string }) {
 /* ─────────────────────────── CHESS ─────────────────────────── */
 function ChessScene({ c, kind }: { c: any; kind: string }) {
   return (
-    <g filter={`url(#pi-glow-${kind})`}>
+    <g filter={glowFilter}>
       <g transform="translate(200,330)">
         {Array.from({ length: 4 }).map((_, r) =>
           Array.from({ length: 4 }).map((_, col) => {
@@ -281,7 +296,7 @@ function ChessScene({ c, kind }: { c: any; kind: string }) {
 /* ─────────────────────────── SPARK ─────────────────────────── */
 function SparkScene({ c, kind }: { c: any; kind: string }) {
   return (
-    <g filter={`url(#pi-glow-${kind})`}>
+    <g filter={glowFilter}>
       {/* Diamond — slow breathe */}
       <motion.g
         transform="translate(200,250)"
@@ -345,7 +360,7 @@ function SparkScene({ c, kind }: { c: any; kind: string }) {
  *  glowing shopping bag passing through it and orbiting "for-you" tags. */
 function Buy4YouScene({ c, kind }: { c: any; kind: string }) {
   return (
-    <g filter={`url(#pi-glow-${kind})`}>
+    <g filter={glowFilter}>
       {/* Background "4" */}
       <motion.text
         x="200" y="320"
@@ -441,7 +456,7 @@ function Buy4YouScene({ c, kind }: { c: any; kind: string }) {
  *  "ascend / mastery / inner circle". */
 function MasteryScene({ c, kind }: { c: any; kind: string }) {
   return (
-    <g filter={`url(#pi-glow-${kind})`}>
+    <g filter={glowFilter}>
       {/* Beam of light */}
       <motion.polygon
         points="200,80 150,420 250,420"
@@ -553,17 +568,17 @@ export default function PathIllustration(props: {
    *  running 25 infinite animations × 5 slides = 125 concurrent rAF callbacks
    *  was the dominant remaining mobile lag source. Default: true. */
   animated?: boolean;
+  /** Skip SVG <filter url(#…)> refs (iOS Safari 3D-transform bug). */
+  noFilter?: boolean;
 }) {
-  // `reducedMotion="always"` for non-active slides: framer-motion
-  // jumps all nested motion.* to their final values, exits the rAF
-  // loop for those elements, and costs zero JS per frame.
-  // Active slide (animated=true, the default) runs normally.
-  // On desktop all slides are animated (slide visibility handled by
-  // the desktop grid layout, not a stacked cube with 5 live cards).
   const freeze = props.animated === false;
   return (
     <MotionConfig reducedMotion={freeze ? "always" : "user"}>
-      <PathIllustrationContent kind={props.kind} accent={props.accent} />
+      <PathIllustrationContent
+        kind={props.kind}
+        accent={props.accent}
+        noFilter={props.noFilter}
+      />
     </MotionConfig>
   );
 }
