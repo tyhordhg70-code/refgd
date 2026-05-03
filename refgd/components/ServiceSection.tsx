@@ -202,7 +202,19 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
            on mobile (and only restoring flex-row on md:) makes
            them stack vertically: headline first, then the 260 px
            cashback scene fully visible below it. */
-        className="relative isolate flex w-full flex-col items-center overflow-hidden bg-ink-950 pt-8 pb-16 md:flex-row md:items-center md:py-0 md:min-h-[92svh]"
+        /* v6.13.19 — Added `min-h-[100svh]` on mobile (was no min-h
+           at all, just pt-8 pb-16). User reported "Get rewarded
+           section is cut off" on store-list — root cause: the
+           hero had no min-height on mobile, so when the page's
+           scrollytelling positioned the section between the
+           preceding intro and the LedJoySection (which IS 100svh),
+           the hero's natural content height was sometimes shorter
+           than viewport and the LED beat below it bled up over
+           the cashback-scene illustration, making the hero look
+           sliced. Forcing 100svh on mobile gives the headline +
+           cashback scene their own dedicated screen, matching
+           desktop's 92svh treatment. */
+        className="relative isolate flex w-full flex-col items-center justify-center overflow-hidden bg-ink-950 min-h-[100svh] pt-8 pb-16 md:flex-row md:items-center md:py-0 md:min-h-[92svh]"
         data-cursor="big"
       >
         {/* mesh orbs + gradient ambience */}
