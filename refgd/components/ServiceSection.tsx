@@ -20,17 +20,24 @@ import SecureLockCenterpiece from "./SecureLockCenterpiece";
  */
 function WastingTimeIllustration({ size }: { size: number }) {
   const reduce = useReducedMotion();
+  // v6.13.6 — Cinematic 3D entrance: the figure now sweeps in from
+  // a tilted plane behind the page (translateZ -120 + rotateY -22°)
+  // with a chromatic-aberration bloom that resolves to a clean
+  // drop-shadow at settle. Implemented as a CSS keyframe
+  // (`wastingTimeCine` in globals.css) so it runs on the GPU and
+  // doesn't fight the inner bob animation. The previous opacity +
+  // scale + y entrance the user called "boring" is replaced wholesale.
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.92, y: 18 }}
-      whileInView={{ opacity: 1, scale: 1, y: 0 }}
-      viewport={{ once: false, margin: "-10% 0px" }}
-      transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
+      initial={false}
       style={{
         width: size,
         height: size,
         position: "relative",
-        filter: "drop-shadow(0 30px 50px rgba(0,0,0,0.55))",
+        perspective: 1200,
+        animation: reduce
+          ? undefined
+          : "wastingTimeCine 1.5s cubic-bezier(0.16, 1, 0.3, 1) both",
       }}
     >
       <motion.img
@@ -39,7 +46,13 @@ function WastingTimeIllustration({ size }: { size: number }) {
         loading="lazy"
         decoding="async"
         animate={reduce ? undefined : { y: [0, -10, 0] }}
-        transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
+        transition={{
+          duration: 3.6,
+          repeat: Infinity,
+          ease: "easeInOut",
+          // Defer the bob until after the cinematic entrance lands
+          delay: 1.6,
+        }}
         style={{
           width: "100%",
           height: "100%",
@@ -116,7 +129,19 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
       <>
       {/* ─── Act 1 — "Get rewarded for shopping online." hero ──────── */}
       <section
-        className="relative isolate flex min-h-[88svh] w-full items-center overflow-hidden bg-ink-950 py-8 md:py-0 md:min-h-[92svh]"
+        /* v6.13.6 — Mobile fix: was `min-h-[88svh] items-center
+           overflow-hidden`. With `items-center` the headline box +
+           the mobile CashbackScene illustration were centred inside
+           an 88-svh slot, but the COMBINED height of the box and
+           the 260 px scene exceeded 88 svh on most phones. The
+           extra height overflowed BOTH top and bottom of the slot
+           and `overflow-hidden` then sliced the illustration off
+           at the bottom (the user's "illustration is cut off"
+           report). Mobile now uses natural height with
+           `items-start` so the box sits at the top and the scene
+           can render fully below it; desktop keeps the cinematic
+           full-viewport hero. */
+        className="relative isolate flex w-full items-start overflow-hidden bg-ink-950 pt-8 pb-12 md:items-center md:py-0 md:min-h-[92svh]"
         data-cursor="big"
       >
         {/* mesh orbs + gradient ambience */}
