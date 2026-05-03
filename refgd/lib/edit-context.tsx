@@ -34,11 +34,9 @@ import {
 
 type ContentMap = Record<string, string>;
 
-type HistoryEntry = {
-  id: string;
-  prev: string;
-  next: string;
-};
+type HistoryEntry =
+    | { id: string; prev: string; next: string }
+    | { batch: Array<{ id: string; prev: string; next: string }> };
 
 type EditContextShape = {
   /** Server-confirmed admin? */
@@ -50,7 +48,12 @@ type EditContextShape = {
   /** Resolve the current displayed value for a content id. */
   getValue: (id: string, fallback?: string) => string;
   /** Queue a new value (or commit it locally for inline rendering). */
-  setValue: (id: string, next: string) => void;
+    setValue: (id: string, next: string) => void;
+    /** v6.13.61 — Queue multiple values atomically: one history entry,
+       one render. Used by MoveHandle so a single drag commits dx+dy
+       as ONE undo step instead of two (and admin presses Ctrl+Z once
+       to fully revert a drag instead of twice). */
+    setValueBatch: (pairs: Array<{ id: string; next: string }>) => void;
 
   /** True when there are queued edits not yet persisted. */
   dirty: boolean;
@@ -172,35 +175,114 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
     [display, historyPos],
   );
 
-  const undo = useCallback(() => {
-    if (historyPos <= 0) return;
-    const entry = history[historyPos - 1];
-    if (!entry) { setHistoryPos(0); return; }
-    setDisplay((m) => ({ ...m, [entry.id]: entry.prev }));
-    setPending((q) => {
-      const saved = savedRef.current[entry.id] ?? "";
-      const copy = { ...q };
-      if (entry.prev === saved) delete copy[entry.id];
-      else copy[entry.id] = entry.prev;
-      return copy;
-    });
-    setHistoryPos((p) => p - 1);
-  }, [history, historyPos]);
+  /* v6.13.61 — Atomic multi-id setter. Filters no-ops, applies one
+       setDisplay + one setPending, and pushes ONE history entry of
+       shape { batch: [...] } so undo/redo treat the whole batch as a
+       single user action. Falls through to setValue when there's
+       exactly one effective change. */
+    const setValueBatch = useCallback(
+      (pairs: Array<{ id: string; next: string }>) => {
+        if (!pairs || pairs.length === 0) return;
+        const items: Array<{ id: string; prev: string; next: string }> = [];
+        const seen = new Set<string>();
+        for (const { id, next } of pairs) {
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const prev = display[id] ?? "";
+          if (prev === next) continue;
+          items.push({ id, prev, next });
+        }
+        if (items.length === 0) return;
+        if (items.length === 1) {
+          setValue(items[0].id, items[0].next);
+          return;
+        }
+        setDisplay((m) => {
+          const out = { ...m };
+          for (const it of items) out[it.id] = it.next;
+          return out;
+        });
+        setPending((q) => {
+          const out = { ...q };
+          for (const it of items) {
+            const saved = savedRef.current[it.id] ?? "";
+            if (saved === it.next) delete out[it.id];
+            else out[it.id] = it.next;
+          }
+          return out;
+        });
+        setHistory((h) => {
+          const trimmed = h.slice(0, historyPos);
+          return [...trimmed, { batch: items }];
+        });
+        setHistoryPos((p) => p + 1);
+      },
+      [display, historyPos, setValue],
+    );
+
+    const undo = useCallback(() => {
+      if (historyPos <= 0) return;
+      const entry = history[historyPos - 1];
+      if (!entry) { setHistoryPos(0); return; }
+      if ("batch" in entry) {
+        setDisplay((m) => {
+          const out = { ...m };
+          for (const it of entry.batch) out[it.id] = it.prev;
+          return out;
+        });
+        setPending((q) => {
+          const out = { ...q };
+          for (const it of entry.batch) {
+            const saved = savedRef.current[it.id] ?? "";
+            if (it.prev === saved) delete out[it.id];
+            else out[it.id] = it.prev;
+          }
+          return out;
+        });
+      } else {
+        setDisplay((m) => ({ ...m, [entry.id]: entry.prev }));
+        setPending((q) => {
+          const saved = savedRef.current[entry.id] ?? "";
+          const copy = { ...q };
+          if (entry.prev === saved) delete copy[entry.id];
+          else copy[entry.id] = entry.prev;
+          return copy;
+        });
+      }
+      setHistoryPos((p) => p - 1);
+    }, [history, historyPos]);
 
   const redo = useCallback(() => {
-    if (historyPos >= history.length) return;
-    const entry = history[historyPos];
-    if (!entry) { setHistoryPos(history.length); return; }
-    setDisplay((m) => ({ ...m, [entry.id]: entry.next }));
-    setPending((q) => {
-      const saved = savedRef.current[entry.id] ?? "";
-      const copy = { ...q };
-      if (entry.next === saved) delete copy[entry.id];
-      else copy[entry.id] = entry.next;
-      return copy;
-    });
-    setHistoryPos((p) => p + 1);
-  }, [history, historyPos]);
+      if (historyPos >= history.length) return;
+      const entry = history[historyPos];
+      if (!entry) { setHistoryPos(history.length); return; }
+      if ("batch" in entry) {
+        setDisplay((m) => {
+          const out = { ...m };
+          for (const it of entry.batch) out[it.id] = it.next;
+          return out;
+        });
+        setPending((q) => {
+          const out = { ...q };
+          for (const it of entry.batch) {
+            const saved = savedRef.current[it.id] ?? "";
+            if (it.next === saved) delete out[it.id];
+            else out[it.id] = it.next;
+          }
+          return out;
+        });
+      } else {
+        setDisplay((m) => ({ ...m, [entry.id]: entry.next }));
+        setPending((q) => {
+          const saved = savedRef.current[entry.id] ?? "";
+          const copy = { ...q };
+          if (entry.next === saved) delete copy[entry.id];
+          else copy[entry.id] = entry.next;
+          return copy;
+        });
+      }
+      setHistoryPos((p) => p + 1);
+    }, [history, historyPos]);
 
   const flush = useCallback(async () => {
     const blocks = Object.entries(pending).map(([id, value]) => ({ id, value }));
@@ -239,8 +321,9 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
       editMode,
       setEditMode: (v) => setEditMode(isAdmin ? v : false),
       getValue,
-      setValue,
-      dirty: Object.keys(pending).length > 0,
+        setValue,
+        setValueBatch,
+        dirty: Object.keys(pending).length > 0,
       pendingCount: Object.keys(pending).length,
       canUndo: historyPos > 0,
       canRedo: historyPos < history.length,
@@ -250,7 +333,7 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
       discard,
       contentVersion,
     }),
-    [isAdmin, editMode, getValue, setValue, pending, history, historyPos, undo, redo, flush, discard, contentVersion],
+    [isAdmin, editMode, getValue, setValue, setValueBatch, pending, history, historyPos, undo, redo, flush, discard, contentVersion],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
