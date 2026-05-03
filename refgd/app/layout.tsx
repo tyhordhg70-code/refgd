@@ -7,15 +7,16 @@ import CustomCursor from "@/components/CustomCursor";
 import PulsatingOverlay from "@/components/PulsatingOverlay";
 import GalaxyBackground from "@/components/GalaxyBackground";
 import Cosmic3DShapes from "@/components/Cosmic3DShapes";
-/* v6.13.10 — LoadingScreen removed per user request ("loading scene
-   still happens it shouldn't load"). The cinematic boot overlay
-   added a hard ~1.5-2.4 s gate before any scrolling was allowed,
-   which the user found intrusive. With it gone, entrance components
-   that previously gated on `useEntranceReady()` now see the gate
-   flag as `undefined` — the gate hook (loading-screen-gate.ts) was
-   updated to treat `undefined` as "ready" so all entrance animations
-   play immediately on first paint instead of waiting for an event
-   that will never fire. */
+/* v6.13.27 — LoadingScreen RESTORED per user request ("Everything
+   should download and boot during loading screen"). Was removed
+   in v6.13.10; user since reported in-flight visual artifacts
+   (black/violet bars, blank cards, fallback-vs-loaded transitions)
+   that they don't want to see. Restoring the boot overlay so
+   galaxy worker, hero canvas, and entrance components all warm
+   up behind the splash and the user only sees a finished page
+   once it lifts. The useEntranceReady gate in components is
+   already wired up — just remounting the screen here re-arms it. */
+import LoadingScreen from "@/components/LoadingScreen";
 import SmoothScroll from "@/components/SmoothScroll";
 import EditProvider from "@/lib/edit-context";
 import EditorToolbar from "@/components/EditorToolbar";
@@ -91,29 +92,24 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           }}
         />
       </head>
-      {/* v6.13.26 — body bg was solid `bg-ink-950` (#05060a,
-          near-black). Anywhere the GalaxyBackground worker
-          hadn't yet repainted (boot delay, iOS Low Power Mode
-          which auto-bails the worker via prefers-reduced-
-          motion, or in-between worker frames during fast
-          scroll) you saw the body's near-black bg as a "brief
-          black bar" during scroll. Replaced with a deep
-          violet→ink vertical gradient so any body show-through
-          is atmospheric (matches the GalaxyBackground vibe)
-          instead of a hard black void. The Tailwind class is
-          kept as a non-rendering fallback for environments
-          where inline styles don't apply. */}
-      <body
-        className="min-h-screen bg-ink-950 text-white antialiased"
-        style={{
-          background:
-            "linear-gradient(180deg, #0c0822 0%, #0a0a1c 35%, #06060f 70%, #05060a 100%)",
-        }}
-      >
+      {/* v6.13.27 — REVERTED v6.13.26 violet→ink gradient back
+          to solid bg-ink-950. The gradient produced a visible
+          violet horizontal band at the top of the body (most
+          noticeable on the home page above-the-fold), which
+          the user reported as "now there's a violet bar".
+          Going back to solid ink. The black-bar-during-scroll
+          issue is now solved by the LoadingScreen restoration
+          above — the page can't be scrolled until galaxy +
+          critical assets are warm. */}
+      <body className="min-h-screen bg-ink-950 text-white antialiased">
         {/* Lenis-powered smooth scroll for the entire site (no-op for
             users with prefers-reduced-motion). */}
         <SmoothScroll />
-        {/* v6.13.10 — <LoadingScreen /> removed (see import note). */}
+        {/* v6.13.27 — restored. Self-dismisses once the galaxy
+            worker reports ready and the cinematic scene warm
+            event fires (with a hard timeout fallback inside
+            LoadingScreen so it can never strand the page). */}
+        <LoadingScreen />
         <EditProvider initialAdmin={initialAdmin} initialContent={initialContent}>
           {/* Site-wide continuous WebGL galaxy field — every page scrolls
               over the same scene so transitions feel like one journey. */}
