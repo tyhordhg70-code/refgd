@@ -16,6 +16,7 @@ import EditableText from "@/components/EditableText";
 import ChapterPill from "@/components/ChapterPill";
 import LedTicker from "@/components/LedTicker";
 import LedJoySection from "@/components/LedJoySection";
+import SkipToStoreListButton from "@/components/SkipToStoreListButton";
 
 export const dynamic = "force-dynamic";
 
@@ -89,33 +90,14 @@ export default async function StoreListPage() {
         <div className="orb orb-3 absolute left-[40%] bottom-[15%] h-[50vh] w-[50vh] rounded-full" />
       </div>
 
-      {/* v6.13.32 — "Add a carefully positioned button skip to storelist
-          that jumps to the actual choose your region section." The
-          region selector lives at `id="region"` further down the page.
-          This anchor link uses native browser smooth scrolling (the
-          page has scroll-mt offsets defined), is fixed at the bottom-
-          right with safe-area-inset support so it doesn't collide with
-          the iOS home-bar, and only renders when the visitor is above
-          the region section (CSS-only via `:has()` targeting `#region`
-          intersection isn't possible without JS, so we keep it always-
-          visible — the link gracefully no-ops if you're already at
-          the region). Backdrop blur + amber glow keeps it on-brand
-          with the LED ticker accent. */}
-      <a
-        href="#region"
-        aria-label="Skip to store list — jump to the Select your region section"
-        className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-40 inline-flex items-center gap-2 rounded-full border border-amber-300/40 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100 shadow-[0_18px_40px_-12px_rgba(245,185,69,0.45)] backdrop-blur-md transition hover:border-amber-300/70 hover:text-white sm:bottom-6 sm:right-6 sm:px-5 sm:py-3 sm:text-sm sm:tracking-[0.22em]"
-        style={{
-          background:
-            "linear-gradient(135deg, rgba(245,185,69,0.22), rgba(15,10,30,0.85))",
-        }}
-      >
-        Skip to store list
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M12 5v14" />
-          <path d="m19 12-7 7-7-7" />
-        </svg>
-      </a>
+      {/* v6.13.34 — Skip-to-storelist button. Visibility is now
+          gated by an IntersectionObserver on the get-rewarded
+          hero (see <SkipToStoreListButton>): visible while the
+          cashback hero is in view, faded out otherwise, and
+          permanently dismissed once pressed. The original v6.13.32
+          always-visible inline <a> was replaced because the user
+          reported it overlapping content beats below the hero. */}
+      <SkipToStoreListButton />
 
       <ReorderableContainer pageId="store-list">
 
