@@ -182,7 +182,7 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
         aria-hidden="true"
         className="mt-4 heading-display text-center text-[10px] font-semibold uppercase tracking-[0.4em] text-white/55"
       >
-        Swipe to rotate the cube
+        Swipe or tap a dot to rotate
       </p>
     </section>
   );
@@ -303,12 +303,20 @@ function MobileFloatOrbs() {
 function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
   const N = cards.length;
   const FACE_ANGLE = 360 / N;
+  const reduced = useReducedMotion();
 
   const [active, setActive] = useState(0);
   // Drag fraction in units of one face. -1 = swiped fully right
   // (next face), +1 = swiped fully left (previous face). Reset to
   // 0 the moment the gesture ends.
+  //
+  // We MIRROR this in `dragRef` so finishGesture (called from a
+  // pointerup handler that may fire in the same tick as the last
+  // pointermove) reads the real latest value and not a stale one
+  // from a not-yet-flushed React state update.
   const [drag, setDrag] = useState(0);
+  const dragRef = useRef(0);
+  const setDragBoth = (v: number) => { dragRef.current = v; setDrag(v); };
 
   const stageRef = useRef<HTMLDivElement>(null);
   const faceWidth = useRef(0);
@@ -343,15 +351,29 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
   const startY = useRef(0);
   const decided = useRef<"h" | "v" | null>(null);
   const activeAtStart = useRef(0);
+  // Track the SPECIFIC pointer that started the gesture. Any
+  // events from a second finger (multi-touch) are ignored — they
+  // can no longer corrupt the dx/dy or accidentally commit.
+  const activePointerId = useRef<number | null>(null);
 
   const onPointerDown = (e: React.PointerEvent) => {
+    // Only the primary touch starts a swipe. Pinch / second-finger
+    // events bail out so they can't mutate dx during a real drag.
+    if (!e.isPrimary) return;
+    if (activePointerId.current !== null) return;
+    activePointerId.current = e.pointerId;
     startX.current = e.clientX;
     startY.current = e.clientY;
     decided.current = null;
     activeAtStart.current = active;
+    // Capture the pointer so subsequent move/up events route here
+    // even if the finger leaves the carousel bounds (no premature
+    // commit from pointerleave on a fast drag).
+    try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch {}
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    if (activePointerId.current !== e.pointerId) return;
     if (startX.current === null) return;
     const dx = e.clientX - startX.current;
     const dy = e.clientY - startY.current;
@@ -362,7 +384,8 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
       if (ay > ax * 1.7 && ay >= 10) {
         decided.current = "v";
         startX.current = null;
-        setDrag(0);
+        activePointerId.current = null;
+        setDragBoth(0);
         return;
       }
       decided.current = "h";
@@ -370,8 +393,6 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
     if (decided.current !== "h") return;
     // Negative dx = swiping left = advance to next face = positive drag.
     const fraction = -dx / Math.max(1, faceWidth.current);
-    // Clamp to [-1, +1] so a runaway drag can't spin the prism past
-    // the immediate neighbour during a single gesture.
     const clamped = Math.max(-1, Math.min(1, fraction));
     // Edge resistance: rubber-band when trying to drag past the
     // first or last face. Past the boundary, drag is divided by 3.
@@ -379,19 +400,31 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
     let final = clamped;
     if (wouldGo < 0) final = -activeAtStart.current + (clamped + activeAtStart.current) / 3;
     if (wouldGo > N - 1) final = (N - 1 - activeAtStart.current) + (clamped - (N - 1 - activeAtStart.current)) / 3;
-    setDrag(final);
+    setDragBoth(final);
   };
 
-  const finishGesture = () => {
-    if (startX.current === null) return;
+  const finishGesture = (e?: React.PointerEvent) => {
+    if (e && activePointerId.current !== null && e.pointerId !== activePointerId.current) return;
+    if (startX.current === null) {
+      activePointerId.current = null;
+      return;
+    }
     startX.current = null;
     decided.current = null;
-    // Commit threshold: 18% of one face width is enough to advance.
+    // Read the LATEST drag value from the ref — `drag` state may
+    // not have flushed yet between the last pointermove and this
+    // pointerup, which previously caused a stale-state commit
+    // landing on the wrong card.
+    const d = dragRef.current;
     let next = activeAtStart.current;
-    if (drag > 0.18) next = Math.min(N - 1, activeAtStart.current + 1);
-    else if (drag < -0.18) next = Math.max(0, activeAtStart.current - 1);
+    if (d > 0.18) next = Math.min(N - 1, activeAtStart.current + 1);
+    else if (d < -0.18) next = Math.max(0, activeAtStart.current - 1);
     setActive(next);
-    setDrag(0);
+    setDragBoth(0);
+    if (e && activePointerId.current !== null) {
+      try { (e.target as Element).releasePointerCapture?.(activePointerId.current); } catch {}
+    }
+    activePointerId.current = null;
   };
 
   const rotation = -(active + drag) * FACE_ANGLE;
@@ -414,8 +447,8 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
         // making the prism feel like it's behind glass.
         perspective: "1400px",
       }}
-      initial={{ opacity: 0, y: 60, scale: 0.88 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      initial={reduced ? false : { opacity: 0, y: 60, scale: 0.88 }}
+      whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, amount: 0.25 }}
       transition={{ duration: 0.95, ease: [0.22, 1, 0.36, 1] }}
     >
