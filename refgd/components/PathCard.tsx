@@ -225,7 +225,12 @@ export default function PathCard({
           */}
           <div className={`relative h-full w-full overflow-hidden ${radius}`}>
             <div className={`absolute inset-0 bg-gradient-to-br ${BG_TINT[accent]}`} />
-            <PathIllustration kind={illustration} accent={accent} animated={animated} />
+            <PathIllustration
+              kind={illustration}
+              accent={accent}
+              animated={animated}
+              noFilter
+            />
             <div
               aria-hidden="true"
               className="absolute inset-0"
