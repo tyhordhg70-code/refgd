@@ -11,7 +11,7 @@ import {
 } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { Pagination, EffectCube } from "swiper/modules";
+import { Pagination, EffectCreative } from "swiper/modules";
 import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
@@ -350,28 +350,55 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
       }}
     >
       <Swiper
-        // v6.10.7: EffectCube restored + loop=true.
-        // EffectCube is the CORRECT effect for this stage — it is the
-        // only effect where each SwiperSlide is sized to exactly fill
-        // a cube face (= the stage dimensions) so the h-full chain
-        // from SwiperSlide → PathCard → illustration always resolves
-        // to a real pixel height. EffectCoverflow uses position:absolute
-        // with height:auto on slides, which collapses h-full to 0 and
-        // makes illustrations disappear.
+        // v6.10.8: EffectCreative with cube-like 3D flip.
         //
-        // loop=true lets Swiper clone slides behind the scenes so the
-        // cube always has all 4 faces populated regardless of slide
-        // count — all 5 path cards are reachable with a single-finger
-        // swipe, no 4-face hard cap in practice.
-        modules={[Pagination, EffectCube]}
-        effect="cube"
-        cubeEffect={{
-          shadow: false,
-          slideShadows: false,
-          shadowOffset: 0,
-          shadowScale: 0,
+        // WHY NOT EffectCube:
+        //   Swiper's cube places each slide at slideIndex*90°. With 5
+        //   slides, slide 4 maps to slideIndex%4===0 round=1 — the
+        //   SAME physical face as slide 0. Rotating to slide 4 returns
+        //   the cube to 0° visually. Cards 3-5 are unreachable; the
+        //   user reported "can't scroll past card 2".
+        //
+        // WHY NOT loop=true with EffectCube:
+        //   loop=true makes Swiper clone slide DOM nodes. Each clone
+        //   duplicates SVG ids like `id="pi-bg-store"`. Any css
+        //   url(#pi-bg-store) then resolves to the first DOM match
+        //   (a broken clone) so gradients/filters are missing →
+        //   illustrations disappear.
+        //
+        // EffectCreative SOLUTION:
+        //   • Configurable prev/next transforms — a pure cube flip
+        //     (prev folds left, next folds right) with no geometric
+        //     face-count limit. All 5 cards reachable.
+        //   • virtualTranslate=true (set by overwriteParams): each
+        //     slide is individually CSS-transformed; the wrapper
+        //     doesn't move. Slides are sized to fill the container
+        //     exactly, so the h-full chain resolves to a real height
+        //     and illustrations render correctly.
+        //   • loop=false: no DOM clones, no duplicate SVG ids.
+        modules={[Pagination, EffectCreative]}
+        effect="creative"
+        creativeEffect={{
+          limitProgress: 1,
+          perspective: true,
+          prev: {
+            // Slides left of active: fold away to the left.
+            // Pivot from the right edge → rotateY(90°) hides the
+            // front face and reveals a left-facing edge, exactly
+            // like a cube face rotating off-screen to the left.
+            translate: ['-100%', 0, 0],
+            rotate: [0, 90, 0],
+            origin: 'right center',
+          },
+          next: {
+            // Slides right of active: fold in from the right.
+            translate: ['100%', 0, 0],
+            rotate: [0, -90, 0],
+            origin: 'left center',
+          },
         }}
-        loop={true}
+        slidesPerView={1}
+        loop={false}
         grabCursor
         speed={520}
         // touchAngle: 30 — Swiper's own filter for vertical-leaning
