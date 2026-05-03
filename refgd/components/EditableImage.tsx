@@ -1,4 +1,5 @@
 "use client";
+import EditorIsland from "@/components/EditorIsland";
 
 /**
  * Inline-editable image with full admin controls.
@@ -44,7 +45,7 @@ type Props = {
   wrapperStyle?: CSSProperties;
 };
 
-export default function EditableImage({
+function EditableImageInner({
   id,
   defaultSrc,
   alt,
@@ -493,5 +494,13 @@ export default function EditableImage({
         document.body
       )}
     </span>
+  );
+}
+
+export default function EditableImage(props: Props) {
+  return (
+    <EditorIsland id={props.id}>
+      <EditableImageInner {...props} />
+    </EditorIsland>
   );
 }
