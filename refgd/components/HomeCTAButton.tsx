@@ -133,7 +133,7 @@ export default function HomeCTAButton({
               if (e.key === "Escape") setPopOpen(false);
             }}
             placeholder="https://…"
-            className="w-full rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-white outline-none focus:border-amber-300/60"
+            className="w-full rounded-md border border-white/10 bg-white/10 px-2 py-1.5 text-white caret-amber-300 outline-none placeholder:text-white/40 focus:border-amber-300/60 focus:bg-white/15"
             autoFocus
             spellCheck={false}
             data-testid="home-telegram-cta-url-input"
