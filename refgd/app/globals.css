@@ -5,7 +5,6 @@
 /* Swiper carousel + 3D cube effect (used by mobile path-card carousel). */
 @import "swiper/css";
 @import "swiper/css/pagination";
-@import "swiper/css/effect-creative";
 
 /* Override Swiper pagination bullets to match the page palette. */
 .swiper-pagination-bullet {
