@@ -43,8 +43,8 @@ const LOGO_SRC: Record<string, string> = {
 };
 
 const SECTIONS: Section[] = [
-  { id:"flights",label:"Flights",icon:"✈",hasRefund:false,buy4u:{
-    intro:"We book your flights at a flat 50% service rate. Message us a few days to a week in advance — confirm we are online before any booking starts.",
+  { id:"flights",label:"Flights",icon:"â",hasRefund:false,buy4u:{
+    intro:"We book your flights at a flat 50% service rate. Message us a few days to a week in advance â confirm we are online before any booking starts.",
     disclaimer:"If you do not see your desired airline, message us and we can look into it. Note: Emirates Airline is NOT possible.",
     cards:[
       B("f01","American Airlines","aa.com"),
@@ -72,7 +72,7 @@ const SECTIONS: Section[] = [
       B("f23","Air Canada","aircanada.com"),
     ],
   }},
-  { id:"food",label:"Food",icon:"🍔",hasRefund:true,buy4u:{
+  { id:"food",label:"Food",icon:"ð",hasRefund:true,buy4u:{
     intro:"Food pickup via DoorDash & Uber Eats. Uber Eats delivery up to $100. Instacart for groceries below $100.",
     disclaimer:"Make sure we are ONLINE before placing your order.",
     withSearch:true,
@@ -148,7 +148,7 @@ const SECTIONS: Section[] = [
       B("fd69","Texas de Brazil","texasdebrazil.com"),
       B("fd70","Texas Roadhouse","texasroadhouse.com"),
       B("fd71","TGI Fridays","tgifridays.com"),
-      B("fd72","Tropical Smoothie Café","tropicalsmoothie.com"),
+      B("fd72","Tropical Smoothie CafÃ©","tropicalsmoothie.com"),
       B("fd73","Wendy's","wendys.com"),
       B("fd74","Whataburger","whataburger.com"),
       B("fd75","White Castle","whitecastle.com"),
@@ -160,20 +160,20 @@ const SECTIONS: Section[] = [
       { key:"fd99",name:"+ Any Other Chain Restaurant!",kind:"photo",photo:"https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80" },
     ],
   },refund:{ intro:"We can also help place food orders on your behalf. Contact us for more details.", cards:[] },},
-  { id:"hotels",label:"Hotels",icon:"🛏",hasRefund:true,buy4u:{
+  { id:"hotels",label:"Hotels",icon:"ð",hasRefund:true,buy4u:{
     intro:"We can book hotels for you from Expedia.com or Booking.com.",
     disclaimer:"Use this service if your booking does not meet our minimum price for the refund service.",
     cards:[B("h01","Expedia","expedia.com"),B("h02","Booking.com","booking.com"),B("h03","Hotels.com","hotels.com")],
   },refund:{
-    intro:"HOTELS.com / EXPEDIA / AGODA / TRIP.COM — INSIDER INSTANT REFUNDS. Enjoy your vacation at a fraction of the price. Fresh accounts OK. No limit, any property works (Agoda: hotels only — no apartments or houses). Confirm with us BEFORE booking. MUST be paid in full online — do NOT select pay-later or pay-at-property. ⚠️ Refund is done on first day of check-in OR before checkout. YES it is 10000% SAFE! Handled via our private insider.",
-    disclaimer:"💲1,000 minimum fee · 💲2,000 minimum booking · 50% service fee. For the extra paranoid, refund after checkout is possible with an upfront payment.",
+    intro:"HOTELS.com / EXPEDIA / AGODA / TRIP.COM â INSIDER INSTANT REFUNDS. Enjoy your vacation at a fraction of the price. Fresh accounts OK. No limit, any property works (Agoda: hotels only â no apartments or houses). Confirm with us BEFORE booking. MUST be paid in full online â do NOT select pay-later or pay-at-property. â ï¸ Refund is done on first day of check-in OR before checkout. YES it is 10000% SAFE! Handled via our private insider.",
+    disclaimer:"ð²1,000 minimum fee Â· ð²2,000 minimum booking Â· 50% service fee. For the extra paranoid, refund after checkout is possible with an upfront payment.",
     cards:[B("rh01","Hotels.com","hotels.com"),B("rh02","Expedia","expedia.com"),B("rh03","Agoda","agoda.com"),B("rh04","Trip.com","trip.com")],
   }},
-  { id:"trains",label:"Trains",icon:"🚆",hasRefund:false,buy4u:{ intro:"Long-distance train and bus ticket bookings.", cards:[B("t01","Amtrak","amtrak.com"),B("t02","Greyhound","greyhound.com")] }},
-  { id:"cars",label:"Cars",icon:"🚗",hasRefund:false,buy4u:{ intro:"Car rental bookings — confirm availability before we book.", cards:[B("c01","Avis","avis.com"),B("c02","Budget","budget.com")] }},
-  { id:"attractions",label:"Attractions & Tours",icon:"🎡",hasRefund:true,buy4u:{
-    intro:"Theme parks, concerts, cruises, tours, sports games, ski resorts, water parks — booked at the flat 50% service rate.",
-    disclaimer:"Other recreational activities & many more — open a ticket for custom requests.",
+  { id:"trains",label:"Trains",icon:"ð",hasRefund:false,buy4u:{ intro:"Long-distance train and bus ticket bookings.", cards:[B("t01","Amtrak","amtrak.com"),B("t02","Greyhound","greyhound.com")] }},
+  { id:"cars",label:"Cars",icon:"ð",hasRefund:false,buy4u:{ intro:"Car rental bookings â confirm availability before we book.", cards:[B("c01","Avis","avis.com"),B("c02","Budget","budget.com")] }},
+  { id:"attractions",label:"Attractions & Tours",icon:"ð¡",hasRefund:true,buy4u:{
+    intro:"Theme parks, concerts, cruises, tours, sports games, ski resorts, water parks â booked at the flat 50% service rate.",
+    disclaimer:"Other recreational activities & many more â open a ticket for custom requests.",
     cards:[
             C("a01","Knott's Berry Farm","https://live.staticflickr.com/3087/3117082737_a328c57946_b.jpg"),
       C("a02","Kings Dominion","https://live.staticflickr.com/4010/4571006662_447cbf34d2_b.jpg"),
@@ -215,14 +215,14 @@ const SECTIONS: Section[] = [
       C("a38","Train Tickets","https://live.staticflickr.com/6173/6207643946_b38ba729c9_b.jpg"),
     ],
   },refund:{
-    intro:"Book from Viator.com, Agoda.com or Trip.com. 🎟 Ticket Limit: NO LIMIT (same event). 💸 Price Limit: $7,000. ⏳ Time Frame: INSTANT. Fee 35%. Minimum Order: $500. Minimum Fee: $250. 💬 Message at least a day or 1–2 hours before the event — make sure we are ONLINE.",
+    intro:"Book from Viator.com, Agoda.com or Trip.com. ð Ticket Limit: NO LIMIT (same event). ð¸ Price Limit: $7,000. â³ Time Frame: INSTANT. Fee 35%. Minimum Order: $500. Minimum Fee: $250. ð¬ Message at least a day or 1â2 hours before the event â make sure we are ONLINE.",
     cards:[B("ra01","Viator","viator.com"),B("ra02","Agoda","agoda.com"),B("ra03","Trip.com","trip.com")],
   }},
-  { id:"furniture",label:"Furniture",icon:"🛋",hasRefund:true,
-    buy4u:{ intro:"Furniture orders booked through us — IKEA only.", cards:[B("fu01","IKEA","ikea.com")] },
+  { id:"furniture",label:"Furniture",icon:"ð",hasRefund:true,
+    buy4u:{ intro:"Furniture orders booked through us â IKEA only.", cards:[B("fu01","IKEA","ikea.com")] },
     refund:{ intro:"For furniture refunds, head to our full Store List for the supported retailers.", cards:[] },
   },
-  { id:"giftcards",label:"Gift Cards",icon:"🎁",hasRefund:false,buy4u:{ intro:"", cards:[] } },
+  { id:"giftcards",label:"Gift Cards",icon:"ð",hasRefund:false,buy4u:{ intro:"", cards:[] } },
 ];
 
 const BADGE_COLOURS = ["bg-amber-500","bg-violet-600","bg-cyan-600","bg-rose-600","bg-emerald-600","bg-orange-500","bg-fuchsia-600","bg-sky-600"];
@@ -257,7 +257,13 @@ function BrandCard({ secId, mode, card }: { secId: string; mode: "buy4u"|"refund
   return (
     <div className="group relative flex flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition hover:-translate-y-0.5 hover:border-amber-300/40 hover:bg-white/[0.07]" style={{ overflow:"visible", minHeight:"100px" }}>
       {card.kind === "photo" ? (
-        <img src={card.photo} alt={card.name} className="aspect-[4/3] w-full rounded-xl object-cover" loading="lazy" />
+        <EditableImage
+            id={`${id}.photo`}
+            defaultSrc={card.photo!}
+            alt={card.name}
+            className="h-full w-full object-contain"
+            wrapperClassName="block aspect-[4/3] w-full overflow-hidden rounded-xl"
+          />
       ) : (
         <BrandLogo domain={card.domain!} name={card.name} cardKey={card.key} />
       )}
@@ -265,7 +271,7 @@ function BrandCard({ secId, mode, card }: { secId: string; mode: "buy4u"|"refund
         <EditableText id={`${id}.name`} defaultValue={card.name} as="p" className="text-center text-xs font-semibold leading-tight text-white" />
       </div>
       {isAdmin && editMode && card.domain && (
-        <EditableText id={`${id}.domain`} defaultValue={card.domain} as="p" className="w-full text-center font-mono text-[10px] text-white/35" placeholder="clearbit domain…" />
+        <EditableText id={`${id}.domain`} defaultValue={card.domain} as="p" className="w-full text-center font-mono text-[10px] text-white/35" placeholder="clearbit domainâ¦" />
       )}
     </div>
   );
@@ -284,7 +290,7 @@ function SearchableGrid({ secId, mode, cards }: { secId: string; mode: "buy4u"|"
   const filtered = useMemo(() => { const n = q.trim().toLowerCase(); return n ? cards.filter(c => c.name.toLowerCase().includes(n) || (c.domain??c.photo??"").toLowerCase().includes(n)) : cards; }, [q, cards]);
   return (<>
     <div className="mt-4">
-      <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search restaurants & brands…" className="w-full rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" />
+      <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search restaurants & brandsâ¦" className="w-full rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" />
       <p className="mt-1 text-xs text-white/45">{filtered.length} of {cards.length} brands</p>
     </div>
     <CardGrid secId={secId} mode={mode} cards={filtered} />
@@ -343,7 +349,7 @@ function GiftCardsSection() {
   }), [cat, state, avail, q]);
   return (
     <section id="buy4u-giftcards" className="scroll-mt-24 rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
-      <div className="mb-4 flex items-center gap-3"><span className="text-3xl">🎁</span>
+      <div className="mb-4 flex items-center gap-3"><span className="text-3xl">ð</span>
         <h2 className="heading-display text-2xl font-bold uppercase tracking-tight text-white"><EditableText id="buy4u.giftcards.label" defaultValue="Gift Cards" /></h2>
       </div>
       <EditableText id="buy4u.giftcards.intro" defaultValue="Gift card catalog mirrored from spawngc.gg. Full inventory population is in progress (spawngc requires login). Filters below match the real category, state, and availability lists from spawngc.gg." as="p" multiline className="text-base leading-relaxed text-white/85" />
@@ -351,7 +357,7 @@ function GiftCardsSection() {
         <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Category</span><select value={cat} onChange={e=>setCat(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">All categories</option>{SPAWNGC_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
         <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">State</span><select value={state} onChange={e=>setState(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">All states</option>{SPAWNGC_STATES.map(s=><option key={s} value={s}>{s}</option>)}</select></label>
         <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Availability</span><select value={avail} onChange={e=>setAvail(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">Any availability</option>{SPAWNGC_AVAILABILITY.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
-        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Search</span><input type="search" value={q} onChange={e=>setQ(e.target.value)} placeholder="Brand or name…" className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" /></label>
+        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Search</span><input type="search" value={q} onChange={e=>setQ(e.target.value)} placeholder="Brand or nameâ¦" className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" /></label>
       </div>
       {SPAWNGC_CARDS.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-amber-300/30 bg-amber-400/[0.06] px-5 py-6 text-center">
@@ -384,13 +390,13 @@ export default function Buy4uPage() {
         <h1 className="heading-display mt-2 text-4xl font-bold uppercase tracking-tight text-white sm:text-5xl"><EditableText id="buy4u.title" defaultValue="Buy 4 U" /></h1>
       </header>
       <div className="mx-auto max-w-3xl rounded-3xl border border-amber-300/35 bg-gradient-to-br from-amber-400/[0.10] to-transparent p-6 sm:p-8 shadow-[0_0_60px_-20px_rgba(245,185,69,0.45)]">
-        <EditableText id="buy4u.intro.headline" defaultValue="⭐️ Introducing our service where we shop for you at a flat 50% discount rate ⭐️" as="p" multiline className="text-center text-xl font-bold text-amber-100" />
+        <EditableText id="buy4u.intro.headline" defaultValue="â­ï¸ Introducing our service where we shop for you at a flat 50% discount rate â­ï¸" as="p" multiline className="text-center text-xl font-bold text-amber-100" />
         <EditableText id="buy4u.intro.body" defaultValue="We place the order/booking for you and upon confirmation you simply pay us our fee." as="p" multiline className="mt-4 text-center text-base text-white/85" />
         <div className="mt-5 rounded-2xl border border-white/10 bg-ink-900/60 p-4">
           <EditableText id="buy4u.intro.notice" defaultValue="Note: We require at least 24 hours prior notice to be able to attend to your booking in a timely manner, so please schedule in advance accordingly. Thank you!" as="p" multiline className="text-sm leading-relaxed text-white/75" />
         </div>
         <div className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-400/[0.06] p-4">
-          <EditableText id="buy4u.intro.warning" defaultValue="FOR ANY OF YOUR BOOKING NEEDS KINDLY MESSAGE US A FEW DAYS OR A WEEK PRIOR! IF YOUR BOOKING IS MONTHS UP AHEAD, PLEASE DON'T SHARE DETAILS SO FAR IN ADVANCE! WE DO NOT OFFER THIS FOR STANDARD RETAIL STORES LIKE APPLE, AMAZON — DO NOT ASK!" as="p" multiline className="text-sm font-semibold uppercase leading-relaxed tracking-wide text-rose-200" />
+          <EditableText id="buy4u.intro.warning" defaultValue="FOR ANY OF YOUR BOOKING NEEDS KINDLY MESSAGE US A FEW DAYS OR A WEEK PRIOR! IF YOUR BOOKING IS MONTHS UP AHEAD, PLEASE DON'T SHARE DETAILS SO FAR IN ADVANCE! WE DO NOT OFFER THIS FOR STANDARD RETAIL STORES LIKE APPLE, AMAZON â DO NOT ASK!" as="p" multiline className="text-sm font-semibold uppercase leading-relaxed tracking-wide text-rose-200" />
         </div>
       </div>
       <SectionPillNav />
