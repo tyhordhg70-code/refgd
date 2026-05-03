@@ -2,7 +2,8 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 import EditableImage from "./EditableImage";
-import { useEditContext } from "@/lib/edit-context";
+  import { useEditContext } from "@/lib/edit-context";
+  import { useMoveOffset } from "./MoveHandle";
 
 /**
  * FloatingArt — small inline animated illustration intended to live
@@ -58,8 +59,22 @@ export default function FloatingArt({
   className = "",
   editId,
 }: Props) {
-  const { isAdmin, editMode } = useEditContext();
-  const editing = isAdmin && editMode && Boolean(editId);
+  const { isAdmin, editMode, getValue } = useEditContext();
+    const editing = isAdmin && editMode && Boolean(editId);
+    /* v6.13.62 — Read the same admin-saved per-image values that
+       EditableImage reads internally so that PUBLIC visitors see the
+       same drag position, scale, and bottom spacing the admin set.
+       Previously the public branch rendered a plain <motion.img> that
+       ignored {editId}.dx / .dy / .scale / .mb entirely — visitors
+       saw the image at its natural grid position no matter what the
+       admin did. */
+    const savedMove = useMoveOffset(editId || "");
+    const savedScale = editId
+      ? parseFloat(getValue(`${editId}.scale`, "1") || "1") || 1
+      : 1;
+    const savedMb = editId
+      ? parseFloat(getValue(`${editId}.mb`, "0") || "0") || 0
+      : 0;
   const ref = useRef<HTMLDivElement | null>(null);
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -113,9 +128,26 @@ export default function FloatingArt({
             className="block w-full h-auto object-contain drop-shadow-[0_18px_36px_rgba(0,0,0,0.45)]"
           />
         ) : (
-          <motion.img
-            src={src}
-            alt={alt}
+            /* v6.13.62 — Wrapper applies the admin-saved drag offset
+               (translate3d) and bottom margin so the lock / vault /
+               solLocks artwork lands EXACTLY where the admin
+               positioned it in edit mode. The motion.img inside keeps
+               its bob keyframe + scroll parallax untouched. Saved
+               scale is applied on the img via a CSS scale() composed
+               with framer's animate so admin scale + bob coexist. */
+            <div
+              style={{
+                transform: savedMove.transform,
+                marginBottom: savedMb !== 0 ? `${savedMb}px` : undefined,
+                ...(savedScale !== 1
+                  ? { ["--rg-saved-scale" as string]: String(savedScale) }
+                  : {}),
+              }}
+              className={savedScale !== 1 ? "[&>img]:scale-[var(--rg-saved-scale)] [&>img]:origin-center" : undefined}
+            >
+            <motion.img
+              src={src}
+              alt={alt}
             loading="eager"
             decoding="async"
             /* v6.13.15 — softened drop-shadow (was 24/50/0.55).
@@ -137,9 +169,10 @@ export default function FloatingArt({
               ease: "easeInOut",
             }}
             suppressHydrationWarning
-          />
-        )}
-      </motion.div>
-    </div>
-  );
-}
+            />
+            </div>
+          )}
+        </motion.div>
+      </div>
+    );
+  }
