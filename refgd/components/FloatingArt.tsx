@@ -135,6 +135,7 @@ export default function FloatingArt({
                its bob keyframe + scroll parallax untouched. Saved
                scale is applied on the img via a CSS scale() composed
                with framer's animate so admin scale + bob coexist. */
+            <div
             style={{
                 /* v6.13.65 — stack scale + translate into a single transform
                    string. The previous approach used a CSS variable
