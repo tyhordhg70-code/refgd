@@ -1976,6 +1976,42 @@ html { scroll-behavior: smooth; }
    Net effect on iPad/foldable: no flicker, slightly tamer
    ambient motion, no visible content change. Phones and
    desktops are untouched. */
+/* v6.13.31 — Mentorship-page (and any other page that uses these
+   decorative overlays) lag on iPhone. Two heavy aria-hidden
+   layers were the culprit:
+
+   1) <LiquidParticles>: 14 large orbs each with `filter:blur(28px)`
+      AND `mix-blend-mode:screen`. mix-blend-mode forces a full
+      compositing pass over the entire fixed inset-0 layer on every
+      scroll frame, and 14 simultaneous 28px blurs on a phone GPU
+      are already at the edge of what Safari can do at 60fps. On
+      iPhone this read as page-wide scroll jank.
+
+   2) <CosmicBackground>: 36 dust specks, each with a soft glowing
+      `box-shadow` (also a blur), PLUS a `useMotionValueEvent` on
+      `scrollY` that ran on every scroll tick to compute velocity
+      and toggle a "boost" CSS class. The math was cheap but the
+      listener firing every frame on a touch device prevented
+      Safari's scroll thread from going passive.
+
+   Mobile fix (touch pointers, ≤900px width): hide LiquidParticles
+   entirely, drop the dust glow + dim the dust, and pause the
+   pulse boost. The cosmic gradient layers (which are pure CSS
+   keyframes, cheap) are kept so the page still feels alive. */
+@media (hover: none) and (max-width: 900px) {
+  [data-testid="liquid-particles"] {
+    display: none !important;
+  }
+  [data-testid="cosmic-background"] .cosmic-dust {
+    box-shadow: none !important;
+    opacity: 0.25 !important;
+  }
+  [data-testid="cosmic-background"] .cosmic-pulse.is-boost,
+  [data-testid="cosmic-background"] .cosmic-base.is-boost {
+    animation-duration: inherit !important;
+  }
+}
+
 @media (hover: none) and (min-width: 700px) and (max-width: 1366px) {
   *,
   *::before,
