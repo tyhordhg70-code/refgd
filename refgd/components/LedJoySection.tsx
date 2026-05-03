@@ -40,7 +40,11 @@ export default function LedJoySection() {
          of forcing a near-full viewport scroll past empty room. Also
          dropped the heavy py default so the AHHHH sign sits higher
          in the viewport (visible immediately on entry). */
-      className="relative isolate flex min-h-[60svh] w-full items-center justify-center overflow-hidden py-6 sm:py-10"
+      /* v6.13.6 — items-center vertically centred the LED text in
+         a 60svh box, leaving a chunk of empty galaxy ABOVE it. User
+         asked for the text to sit higher, so we anchor to the top
+         of the section and add a smaller top padding instead. */
+      className="relative isolate flex min-h-[60svh] w-full items-start justify-center overflow-hidden pt-2 pb-12 sm:pt-4 sm:pb-16"
     >
 
       <div className="container-wide relative z-10 grid place-items-center text-center">
