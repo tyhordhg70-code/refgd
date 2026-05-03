@@ -16,6 +16,12 @@ import { listStores } from "./stores";
 import { getPool, initDb } from "./db";
 
 const STORAGE_KEY = "_extra_categories";
+/** v6.13.37 — admin-curated display order for the merged category list.
+ *  Stored as a JSON array of category names. Any category present in
+ *  the merged list but missing from the order is appended in the
+ *  default order. Any name in the stored order that no longer exists
+ *  is dropped. */
+const ORDER_KEY = "_category_order";
 
 /**
  * The original canned categories, kept as defaults so the dropdown is
@@ -109,16 +115,50 @@ export async function removeExtraCategory(name: string): Promise<string[]> {
   return writeExtras(current.filter((x) => x !== c));
 }
 
+/** v6.13.37 — Read the admin-saved category display order. Returns
+ *  an empty array when no order has been saved yet. */
+export async function getCategoryOrder(): Promise<string[]> {
+  const raw = await getContentBlock(ORDER_KEY);
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr.map(clean).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/** v6.13.37 — Persist a new admin-curated display order. Names are
+ *  cleaned + de-duped; the stored list is exactly what's passed in
+ *  (any merged-in canon happens at read time in
+ *  `getAllCategoriesMerged`). */
+export async function setCategoryOrder(list: unknown): Promise<string[]> {
+  if (!Array.isArray(list)) {
+    throw new Error("order must be an array of category names");
+  }
+  const cleaned = Array.from(
+    new Set(list.map(clean).filter(Boolean)),
+  );
+  await setContentBlock(ORDER_KEY, JSON.stringify(cleaned));
+  return cleaned;
+}
+
 /**
  * Full merged category list for the public filter UI:
- * canned defaults → admin extras → any leftover categories actually
- * present on stores (so legacy / typo'd values still show up). De-duped
- * while preserving insertion order.
+ * 1. Honour the admin-saved display order first (so a drag-rearrange
+ *    survives a page reload and is shown to every visitor).
+ * 2. Then append any canned default the order didn't mention.
+ * 3. Then admin extras not yet in the order.
+ * 4. Finally any leftover category actually present on stores
+ *    (legacy / typo'd values).
+ * De-duped while preserving insertion order.
  */
 export async function getAllCategoriesMerged(): Promise<string[]> {
-  const [extras, stores] = await Promise.all([
+  const [extras, stores, order] = await Promise.all([
     getExtraCategories(),
     listStores(),
+    getCategoryOrder(),
   ]);
   const used = new Set(stores.map((s) => s.category).filter(Boolean));
   const out: string[] = [];
@@ -129,6 +169,9 @@ export async function getAllCategoriesMerged(): Promise<string[]> {
       out.push(c);
     }
   };
+  // 1. Admin-saved display order wins.
+  order.forEach(push);
+  // 2-4. Defaults / extras / used categories fill in the rest.
   CANNED_CATEGORIES.forEach(push);
   extras.forEach(push);
   Array.from(used)
