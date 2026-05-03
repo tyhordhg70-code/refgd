@@ -37,6 +37,7 @@ function PathIllustrationContent({
 }: {
   kind: PathIllustrationKind;
   accent: keyof typeof ACCENT_TO_HEX;
+  noFilter?: boolean;
   /**
    * v6.12.1 — when true, ALL `filter="url(#pi-glow-…)"` references
    * inside this SVG are dropped. iOS Safari has a long-standing
