@@ -12,6 +12,10 @@ import ParallaxChapter from "./ParallaxChapter";
 import EditableText from "./EditableText";
 import AnimatedDivider from "./AnimatedDivider";
 import SecureLockCenterpiece from "./SecureLockCenterpiece";
+/* v6.13.14 — Wasting-time figure migrated to <EditableImage> so admin
+   can swap the picture, apply an animation template, scale it, and
+   adjust the space below it from the in-page edit popover. */
+import EditableImage from "./EditableImage";
 
 /**
  * Animated illustration of the "leap toward a phone with a credit card"
@@ -89,22 +93,29 @@ function WastingTimeIllustration({ size }: { size: number }) {
               : "wastingTimeCine 1.5s cubic-bezier(0.16, 1, 0.3, 1) both",
           }}
         >
-          <img
-            src="/uploads/wasting-time-phone.png"
+          {/* v6.13.14 — was a plain <img>; now <EditableImage> so admin
+              can replace the file, pick an animation template, scale
+              and add/remove space below it from the popover. The
+              built-in ambient `wtShimmer` keyframe still applies via
+              className so the image keeps its rim-light sweep even
+              when no admin template is chosen; admins can override
+              by picking a template (which composes on top via the
+              wrapper). The wrapper fills the float box (inset:0). */}
+          <EditableImage
+            id="service.wastingTime"
+            defaultSrc="/uploads/wasting-time-phone.png"
             alt="Shopper leaping toward a phone with a credit card — saving time and money."
-            loading="lazy"
-            decoding="async"
-            style={{
+            wrapperClassName="block"
+            wrapperStyle={{
+              position: "absolute",
+              inset: 0,
               width: "100%",
               height: "100%",
-              objectFit: "contain",
-              /* (3) Shimmer / rim-light sweep on the image itself */
-              animation: reduce
-                ? undefined
-                : "wtShimmer 6s ease-in-out infinite",
-              animationDelay: "1.8s",
-              willChange: "filter",
             }}
+            className={
+              "h-full w-full object-contain " +
+              (reduce ? "" : "atpl-shimmer")
+            }
           />
         </div>
       </div>
