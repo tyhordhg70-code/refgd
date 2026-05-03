@@ -24,6 +24,21 @@ import EditableImage from "./EditableImage";
  */
 function WastingTimeIllustration({ size }: { size: number }) {
   const reduce = useReducedMotion();
+  /* v6.13.32 — User reported "Stop wasting time image should have
+     entrance animation". The internal `wastingTimeCine` keyframe
+     does run, but it fires at COMPONENT MOUNT (i.e. as soon as the
+     image enters the React tree), which on the storelist page
+     happens far above the fold. By the time the visitor scrolls
+     down to the "Stop wasting time" beat, the entrance has long
+     since completed and the figure is sitting in its final state
+     — to the user this reads as "no entrance animation".
+
+     Fix: wrap the entire illustration in a viewport-gated
+     `motion.div`. It starts opacity:0 + translated up, and only
+     animates IN once the visitor scrolls 25 % of the figure into
+     view. The internal cine + 3D float + shimmer keyframes still
+     run as before, but they are now visible because the outer
+     wrapper is what was hiding them until scroll reveal. */
   /* v6.13.12 — User asked for a 3D animation on the image. Rebuilt:
        1. Cinematic entrance still runs (`wastingTimeCine`), then…
        2. After 1.6 s settle, THREE looping GPU-only ambient layers
@@ -35,7 +50,11 @@ function WastingTimeIllustration({ size }: { size: number }) {
        gone — the new motion reads as actual 3D presence rather
        than a simple vertical bounce. */
   return (
-    <div
+    <motion.div
+      initial={reduce ? { opacity: 1 } : { opacity: 0, y: 60, scale: 0.94 }}
+      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      viewport={{ once: true, amount: 0.25 }}
+      transition={{ duration: 1.0, ease: [0.16, 1, 0.3, 1] }}
       style={{
         width: size,
         height: size,
@@ -119,7 +138,7 @@ function WastingTimeIllustration({ size }: { size: number }) {
           />
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
