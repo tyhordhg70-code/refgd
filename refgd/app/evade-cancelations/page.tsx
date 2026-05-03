@@ -255,14 +255,19 @@ export default function EvadePage() {
             belongs with the chapter copy. */}
         <EvadeIllustrationDivider
           src="/uploads/sec-shield.webp"
-          /* user request: enlarge sec-shield divider so the illustration
-             reads as a real visual moment, not just a spacer. Bumped
-             height to 520 from 380. */
+          /* v6.13.6 — height tightened 520 → 360 and `compact` set so
+             the section uses py-0 instead of py-1 sm:py-2. Combined
+             with the surrounding ParallaxChapter padding this still
+             leaves comfortable breathing room above + below the image
+             but kills the "huge empty band" the user reported between
+             the cancelled-orders chapter and the comprehensive-
+             solutions chapter. */
           alt="Anti-fraud security infrastructure — servers, shields, encrypted keys."
           align="center"
           glow="cyan"
-          height={520}
+          height={360}
           transparent
+          compact
         />
 
         {/* Act 3 — Solutions / chapter 02 — parallax depth */}
@@ -465,8 +470,13 @@ export default function EvadePage() {
           alt="Star reviews — clients trust RefundGod."
           align="center"
           glow="violet"
-          height={460}
+          /* v6.13.6 — height 460 → 320 + compact. Same fix as the
+             sec-shield divider above: removes the dark band the user
+             saw immediately above "Get Started Today" while keeping
+             the reviews illustration as a visual beat. */
+          height={320}
           transparent
+          compact
         />
       </ReorderableSection>
 
