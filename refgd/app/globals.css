@@ -1848,29 +1848,43 @@ html { scroll-behavior: smooth; }
    Pool order matches GlassCard.tsx VARIANTS array:
      curtain → slide-left → wipe-diag → tilt-3d → slide-right → iris
    ──────────────────────────────────────────────────────────────── */
+/* v6.13.49 — Card entrance keyframes rebuilt to remove ALL `clip-path`
+   animation. The previous variants (curtain → inset(100%) reveal,
+   slide-left/right → inset side-reveal, iris → circle(0%) growing,
+   wipe-diag → polygon wipe) all worked by progressively un-clipping
+   the card's painted area. The user reported this as the "Pricing
+   boxcards cut off for a second" and "Trust us cards cut off for a
+   second on load" — what they were seeing is the keyframe IS a clip,
+   so for the duration of the entrance the card has visibly missing
+   chunks. Switching every variant to opacity + transform-only keeps
+   the directional variety (top, sides, depth, scale, diagonal lift)
+   so sibling cards still animate differently, but the card never
+   appears partially clipped at any frame — it just slides/scales/
+   tilts in fully-painted. Net effect: same lusion-style choreography,
+   no perceived cut-off. */
 @keyframes glassCardCurtain {
-  from { opacity: 0; transform: translateY(80px) rotateX(8deg); clip-path: inset(100% 0 0 0); }
-  to   { opacity: 1; transform: translateY(0)   rotateX(0deg); clip-path: inset(0 0 0 0); }
+  from { opacity: 0; transform: translateY(80px) rotateX(8deg); }
+  to   { opacity: 1; transform: translateY(0)   rotateX(0deg); }
 }
 @keyframes glassCardSlideLeft {
-  from { opacity: 0; transform: translateX(-120px); clip-path: inset(0 0 0 100%); }
-  to   { opacity: 1; transform: translateX(0);     clip-path: inset(0 0 0 0); }
+  from { opacity: 0; transform: translateX(-120px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 @keyframes glassCardSlideRight {
-  from { opacity: 0; transform: translateX(120px); clip-path: inset(0 100% 0 0); }
-  to   { opacity: 1; transform: translateX(0);    clip-path: inset(0 0 0 0); }
+  from { opacity: 0; transform: translateX(120px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 @keyframes glassCardIris {
-  from { opacity: 0; transform: scale(0.86); clip-path: circle(0% at 50% 50%); }
-  to   { opacity: 1; transform: scale(1);    clip-path: circle(100% at 50% 50%); }
+  from { opacity: 0; transform: scale(0.86); }
+  to   { opacity: 1; transform: scale(1); }
 }
 @keyframes glassCardTilt3D {
   from { opacity: 0; transform: perspective(1500px) rotateY(-42deg) translateX(-40px); }
   to   { opacity: 1; transform: perspective(1500px) rotateY(0deg)   translateX(0); }
 }
 @keyframes glassCardWipeDiag {
-  from { opacity: 0; clip-path: polygon(0 0, 0 0, 0 100%, 0 100%); }
-  to   { opacity: 1; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
+  from { opacity: 0; transform: translate3d(-40px, 30px, 0) skewX(-4deg); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0)        skewX(0); }
 }
 
 .glass-card-reveal {
