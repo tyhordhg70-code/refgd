@@ -61,10 +61,19 @@ export default function MoveHandle({
   id,
   className = "",
   positionClassName = "-right-2 -top-2",
+  onDropTo,
 }: {
   id: string;
   className?: string;
   positionClassName?: string;
+  /* v6.13.53 — Optional reorder callback. When provided, releasing
+     the drag over another `[data-move-target]` element calls
+     `onDropTo(targetId)` and resets THIS element's translate
+     offset to (0,0) instead of persisting it. Used by EditableImage
+     children of an EditableImageGroup so a pointer-drag actually
+     reflows the group via CSS `order` (no blank gap left behind,
+     siblings naturally fill in). */
+  onDropTo?: (targetId: string) => void;
 }) {
   const { isAdmin, editMode, getValue, setValue } = useEditContext();
   const editing = isAdmin && editMode;
@@ -74,6 +83,7 @@ export default function MoveHandle({
   const startDx = useRef(0);
   const startDy = useRef(0);
   const draft = useRef<{ dx: number; dy: number } | null>(null);
+  const lastPointer = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const pushedRef = useRef<Map<string, PushedRecord>>(new Map());
   const [dragging, setDragging] = useState(false);
 
@@ -172,6 +182,7 @@ export default function MoveHandle({
   const begin = (cx: number, cy: number) => {
     startX.current = cx;
     startY.current = cy;
+    lastPointer.current = { x: cx, y: cy };
     try {
       startDx.current = parseFloat(getValue(`${id}.dx`, "0") || "0") || 0;
       startDy.current = parseFloat(getValue(`${id}.dy`, "0") || "0") || 0;
@@ -188,12 +199,74 @@ export default function MoveHandle({
     const dx = startDx.current + (cx - startX.current);
     const dy = startDy.current + (cy - startY.current);
     draft.current = { dx, dy };
+    lastPointer.current = { x: cx, y: cy };
     liveTranslate(dx, dy);
     try { applyCollisionPush(); } catch { /* never crash on push */ }
   };
 
+  /* v6.13.53 — Find the [data-move-target] under the given client
+     point that is NOT us. Used on release to detect a reorder drop
+     when `onDropTo` is wired. We temporarily hide the dragged
+     element's pointer events so elementFromPoint sees what's
+     beneath it. */
+  const findDropTargetAt = (cx: number, cy: number): string | null => {
+    const self = findTarget();
+    const prevPE = self?.style.pointerEvents;
+    if (self) self.style.pointerEvents = "none";
+    let hit: Element | null = null;
+    try {
+      hit = document.elementFromPoint(cx, cy);
+    } catch { /* ignore */ }
+    if (self) self.style.pointerEvents = prevPE ?? "";
+    if (!hit) return null;
+    let cur: Element | null = hit;
+    while (cur && cur !== document.body) {
+      const tid = cur.getAttribute && cur.getAttribute("data-move-target");
+      if (tid && tid !== id) return tid;
+      cur = cur.parentElement;
+    }
+    return null;
+  };
+
+  /* v6.13.53 — Reset our own translate (and the persisted dx/dy
+     pair) and reset every sibling we pushed during the drag. Used
+     when a reorder drop completes — the new group order via CSS
+     `order` does the layout work, so leftover translate offsets
+     would just look wrong. */
+  const resetSelfAndPushed = () => {
+    setValue(`${id}.dx`, "0");
+    setValue(`${id}.dy`, "0");
+    for (const [otherId, rec] of Array.from(pushedRef.current.entries())) {
+      setValue(`${otherId}.dx`, "0");
+      setValue(`${otherId}.dy`, "0");
+      rec.el.style.transform = rec.origInline;
+    }
+    pushedRef.current.clear();
+    const el = findTarget();
+    if (el) {
+      el.style.transform = el.dataset.moveOriginalTransform ?? "";
+      delete el.dataset.moveOriginalTransform;
+    }
+  };
+
   const end = () => {
     try {
+      /* v6.13.53 — If a reorder callback is wired AND the pointer
+         was released over a sibling [data-move-target], reorder
+         instead of persisting an absolute offset. The group's CSS
+         `order` change will reflow naturally — no blank gap, no
+         overlap — on both desktop and mobile. */
+      const dropTarget = onDropTo
+        ? findDropTargetAt(lastPointer.current.x, lastPointer.current.y)
+        : null;
+      if (dropTarget && onDropTo) {
+        resetSelfAndPushed();
+        onDropTo(dropTarget);
+        draft.current = null;
+        setDragging(false);
+        return;
+      }
+
       if (draft.current) {
         setValue(`${id}.dx`, String(Math.round(draft.current.dx)));
         setValue(`${id}.dy`, String(Math.round(draft.current.dy)));
