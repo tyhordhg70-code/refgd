@@ -94,10 +94,19 @@ export default function GlassCard({
 
   const elasticClass = elastic && !reduced ? "liquid-glass-3d liquid-glass-mobile" : "";
 
-  // Layer 3 — glass surface (hover tilt lives here)
+  // Layer 3 — glass surface (hover tilt lives here).
+  // v6.13.41 — Added `h-full` so when the GlassCard sits inside a
+  // CSS grid row (e.g. the trust cards on /evade-cancelations are
+  // `lg:grid-cols-3`) the surface stretches to the tallest sibling's
+  // height instead of hugging its own content. Without this, two of
+  // the three trust cards visually rendered shorter than the third
+  // and the row's bottom edge sliced through their parallax glow,
+  // which the user (correctly) reported as the cards "getting cut
+  // off". Pairing it with `min-h-full` on the float wrapper below
+  // propagates the stretch through the optional float-card layer.
   const surface = (
     <div
-      className={`relative overflow-hidden rounded-3xl border border-white/[0.18] bg-gradient-to-br ${tintGrad} ${glow} backdrop-blur-2xl ${elasticClass} ${surfaceClasses}`}
+      className={`relative h-full overflow-hidden rounded-3xl border border-white/[0.18] bg-gradient-to-br ${tintGrad} ${glow} backdrop-blur-2xl ${elasticClass} ${surfaceClasses}`}
       style={{ backgroundColor: "rgba(8,6,18,0.62)" }}
     >
       <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent" />
@@ -111,10 +120,14 @@ export default function GlassCard({
     </div>
   );
 
-  const innerLayer = floatClasses ? <div className={floatClasses}>{surface}</div> : surface;
+  const innerLayer = floatClasses ? (
+    <div className={`${floatClasses} h-full`}>{surface}</div>
+  ) : (
+    surface
+  );
 
   if (!reveal || reduced) {
-    return <div className="group">{innerLayer}</div>;
+    return <div className="group h-full">{innerLayer}</div>;
   }
 
   // Pick variant — explicit `variant` prop wins, otherwise rotate
@@ -172,8 +185,8 @@ export default function GlassCard({
       ref={ref}
       className={
         revealed
-          ? `group glass-card-reveal glass-card-reveal--${v} will-change-transform`
-          : `group gc-pending will-change-transform`
+          ? `group glass-card-reveal glass-card-reveal--${v} h-full will-change-transform`
+          : `group gc-pending h-full will-change-transform`
       }
       style={{ animationDelay: `${delay}s` }}
     >
