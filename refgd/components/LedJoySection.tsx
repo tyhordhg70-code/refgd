@@ -67,84 +67,51 @@ export default function LedJoySection() {
           on the most degenerate Safari case. */
   const [played, setPlayed] = useState(false);
   useEffect(() => {
-    /* v6.13.66 — Removed the early-return on reduce-motion. Combined
-         with the initial/animate gate-removal below it would have left
-         letters at opacity:1 with no transition (the user perceived this
-         as "no animation"). Now the standard play triggers run regardless
-         of OS reduced-motion preference. The animation is short (~0.9s
-         total for the AHHHH + tagline beat) and is the entire purpose of
-         the section, so respecting prefers-reduced-motion would mean
-         removing the section's reason to exist. */
+      /* v6.13.67 — STRICT IN-VIEW TRIGGER ONLY.
+         The previous v6.13.39 / v6.13.51 stack of four triggers
+         (loose IO with 50% rootMargin, rAF poll with 1.4× viewport
+         threshold, first-scroll listener, and 3.5s wall-clock
+         fallback) ALL fired well before the visitor actually reached
+         the section. The result was that `play` flipped to true
+         within ~3.5s of page load, the AHHHH letter fly-in + tagline
+         slide + cash bills cascade animations all completed
+         OFF-SCREEN, and by the time the user scrolled down to the
+         LED beat the letters were sitting at their final state
+         — exactly the "doesnt fly in on scroll" report.
 
-    let cancelled = false;
-    const fire = () => { if (!cancelled) setPlayed(true); };
-
-    // 1. IntersectionObserver
-    const el = ref.current;
-    let io: IntersectionObserver | null = null;
-    if (el && "IntersectionObserver" in window) {
-      io = new IntersectionObserver(
+         This implementation uses a SINGLE strict IntersectionObserver
+         with threshold 0.3 (30% of the section visible) and no
+         rootMargin expansion. The animation only fires once the user
+         has actually scrolled the section into clear view. The
+         `played` state is sticky so the animation only plays the
+         first time. There is intentionally no rAF poll, no scroll
+         listener, no time-based fallback — those were the bugs. If
+         a visitor with prefers-reduced-motion never scrolls into the
+         section they simply never see the beat, which is the
+         acceptable trade-off for guaranteeing the in-view fly-in
+         works for the 99% of visitors who do scroll. */
+      const el = ref.current;
+      if (!el || !("IntersectionObserver" in window)) {
+        // Degenerate environment — show letters at final state immediately
+        // so they aren't permanently hidden.
+        setPlayed(true);
+        return;
+      }
+      const io = new IntersectionObserver(
         (entries) => {
           for (const e of entries) {
-            if (e.isIntersecting || e.intersectionRatio > 0) { fire(); break; }
+            if (e.isIntersecting && e.intersectionRatio >= 0.3) {
+              setPlayed(true);
+              io.disconnect();
+              break;
+            }
           }
         },
-        { rootMargin: "0px 0px 50% 0px", threshold: [0, 0.01, 0.05] },
+        { threshold: [0, 0.1, 0.2, 0.3, 0.5, 0.75, 1] },
       );
       io.observe(el);
-    }
-
-    // 2. rAF poll (max 30 s)
-    const start = performance.now();
-    let rafId = 0;
-    const tick = () => {
-      if (cancelled) return;
-      const node = ref.current;
-      if (node) {
-        const r = node.getBoundingClientRect();
-        const vh = window.innerHeight || 0;
-        if (r.top < vh * 1.4 && r.bottom > -vh * 0.4) { fire(); return; }
-      }
-      if (performance.now() - start < 30000) {
-        rafId = requestAnimationFrame(tick);
-      }
-    };
-    rafId = requestAnimationFrame(tick);
-
-    // 3. First scroll/touch — guaranteed safety net.
-    const onAnyScroll = () => fire();
-    window.addEventListener("scroll", onAnyScroll, { passive: true, once: true });
-    window.addEventListener("touchmove", onAnyScroll, { passive: true, once: true });
-    window.addEventListener("wheel", onAnyScroll, { passive: true, once: true });
-
-    /* v6.13.51 — Hard timeout fallback. The user reported (after
-       v6.13.50) "ahh feel the joy animation is gone not showing".
-       Even the rAF + IO + first-scroll triple-trigger from v6.13.39
-       can still fail to set `played=true` in pathological cases —
-       e.g. browser back/forward cache restore where the scroll
-       listeners attach AFTER the user is already past the section
-       AND the rAF runs in a paused tab AND the IO is in a stale
-       state. The result is `played=false` forever and the letters
-       stay at their initial hidden state.
-
-       This 3.5 s wall-clock fallback guarantees the LED beat ALWAYS
-       plays, regardless of trigger failure. 3.5 s is long enough
-       that, on a normal page load, one of the precision triggers
-       above will fire first and the user sees the in-view choreo
-       at the right moment; but short enough that on broken cases
-       the user never stares at a blank dark section. */
-    const fallbackId = window.setTimeout(fire, 3500);
-
-    return () => {
-      cancelled = true;
-      io?.disconnect();
-      cancelAnimationFrame(rafId);
-      window.clearTimeout(fallbackId);
-      window.removeEventListener("scroll", onAnyScroll);
-      window.removeEventListener("touchmove", onAnyScroll);
-      window.removeEventListener("wheel", onAnyScroll);
-    };
-  }, [reduce]);
+      return () => io.disconnect();
+    }, []);
   const play = played;
   // v6.13.19 — REPLACED `useInView` + state-driven `animate={inView ? ... : undefined}`
   // with framer's `whileInView` API on each <motion.span> below.
