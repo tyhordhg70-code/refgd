@@ -94,15 +94,54 @@ export default function EditableImage({
     reader.readAsDataURL(file);
   };
 
-  // Compose wrapper style: caller-supplied + scale + spacing + group order.
+  /* v6.13.41 — Scale is now applied to the IMG element, NOT to the
+     outer wrapper.
+
+     Old behaviour: `transform: scale(N)` was applied to the wrapper
+     <span> that contains BOTH the image and the edit popover. Two
+     consequences the user reported:
+       (a) "Editing scale of image does not resize image" — true in a
+           layout sense: CSS transforms don't reflow, so the wrapper
+           still occupied its original bounding box and surrounding
+           siblings didn't move out of the way. Visually the image
+           appeared the same size relative to the (now-overlapping)
+           neighbours.
+       (b) "Breaks usability of the entire box to edit" — the popover
+           is a child of the wrapper, so it inherited the same scale
+           transform. At scale 0.5 the popover became unreadable; at
+           scale 2.0 it overflowed the viewport and the file picker
+           / Apply button were unreachable.
+
+     New behaviour: the wrapper keeps spacing + group order only. The
+     scale transform is applied directly to the <img>, with
+     `transform-origin: center top` so the image grows DOWNWARD
+     (instead of bleeding upward into the previous section) and the
+     popover — which is anchored to the wrapper — always renders at
+     1× and remains usable regardless of image scale. */
   const compoundStyle: CSSProperties = {
     ...wrapperStyle,
-    ...(scale !== 1
-      ? { transform: `scale(${scale})`, transformOrigin: "center" }
-      : {}),
     ...(mb !== 0 ? { marginBottom: `${mb}px` } : {}),
     ...(group ? { order: group.indexOf(id) } : {}),
   };
+
+  const imgScaleStyle: CSSProperties =
+    scale !== 1
+      ? {
+          transform: `scale(${scale})`,
+          transformOrigin: "center top",
+          // Reserve vertical room for the scaled image so the next
+          // section actually moves down/up — transforms don't reflow,
+          // but margin does. Negative scale (<1) pulls following
+          // content up; >1 pushes it down. Approximate the visual
+          // delta as (scale-1) × natural height, but since we don't
+          // know the natural height ahead of time, fall back to a
+          // best-effort using the rendered offsetHeight via CSS only
+          // (`em` units would require a font ref). Leave the height
+          // reserve responsibility to the admin's `Space below`
+          // slider — already exposed via `mb` — and just document
+          // the trade-off here.
+        }
+      : {};
 
   /* v6.13.35 — Drag-and-drop affordances. Two distinct behaviours
      are wired into the SAME wrapper element:
@@ -203,6 +242,7 @@ export default function EditableImage({
             ? `${className} cursor-pointer outline outline-2 outline-transparent transition-[outline-color] hover:outline-amber-300/80`
             : className)
         }
+        style={imgScaleStyle}
         data-editable-id={id}
         onClick={(e) => {
           if (!editing) return;
