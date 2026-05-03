@@ -222,7 +222,9 @@ export default function EvadePage() {
                 alt="Stealth-vault — the gateway to your anonymous setup."
                 size={300}
                 bobAmplitude={10}
-                spin={1.2}
+                /* v6.13.19 — spin override removed; FloatingArt now
+                   defaults to spin=0 (no rotate) to kill the
+                   "distorted illustration" report on this page. */
               />
             </div>
             <div className="mt-6 grid gap-6 md:grid-cols-2">
@@ -306,7 +308,9 @@ export default function EvadePage() {
                 alt="Comprehensive security solutions — checklist, shields, locks."
                 size={360}
                 bobAmplitude={10}
-                spin={1.2}
+                /* v6.13.19 — spin override removed; FloatingArt now
+                   defaults to spin=0 (no rotate) to kill the
+                   "distorted illustration" report on this page. */
               />
             </div>
             <div className="mt-3 grid gap-5 lg:grid-cols-3">
