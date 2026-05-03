@@ -1831,7 +1831,17 @@ html { scroll-behavior: smooth; }
 
 .glass-card-reveal {
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  animation-fill-mode: backwards;
+  /* v6.13.25 — was `backwards`. With `backwards`, after the
+     animation completes, iOS Safari sometimes re-applied the
+     FROM keyframe (opacity:0) when the card's compositing
+     layer was recreated — which happens when the card scrolls
+     out then back into view. Visible to the user as "all
+     chapter box cards go blank when I scroll back up". `both`
+     keeps the FROM state during animation-delay (preserves
+     the staggered entrance) AND pins the TO state (opacity:1,
+     transform:none) permanently after completion, so cards
+     stay visible regardless of layer thrash. */
+  animation-fill-mode: both;
   will-change: transform, opacity, clip-path;
 }
 /* Pre-reveal state — card is invisible until its IntersectionObserver
