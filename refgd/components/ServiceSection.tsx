@@ -501,15 +501,25 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
       >
         <section className="container-wide">
           <Reveal>
+            {/* v6.13.13 — User report "Innovative fast easy box card on
+                storelist has hard glow". The previous `pulse-glow`
+                class drives an infinite box-shadow keyframe that
+                fires a high-amber bloom every 5 s — combined with
+                the heavy ambient drop-shadow it gave the box a
+                harsh, almost-too-bright halo on a dark phone
+                screen. Removed `pulse-glow` and softened the
+                ambient shadow to a tighter, lower-alpha drop so
+                the card still has presence but no longer reads
+                as a flashing/over-saturated rim. */}
             <div
-              className="pulse-glow relative overflow-hidden rounded-[2.5rem] border border-amber-400/15 p-10 text-center sm:p-16"
+              className="relative overflow-hidden rounded-[2.5rem] border border-amber-400/15 p-10 text-center sm:p-16"
               style={{
                 background:
                   "linear-gradient(160deg, rgba(40,22,4,0.88) 0%, rgba(20,12,4,0.92) 100%)",
                 backdropFilter: "blur(16px) saturate(140%)",
                 WebkitBackdropFilter: "blur(16px) saturate(140%)",
                 boxShadow:
-                  "0 50px 140px -30px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.06)",
+                  "0 22px 60px -22px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)",
               }}
             >
               <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/80 to-transparent" />
