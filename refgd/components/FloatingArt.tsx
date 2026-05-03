@@ -45,8 +45,14 @@ export default function FloatingArt({
   // position so spacing reads naturally; bob animation still gives
   // it life.
   const y = useTransform(scrollYProgress, [0, 1], [12, -12]);
-  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.98, 1.02, 0.98]);
-  const rotate = useTransform(scrollYProgress, [0, 1], [-1, 1]);
+  // v6.13.4 — REMOVED scroll-driven scale + rotate (same fix as
+  // EvadeIllustrationDivider). The pulsing scale 0.98→1.02→0.98
+  // visibly squashed the artwork mid-scroll AND, at the 0.98 dip,
+  // exposed a thin strip of page-bg above + below the image which
+  // the user perceived as a "black bar appearing and disappearing".
+  // The infinite bob animation on the inner motion.img below still
+  // gives the illustration life without ever shrinking it inside
+  // its slot.
 
   const justify =
     side === "left" ? "justify-start" : side === "right" ? "justify-end" : "justify-center";
@@ -54,7 +60,7 @@ export default function FloatingArt({
   return (
     <div ref={ref} className={`relative flex w-full ${justify} ${className}`}>
       <motion.div
-        style={{ y, scale, rotate, maxWidth: size }}
+        style={{ y, maxWidth: size }}
         className="relative w-full"
         // v6.7 — softer entrance: was scale:0.7 + blur:12px (a
         // dramatic "fly in from the void" that visibly compressed
