@@ -2,6 +2,9 @@ import Link from "next/link";
 import { Reveal, Orb } from "@/components/Reveal";
 import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
 
+/* v6.13.50 — Opt out of static prerendering so admin edits go live. */
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Vouches — RefundGod",
   description: "5+ years of vouches. Read live testimonials in our Telegram group.",
