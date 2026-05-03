@@ -520,18 +520,20 @@ export default function EvadePage() {
           bg={<ParallaxIllustration kind="spark" accent="amber" size={520} />}
         >
           <div className="container-wide relative" id="Learn">
+            {/* v6.13.25 — eyebrow/title swap per request:
+                eyebrow was "chapter 04 / pricing" → now "Get started, today"
+                title   was "Get started, today."   → now "Our pricing — select your plan:"
+                The standalone <EditableText evade.pricing.lead> below
+                (which previously read "Our pricing — select your plan:"
+                as a sub-paragraph outside the cards) was deleted —
+                user reported it was "the pricing text on bottom that's
+                not in the box". */}
             <ChapterHeader
               chapterEditId="evade.ch4.eyebrow"
-              chapterDefault="chapter 04 / pricing"
+              chapterDefault="Get started, today"
               titleEditId="evade.ch4.title"
-              titleDefault="Get started, today."
+              titleDefault="Our pricing — select your plan:"
               accent="amber"
-            />
-            <EditableText
-              id="evade.pricing.lead"
-              defaultValue="Our pricing — select your plan:"
-              as="p"
-              className="mt-3 text-base text-white/80"
             />
             {/* v6.9 — was mt-12 + mb-6 inside each card image, which
                 left a visible empty band between the lead copy and
