@@ -30,6 +30,7 @@ import type { CSSProperties, DragEvent as ReactDragEvent } from "react";
 import { useEditContext } from "@/lib/edit-context";
 import { useEditableImageGroup } from "./EditableImageGroup";
 import { ANIMATION_TEMPLATES } from "@/lib/image-presets";
+import MoveHandle, { useMoveOffset as useMoveOffsetEditable } from "@/components/MoveHandle";
 
 type Props = {
   id: string;
@@ -118,8 +119,15 @@ export default function EditableImage({
      (instead of bleeding upward into the previous section) and the
      popover — which is anchored to the wrapper — always renders at
      1× and remains usable regardless of image scale. */
+  /* v6.13.42 — Per-element drag-to-reposition. The persisted (dx,dy)
+     from useMoveOffset is composed into the wrapper transform along
+     with any caller-supplied transform, so admins can drag the whole
+     image to a new spot via the MoveHandle rendered below. */
+  const move = useMoveOffsetEditable(id);
+  const wrapperTransform = move.transform;
   const compoundStyle: CSSProperties = {
     ...wrapperStyle,
+    ...(wrapperTransform ? { transform: wrapperTransform } : {}),
     ...(mb !== 0 ? { marginBottom: `${mb}px` } : {}),
     ...(group ? { order: group.indexOf(id) } : {}),
   };
@@ -218,6 +226,7 @@ export default function EditableImage({
           : ""
       }`}
       style={compoundStyle}
+      data-move-target={id}
       draggable={draggable}
       onDragStart={onWrapperDragStart}
       onDragEnd={onWrapperDragEnd}
@@ -232,6 +241,7 @@ export default function EditableImage({
           : undefined
       }
     >
+      {editing && <MoveHandle id={id} positionClassName="-right-3 -top-3" />}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src || defaultSrc}
