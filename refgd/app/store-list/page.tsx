@@ -80,14 +80,32 @@ export default async function StoreListPage() {
           never expose a black gap (same trick as v6.13.30 on the
           evade page). pointer-events-none + -z-[1] keeps it behind
           every content layer. */}
+      {/* v6.13.36 — Replaced the previous viewport-fixed mesh with a
+          page-FIXED bg-ink-950 floor PLUS a separately-mounted scrolling
+          orb mesh that uses the SAME orb composition as ServiceSection's
+          hero (left 10%/top 15%, right 8%/top 28%, left 40%/bottom 10%)
+          repeated three times down the page so the visitor never sees
+          a "different background" between the get-rewarded hero and the
+          rest of the page — the orbs simply continue scrolling past.
+          Combined with `<ServiceSection noBg />` the result is one
+          unbroken galaxy backdrop from the cashback hero through the
+          rules / payment / regions / store grid. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed -z-[1] overflow-hidden bg-ink-950"
-        style={{ top: "-200px", bottom: "-200px", left: "-200px", right: "-200px" }}
+        className="pointer-events-none fixed inset-0 -z-[2] bg-ink-950"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-[1] overflow-hidden"
+        style={{ height: "300vh" }}
       >
-        <div className="orb orb-1 absolute left-[10%] top-[10%] h-[60vh] w-[60vh] rounded-full" />
-        <div className="orb orb-2 absolute right-[8%] top-[35%] h-[55vh] w-[55vh] rounded-full" />
-        <div className="orb orb-3 absolute left-[40%] bottom-[15%] h-[50vh] w-[50vh] rounded-full" />
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="absolute inset-x-0" style={{ top: `${i * 100}vh`, height: "100vh" }}>
+            <div className="orb orb-1 absolute left-[10%] top-[15%] h-[60vh] w-[60vh] rounded-full" />
+            <div className="orb orb-2 absolute right-[8%] top-[28%] h-[55vh] w-[55vh] rounded-full" />
+            <div className="orb orb-3 absolute left-[40%] bottom-[10%] h-[50vh] w-[50vh] rounded-full" />
+          </div>
+        ))}
       </div>
 
       {/* v6.13.34 — Skip-to-storelist button. Visibility is now
@@ -108,7 +126,7 @@ export default async function StoreListPage() {
             CTA) are mounted further down via slice="rest" so the LED
             joy moment can sit DIRECTLY between them. */}
         <ReorderableSection sectionId="service-intro-hero">
-          <ServiceSection slice="hero" />
+          <ServiceSection slice="hero" noBg />
         </ReorderableSection>
 
         {/* "Ahhh, feel the joy of cashback" — the LED beat is now
@@ -121,7 +139,7 @@ export default async function StoreListPage() {
         {/* Acts 2-5 + Lock centerpiece — "Stop wasting time" → "How it
             works" → "Why choose us" → Lock → Awarded CTA. */}
         <ReorderableSection sectionId="service-intro-rest">
-          <ServiceSection slice="rest" />
+          <ServiceSection slice="rest" noBg />
         </ReorderableSection>
 
         <ReorderableSection sectionId="led-ticker">
