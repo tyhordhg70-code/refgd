@@ -189,9 +189,20 @@ export default async function HomePage() {
                   scroll past it. */}
               <MeshExpansionReveal borderRadius="2.5rem">
                 <div className="relative overflow-hidden rounded-[2.5rem] border border-white/[0.10] sm:pulse-glow-violet">
-                  <div className="relative aspect-[4/5] sm:aspect-[16/6]">
+                  {/*
+                    v6.13.1: removed the mobile aspect-[4/5] lock.
+                    The previous 4:5 aspect ratio + overflow:hidden
+                    on the parent was clipping the bottom of the
+                    telegram block on iOS — the headline + CTA
+                    grid was taller than the box's computed height.
+                    Mobile now sizes naturally to the content
+                    (with min-h to keep visual presence + py for
+                    breathing room). Desktop keeps the 16:6 cinematic
+                    aspect ratio.
+                  */}
+                  <div className="relative min-h-[480px] py-12 sm:min-h-0 sm:py-0 sm:aspect-[16/6]">
                     <AnimatedTelegramBox />
-                    <div className="container-px absolute inset-0 grid items-center">
+                    <div className="container-px relative grid h-full items-center sm:absolute sm:inset-0">
                       <div className="grid items-center gap-10 sm:grid-cols-[1fr_auto]">
                         <div>
                           <EditableText
