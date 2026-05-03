@@ -8,10 +8,17 @@ import crypto from "node:crypto";
 export const dynamic = "force-dynamic";
 
 const REGIONS = new Set<Region>(["USA", "CAD", "EU", "UK"]);
-const CATS = new Set<StoreCategory>([
-  "Electronics", "Clothing", "Jewelry", "Food", "Meal Plans", "Home", "Other",
-]);
+/* v6.13.36 — Categories are now free-form strings (admins can
+   register new categories like "Beauty" or "Toys" via the
+   /api/admin/categories endpoint, and those should land on
+   real stores end-to-end). We trim + clamp to 60 chars and
+   default to "Other" only when nothing usable is supplied. */
 const TAGS = new Set<StoreTag>(["fire", "diamond", "crown", "global", "new"]);
+function normalizeCategory(input: unknown): StoreCategory {
+  if (typeof input !== "string") return "Other";
+  const trimmed = input.trim().slice(0, 60);
+  return trimmed.length > 0 ? trimmed : "Other";
+}
 
 async function requireAuth(): Promise<NextResponse | null> {
   const s = await readSession();
@@ -32,7 +39,7 @@ export async function POST(req: Request) {
   if (!body) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
 
   const region = REGIONS.has(body.region) ? (body.region as Region) : "USA";
-  const category = CATS.has(body.category) ? (body.category as StoreCategory) : "Other";
+  const category = normalizeCategory(body.category);
   const tags = Array.isArray(body.tags)
     ? (body.tags as string[]).filter((t): t is StoreTag => TAGS.has(t as StoreTag))
     : [];
