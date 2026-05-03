@@ -1,5 +1,33 @@
 import "./globals.css";
 import type { Metadata } from "next";
+
+/**
+ * v6.13.50 — FORCE DYNAMIC RENDERING FOR THE ENTIRE APP.
+ *
+ * Without this, Next.js 15's default behaviour statically prerenders
+ * any page that doesn't explicitly opt out — including most child
+ * pages here (mentorships, evade-cancelations, top-tier-methods,
+ * vouches). Layout itself reads the live content map from Postgres
+ * via `getAllContentMap()`, but on a STATIC page the layout is
+ * frozen at build time too — so admin Save writes the new value to
+ * DB, the cache fix from v6.13.49 made future renders read fresh,
+ * but the prerendered HTML never re-renders. Visitors keep seeing
+ * the build-time copy of the page.
+ *
+ * Setting `dynamic = "force-dynamic"` on the ROOT layout cascades
+ * to every nested route, guaranteeing every page render queries the
+ * DB and surfaces every saved admin edit immediately. Combined with
+ * v6.13.49's cache disable, this finally closes the publish loop:
+ *   Save → DB write → next visitor render reads DB → live updates.
+ *
+ * Cost: every page hit is now a server render with one tiny content
+ * SELECT. This is identical behaviour to admin pages and the home/
+ * store-list pages that were already force-dynamic, and well within
+ * Render's per-instance throughput.
+ */
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
