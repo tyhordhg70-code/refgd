@@ -53,8 +53,29 @@ async function loadAll(): Promise<Map<string, string>> {
   return map;
 }
 
+/**
+ * v6.13.49 — CACHE DISABLED for content reads.
+ *
+ * Why: Render auto-scales the Next.js service across multiple Node
+ * instances. The module-level cache in `./cache.ts` lives in ONE
+ * process; when an admin Saves, the PUT lands on instance A, A's
+ * cache is invalidated, but instances B/C/D still serve their stale
+ * cached Map for the lifetime of those processes. From the user's
+ * perspective: "edits don't actually publish to live — when I go
+ * back to edit mode the changes are saved there, but visitors see
+ * the old text". Confirmed root cause.
+ *
+ * Fix: skip the cache entirely. content_blocks is a tiny table
+ * (dozens of rows, single SELECT, no joins). Every page render that
+ * needs the content map does ONE small query — well below 5 ms even
+ * on Render's free tier — and every visitor (and every admin going
+ * back into edit mode on any worker) immediately sees the saved
+ * value. We KEEP `setCachedContent` calls inside `loadAll()` so any
+ * legacy code path still hitting `getCachedContent()` directly will
+ * at least get the most-recently-loaded snapshot from this process.
+ */
 async function getAllContent(): Promise<Map<string, string>> {
-  return getCachedContent() ?? (await loadAll());
+  return loadAll();
 }
 
 export async function getContentBlock(id: string): Promise<string> {
