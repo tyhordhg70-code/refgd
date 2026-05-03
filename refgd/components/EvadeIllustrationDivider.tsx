@@ -2,6 +2,7 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 import EditableImage from "./EditableImage";
+import { useMoveOffset } from "./MoveHandle";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
@@ -50,8 +51,21 @@ export default function EvadeIllustrationDivider({
   compact?: boolean;
   editId?: string;
 }) {
-  const { isAdmin, editMode } = useEditContext();
-  const editing = isAdmin && editMode && Boolean(editId);
+  const { isAdmin, editMode, getValue } = useEditContext();
+    const editing = isAdmin && editMode && Boolean(editId);
+    /* v6.13.63 — Same fix applied to FloatingArt in v6.13.62: the
+       PUBLIC <motion.img> branch below was rendering the artwork at
+       its natural layout position regardless of any drag/scale/mb
+       edits the admin had made. Now we read those saved values and
+       compose them onto the motion.img's style so visitors see the
+       same final position the admin set. */
+    const savedMove = useMoveOffset(editId || "");
+    const savedScale = editId
+      ? parseFloat(getValue(`${editId}.scale`, "1") || "1") || 1
+      : 1;
+    const savedMb = editId
+      ? parseFloat(getValue(`${editId}.mb`, "0") || "0") || 0
+      : 0;
   const ref = useRef<HTMLDivElement | null>(null);
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -148,9 +162,24 @@ export default function EvadeIllustrationDivider({
               className="object-contain"
             />
           ) : (
-            <motion.img
-              src={src}
-              alt={alt}
+              /* v6.13.63 — Wrapper applies admin-saved drag offset
+                 + bottom margin without disturbing framer's scroll-y
+                 MotionValue on the inner motion.img. Saved scale is
+                 applied via CSS variable on a child selector so the
+                 framer parallax + drop-shadow remain untouched. */
+              <div
+                style={{
+                  transform: savedMove.transform,
+                  marginBottom: savedMb !== 0 ? `${savedMb}px` : undefined,
+                  ...(savedScale !== 1
+                    ? { ["--rg-saved-scale" as string]: String(savedScale) }
+                    : {}),
+                }}
+                className={savedScale !== 1 ? "[&>img]:scale-[var(--rg-saved-scale)] [&>img]:origin-center" : undefined}
+              >
+              <motion.img
+                src={src}
+                alt={alt}
               loading="eager"
               decoding="async"
               data-editable-id={editId}
@@ -164,8 +193,9 @@ export default function EvadeIllustrationDivider({
               }}
               className="relative z-10 object-contain"
               suppressHydrationWarning
-            />
-          )}
+              />
+              </div>
+            )}
         </div>
         {caption ? (
           <p className="mt-4 text-center text-xs uppercase tracking-[0.5em] text-white/55">
