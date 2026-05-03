@@ -1057,12 +1057,34 @@ html { scroll-behavior: smooth; }
   will-change: transform, border-radius;
 }
 .liquid-glass-3d:hover {
-  transform: perspective(1100px) rotateX(2.5deg) rotateY(-3.5deg) scale(1.025) skewX(-0.7deg) translateY(-6px);
+  /* v6.13.35 — Tamed hover transform + halo. User reports:
+     "hovering over the box cards causes them to get cutoff and
+     hard edge glow" AND "Our comprehensive solutions boxcards
+     are cutoff". Two compounding problems with the previous
+     values:
+       (a) scale(1.025) + translateY(-6px) made the card grow
+           ~2.5% past its grid cell width on every hover. Cards
+           sitting at the right edge of a chapter row crossed
+           the body's site-wide `overflow-x: clip` (set in
+           globals.css ~line 43) and got SHEARED at the
+           viewport's right edge — visible as a hard vertical
+           cut on the card's right side mid-hover.
+       (b) The colored `0 0 70px -10px rgba(167,139,250,0.45)`
+           halo extended ~70px outward in every direction with
+           a UNIFORM violet tint. The same `overflow-x: clip`
+           sliced that halo at the viewport edges, leaving a
+           sharp vertical line of violet — exactly the "hard
+           edge glow" the user described.
+     Fix: scale 1.025 → 1.010, translateY -6 → -3 (card stays
+     well within its grid cell). Removed the wide colored halo
+     entirely; kept only the dark drop-shadow which is naturally
+     soft because of its large `-25px` spread offset. The card
+     still pops on hover but no longer overflows its slot. */
+  transform: perspective(1100px) rotateX(1.6deg) rotateY(-2.2deg) scale(1.010) skewX(-0.4deg) translateY(-3px);
   border-radius: 36px 26px 34px 28px / 32px 30px 28px 34px;
   border-color: rgba(255,255,255,0.32);
   box-shadow:
-    0 50px 110px -25px rgba(0,0,0,0.78),
-    0 0 70px -10px rgba(167,139,250,0.45),
+    0 36px 80px -28px rgba(0,0,0,0.70),
     inset 0 1px 0 rgba(255,255,255,0.10);
 }
 @media (prefers-reduced-motion: reduce) {
