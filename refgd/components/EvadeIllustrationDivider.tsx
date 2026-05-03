@@ -47,8 +47,19 @@ export default function EvadeIllustrationDivider({
   // close to its layout position so the band reads as one unit
   // with the section header above it.
   const y = useTransform(scrollYProgress, [0, 1], [10, -10]);
-  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.98, 1.02, 0.98]);
-  const rotate = useTransform(scrollYProgress, [0, 1], [-1, 1]);
+  // v6.13.4 — REMOVED the scroll-driven `scale: [0.98, 1.02, 0.98]`
+  // and `rotate: [-1°, 1°]`. Two user-visible bugs both traced to
+  // those keyframes:
+  //   1. The image visibly pulsed (squash → stretch) mid-scroll,
+  //      which read as a "distorted illustration".
+  //   2. When `scale` dipped to 0.98, the contained image shrank
+  //      ~2 % inside its slot, exposing a thin horizontal strip of
+  //      page-bg above + below the artwork. As the scroll progress
+  //      crossed the section, that strip appeared, widened, then
+  //      closed back — exactly the "black bar appears and
+  //      disappears mid-scroll" the user reported.
+  // Keeping just the small y-drift gives parallax life without
+  // mutating the image's intrinsic dimensions.
 
   const glowMap = {
     cyan: "rgba(34,211,238,0.45)",
@@ -93,7 +104,7 @@ export default function EvadeIllustrationDivider({
             alt={alt}
             loading="eager"
             decoding="async"
-            style={{ y, scale, rotate, height }}
+            style={{ y, height }}
             className="relative z-10 w-auto max-w-[80vw] object-contain drop-shadow-[0_30px_60px_rgba(0,0,0,0.55)]"
             suppressHydrationWarning
           />
