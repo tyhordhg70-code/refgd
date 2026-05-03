@@ -2068,3 +2068,23 @@ html { scroll-behavior: smooth; }
     animation: none !important;
   }
 }
+
+/* v6.13.37 — Native <select> dropdown options inherit OS chrome and
+   on dark themes the default is white-on-white, which renders the
+   options invisible until a row is hovered (the OS hover style
+   inverts to dark-on-light). Force every <option> in the document
+   to a dark slate background with white text so the menu is
+   readable in both Chromium / WebKit / Firefox on Win, macOS,
+   Linux and mobile. Light-mode browsers ignore this because the
+   colors still meet contrast — there is no light theme on this
+   site. */
+select option,
+select optgroup {
+  background-color: #0b0a14 !important;
+  color: #ffffff !important;
+}
+select option:checked,
+select option:hover {
+  background-color: #1f1c33 !important;
+  color: #ffe28a !important;
+}
