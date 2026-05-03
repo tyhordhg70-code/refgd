@@ -95,6 +95,36 @@ export default async function StoreListPage() {
         className="pointer-events-none fixed inset-0 -z-[2] bg-ink-950"
       />
 
+      {/* v6.13.52 — ANIMATED gradient backdrop. The user reported
+          "storelist gradient should be animated"; the existing 1000vh
+          orb layer pulses individual orbs but the overall gradient
+          field was visually static. This adds a fixed-viewport
+          conic+radial gradient that slowly hue-rotates AND drifts so
+          the entire page feels like it's breathing colour. Sits at
+          -z-[3] (behind every other backdrop layer) and is
+          pointer-events-none. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 -z-[3]"
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 60% at 18% 22%, rgba(245,185,69,0.22), transparent 60%), radial-gradient(ellipse 65% 55% at 82% 32%, rgba(167,139,250,0.28), transparent 60%), radial-gradient(ellipse 70% 60% at 30% 78%, rgba(34,211,238,0.22), transparent 65%), radial-gradient(ellipse 60% 55% at 78% 82%, rgba(244,114,182,0.22), transparent 60%), conic-gradient(from 0deg at 50% 50%, rgba(245,185,69,0.10), rgba(167,139,250,0.12), rgba(34,211,238,0.08), rgba(244,114,182,0.10), rgba(245,185,69,0.10))",
+          animation: "slBgShift 22s ease-in-out infinite, slBgHue 28s linear infinite",
+          willChange: "transform, filter",
+        }}
+      />
+      <style>{`
+        @keyframes slBgShift {
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+          50%      { transform: translate3d(-2%, 1.5%, 0) scale(1.12); }
+        }
+        @keyframes slBgHue {
+          0%   { filter: hue-rotate(0deg) saturate(1.05); }
+          50%  { filter: hue-rotate(40deg) saturate(1.2); }
+          100% { filter: hue-rotate(0deg) saturate(1.05); }
+        }
+      `}</style>
+
       {/* v6.13.39 — The user reported the storelist "looks too dark"
           and asked for "gradient abstract particles floating to the
           entire storelist and pulsating gradient spots on the entire
