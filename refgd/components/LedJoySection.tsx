@@ -235,9 +235,8 @@ export default function LedJoySection() {
               height: b.size * 0.55,
               ["--rot" as string]: b.rot,
               ["--sway" as string]: b.sway,
-              animation: reduce
-                ? undefined
-                : `ledCashFall ${b.dur} ${b.delay} ease-in-out infinite`,
+              /* v6.13.66 — drop reduce-motion gate so cash bills always fall. */
+                animation: `ledCashFall ${b.dur} ${b.delay} ease-in-out infinite`,
               willChange: "transform, opacity",
             }}
           >
@@ -294,12 +293,13 @@ export default function LedJoySection() {
                  screen) is impossible because there is no longer
                  anything that has to fire to make the letters
                  appear. */
-              initial={reduce ? { opacity: 1 } : { opacity: 0, x: 360, skewX: -28 }}
-              animate={
-                reduce || play
-                  ? { opacity: 1, x: 0, skewX: 0 }
-                  : { opacity: 0, x: 360, skewX: -28 }
-              }
+              /* v6.13.66 — drop reduce-motion ternary; always animate. */
+                initial={{ opacity: 0, x: 360, skewX: -28 }}
+                animate={
+                  play
+                    ? { opacity: 1, x: 0, skewX: 0 }
+                    : { opacity: 0, x: 360, skewX: -28 }
+                }
               transition={{
                 duration: 0.32,
                 delay: play ? i * 0.07 : 0,
@@ -334,12 +334,13 @@ export default function LedJoySection() {
             <motion.span
               key={i}
               /* v6.13.32 — same gate-removal as AHHH letters above. */
-              initial={reduce ? { opacity: 1 } : { opacity: 0, x: 220 }}
-              animate={
-                reduce || play
-                  ? { opacity: 1, x: 0 }
-                  : { opacity: 0, x: 220 }
-              }
+              /* v6.13.66 — drop reduce-motion ternary; always animate. */
+                initial={{ opacity: 0, x: 220 }}
+                animate={
+                  play
+                    ? { opacity: 1, x: 0 }
+                    : { opacity: 0, x: 220 }
+                }
               transition={{
                 duration: 0.28,
                 // Words start AFTER the AHHH letters finish. AHHH ends
