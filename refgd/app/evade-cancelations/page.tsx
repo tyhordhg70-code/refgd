@@ -1,3 +1,8 @@
+/* v6.13.50 — Opt out of static prerendering — same fix as the other
+   pages: admin Save writes DB, but if HTML was frozen at build time
+   visitors never see the change. */
+export const dynamic = "force-dynamic";
+
 import ChipScroll from "@/components/ChipScroll";
 import GlassCard from "@/components/GlassCard";
 import PrismShard from "@/components/PrismShard";
