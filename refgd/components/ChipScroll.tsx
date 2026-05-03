@@ -424,11 +424,19 @@ export default function ChipScroll({
       if (im && !im.complete) im.addEventListener("load", onImgReady, { once: true });
     });
 
-    // Force fallback if frames take too long (covers partial-failure case
-    // where some images never resolve and we'd otherwise spin forever).
+    // v6.13.15 — User reported the Evade page still shows "loading
+    // scene · 0%" for several seconds before anything appears. The
+    // /sequence/evade frame directory is currently EMPTY in the
+    // public folder, so all 48 image requests 404 and the spinner
+    // sat for 6 seconds before falling back. Tightened the timer
+    // 6000 → 1200 ms so the procedural fallback (cinematic iris /
+    // shield / chess scene) takes over almost immediately when a
+    // frame directory is missing or slow. The fallback itself
+    // already looks great, so this is purely a "stop showing the
+    // loading text" fix.
     const fallbackTimer = window.setTimeout(() => {
       if (!usingFallback && loaded < frameCount) setUsingFallback(true);
-    }, 6000);
+    }, 1200);
 
     return () => {
       ro.disconnect();
