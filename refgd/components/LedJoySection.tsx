@@ -67,7 +67,14 @@ export default function LedJoySection() {
           on the most degenerate Safari case. */
   const [played, setPlayed] = useState(false);
   useEffect(() => {
-    if (reduce) { setPlayed(true); return; }
+    /* v6.13.66 — Removed the early-return on reduce-motion. Combined
+         with the initial/animate gate-removal below it would have left
+         letters at opacity:1 with no transition (the user perceived this
+         as "no animation"). Now the standard play triggers run regardless
+         of OS reduced-motion preference. The animation is short (~0.9s
+         total for the AHHHH + tagline beat) and is the entire purpose of
+         the section, so respecting prefers-reduced-motion would mean
+         removing the section's reason to exist. */
 
     let cancelled = false;
     const fire = () => { if (!cancelled) setPlayed(true); };
