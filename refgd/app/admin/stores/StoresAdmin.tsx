@@ -132,6 +132,16 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
 
   // Bulk import panel state.
   const [bulkOpen, setBulkOpen] = useState(false);
+
+    /* v6.13.67 — Auto-open the bulk panel when the page is loaded with
+       ?bulk=1 (linked from the dashboard's "Bulk import stores" card).
+       Saves the admin one click. */
+    useEffect(() => {
+      if (typeof window === "undefined") return;
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get("bulk") === "1") setBulkOpen(true);
+    }, []);
+  
   const [bulkText, setBulkText] = useState("");
   const [bulkRegion, setBulkRegion] = useState<Region>("USA");
   const [bulkRows, setBulkRows] = useState<BulkRow[]>([]);
