@@ -242,9 +242,25 @@ export default function PixelRainCosmic({
       const reduceMo = window.matchMedia(
         "(prefers-reduced-motion: reduce)",
       ).matches;
+      // v6.13.35 — User report: "rain autoscroll doesn't work on
+      // desktop". Cause: on hover-capable / fine-pointer devices
+      // (mouse wheels + trackpad), `behavior: "smooth"` scrollTo
+      // gets cancelled the instant the user touches the wheel
+      // again — and since the wheel scroll that crossed the 0.55
+      // progress threshold is what TRIGGERED maybeAutoScroll in
+      // the first place, the very next wheel tick (always within
+      // a few ms) cancels the smooth scroll mid-flight, leaving
+      // the page barely advanced. Touch devices don't have this
+      // problem because flicks come as discrete touch events
+      // rather than continuous wheel input. Fix: use instant
+      // ("auto") behaviour on fine-pointer devices so the jump
+      // completes before any further wheel tick can interrupt it.
+      const finePointer = window.matchMedia(
+        "(hover: hover) and (pointer: fine)",
+      ).matches;
       window.scrollTo({
         top: targetY,
-        behavior: reduceMo ? "auto" : "smooth",
+        behavior: reduceMo || finePointer ? "auto" : "smooth",
       });
     }
 
