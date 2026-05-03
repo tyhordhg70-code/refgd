@@ -535,7 +535,13 @@ export default function ChipScroll({
             scroll progress lifts it). Net result: no "loading"
             text ever appears, on any network speed. */}
 
-        {/* Caption overlay — visible from load through almost the entire scroll */}
+        {/* Caption overlay — visible from load through almost the entire scroll.
+            v6.13.40 — Headline + subhead now have a real ENTRANCE animation
+            on mount: words of the headline cascade in from below with a
+            staggered fade-up, and the subhead glides up underneath after
+            the headline lands. The scroll-driven `captionOpacity / captionY`
+            transforms are still applied to the OUTER wrapper so the
+            scroll-fade-out behaviour is preserved. */}
         {caption && (
           <motion.div
             style={{ opacity: captionOpacity, y: captionY }}
@@ -546,12 +552,36 @@ export default function ChipScroll({
               className="editorial-display mx-auto max-w-5xl text-balance text-white text-[clamp(2.2rem,7vw,6rem)] uppercase"
               style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)" }}
             >
-              {caption}
+              {caption.split(" ").map((word, i, arr) => (
+                <motion.span
+                  key={i}
+                  initial={{ opacity: 0, y: 36, filter: "blur(6px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  transition={{
+                    duration: 0.7,
+                    delay: 0.15 + i * 0.12,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  className="inline-block"
+                  style={{ marginRight: i < arr.length - 1 ? "0.35em" : 0 }}
+                >
+                  {word}
+                </motion.span>
+              ))}
             </h3>
             {subCaption && (
-              <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/90 sm:text-lg">
+              <motion.p
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.8,
+                  delay: 0.15 + caption.split(" ").length * 0.12 + 0.1,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+                className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/90 sm:text-lg"
+              >
                 {subCaption}
-              </p>
+              </motion.p>
             )}
           </motion.div>
         )}
