@@ -3,29 +3,19 @@
 /**
  * MoveHandle — drag-to-reposition affordance for editable elements.
  *
- * v6.13.42 — Admins repeatedly reported "still can't drag-drop text /
- * images" because the existing reorder primitives only worked at the
- * SECTION level (ReorderableSection) or inside an EditableImageGroup,
- * neither of which let an admin nudge an INDIVIDUAL text or image to
- * a slightly different spot on the page.
+ * v6.13.43 — Two upgrades on top of v6.13.42:
+ *   (1) COLLISION PUSH. While dragging, any other [data-move-target]
+ *       element whose bounding rect intersects the dragged element
+ *       is shoved out of the way along the smaller-overlap axis. The
+ *       push offset stacks on top of that element's own persisted
+ *       (dx, dy) and is committed on release, so siblings actually
+ *       move out of the way instead of overlapping.
+ *   (2) Z-INDEX bumped to z-[1000] so the handle stays above scaled
+ *       images and stacking-context popovers.
  *
- * This component adds a per-element drag handle that, in admin edit
- * mode, lets the admin grab any EditableText / EditableImage and drag
- * it freely with mouse OR touch. The drag offset is persisted as two
- * content keys:
- *   {id}.dx  → horizontal offset in pixels
- *   {id}.dy  → vertical   offset in pixels
- *
- * The owning element renders the offset via `useMoveOffset(id)` which
- * returns a CSS `translate3d(...)` string. While the user is actively
- * dragging we bypass React and write the transform directly to the
- * DOM for buttery-smooth motion; on release we commit through the
- * EditContext so the value persists and survives reloads.
- *
- * The handle is INVISIBLE outside of edit mode and never affects
- * layout in production. In edit mode it sits at the top-right corner
- * of the element and is revealed on hover (or always-visible while
- * the admin is mid-drag).
+ * v6.13.42 — Original drag-to-reposition handle. Persists offsets as
+ * `{id}.dx` / `{id}.dy` content keys and translates the live DOM
+ * during drag for smooth motion.
  */
 
 import {
@@ -36,23 +26,20 @@ import {
 } from "react";
 import { useEditContext } from "@/lib/edit-context";
 
-/**
- * Read the persisted (dx, dy) offset for `id` and convert to a CSS
- * transform string the caller can splice into its own style object.
- *
- * Returns `transform: undefined` (not "none") when there is no
- * offset, so the caller can spread the style without overriding any
- * other transform-producing CSS class on the element.
- */
 export function useMoveOffset(id: string): {
   dx: number;
   dy: number;
-  /** CSS `translate3d(...)` or `undefined`. Splice into element style. */
   transform: string | undefined;
 } {
   const { getValue } = useEditContext();
-  const dx = parseFloat(getValue(`${id}.dx`, "0") || "0") || 0;
-  const dy = parseFloat(getValue(`${id}.dy`, "0") || "0") || 0;
+  let dx = 0;
+  let dy = 0;
+  try {
+    dx = parseFloat(getValue(`${id}.dx`, "0") || "0") || 0;
+    dy = parseFloat(getValue(`${id}.dy`, "0") || "0") || 0;
+  } catch {
+    /* getValue may throw during a hot-reload boundary — treat as 0 */
+  }
   return {
     dx,
     dy,
@@ -61,15 +48,15 @@ export function useMoveOffset(id: string): {
   };
 }
 
-/**
- * Drag handle button. Render as a child of a `position: relative`
- * parent that ALSO carries `data-editable-id="${id}"` so the handle
- * can find its target during a drag.
- *
- * Pass `targetSelector` to override target lookup (defaults to
- * `[data-editable-id="${id}"]`). Useful when the editable target is
- * nested deeper than the wrapper.
- */
+type PushedRecord = {
+  baseDx: number;
+  baseDy: number;
+  pushX: number;
+  pushY: number;
+  el: HTMLElement;
+  origInline: string; // original style.transform string
+};
+
 export default function MoveHandle({
   id,
   className = "",
@@ -77,7 +64,6 @@ export default function MoveHandle({
 }: {
   id: string;
   className?: string;
-  /** Tailwind position classes for the handle within the wrapper. */
   positionClassName?: string;
 }) {
   const { isAdmin, editMode, getValue, setValue } = useEditContext();
@@ -88,6 +74,7 @@ export default function MoveHandle({
   const startDx = useRef(0);
   const startDy = useRef(0);
   const draft = useRef<{ dx: number; dy: number } | null>(null);
+  const pushedRef = useRef<Map<string, PushedRecord>>(new Map());
   const [dragging, setDragging] = useState(false);
 
   const findTarget = (): HTMLElement | null => {
@@ -103,8 +90,6 @@ export default function MoveHandle({
   const liveTranslate = (dx: number, dy: number) => {
     const el = findTarget();
     if (!el) return;
-    // Preserve any existing transform (e.g. scale on a scaled image)
-    // by stashing the original on first drag and re-prepending it.
     const original = el.dataset.moveOriginalTransform;
     const stash =
       original !== undefined
@@ -114,14 +99,88 @@ export default function MoveHandle({
       `translate3d(${dx}px, ${dy}px, 0)` + (stash ? ` ${stash}` : "");
   };
 
+  /** v6.13.43 — Push siblings out of the way of the dragged element. */
+  const applyCollisionPush = () => {
+    const dragEl = findTarget();
+    if (!dragEl) return;
+    const dragRect = dragEl.getBoundingClientRect();
+    const all = document.querySelectorAll<HTMLElement>("[data-move-target]");
+    const seen = new Set<string>();
+    for (const other of Array.from(all)) {
+      if (other === dragEl) continue;
+      const otherId = other.getAttribute("data-move-target");
+      if (!otherId || otherId === id) continue;
+      seen.add(otherId);
+      const r = other.getBoundingClientRect();
+      const overlapX = Math.min(dragRect.right, r.right) - Math.max(dragRect.left, r.left);
+      const overlapY = Math.min(dragRect.bottom, r.bottom) - Math.max(dragRect.top, r.top);
+      if (overlapX <= 0 || overlapY <= 0) {
+        // No overlap — release any prior push on this element.
+        const prev = pushedRef.current.get(otherId);
+        if (prev) {
+          prev.el.style.transform = prev.origInline;
+          pushedRef.current.delete(otherId);
+        }
+        continue;
+      }
+      // Determine push direction: smaller overlap axis, signed away from
+      // the dragged element's centre.
+      const dragCx = (dragRect.left + dragRect.right) / 2;
+      const dragCy = (dragRect.top + dragRect.bottom) / 2;
+      const otherCx = (r.left + r.right) / 2;
+      const otherCy = (r.top + r.bottom) / 2;
+      let pushX = 0;
+      let pushY = 0;
+      if (overlapX < overlapY) {
+        pushX = (otherCx >= dragCx ? overlapX : -overlapX) + 8 * Math.sign(otherCx - dragCx || 1);
+      } else {
+        pushY = (otherCy >= dragCy ? overlapY : -overlapY) + 8 * Math.sign(otherCy - dragCy || 1);
+      }
+      // Stash original inline transform on first push so we can restore.
+      const existing = pushedRef.current.get(otherId);
+      let baseDx = 0;
+      let baseDy = 0;
+      let origInline = other.style.transform || "";
+      if (existing) {
+        baseDx = existing.baseDx;
+        baseDy = existing.baseDy;
+        origInline = existing.origInline;
+      } else {
+        try {
+          baseDx = parseFloat(getValue(`${otherId}.dx`, "0") || "0") || 0;
+          baseDy = parseFloat(getValue(`${otherId}.dy`, "0") || "0") || 0;
+        } catch { /* ignore */ }
+      }
+      pushedRef.current.set(otherId, { baseDx, baseDy, pushX, pushY, el: other, origInline });
+      // Apply combined translate: original (baseDx+pushX, baseDy+pushY)
+      const tx = baseDx + pushX;
+      const ty = baseDy + pushY;
+      // Strip any prior translate3d() from origInline before composing.
+      const cleanOrig = origInline.replace(/translate3d\([^)]*\)\s*/g, "").trim();
+      other.style.transform =
+        `translate3d(${tx}px, ${ty}px, 0)` + (cleanOrig ? ` ${cleanOrig}` : "");
+    }
+    // Release pushes on elements no longer overlapping.
+    for (const [otherId, rec] of Array.from(pushedRef.current.entries())) {
+      if (!seen.has(otherId)) {
+        rec.el.style.transform = rec.origInline;
+        pushedRef.current.delete(otherId);
+      }
+    }
+  };
+
   const begin = (cx: number, cy: number) => {
     startX.current = cx;
     startY.current = cy;
-    startDx.current =
-      parseFloat(getValue(`${id}.dx`, "0") || "0") || 0;
-    startDy.current =
-      parseFloat(getValue(`${id}.dy`, "0") || "0") || 0;
+    try {
+      startDx.current = parseFloat(getValue(`${id}.dx`, "0") || "0") || 0;
+      startDy.current = parseFloat(getValue(`${id}.dy`, "0") || "0") || 0;
+    } catch {
+      startDx.current = 0;
+      startDy.current = 0;
+    }
     draft.current = { dx: startDx.current, dy: startDy.current };
+    pushedRef.current.clear();
     setDragging(true);
   };
 
@@ -130,19 +189,32 @@ export default function MoveHandle({
     const dy = startDy.current + (cy - startY.current);
     draft.current = { dx, dy };
     liveTranslate(dx, dy);
+    try { applyCollisionPush(); } catch { /* never crash on push */ }
   };
 
   const end = () => {
-    if (draft.current) {
-      setValue(`${id}.dx`, String(Math.round(draft.current.dx)));
-      setValue(`${id}.dy`, String(Math.round(draft.current.dy)));
-    }
-    // Clear the inline-style override so React re-takes control
-    // and applies the persisted dx/dy via the element's normal
-    // style prop on the next render.
-    const el = findTarget();
-    if (el) {
-      delete el.dataset.moveOriginalTransform;
+    try {
+      if (draft.current) {
+        setValue(`${id}.dx`, String(Math.round(draft.current.dx)));
+        setValue(`${id}.dy`, String(Math.round(draft.current.dy)));
+      }
+      // Persist pushed siblings — bake (baseDx + pushX) into their stored
+      // dx/dy and clear the inline transform we wrote during the drag.
+      for (const [otherId, rec] of Array.from(pushedRef.current.entries())) {
+        const finalX = Math.round(rec.baseDx + rec.pushX);
+        const finalY = Math.round(rec.baseDy + rec.pushY);
+        setValue(`${otherId}.dx`, String(finalX));
+        setValue(`${otherId}.dy`, String(finalY));
+        rec.el.style.transform = rec.origInline;
+      }
+      pushedRef.current.clear();
+      const el = findTarget();
+      if (el) {
+        delete el.dataset.moveOriginalTransform;
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[move] commit error", err);
     }
     draft.current = null;
     setDragging(false);
@@ -177,16 +249,17 @@ export default function MoveHandle({
   const reset = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setValue(`${id}.dx`, "0");
-    setValue(`${id}.dy`, "0");
+    try {
+      setValue(`${id}.dx`, "0");
+      setValue(`${id}.dy`, "0");
+    } catch { /* ignore */ }
   };
 
   if (!editing) return null;
 
   return (
     <span
-      className={`absolute z-[80] flex items-center gap-1 ${positionClassName} ${className}`}
-      // Block clicks from reaching the underlying contentEditable.
+      className={`absolute z-[1000] flex items-center gap-1 ${positionClassName} ${className}`}
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -208,7 +281,7 @@ export default function MoveHandle({
           e.stopPropagation();
           begin(t.clientX, t.clientY);
         }}
-        title="Drag to reposition"
+        title="Drag to reposition (siblings will move out of the way)"
         aria-label="Drag to reposition"
         data-testid={`move-handle-${id}`}
       >
@@ -227,8 +300,6 @@ export default function MoveHandle({
   );
 }
 
-/** Minimal CSS.escape polyfill for older browsers (still needed on
- *  some Safari versions for content-key ids that contain dots). */
 function cssEscape(s: string): string {
   if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
     return CSS.escape(s);
