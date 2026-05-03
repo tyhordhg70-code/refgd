@@ -11,7 +11,7 @@ import {
 } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { Pagination, EffectCreative } from "swiper/modules";
+import { Pagination } from "swiper/modules";
 import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
@@ -350,53 +350,33 @@ function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
       }}
     >
       <Swiper
-        // v6.10.8: EffectCreative with cube-like 3D flip.
+        // v6.10.9: PLAIN SLIDE EFFECT — no 3D, no overlapping slides.
         //
-        // WHY NOT EffectCube:
-        //   Swiper's cube places each slide at slideIndex*90°. With 5
-        //   slides, slide 4 maps to slideIndex%4===0 round=1 — the
-        //   SAME physical face as slide 0. Rotating to slide 4 returns
-        //   the cube to 0° visually. Cards 3-5 are unreachable; the
-        //   user reported "can't scroll past card 2".
+        // History of failed 3D attempts:
+        //   • EffectCube     — hardcoded 4-face cube; slide 4 maps to
+        //                      same face as slide 0; cards 3-5 unreachable.
+        //   • EffectCube + loop=true — Swiper clones slide DOM nodes;
+        //                      duplicate SVG ids (pi-bg-store, etc.) make
+        //                      url(#…) refs resolve to wrong/broken nodes
+        //                      → illustrations disappear.
+        //   • EffectCards    — flickering during transition.
+        //   • EffectCoverflow — collapses h-full slides to 0 height
+        //                      → illustrations disappear.
+        //   • EffectCreative — adds backface-visibility:hidden to slides
+        //                      and stacks all 5 slides at the same screen
+        //                      position with full GPU layers; on iOS
+        //                      Safari this hides child SVGs unpredictably
+        //                      and causes paint flickering on rest.
         //
-        // WHY NOT loop=true with EffectCube:
-        //   loop=true makes Swiper clone slide DOM nodes. Each clone
-        //   duplicates SVG ids like `id="pi-bg-store"`. Any css
-        //   url(#pi-bg-store) then resolves to the first DOM match
-        //   (a broken clone) so gradients/filters are missing →
-        //   illustrations disappear.
-        //
-        // EffectCreative SOLUTION:
-        //   • Configurable prev/next transforms — a pure cube flip
-        //     (prev folds left, next folds right) with no geometric
-        //     face-count limit. All 5 cards reachable.
-        //   • virtualTranslate=true (set by overwriteParams): each
-        //     slide is individually CSS-transformed; the wrapper
-        //     doesn't move. Slides are sized to fill the container
-        //     exactly, so the h-full chain resolves to a real height
-        //     and illustrations render correctly.
-        //   • loop=false: no DOM clones, no duplicate SVG ids.
-        modules={[Pagination, EffectCreative]}
-        effect="creative"
-        creativeEffect={{
-          limitProgress: 1,
-          perspective: true,
-          prev: {
-            // Slides left of active: fold away to the left.
-            // Pivot from the right edge → rotateY(90°) hides the
-            // front face and reveals a left-facing edge, exactly
-            // like a cube face rotating off-screen to the left.
-            translate: ['-100%', 0, 0],
-            rotate: [0, 90, 0],
-            origin: 'right center',
-          },
-          next: {
-            // Slides right of active: fold in from the right.
-            translate: ['100%', 0, 0],
-            rotate: [0, -90, 0],
-            origin: 'left center',
-          },
-        }}
+        // Plain slide is the only configuration that:
+        //   • lets all 5 cards be reached with normal swipe gestures,
+        //   • keeps slides in their natural side-by-side flex layout
+        //     (no overlap, no stacking, no z-fighting),
+        //   • applies NO backface-visibility / NO 3D transforms — so
+        //     iOS Safari renders the SVG illustrations correctly,
+        //   • doesn't clone slide DOM nodes, so SVG ids stay unique
+        //     and gradient / filter url(#…) refs resolve correctly.
+        modules={[Pagination]}
         slidesPerView={1}
         loop={false}
         grabCursor
