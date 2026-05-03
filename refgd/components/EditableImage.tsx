@@ -66,6 +66,7 @@ export default function EditableImage({
   const [draftSrc, setDraftSrc] = useState(src);
   const popRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLSpanElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   /* v6.13.43 — Anchor rect for the portal-rendered popover. We re-measure
      on open + on every scroll/resize so the popover follows the image
@@ -78,7 +79,16 @@ export default function EditableImage({
   useEffect(() => {
     if (!popOpen) return;
     const measure = () => {
-      const r = wrapperRef.current?.getBoundingClientRect();
+      /* v6.13.44 — Anchor to the IMG rect (not the wrapper) because
+         the wrapper's box ignores the image's CSS scale transform.
+         When scale > 1 the image bleeds beyond the wrapper, so a
+         popover anchored to the wrapper would sit ON TOP of the
+         visible image — producing the "image vanishes when I scale"
+         report. The IMG rect includes the scale transform, so the
+         popover always lands clear of the rendered image. */
+      const r =
+        imgRef.current?.getBoundingClientRect() ??
+        wrapperRef.current?.getBoundingClientRect();
       if (r) setAnchorRect(r);
     };
     measure();
@@ -233,14 +243,37 @@ export default function EditableImage({
     }
   };
 
-  /* v6.13.43 — Compute portal popover position. Anchored just below the
-     image; if it would overflow the right edge of the viewport we shift
-     it left so it stays fully on-screen. Width fixed to 22rem (352px). */
+  /* v6.13.44 — Side-aware popover placement so it never sits on top
+     of the (possibly scaled) image:
+       • Prefer placing it to the RIGHT of the image, vertically
+         aligned to the image top.
+       • If there's not enough room on the right, try the LEFT.
+       • If neither side fits, fall back to BELOW the image.
+     All three placements use the IMG rect (which includes CSS scale)
+     so the popover stays fully clear of the visible image. Width
+     fixed to 22rem (352px). */
   const POP_W = 352;
-  const popLeft = anchorRect
-    ? Math.max(8, Math.min(anchorRect.left, (typeof window !== "undefined" ? window.innerWidth : 1024) - POP_W - 8))
-    : 0;
-  const popTop = anchorRect ? anchorRect.bottom + 8 : 0;
+  const POP_H_EST = 420;
+  const GAP = 12;
+  const vw = typeof window !== "undefined" ? window.innerWidth : 1024;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 768;
+  let popLeft = 0;
+  let popTop = 0;
+  if (anchorRect) {
+    const spaceRight = vw - anchorRect.right;
+    const spaceLeft = anchorRect.left;
+    if (spaceRight >= POP_W + GAP + 8) {
+      popLeft = anchorRect.right + GAP;
+      popTop = Math.max(8, Math.min(anchorRect.top, vh - POP_H_EST - 8));
+    } else if (spaceLeft >= POP_W + GAP + 8) {
+      popLeft = anchorRect.left - POP_W - GAP;
+      popTop = Math.max(8, Math.min(anchorRect.top, vh - POP_H_EST - 8));
+    } else {
+      popLeft = Math.max(8, Math.min(anchorRect.left, vw - POP_W - 8));
+      popTop = Math.min(anchorRect.bottom + GAP, vh - POP_H_EST - 8);
+      if (popTop < 8) popTop = 8;
+    }
+  }
 
   return (
     <span
@@ -272,6 +305,7 @@ export default function EditableImage({
       {editing && <MoveHandle id={id} positionClassName="-right-3 -top-3" />}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        ref={imgRef}
         src={src || defaultSrc}
         alt={alt}
         className={
@@ -311,7 +345,7 @@ export default function EditableImage({
                 if (e.key === "Escape") setPopOpen(false);
               }}
               placeholder="https://… or paste a data URL"
-              className="w-full rounded-md border border-white/10 bg-white/5 px-2 py-1.5 outline-none focus:border-amber-300/60"
+              className="w-full rounded-md border border-white/10 bg-white/10 px-2 py-1.5 text-white caret-amber-300 outline-none placeholder:text-white/40 focus:border-amber-300/60 focus:bg-white/15"
               spellCheck={false}
             />
             <div className="flex items-center justify-between gap-2">
@@ -351,7 +385,7 @@ export default function EditableImage({
             <select
               value={anim}
               onChange={(e) => setValue(`${id}.anim`, e.target.value)}
-              className="w-full rounded-md border border-white/10 bg-white/5 px-2 py-1.5 outline-none focus:border-amber-300/60"
+              className="w-full rounded-md border border-white/10 bg-white/10 px-2 py-1.5 text-white caret-amber-300 outline-none focus:border-amber-300/60 focus:bg-white/15"
             >
               <option value="" className="bg-ink-900 text-white">— None —</option>
               {ANIMATION_TEMPLATES.map((t) => (
