@@ -3,9 +3,6 @@
 @tailwind utilities;
 
 /* Swiper carousel + 3D cube effect (used by mobile path-card carousel). */
-@import "swiper/css";
-@import "swiper/css/pagination";
-
 /* Override Swiper pagination bullets to match the page palette. */
 .swiper-pagination-bullet {
   background: rgba(255, 255, 255, 0.35) !important;
