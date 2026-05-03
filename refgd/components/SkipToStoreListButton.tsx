@@ -41,19 +41,33 @@ export default function SkipToStoreListButton() {
     const target = document.querySelector<HTMLElement>(
       '[data-skip-anchor="cashback"]',
     );
-    // If the anchor isn't on this page (defensive — the storelist
-    // is the only page that mounts this component) we silently
-    // never show the button rather than render an orphan affordance.
     if (!target) return;
 
+    /* v6.13.40 — User reported the skip button "should vanish after
+       the get-rewarded section". The previous behaviour faded it OUT
+       when the cashback hero left the viewport but faded it BACK IN
+       if the visitor scrolled back up — so it kept reappearing while
+       they were reading the rules / payment / store sections below.
+
+       New behaviour: ONE-SHOT visibility.
+         • Visible only while the hero is still on screen the FIRST
+           time the visitor sees the page.
+         • Once the visitor scrolls past the bottom of the hero, the
+           button is permanently dismissed (same as a manual click).
+         • Never reappears, even on scroll-back, even on a fast
+           scroll-jump that briefly intersects the hero again.
+       Implemented by setting `dismissed` once `entry.boundingClientRect.bottom`
+       drops above the viewport top — which can ONLY happen by
+       scrolling past the hero.  */
     observerRef.current = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
         if (!entry) return;
-        // Use any-pixel intersection rather than a threshold so the
-        // button starts fading IN the instant the hero re-enters
-        // the viewport during a scroll-back.
         setVisible(entry.isIntersecting);
+        // Hero's bottom is now above viewport top → user scrolled past.
+        if (entry.boundingClientRect.bottom <= 0) {
+          setDismissed(true);
+        }
       },
       { threshold: 0 },
     );
