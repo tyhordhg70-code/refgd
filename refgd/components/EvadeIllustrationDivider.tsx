@@ -99,13 +99,36 @@ export default function EvadeIllustrationDivider({
               }}
             />
           )}
+          {/* v6.13.10 — Image rendering rebuilt to fix two reports:
+              (a) "illustration distorted" — the previous code set
+                  CSS `height` on the <img> AND `max-w-[80vw]`. When
+                  the natural width at the chosen height exceeded
+                  80 vw, the browser clamped the width WITHOUT
+                  re-deriving the height, squashing the picture. We
+                  now constrain via maxHeight + maxWidth only, with
+                  `width:auto height:auto`, so the browser preserves
+                  the intrinsic aspect ratio in every viewport.
+              (b) "black bar on bottom" — the heavy
+                  `drop-shadow(0 30px 60px rgba(0,0,0,0.55))` cast a
+                  60-px blurred dark band BELOW the artwork that
+                  read on dark backgrounds as a horizontal black
+                  bar between sections. Replaced with a much softer
+                  shadow (12 px blur, 0.35 alpha) that doesn't read
+                  as a separate bar against the page wash. */}
           <motion.img
             src={src}
             alt={alt}
             loading="eager"
             decoding="async"
-            style={{ y, height }}
-            className="relative z-10 w-auto max-w-[80vw] object-contain drop-shadow-[0_30px_60px_rgba(0,0,0,0.55)]"
+            style={{
+              y,
+              maxHeight: height,
+              maxWidth: "80vw",
+              width: "auto",
+              height: "auto",
+              filter: "drop-shadow(0 8px 12px rgba(0,0,0,0.35))",
+            }}
+            className="relative z-10 object-contain"
             suppressHydrationWarning
           />
         </div>
