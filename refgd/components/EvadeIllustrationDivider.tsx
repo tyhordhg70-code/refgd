@@ -76,7 +76,7 @@ export default function EvadeIllustrationDivider({
       : "justify-center";
 
   return (
-    <section className={compact ? "relative py-2" : "relative py-4 sm:py-6"}>
+    <section className={compact ? "relative py-0" : "relative py-1 sm:py-2"}>
       <div className="container-wide">
         <div
           ref={ref}
