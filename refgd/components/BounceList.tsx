@@ -239,32 +239,40 @@ function Row({
           {/* Body */}
           <div className="relative flex-1">
             <p className="text-[0.98rem] leading-relaxed text-white/85 sm:text-lg">
-              {editing ? (
-                <EditableText
-                  id={editId!}
-                  defaultValue={text}
-                  as="span"
-                  multiline
-                />
-              ) : (
-                value
-              )}
+              {/* v6.13.63 — Always render EditableText when editId is set so
+                    admin-saved dx/dy text-drag offsets apply in PUBLIC view too.
+                    Previously the public branch fell back to a plain {value} text
+                    node, which bypassed EditableText's unconditional useMoveOffset
+                    transform — text the admin moved snapped back at runtime. */}
+                {editId ? (
+                  <EditableText
+                    id={editId}
+                    defaultValue={text}
+                    as="span"
+                    multiline
+                  />
+                ) : (
+                  value
+                )}
             </p>
             {showDetail ? (
               <div className="bounce-elastic-content">
-                {detailEditing ? (
-                  <EditableText
-                    id={detailEditId!}
-                    defaultValue={detail || ""}
-                    as="p"
-                    multiline
-                    className="text-[0.92rem] leading-relaxed text-white/65 sm:text-base"
-                  />
-                ) : (
-                  <p className="text-[0.92rem] leading-relaxed text-white/65 sm:text-base">
-                    {detailEditId ? ctx.getValue(detailEditId, detail || "") : detail}
-                  </p>
-                )}
+                {/* v6.13.63 — Same fix as the main row above: always use
+                      EditableText when detailEditId is set so saved text-drag
+                      offsets persist in public view. */}
+                  {detailEditId ? (
+                    <EditableText
+                      id={detailEditId}
+                      defaultValue={detail || ""}
+                      as="p"
+                      multiline
+                      className="text-[0.92rem] leading-relaxed text-white/65 sm:text-base"
+                    />
+                  ) : (
+                    <p className="text-[0.92rem] leading-relaxed text-white/65 sm:text-base">
+                      {detail}
+                    </p>
+                  )}
               </div>
             ) : null}
           </div>
