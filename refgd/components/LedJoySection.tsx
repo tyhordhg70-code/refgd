@@ -110,10 +110,29 @@ export default function LedJoySection() {
     window.addEventListener("touchmove", onAnyScroll, { passive: true, once: true });
     window.addEventListener("wheel", onAnyScroll, { passive: true, once: true });
 
+    /* v6.13.51 — Hard timeout fallback. The user reported (after
+       v6.13.50) "ahh feel the joy animation is gone not showing".
+       Even the rAF + IO + first-scroll triple-trigger from v6.13.39
+       can still fail to set `played=true` in pathological cases —
+       e.g. browser back/forward cache restore where the scroll
+       listeners attach AFTER the user is already past the section
+       AND the rAF runs in a paused tab AND the IO is in a stale
+       state. The result is `played=false` forever and the letters
+       stay at their initial hidden state.
+
+       This 3.5 s wall-clock fallback guarantees the LED beat ALWAYS
+       plays, regardless of trigger failure. 3.5 s is long enough
+       that, on a normal page load, one of the precision triggers
+       above will fire first and the user sees the in-view choreo
+       at the right moment; but short enough that on broken cases
+       the user never stares at a blank dark section. */
+    const fallbackId = window.setTimeout(fire, 3500);
+
     return () => {
       cancelled = true;
       io?.disconnect();
       cancelAnimationFrame(rafId);
+      window.clearTimeout(fallbackId);
       window.removeEventListener("scroll", onAnyScroll);
       window.removeEventListener("touchmove", onAnyScroll);
       window.removeEventListener("wheel", onAnyScroll);
