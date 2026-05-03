@@ -1831,18 +1831,34 @@ html { scroll-behavior: smooth; }
 
 .glass-card-reveal {
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  /* v6.13.25 — was `backwards`. With `backwards`, after the
-     animation completes, iOS Safari sometimes re-applied the
-     FROM keyframe (opacity:0) when the card's compositing
-     layer was recreated — which happens when the card scrolls
-     out then back into view. Visible to the user as "all
-     chapter box cards go blank when I scroll back up". `both`
-     keeps the FROM state during animation-delay (preserves
-     the staggered entrance) AND pins the TO state (opacity:1,
-     transform:none) permanently after completion, so cards
-     stay visible regardless of layer thrash. */
+  /* v6.13.29 — Belt-and-suspenders against iOS Safari blanking
+     the card when scrolling back up. v6.13.25's `fill-mode: both`
+     was correct but the user reported "box cards still go
+     blank" — meaning iOS Safari is dropping the animation
+     property entirely under compositing-memory pressure (iPad +
+     too many will-change'd layers), and with no animation in
+     play the FROM keyframe is no longer holding... but neither
+     is the TO state, because there's no longer an animation to
+     hold. The element falls back to its declared CSS, and we
+     never declared `opacity` on the base class — so the
+     browser's default of 1 was supposed to apply, but on iOS
+     Safari the previously-applied FROM state's transient
+     `opacity: 0` from the keyframe occasionally lingered.
+     Declaring `opacity: 1` HERE explicitly guarantees the card
+     is visible whenever the animation is absent. The animation
+     FROM keyframe still wins DURING animation playback because
+     keyframe rules always win over base declarations (CSS
+     animation cascade). With fill-mode:both this means: during
+     delay → FROM (opacity:0); during run → FROM→TO (0→1);
+     after run → TO held (opacity:1); animation evicted →
+     declared opacity:1 takes over. Cards can no longer go
+     blank on any path. */
   animation-fill-mode: both;
-  will-change: transform, opacity, clip-path;
+  opacity: 1;
+  /* `will-change` removed from base — only kept on .gc-pending
+     where it actually helps with the entrance composite. After
+     reveal we drop the hint so iPad's GPU memory budget isn't
+     tied up by every card on the page permanently. */
 }
 /* Pre-reveal state — card is invisible until its IntersectionObserver
    fires and the variant class is added. Without this the card would
