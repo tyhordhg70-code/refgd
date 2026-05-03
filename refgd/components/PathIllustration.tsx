@@ -110,12 +110,12 @@ function PathIllustrationContent({
         )}
       </g>
 
-      {kind === "store"   && <StoreScene   c={c} kind={kind} />}
-      {kind === "shield"  && <ShieldScene  c={c} kind={kind} />}
-      {kind === "chess"   && <ChessScene   c={c} kind={kind} />}
-      {kind === "spark"   && <SparkScene   c={c} kind={kind} />}
-      {kind === "mastery" && <MasteryScene c={c} kind={kind} />}
-      {kind === "buy4you" && <Buy4YouScene c={c} kind={kind} />}
+      {kind === "store"   && <StoreScene   c={c} kind={kind} glowFilter={glowFilter} />}
+      {kind === "shield"  && <ShieldScene  c={c} kind={kind} glowFilter={glowFilter} />}
+      {kind === "chess"   && <ChessScene   c={c} kind={kind} glowFilter={glowFilter} />}
+      {kind === "spark"   && <SparkScene   c={c} kind={kind} glowFilter={glowFilter} />}
+      {kind === "mastery" && <MasteryScene c={c} kind={kind} glowFilter={glowFilter} />}
+      {kind === "buy4you" && <Buy4YouScene c={c} kind={kind} glowFilter={glowFilter} />}
 
       {/* Floating accent dots (always present). We animate the wrapping
           <motion.g> via CSS transforms (y) instead of the SVG `cy`
@@ -152,7 +152,7 @@ function PathIllustrationContent({
 }
 
 /* ─────────────────────────── STORE ─────────────────────────── */
-function StoreScene({ c, kind }: { c: any; kind: string }) {
+function StoreScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilter?: string }) {
   return (
     <motion.g
       filter={glowFilter}
@@ -201,7 +201,7 @@ function StoreScene({ c, kind }: { c: any; kind: string }) {
 }
 
 /* ─────────────────────────── SHIELD ────────────────────────── */
-function ShieldScene({ c, kind }: { c: any; kind: string }) {
+function ShieldScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilter?: string }) {
   return (
     <g filter={glowFilter}>
       {/* Shield body — gentle breathing */}
@@ -250,7 +250,7 @@ function ShieldScene({ c, kind }: { c: any; kind: string }) {
 }
 
 /* ─────────────────────────── CHESS ─────────────────────────── */
-function ChessScene({ c, kind }: { c: any; kind: string }) {
+function ChessScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilter?: string }) {
   return (
     <g filter={glowFilter}>
       <g transform="translate(200,330)">
@@ -295,7 +295,7 @@ function ChessScene({ c, kind }: { c: any; kind: string }) {
 }
 
 /* ─────────────────────────── SPARK ─────────────────────────── */
-function SparkScene({ c, kind }: { c: any; kind: string }) {
+function SparkScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilter?: string }) {
   return (
     <g filter={glowFilter}>
       {/* Diamond — slow breathe */}
@@ -359,7 +359,7 @@ function SparkScene({ c, kind }: { c: any; kind: string }) {
 /* ─────────────────────────── BUY 4 YOU ─────────────────────── */
 /** "BUY 4 YOU" / concierge ordering illustration — a giant 4 with a
  *  glowing shopping bag passing through it and orbiting "for-you" tags. */
-function Buy4YouScene({ c, kind }: { c: any; kind: string }) {
+function Buy4YouScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilter?: string }) {
   return (
     <g filter={glowFilter}>
       {/* Background "4" */}
@@ -455,7 +455,7 @@ function Buy4YouScene({ c, kind }: { c: any; kind: string }) {
  *  A floating golden crown levitating above a hexagonal pedestal,
  *  with a bright gem in the centre and orbiting stars. Reads as
  *  "ascend / mastery / inner circle". */
-function MasteryScene({ c, kind }: { c: any; kind: string }) {
+function MasteryScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilter?: string }) {
   return (
     <g filter={glowFilter}>
       {/* Beam of light */}
