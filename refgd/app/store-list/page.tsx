@@ -114,10 +114,20 @@ export default async function StoreListPage() {
               style so they look organic.
           Both layers are pointer-events-none + behind content so they
           don't interfere with anything. */}
+      {/* v6.13.48 — Wrapper height bumped from 320vh → 1000vh so the
+          gradient atmosphere covers the entire storelist page instead
+          of stopping ~3 viewports down (visible to the user as "store-
+          list further down the page doesn't have no more gradient").
+          The 502-store grid alone scrolls well past 600vh on mobile,
+          and on desktop the rules + payment + region + service-rest
+          chapters easily exceed 800vh. 1000vh covers all real-world
+          page lengths with headroom; spots and particles below are
+          re-distributed across the full range so the colour pulses
+          stay visible everywhere on the page. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 -z-[1] overflow-hidden"
-        style={{ height: "320vh" }}
+        style={{ height: "1000vh" }}
       >
         {/* Existing scrolling orb mesh — kept for the unbroken
             "galaxy" feel between hero and store grid. */}
@@ -129,7 +139,10 @@ export default async function StoreListPage() {
           </div>
         ))}
 
-        {/* (A) Extra pulsating gradient SPOTS for warmth */}
+        {/* (A) Extra pulsating gradient SPOTS for warmth — v6.13.48
+            redistributed across the full 1000vh wrapper (was 0-300vh
+            only) so the colour-changing pulses keep going all the way
+            down to the bottom of the storelist. */}
         {[
           { cls: "orb-1", left: "65%", top: "8vh",   size: "44vh" },
           { cls: "orb-4", left: "5%",  top: "55vh",  size: "38vh" },
@@ -139,6 +152,20 @@ export default async function StoreListPage() {
           { cls: "orb-4", left: "12%", top: "230vh", size: "40vh" },
           { cls: "orb-2", left: "70%", top: "265vh", size: "52vh" },
           { cls: "orb-3", left: "32%", top: "300vh", size: "44vh" },
+          { cls: "orb-1", left: "72%", top: "350vh", size: "48vh" },
+          { cls: "orb-2", left: "10%", top: "395vh", size: "42vh" },
+          { cls: "orb-4", left: "48%", top: "440vh", size: "50vh" },
+          { cls: "orb-3", left: "75%", top: "485vh", size: "44vh" },
+          { cls: "orb-1", left: "20%", top: "530vh", size: "46vh" },
+          { cls: "orb-2", left: "60%", top: "580vh", size: "52vh" },
+          { cls: "orb-4", left: "8%",  top: "625vh", size: "40vh" },
+          { cls: "orb-3", left: "70%", top: "670vh", size: "48vh" },
+          { cls: "orb-1", left: "35%", top: "720vh", size: "44vh" },
+          { cls: "orb-2", left: "78%", top: "770vh", size: "50vh" },
+          { cls: "orb-4", left: "15%", top: "820vh", size: "42vh" },
+          { cls: "orb-3", left: "55%", top: "870vh", size: "46vh" },
+          { cls: "orb-1", left: "82%", top: "920vh", size: "48vh" },
+          { cls: "orb-2", left: "28%", top: "965vh", size: "44vh" },
         ].map((s, i) => (
           <div
             key={`spot-${i}`}
@@ -159,7 +186,7 @@ export default async function StoreListPage() {
           @keyframes slFloatC { 0%,100% { transform: translate3d(0,0,0) scale(1);   opacity: 0.5; }
                                 50%      { transform: translate3d(-6px,-14px,0) scale(1.15); opacity: 0.95; } }
         `}</style>
-        {Array.from({ length: 30 }).map((_, i) => {
+        {Array.from({ length: 90 }).map((_, i) => {
           // Deterministic pseudo-random so SSR + client agree.
           const r = (n: number) => ((Math.sin(i * 12.9898 + n * 78.233) + 1) / 2);
           const palette = [
@@ -172,7 +199,7 @@ export default async function StoreListPage() {
           const anims = ["slFloatA", "slFloatB", "slFloatC"];
           const size = 60 + Math.round(r(1) * 180);              // 60-240 px
           const left = (r(2) * 100).toFixed(2) + "%";
-          const top = (r(3) * 320).toFixed(2) + "vh";            // spans full 320vh
+          const top = (r(3) * 1000).toFixed(2) + "vh";           // v6.13.48 — full 1000vh range
           const dur = (5 + r(4) * 8).toFixed(2) + "s";           // 5-13s
           const delay = (-r(5) * 8).toFixed(2) + "s";            // negative = pre-shifted
           const bg = palette[Math.floor(r(6) * palette.length)];
