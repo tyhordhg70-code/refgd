@@ -1,4 +1,5 @@
 "use client";
+import EditorIsland from "@/components/EditorIsland";
 
 /**
  * Inline-editable anchor.
@@ -37,7 +38,7 @@ type Props = {
   dataAttrs?: Record<string, string>;
 };
 
-export default function EditableLink({
+function EditableLinkInner({
   idHref,
   defaultHref,
   idLabel,
@@ -204,5 +205,13 @@ export default function EditableLink({
         </div>
       )}
     </span>
+  );
+}
+
+export default function EditableLink(props: Props) {
+  return (
+    <EditorIsland id={props.idHref || props.idLabel}>
+      <EditableLinkInner {...props} />
+    </EditorIsland>
   );
 }
