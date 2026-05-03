@@ -235,6 +235,11 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
            desktop's 92svh treatment. */
         className="relative isolate flex w-full flex-col items-center justify-center overflow-hidden bg-ink-950 min-h-[100svh] pt-8 pb-16 md:flex-row md:items-center md:py-0 md:min-h-[92svh]"
         data-cursor="big"
+        /* v6.13.34 — Anchor for SkipToStoreListButton's
+           IntersectionObserver. The button fades in while this
+           hero is on screen and fades out once the visitor scrolls
+           past it. */
+        data-skip-anchor="cashback"
       >
         {/* mesh orbs + gradient ambience */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
