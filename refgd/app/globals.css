@@ -1746,14 +1746,26 @@ html { scroll-behavior: smooth; }
   }
 
   /* 4. CONTAIN LARGE OFF-SCREEN BLOCKS so layout work scales with
-        what's on screen, not with what's on the page. `contain:
-        layout paint` lets the browser skip layout/paint for
-        descendants when the section is far off-screen, without
-        hiding the element from the layout flow (no scroll-jank). */
+        what's on screen, not with what's on the page.
+        v6.13.47 — Was `contain: layout paint`. The `paint` value
+        ALWAYS clips descendant painting to the containing element's
+        box, regardless of `overflow`. That clip sliced through:
+          (a) the perpetual `.float-card` translateY(-10px) on every
+              GlassCard — top of the card got cut off at the apex of
+              its float (visible to the user as "Trust us / Our
+              Comprehensive Solutions cards are cut off");
+          (b) decorative `absolute -right-8 -top-8` illustrations in
+              every card corner — sliced at the section's right edge;
+          (c) the soft hover drop-shadow halo (.liquid-glass-3d:hover).
+        Switched to `contain: layout style` — same off-screen
+        layout-skip perf win on mobile (the dominant cost on the
+        long evade page), but NO paint clipping, so float-card
+        translations, corner illustrations and hover halos all
+        render fully. */
   main > *,
   section[class*="container"],
   section[id] {
-    contain: layout paint;
+    contain: layout style;
   }
 
   /* 5. HOVER-TILT (liquid-glass-3d) needs a perspective + transform
