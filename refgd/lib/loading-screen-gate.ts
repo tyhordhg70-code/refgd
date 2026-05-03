@@ -82,17 +82,18 @@ export function markLoadingComplete(): void {
 export function useEntranceReady(): boolean {
   const [ready, setReady] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
-    // Strict tri-state read — the gate is OPEN only when the flag has
-    // been EXPLICITLY set to `false` by markLoadingComplete(). An
-    // `undefined` flag (which happens on first paint when an entrance
-    // component's module loads before LoadingScreen's module-side-
-    // effect runs — Next.js 15 RSC chunk resolution gives no order
-    // guarantee between client component modules) is treated as
-    // "still loading" so above-the-fold cards remain gated until
-    // the splash genuinely lifts. On client-side route navigation
-    // the flag was already set to `false` by the previous splash,
-    // so this returns `true` synchronously and the entrance plays.
-    return (window as unknown as Record<string, unknown>)[LOADING_FLAG] === false;
+    // v6.13.10 — Gate now OPEN unless the flag is EXPLICITLY `true`.
+    // <LoadingScreen> was removed in v6.13.10 per user request, so
+    // markLoadingActive() is no longer called and the flag stays
+    // `undefined` on every page. Previous behaviour treated
+    // `undefined` as "still loading" and stranded every entrance
+    // animation behind the 6 s safety timeout. Inverting the
+    // tri-state read so `!== true` opens the gate means: gate
+    // CLOSED only while a splash is actively running (flag === true);
+    // OPEN in every other case (undefined or false). If the splash
+    // is ever reintroduced, markLoadingActive() will set the flag
+    // to `true` and the original behaviour returns automatically.
+    return (window as unknown as Record<string, unknown>)[LOADING_FLAG] !== true;
   });
 
   useEffect(() => {
