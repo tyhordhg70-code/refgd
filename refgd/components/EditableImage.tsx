@@ -345,11 +345,10 @@ function EditableImageInner({
              of leaving a translate3d offset. Cleanly closes the
              "blank gap where I moved it from / overlap at the
              destination" report on both desktop and mobile. */
-          onDropTo={
-            group
-              ? (targetId) => group.reorder(id, targetId)
-              : undefined
-          }
+          /* v6.13.61 — onDropTo intentionally NOT wired. The MoveHandle
+               pointer-drag is a precise free-position tool. Group reorder
+               is still available via the wrapper's HTML5 drag-and-drop
+               and the up/down arrows in the admin popover. */
         />
       )}
       {/* v6.13.45 — Scale lives on an OUTER span, animation lives on the
