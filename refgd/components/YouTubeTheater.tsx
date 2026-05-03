@@ -56,9 +56,11 @@ export default function YouTubeTheater({
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const fsTargetRef = useRef<HTMLDivElement | null>(null);
   const [inView, setInView] = useState(false);
   const [activated, setActivated] = useState(false); // mounts iframe after first reveal
   const [mounted, setMounted] = useState(false); // for portal SSR-safety
+  const [isFullscreen, setIsFullscreen] = useState(false);
   // Tracks whether the cinematic entrance animation has finished. While
   // false the SVG #refgd-yt-mesh displacement filter warps the wrapper
   // for the rippled "unfold" reveal; once true we strip the filter so
@@ -109,7 +111,12 @@ export default function YouTubeTheater({
   // Build the embed URL. autoplay=1 + mute=0 — the browser may force-
   // mute on the very first visit if the user hasn't interacted yet,
   // but a single click anywhere unmutes the player thereafter.
+  // v6.13.5 — `origin` param + enablejsapi unlock the postMessage
+  // protocol so we can listen for the `ended` state and auto-exit
+  // fullscreen back to portrait when the video finishes.
   const embedSrc = useMemo(() => {
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "";
     const params = new URLSearchParams({
       autoplay: "1",
       mute: "0",
@@ -117,9 +124,134 @@ export default function YouTubeTheater({
       modestbranding: "1",
       playsinline: "1",
       enablejsapi: "1",
+      ...(origin ? { origin } : {}),
     });
     return `https://www.youtube.com/embed/${resolvedVideoId}?${params.toString()}`;
   }, [resolvedVideoId]);
+
+  // ── Fullscreen + orientation control ──────────────────────────
+  // v6.13.5 — Tap on the video → enter fullscreen and lock to
+  // landscape on mobile. When the video ends (YT player state 0)
+  // we exit fullscreen, which on mobile naturally returns the
+  // device to portrait orientation.
+  const enterFullscreen = async () => {
+    const target = fsTargetRef.current;
+    if (!target) return;
+    try {
+      // Some iOS Safari versions only expose webkit-prefixed APIs
+      // and can't go fullscreen on a generic element — fall back
+      // to fullscreening the iframe itself in that case.
+      const req =
+        target.requestFullscreen?.bind(target) ??
+        // @ts-expect-error — webkit-prefixed legacy API
+        target.webkitRequestFullscreen?.bind(target);
+      if (req) {
+        await req();
+      } else if (iframeRef.current) {
+        // iOS Safari: <video>-only fullscreen via the iframe element
+        // @ts-expect-error — non-standard webkit API used by iOS
+        iframeRef.current.webkitEnterFullscreen?.();
+      }
+    } catch {
+      /* user-gesture missing or fullscreen blocked — silent */
+    }
+    try {
+      // Lock to landscape on mobile. Desktop browsers reject this
+      // (NotSupportedError) which we swallow.
+      // @ts-expect-error — `lock` exists on ScreenOrientation in mobile UAs
+      await screen.orientation?.lock?.("landscape");
+    } catch {
+      /* desktop or browser disallows lock — fine */
+    }
+  };
+
+  const exitFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        // @ts-expect-error — webkit-prefixed legacy API
+        document.webkitExitFullscreen?.();
+      }
+    } catch {
+      /* already exited */
+    }
+    try {
+      screen.orientation?.unlock?.();
+    } catch {
+      /* not supported on this UA */
+    }
+  };
+
+  // Track fullscreen state so we can hide the tap overlay (which
+  // would otherwise block the iframe's own controls in fullscreen).
+  useEffect(() => {
+    const onChange = () => {
+      const fs =
+        document.fullscreenElement === fsTargetRef.current ||
+        document.fullscreenElement === iframeRef.current;
+      setIsFullscreen(!!fs);
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    document.addEventListener("webkitfullscreenchange", onChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      document.removeEventListener("webkitfullscreenchange", onChange);
+    };
+  }, []);
+
+  // Listen to YouTube IFrame API messages to detect "ended" (state 0)
+  // and auto-exit fullscreen back to portrait.
+  useEffect(() => {
+    if (!activated) return;
+    const onLoad = () => {
+      try {
+        iframeRef.current?.contentWindow?.postMessage(
+          JSON.stringify({ event: "listening", id: resolvedVideoId }),
+          "*",
+        );
+        iframeRef.current?.contentWindow?.postMessage(
+          JSON.stringify({
+            event: "command",
+            func: "addEventListener",
+            args: ["onStateChange"],
+          }),
+          "*",
+        );
+      } catch {
+        /* cross-origin handshake — best effort */
+      }
+    };
+    const ifr = iframeRef.current;
+    ifr?.addEventListener("load", onLoad);
+
+    const onMessage = (e: MessageEvent) => {
+      if (
+        typeof e.origin !== "string" ||
+        !e.origin.includes("youtube.com")
+      ) {
+        return;
+      }
+      try {
+        const data =
+          typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+        // YT player state 0 === ENDED
+        if (
+          data?.event === "onStateChange" &&
+          (data?.info === 0 || data?.info?.playerState === 0)
+        ) {
+          exitFullscreen();
+        }
+      } catch {
+        /* not JSON — ignore */
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => {
+      ifr?.removeEventListener("load", onLoad);
+      window.removeEventListener("message", onMessage);
+    };
+  }, [activated, resolvedVideoId]);
 
   const posterSrc = `https://img.youtube.com/vi/${resolvedVideoId}/maxresdefault.jpg`;
 
@@ -258,18 +390,38 @@ export default function YouTubeTheater({
           transition: "box-shadow .45s ease",
         }}
       >
-        <div className="relative aspect-video w-full overflow-hidden bg-black">
+        <div
+          ref={fsTargetRef}
+          className="relative aspect-video w-full overflow-hidden bg-black"
+        >
           {activated ? (
             <iframe
               ref={iframeRef}
               key={resolvedVideoId}
               src={embedSrc}
               title={title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
               allowFullScreen
               className="absolute inset-0 h-full w-full"
             />
-          ) : (
+          ) : null}
+          {/* v6.13.5 — Tap-to-fullscreen overlay. Sits on top of the
+              iframe whenever we're NOT already fullscreen, so a single
+              tap anywhere on the video enters landscape fullscreen on
+              mobile. Once the video ends (or the user exits manually)
+              the overlay returns and tapping again re-enters
+              fullscreen. In fullscreen mode it's hidden so YouTube's
+              own controls (play/pause/scrub) remain interactive. */}
+          {activated && !isFullscreen ? (
+            <button
+              type="button"
+              aria-label="Tap to enter fullscreen"
+              onClick={enterFullscreen}
+              className="absolute inset-0 z-10 h-full w-full cursor-pointer bg-transparent"
+              style={{ WebkitTapHighlightColor: "transparent" }}
+            />
+          ) : null}
+          {!activated ? (
             // Static poster shown only until the user first scrolls into
             // view. After that, the iframe takes over for the rest of
             // the page lifetime so re-entries resume playback instantly.
@@ -302,9 +454,20 @@ export default function YouTubeTheater({
                 </span>
               </div>
             </>
-          )}
+          ) : null}
         </div>
       </motion.div>
+      {/* v6.13.5 — Caption directly under the player. Tells the user
+          what the tap overlay does, so the gesture isn't a hidden
+          easter egg. Hidden once we're already in fullscreen. */}
+      {!isFullscreen ? (
+        <p
+          className="mt-3 text-center text-[11px] uppercase tracking-[0.4em] text-white/55 sm:text-xs"
+          aria-hidden
+        >
+          Tap to enter fullscreen
+        </p>
+      ) : null}
       {/* GLOBAL DIM OVERLAY — rendered to body via portal so it covers
           the ENTIRE viewport (header, footer, every section), not just
           the parent. Active for ALL device sizes (mobile + tablet +
