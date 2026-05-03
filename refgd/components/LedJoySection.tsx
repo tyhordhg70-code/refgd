@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useRef } from "react";
 
 /**
@@ -22,10 +22,21 @@ import { useRef } from "react";
 export default function LedJoySection() {
   const ref = useRef<HTMLElement | null>(null);
   const reduce = useReducedMotion();
-  // Margin pulls the trigger forward so the animation kicks the moment
-  // the section starts scrolling into view rather than waiting for it
-  // to be fully on screen.
-  const inView = useInView(ref, { once: true, margin: "-15% 0px -15% 0px" });
+  // v6.13.19 — REPLACED `useInView` + state-driven `animate={inView ? ... : undefined}`
+  // with framer's `whileInView` API on each <motion.span> below.
+  // Root cause of "ahh feel joy animation gone": the previous
+  // `useInView(ref, { once: true, margin: "-15% 0px -15% 0px" })`
+  // required the section to be ≥30 % deep into the viewport
+  // before triggering. On iOS Safari, when the user lands on
+  // this section via the scrollytelling fast-snap or fast
+  // scroll, the IntersectionObserver callback can be coalesced
+  // and the trigger never fires. With `animate={undefined}`
+  // when inView=false, the letters stayed at their initial
+  // hidden state (opacity:0, x:360) FOREVER, so the user just
+  // saw a blank dark screen where the LED beat should be.
+  // `whileInView` with `viewport={{ once: true, amount: 0.15 }}`
+  // is much more robust on Safari + handles the case where the
+  // section is partially scrolled off-screen at mount time.
 
   const ahhLetters = "AHHHH".split("");
   const tagline = "feel the joy of cashback".split(" ");
@@ -117,7 +128,8 @@ export default function LedJoySection() {
             <motion.span
               key={i}
               initial={reduce ? { opacity: 1 } : { opacity: 0, x: 360, skewX: -28 }}
-              animate={inView ? { opacity: 1, x: 0, skewX: 0 } : undefined}
+              whileInView={{ opacity: 1, x: 0, skewX: 0 }}
+              viewport={{ once: true, amount: 0.15 }}
               transition={{
                 duration: 0.32,
                 delay: i * 0.07,
@@ -152,7 +164,8 @@ export default function LedJoySection() {
             <motion.span
               key={i}
               initial={reduce ? { opacity: 1 } : { opacity: 0, x: 220 }}
-              animate={inView ? { opacity: 1, x: 0 } : undefined}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, amount: 0.15 }}
               transition={{
                 duration: 0.28,
                 // Words start AFTER the AHHH letters finish. AHHH ends
