@@ -159,19 +159,34 @@ function EditableTextInner({
      Outside edit mode neither the handle nor any wrapper is added —
      the rendered DOM is byte-identical to the previous behaviour. */
   const { transform: moveTransform } = useMoveOffset(id);
-  const composedStyle: CSSProperties | undefined =
-    moveTransform || style
-      ? {
-          ...style,
-          ...(moveTransform
-            ? {
-                transform: style?.transform
-                  ? `${moveTransform} ${style.transform}`
-                  : moveTransform,
-              }
-            : {}),
-        }
-      : undefined;
+    /* v6.13.64 — caret visibility fix. The Tailwind class
+       `caret-amber-300` IS generated in production CSS (verified
+       `.caret-amber-300{caret-color:#fcd34d}` ships in
+       dea4105a66762aeb.css), but admins still report the typing
+       caret is invisible on the EVADE box-cards. Setting caret color
+       INLINE bypasses any cascade override and any mobile-safari
+       quirks, and pinning WebkitTextFillColor to currentColor stops
+       a transparent-text-fill inherited from a decorative parent
+       from making the caret invisible. */
+    const composedStyle: CSSProperties | undefined =
+      moveTransform || style || editing
+        ? {
+            ...style,
+            ...(moveTransform
+              ? {
+                  transform: style?.transform
+                    ? `${moveTransform} ${style.transform}`
+                    : moveTransform,
+                }
+              : {}),
+            ...(editing
+              ? {
+                  caretColor: "#fbbf24",
+                  WebkitTextFillColor: "currentColor",
+                }
+              : {}),
+          }
+        : undefined;
 
   const Component = Tag as ElementType;
   const editable = (
