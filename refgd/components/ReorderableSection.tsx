@@ -206,25 +206,121 @@ export function ReorderableSection({ sectionId, children, className = "" }: Sect
       }
     >
       {showHandle && (
-        <div
-          className="absolute left-2 top-2 z-[60] cursor-grab rounded-md border border-amber-300/40 bg-ink-900/90 px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-amber-200 shadow-md backdrop-blur-md hover:bg-ink-800"
-          draggable
-          onDragStart={(e) => {
-            ctx.beginDrag(sectionId);
-            try {
-              e.dataTransfer.effectAllowed = "move";
-              e.dataTransfer.setData("text/plain", sectionId);
-            } catch {}
-          }}
-          onDragEnd={() => ctx.endDrag()}
-          title="Drag to reorder section"
-          aria-label="Drag to reorder section"
-          data-testid={`reorder-handle-${sectionId}`}
-        >
-          ⋮⋮ {sectionId}
-        </div>
+        <ReorderHandle ctx={ctx} sectionId={sectionId} />
       )}
       {children}
+    </div>
+  );
+}
+
+/**
+ * v6.13.40 — Standalone drag handle with FULL touch support.
+ *
+ * Root cause of the user's repeated "drag-drop still doesn't work"
+ * report: the previous handle relied solely on HTML5 drag events
+ * (`draggable` attribute + `onDragStart`/`onDragEnd`). On iPad / iOS
+ * Safari and many touch laptops, HTML5 drag-and-drop is either
+ * disabled or requires unusual long-press gestures, so the handle
+ * was effectively unusable on the devices the admin actually edits
+ * from.
+ *
+ * This rewritten handle supports BOTH input modes:
+ *   • Mouse / desktop: native HTML5 D&D, same as before.
+ *   • Touch: onTouchStart/Move/End drives a manual position-tracking
+ *     loop. The handle floats with the finger; on release we
+ *     elementsFromPoint() at the final coords and walk up to the
+ *     nearest `[data-section-id]` to figure out the drop target,
+ *     then dispatch ctx.dropOn(targetId).
+ *
+ * The handle is also LARGER, brighter, and labelled "≡ MOVE" so it's
+ * unambiguously a drag affordance — the previous "⋮⋮ sectionId" text
+ * was easily mistaken for a debug label.
+ */
+function ReorderHandle({
+  ctx,
+  sectionId,
+}: {
+  ctx: ContainerCtx;
+  sectionId: string;
+}) {
+  const [touchPos, setTouchPos] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+  const dragging = useRef(false);
+
+  const findTargetAt = (x: number, y: number): string | null => {
+    const els = document.elementsFromPoint(x, y);
+    for (const el of els) {
+      const node = (el as HTMLElement).closest(
+        "[data-section-id]",
+      ) as HTMLElement | null;
+      if (node) {
+        const id = node.getAttribute("data-section-id");
+        if (id && id !== sectionId) return id;
+      }
+    }
+    return null;
+  };
+
+  return (
+    <div
+      className={`absolute left-2 top-2 z-[60] cursor-grab select-none rounded-lg border-2 border-amber-300/70 bg-ink-900/95 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-amber-200 shadow-[0_8px_20px_-4px_rgba(245,185,69,0.45)] backdrop-blur-md transition active:cursor-grabbing active:scale-95 ${
+        touchPos ? "ring-2 ring-amber-300" : "hover:bg-ink-800 hover:text-white"
+      }`}
+      draggable
+      onDragStart={(e) => {
+        ctx.beginDrag(sectionId);
+        try {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", sectionId);
+        } catch {}
+      }}
+      onDragEnd={() => ctx.endDrag()}
+      onTouchStart={(e) => {
+        if (e.touches.length !== 1) return;
+        e.stopPropagation();
+        dragging.current = true;
+        ctx.beginDrag(sectionId);
+        const t = e.touches[0];
+        setTouchPos({ x: t.clientX, y: t.clientY });
+      }}
+      onTouchMove={(e) => {
+        if (!dragging.current || e.touches.length !== 1) return;
+        // Prevent body scroll while dragging.
+        if (e.cancelable) e.preventDefault();
+        const t = e.touches[0];
+        setTouchPos({ x: t.clientX, y: t.clientY });
+      }}
+      onTouchEnd={(e) => {
+        if (!dragging.current) return;
+        dragging.current = false;
+        const t = e.changedTouches[0];
+        const targetId = t ? findTargetAt(t.clientX, t.clientY) : null;
+        setTouchPos(null);
+        if (targetId) ctx.dropOn(targetId);
+        else ctx.endDrag();
+      }}
+      onTouchCancel={() => {
+        dragging.current = false;
+        setTouchPos(null);
+        ctx.endDrag();
+      }}
+      style={
+        touchPos
+          ? {
+              position: "fixed",
+              left: touchPos.x - 40,
+              top: touchPos.y - 18,
+              zIndex: 9999,
+              pointerEvents: "none",
+            }
+          : undefined
+      }
+      title={`Drag to reorder · ${sectionId}`}
+      aria-label="Drag to reorder section"
+      data-testid={`reorder-handle-${sectionId}`}
+    >
+      ≡ MOVE
     </div>
   );
 }
