@@ -59,18 +59,35 @@ export default function AnimatedDivider() {
             reduce
               ? undefined
               : {
-                  y: [0, -22, 0, 16, 0],
-                  rotate: [0, 8, -6, 4, 0],
-                  opacity: [0.55, 0.95, 0.7, 0.95, 0.55],
+                  /* v6.13.48 — Punchier float + glow pulse per user
+                     request to "animate the glowing icons below how
+                     it works cards". Vertical bob increased, horizontal
+                     drift added so the cluster feels like a live
+                     current, rotation amplified for personality, and
+                     scale + filter (drop-shadow blur radius) animated
+                     so each icon visibly pulses brighter at peak. */
+                  y: [0, -34, 6, 22, -10, 0],
+                  x: [0, 14, -10, 8, -6, 0],
+                  rotate: [0, 14, -10, 6, -4, 0],
+                  scale: [1, 1.18, 0.92, 1.1, 0.96, 1],
+                  opacity: [0.55, 1, 0.7, 1, 0.65, 0.55],
+                  filter: [
+                    `drop-shadow(0 0 8px ${it.color}80)`,
+                    `drop-shadow(0 0 22px ${it.color}ee) drop-shadow(0 0 38px ${it.color}66)`,
+                    `drop-shadow(0 0 10px ${it.color}aa)`,
+                    `drop-shadow(0 0 24px ${it.color}ee) drop-shadow(0 0 36px ${it.color}77)`,
+                    `drop-shadow(0 0 12px ${it.color}aa)`,
+                    `drop-shadow(0 0 8px ${it.color}80)`,
+                  ],
                 }
           }
           transition={{
-            duration: 6 + (i % 5),
+            duration: 5 + (i % 5),
             repeat: Infinity,
             delay: it.delay,
             ease: "easeInOut",
           }}
-          className="absolute top-1/2 -translate-y-1/2"
+          className="absolute top-1/2 -translate-y-1/2 will-change-transform"
           style={{
             left: `${it.leftPct}%`,
             width: it.size,
