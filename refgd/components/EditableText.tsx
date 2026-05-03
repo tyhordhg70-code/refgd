@@ -22,6 +22,7 @@
 import { useEffect, useRef, type ElementType, type CSSProperties } from "react";
 import { useEditContext } from "@/lib/edit-context";
 import MoveHandle, { useMoveOffset } from "@/components/MoveHandle";
+import EditorIsland from "@/components/EditorIsland";
 
 type Props = {
   /** Stable content-block id, e.g. "hero.title". */
@@ -43,7 +44,7 @@ type Props = {
   "data-testid"?: string;
 };
 
-export default function EditableText({
+function EditableTextInner({
   id,
   defaultValue,
   as: Tag = "span",
@@ -214,5 +215,13 @@ export default function EditableText({
       {editable}
       <MoveHandle id={id} />
     </span>
+  );
+}
+
+export default function EditableText(props: Props) {
+  return (
+    <EditorIsland id={props.id}>
+      <EditableTextInner {...props} />
+    </EditorIsland>
   );
 }
