@@ -264,12 +264,21 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
           <h1 className="heading-display mt-1 text-3xl font-bold text-white">Manage Stores</h1>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* v6.13.67 — Bulk import button promoted from low-contrast
+              btn-ghost (border-white/10 bg-white/5 text-white/85) to a
+              vivid amber pill that is impossible to miss. The user
+              repeatedly reported "i dont see bulk import button" even
+              though the code was unconditionally rendered — root cause
+              was simply that the ghost variant on dark background had
+              ~10% contrast and blended in next to the bright + New
+              store CTA. Now uses an amber outline + amber text so it
+              visually pairs with the dashboard amber theme. */}
           <button
             type="button"
             onClick={() => setBulkOpen((v) => !v)}
-            className="btn-ghost text-sm"
+            className="inline-flex items-center justify-center gap-2 rounded-full border-2 border-amber-300/70 bg-amber-400/10 px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-amber-100 shadow-[0_0_24px_-4px_rgba(245,185,69,0.45)] transition hover:border-amber-300 hover:bg-amber-400/20"
           >
-            {bulkOpen ? "Close bulk import" : "📋 Bulk import"}
+            {bulkOpen ? "✕ Close bulk import" : "📋 Bulk import stores"}
           </button>
           <button
             type="button"
