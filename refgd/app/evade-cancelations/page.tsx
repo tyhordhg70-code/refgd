@@ -166,6 +166,37 @@ export default function EvadePage() {
         }}
       />
 
+      {/* v6.13.52 — ANIMATED gradient backdrop for the evade page.
+          The user asked for "gradient to evade page that is animated
+          also background"; previously the page only had the static
+          violet wash above plus PixelRainCosmic. This new layer adds
+          a continuously-shifting cyan/violet/fuchsia colour field
+          that slowly drifts and hue-rotates so the page feels alive
+          all the way down — independent of scroll. Sits at -z-[2]
+          (behind the static violet wash so the existing depth still
+          reads), pointer-events-none, fixed-viewport. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-[2]"
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 55% at 22% 18%, rgba(34,211,238,0.22), transparent 62%), radial-gradient(ellipse 65% 55% at 80% 28%, rgba(124,58,237,0.32), transparent 60%), radial-gradient(ellipse 60% 60% at 30% 78%, rgba(244,114,182,0.22), transparent 65%), radial-gradient(ellipse 70% 55% at 78% 82%, rgba(34,211,238,0.18), transparent 60%), conic-gradient(from 30deg at 50% 50%, rgba(34,211,238,0.10), rgba(124,58,237,0.14), rgba(244,114,182,0.12), rgba(34,211,238,0.10))",
+          animation: "evBgShift 24s ease-in-out infinite, evBgHue 30s linear infinite",
+          willChange: "transform, filter",
+        }}
+      />
+      <style>{`
+        @keyframes evBgShift {
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1.06); }
+          50%      { transform: translate3d(2.5%, -1.5%, 0) scale(1.14); }
+        }
+        @keyframes evBgHue {
+          0%   { filter: hue-rotate(0deg) saturate(1.1); }
+          50%  { filter: hue-rotate(35deg) saturate(1.25); }
+          100% { filter: hue-rotate(0deg) saturate(1.1); }
+        }
+      `}</style>
+
       <ReorderableSection sectionId="hero">
         {/* Act 1 — Scroll-driven scene. The animation does NOT play on
             page-load — it advances only as the user scrolls past the
