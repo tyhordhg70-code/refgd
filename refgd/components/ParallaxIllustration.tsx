@@ -37,16 +37,26 @@ export default function ParallaxIllustration({
   const reduced = useReducedMotion();
   const c = ACCENTS[accent] ?? ACCENTS.amber;
 
-  // Was scroll-driven. Now a one-shot viewport-triggered fade + lift
-  // so the illustration enters cleanly in a single motion (no
-  // constant-scroll requirement) and frees the scroll thread.
+  // v6.13.2: simplified entrance — was opacity+y+rotate+scale.
+  // The user reported "illustration parallax distorted and weird".
+  // Root cause: this component is almost always rendered INSIDE a
+  // ParallaxChapter, whose own motion.div ALSO animates opacity+
+  // y(%)+scale(0.97→1). Stacking a 0.85→1 scale and a -8°→0°
+  // rotate on top of the parent's scale produced a visibly
+  // squashed + tilted entrance, and on lg screens with absolute-
+  // positioned chapter backgrounds the rotate caused the SVG to
+  // pivot off-axis past the section's edge mid-flight (the
+  // "weird, distorted" look). The illustration now does ONE thing
+  // — fade in with a tiny upward lift — letting the chapter
+  // wrapper own the rest of the motion. Result: a clean,
+  // un-warped entrance that no longer compounds with the parent.
   return (
     <motion.div
       ref={ref}
-      initial={reduced ? { opacity: 1 } : { opacity: 0, y: 60, rotate: -8, scale: 0.85 }}
-      whileInView={{ opacity: 1, y: 0, rotate: 0, scale: 1 }}
+      initial={reduced ? { opacity: 1 } : { opacity: 0, y: 18 }}
+      whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-15% 0px -15% 0px" }}
-      transition={{ duration: reduced ? 0 : 1.1, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: reduced ? 0 : 0.85, ease: [0.22, 1, 0.36, 1] }}
       style={{ position: "relative" }}
       suppressHydrationWarning
       className={`pointer-events-none ${className}`}
