@@ -84,8 +84,19 @@ export default function EditableText({
   // Suppress hydration warning on first paint: server renders the saved
   // value, client may briefly show the same value but with contentEditable
   // attributes, which React would otherwise complain about.
+  /* v6.13.49 — Added explicit caret colour. The contentEditable spans
+     inherit `caret-color: auto`, which on most browsers maps to the
+     element's `color` value — and many of our editable surfaces sit
+     on near-black glass cards with white text, so the white caret
+     reads correctly against dark backgrounds BUT the user reported
+     "cursor still not seen on edit box cards" — they're editing
+     against bright amber/violet/cyan tinted card surfaces where the
+     white caret blends into the tint. Forcing `caret-amber-300`
+     gives a high-contrast warm caret on every surface (dark glass,
+     coloured tints, white hero panels alike) so the typing position
+     is always unmistakable. */
   const baseClass = editing
-    ? `relative cursor-text outline-none rounded-sm ring-1 ring-amber-300/0 hover:ring-amber-300/60 focus:ring-amber-300/90 transition-shadow ${className}`
+    ? `relative cursor-text caret-amber-300 outline-none rounded-sm ring-1 ring-amber-300/0 hover:ring-amber-300/60 focus:ring-amber-300/90 transition-shadow ${className}`
     : className;
   // Multiline text MUST keep its `\n` characters visible in BOTH edit
   // and view modes — otherwise an admin who adds a line break in
