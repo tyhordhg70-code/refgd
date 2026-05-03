@@ -94,11 +94,33 @@ export default async function StoreListPage() {
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 -z-[2] bg-ink-950"
       />
+
+      {/* v6.13.39 — The user reported the storelist "looks too dark"
+          and asked for "gradient abstract particles floating to the
+          entire storelist and pulsating gradient spots on the entire
+          page". This adds two new always-on background layers ON TOP
+          of the existing scrolling orb mesh:
+
+          (A) BIGGER pulsating gradient SPOTS spanning the page —
+              brighter and more numerous than the previous orbs so
+              the page reads as alive instead of flat black. Eight
+              fixed-position spots in amber / violet / cyan / fuchsia
+              with staggered .orb-* pulse keyframes.
+          (B) Floating ABSTRACT GRADIENT PARTICLES — small radial
+              blobs scattered across the page that drift with a
+              custom keyframe so the visitor sees gentle motion
+              everywhere (not just on hero). 30 particles total,
+              randomized size/position/colour/duration via inline
+              style so they look organic.
+          Both layers are pointer-events-none + behind content so they
+          don't interfere with anything. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 -z-[1] overflow-hidden"
-        style={{ height: "300vh" }}
+        style={{ height: "320vh" }}
       >
+        {/* Existing scrolling orb mesh — kept for the unbroken
+            "galaxy" feel between hero and store grid. */}
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="absolute inset-x-0" style={{ top: `${i * 100}vh`, height: "100vh" }}>
             <div className="orb orb-1 absolute left-[10%] top-[15%] h-[60vh] w-[60vh] rounded-full" />
@@ -106,6 +128,70 @@ export default async function StoreListPage() {
             <div className="orb orb-3 absolute left-[40%] bottom-[10%] h-[50vh] w-[50vh] rounded-full" />
           </div>
         ))}
+
+        {/* (A) Extra pulsating gradient SPOTS for warmth */}
+        {[
+          { cls: "orb-1", left: "65%", top: "8vh",   size: "44vh" },
+          { cls: "orb-4", left: "5%",  top: "55vh",  size: "38vh" },
+          { cls: "orb-2", left: "78%", top: "95vh",  size: "50vh" },
+          { cls: "orb-3", left: "25%", top: "140vh", size: "42vh" },
+          { cls: "orb-1", left: "55%", top: "190vh", size: "46vh" },
+          { cls: "orb-4", left: "12%", top: "230vh", size: "40vh" },
+          { cls: "orb-2", left: "70%", top: "265vh", size: "52vh" },
+          { cls: "orb-3", left: "32%", top: "300vh", size: "44vh" },
+        ].map((s, i) => (
+          <div
+            key={`spot-${i}`}
+            className={`orb ${s.cls} absolute rounded-full`}
+            style={{ left: s.left, top: s.top, width: s.size, height: s.size }}
+          />
+        ))}
+
+        {/* (B) Floating abstract gradient PARTICLES.
+            Inline keyframes so we don't grow globals.css for a
+            single use-site. Mix of warm + cool gradients drifting
+            in y/x and pulsing in opacity. */}
+        <style>{`
+          @keyframes slFloatA { 0%,100% { transform: translate3d(0,0,0); opacity: 0.55; }
+                                50%      { transform: translate3d(8px,-22px,0); opacity: 0.95; } }
+          @keyframes slFloatB { 0%,100% { transform: translate3d(0,0,0); opacity: 0.45; }
+                                50%      { transform: translate3d(-12px,18px,0); opacity: 0.85; } }
+          @keyframes slFloatC { 0%,100% { transform: translate3d(0,0,0) scale(1);   opacity: 0.5; }
+                                50%      { transform: translate3d(-6px,-14px,0) scale(1.15); opacity: 0.95; } }
+        `}</style>
+        {Array.from({ length: 30 }).map((_, i) => {
+          // Deterministic pseudo-random so SSR + client agree.
+          const r = (n: number) => ((Math.sin(i * 12.9898 + n * 78.233) + 1) / 2);
+          const palette = [
+            "radial-gradient(circle, rgba(245,185,69,0.85), transparent 70%)",
+            "radial-gradient(circle, rgba(167,139,250,0.85), transparent 70%)",
+            "radial-gradient(circle, rgba(34,211,238,0.80), transparent 70%)",
+            "radial-gradient(circle, rgba(244,114,182,0.80), transparent 70%)",
+            "radial-gradient(circle, rgba(132,204,22,0.70), transparent 70%)",
+          ];
+          const anims = ["slFloatA", "slFloatB", "slFloatC"];
+          const size = 60 + Math.round(r(1) * 180);              // 60-240 px
+          const left = (r(2) * 100).toFixed(2) + "%";
+          const top = (r(3) * 320).toFixed(2) + "vh";            // spans full 320vh
+          const dur = (5 + r(4) * 8).toFixed(2) + "s";           // 5-13s
+          const delay = (-r(5) * 8).toFixed(2) + "s";            // negative = pre-shifted
+          const bg = palette[Math.floor(r(6) * palette.length)];
+          const anim = anims[Math.floor(r(7) * anims.length)];
+          return (
+            <span
+              key={`particle-${i}`}
+              className="absolute rounded-full"
+              style={{
+                left, top, width: size, height: size,
+                background: bg,
+                filter: "blur(28px)",
+                mixBlendMode: "screen",
+                animation: `${anim} ${dur} ease-in-out ${delay} infinite`,
+                willChange: "transform, opacity",
+              }}
+            />
+          );
+        })}
       </div>
 
       {/* v6.13.34 — Skip-to-storelist button. Visibility is now
