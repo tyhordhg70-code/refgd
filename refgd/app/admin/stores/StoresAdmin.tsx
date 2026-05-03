@@ -302,7 +302,7 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
                 onChange={(e) => setBulkRegion(e.target.value as Region)}
                 className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white"
               >
-                {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                {REGIONS.map((r) => <option key={r} value={r} className="bg-ink-900 text-white">{r}</option>)}
               </select>
               <p className="text-white/45">
                 Detected: <span className="font-bold text-white">{bulkRows.length}</span> stores
@@ -403,9 +403,9 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
           onChange={(e) => setRegion(e.target.value as Region | "ALL")}
           className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
         >
-          <option value="ALL">All regions</option>
+          <option value="ALL" className="bg-ink-900 text-white">All regions</option>
           {REGIONS.map((r) => (
-            <option key={r} value={r}>{r}</option>
+            <option key={r} value={r} className="bg-ink-900 text-white">{r}</option>
           ))}
         </select>
         <span className="text-sm text-white/55">{filtered.length} shown</span>
