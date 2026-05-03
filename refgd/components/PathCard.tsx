@@ -185,8 +185,14 @@ export default function PathCard({
           data-testid={`path-card-${index + 1}-link`}
           className={`relative block h-full overflow-hidden ${radius} glass-strong`}
           style={{
+            // FULLY OPAQUE — the mobile prism stacks 5 cards in 3D
+            // space; any transparency in the active card lets the
+            // back faces of the prism bleed through. The user
+            // reported this as "I can see swiped cards behind".
+            // Solid colours + solid SVG illustration on top = no
+            // bleed-through, ever.
             background:
-              "linear-gradient(180deg, rgba(18,16,30,0.55), rgba(8,8,16,0.78))",
+              "linear-gradient(180deg, rgb(18,16,30), rgb(8,8,16))",
             // 2-layer shadow (mobile perf): removed 4-layer stack + pulse-glow
             boxShadow:
               "0 20px 40px -12px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.07) inset",
