@@ -57,6 +57,13 @@ type GroupShape = {
   hoverDrag: (childId: string) => void;
   endDrag: () => void;
   dropOn: (targetChildId: string) => void;
+  /* v6.13.53 — Direct reorder API (independent of drag-state).
+     Called by MoveHandle when its pointer-drag is released over
+     a sibling: we don't have time to round-trip through React
+     state (startDrag → setState → re-render → dropOn reads new
+     dragId), so this method takes both ids and reorders the
+     persisted array in one synchronous call. */
+  reorder: (srcChildId: string, targetChildId: string) => void;
 };
 
 const Ctx = createContext<GroupShape | null>(null);
@@ -158,6 +165,20 @@ export default function EditableImageGroup({
         // the array before computing the insertion point.
         const adjusted = from < to ? to - 1 : to;
         next.splice(adjusted, 0, src);
+        persist(next);
+      },
+      /* v6.13.53 — Synchronous reorder used by MoveHandle's pointer
+         drag (no HTML5 drag events involved, so no dragId state to
+         consult). Mirrors the splice logic above. */
+      reorder: (srcChildId, targetChildId) => {
+        if (!srcChildId || !targetChildId || srcChildId === targetChildId) return;
+        const from = order.indexOf(srcChildId);
+        const to = order.indexOf(targetChildId);
+        if (from < 0 || to < 0) return;
+        const next = [...order];
+        next.splice(from, 1);
+        const adjusted = from < to ? to - 1 : to;
+        next.splice(adjusted, 0, srcChildId);
         persist(next);
       },
     }),
