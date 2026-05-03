@@ -349,7 +349,15 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
     startX.current = e.clientX;
     startY.current = e.clientY;
     decided.current = null;
-    try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch {}
+    // v6.13.9 — DO NOT capture the pointer here. The previous code
+    // captured on pointerdown, which on iOS Safari was preempting
+    // page scroll: even with touchAction:"pan-y" the captured
+    // pointer kept dispatching events to the carousel, so a
+    // gentle vertical drag still felt like the prism was
+    // "grabbing" the swipe. We now defer capture to the moment
+    // we COMMIT to a horizontal gesture (in onPointerMove) so
+    // vertical scrolls flow straight to the browser without ever
+    // touching this component.
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -360,17 +368,16 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
     const ax = Math.abs(dx);
     const ay = Math.abs(dy);
     if (decided.current === null) {
-      // Wait for a bigger commit before deciding direction. Tiny
-      // jitter (≤ 16 px combined) is ignored entirely.
-      if (ax + ay < 16) return;
-      // v6.13.1: release to vertical scroll AGGRESSIVELY. Even a
-      // slightly-vertical-dominant gesture should hand off to the
-      // page scroller, otherwise users feel the carousel "grab"
-      // their vertical scrolls and rotate cards. Previously
-      // required ay > 1.7·ax + 10 px — now any vertical-dominant
-      // gesture with ≥ 8 px vertical movement releases.
-      if (ay >= ax) {
-        if (ay >= 8) {
+      // v6.13.9 — Tightened jitter threshold (was 16) and made the
+      // vertical release nearly instant (was 8 px → 4 px). Any
+      // gesture that has ANY vertical component above 4 px and is
+      // not strongly horizontal-dominant now hands off to the
+      // page scroller immediately. Combined with the deferred
+      // pointer capture above this fixes the "scroll up/down still
+      // too sensitive — feels like it rotates" report.
+      if (ax + ay < 10) return;
+      if (ay >= ax * 0.8) {
+        if (ay >= 4) {
           decided.current = "v";
           startX.current = null;
           activePointerId.current = null;
@@ -378,9 +385,12 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
         return;
       }
       // Commit to horizontal only when CLEARLY horizontal:
-      //   horizontal must dominate by ≥ 1.5× AND be ≥ 14 px.
-      if (ax >= 14 && ax > ay * 1.5) {
+      //   horizontal must dominate by ≥ 2× AND be ≥ 18 px. Once
+      //   committed, capture the pointer so subsequent moves stay
+      //   bound to this component for the swipe.
+      if (ax >= 18 && ax > ay * 2.0) {
         decided.current = "h";
+        try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch {}
         return;
       }
       // Anything else — keep waiting, don't lock.
@@ -503,7 +513,27 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
             willChange: "transform",
           }}
         >
-          {cards.map((card, i) => (
+          {cards.map((card, i) => {
+            // v6.13.9 — derive the per-card accent so the prism
+            // face's backstop can match each card's colour family
+            // instead of the previous flat near-black. The user
+            // reported the dark padding read as a "weird black
+            // outline" — replacing it with an accent-tinted radial
+            // glow makes the breathing room feel like a deliberate
+            // halo around the card rather than a frame.
+            const accent =
+              (isValidElement(card)
+                ? ((card as ReactElement<{ accent?: string }>).props.accent ??
+                    "amber")
+                : "amber") as "amber" | "violet" | "emerald" | "cyan";
+            const ACCENT_RGB: Record<typeof accent, string> = {
+              amber: "245,185,69",
+              violet: "167,139,250",
+              emerald: "52,211,153",
+              cyan: "34,211,238",
+            };
+            const rgb = ACCENT_RGB[accent];
+            return (
             <div
               key={i}
               data-testid={`paths-mobile-slide-${i + 1}`}
@@ -513,21 +543,24 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
                 transformOrigin: "center center",
                 backfaceVisibility: "hidden",
                 WebkitBackfaceVisibility: "hidden",
-                // Solid backstop so back faces never show through.
-                background: "rgb(8,8,16)",
-                borderRadius: 18,
+                // v6.13.9 — Accent-glow backstop. Inner radial fades
+                // from the card's accent at the centre to a deeper
+                // hue at the edges so the 12 px padding around the
+                // card reads as a soft halo matching the card's
+                // colour family. Solid base layer at the bottom
+                // keeps back faces opaque so the prism backstage
+                // never bleeds through.
+                background:
+                  `radial-gradient(ellipse at center, rgba(${rgb},0.32) 0%, rgba(${rgb},0.14) 55%, rgba(8,8,16,0.95) 100%), rgb(8,8,16)`,
+                borderRadius: 22,
                 overflow: "hidden",
-                // v6.13.8 — 8 px of internal padding so the
-                // floatBreathe (scale 1 → 1.02) inside PathCard has
-                // real headroom to grow into. Without this padding
-                // the card filled the face exactly and any scale
-                // pushed the chip past the face's overflow:hidden
-                // top edge. With 8 px headroom, a 2 % grow on a
-                // ~432 px card adds ~4.3 px each side — comfortably
-                // inside the padding. The padding sits on the solid
-                // dark backstop so it's visually invisible against
-                // the page background.
-                padding: 8,
+                // v6.13.9 — Bumped from 8 → 12 px so the more
+                // noticeable floatBreathe (scale 1 → 1.04) on a
+                // ~432 px card (≈8.6 px grow each side) still has
+                // safe headroom. The accent-glow padding doubles
+                // as a visible halo, so increasing it improves
+                // both the float clearance AND the visual.
+                padding: 12,
                 // Only the active face accepts pointer/touch — the
                 // others are visually hidden behind the prism.
                 pointerEvents: i === active ? "auto" : "none",
@@ -535,7 +568,7 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
             >
               {renderCard(card, i)}
             </div>
-          ))}
+          );})}
         </div>
       </div>
       </div>
