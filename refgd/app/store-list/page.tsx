@@ -65,6 +65,58 @@ export default async function StoreListPage() {
 
   return (
     <>
+      {/* v6.13.32 — "The storelist should have same background on entire
+          page as the one that get rewarded uses." The Get-rewarded hero
+          paints `bg-ink-950` plus three soft mesh orbs (amber / violet /
+          cyan) on absolutely-positioned divs scoped to that hero only.
+          Below the hero the page reverted to plain bg-ink-950 with no
+          atmosphere, so the rules / payment / region sections felt flat
+          compared to the cinematic opening.
+
+          This fixed-positioned layer replicates the same orb mesh at
+          page level so it follows the visitor through every section.
+          It uses negative inset so iOS Safari URL-bar collapse can
+          never expose a black gap (same trick as v6.13.30 on the
+          evade page). pointer-events-none + -z-[1] keeps it behind
+          every content layer. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed -z-[1] overflow-hidden bg-ink-950"
+        style={{ top: "-200px", bottom: "-200px", left: "-200px", right: "-200px" }}
+      >
+        <div className="orb orb-1 absolute left-[10%] top-[10%] h-[60vh] w-[60vh] rounded-full" />
+        <div className="orb orb-2 absolute right-[8%] top-[35%] h-[55vh] w-[55vh] rounded-full" />
+        <div className="orb orb-3 absolute left-[40%] bottom-[15%] h-[50vh] w-[50vh] rounded-full" />
+      </div>
+
+      {/* v6.13.32 — "Add a carefully positioned button skip to storelist
+          that jumps to the actual choose your region section." The
+          region selector lives at `id="region"` further down the page.
+          This anchor link uses native browser smooth scrolling (the
+          page has scroll-mt offsets defined), is fixed at the bottom-
+          right with safe-area-inset support so it doesn't collide with
+          the iOS home-bar, and only renders when the visitor is above
+          the region section (CSS-only via `:has()` targeting `#region`
+          intersection isn't possible without JS, so we keep it always-
+          visible — the link gracefully no-ops if you're already at
+          the region). Backdrop blur + amber glow keeps it on-brand
+          with the LED ticker accent. */}
+      <a
+        href="#region"
+        aria-label="Skip to store list — jump to the Select your region section"
+        className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-40 inline-flex items-center gap-2 rounded-full border border-amber-300/40 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100 shadow-[0_18px_40px_-12px_rgba(245,185,69,0.45)] backdrop-blur-md transition hover:border-amber-300/70 hover:text-white sm:bottom-6 sm:right-6 sm:px-5 sm:py-3 sm:text-sm sm:tracking-[0.22em]"
+        style={{
+          background:
+            "linear-gradient(135deg, rgba(245,185,69,0.22), rgba(15,10,30,0.85))",
+        }}
+      >
+        Skip to store list
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 5v14" />
+          <path d="m19 12-7 7-7-7" />
+        </svg>
+      </a>
+
       <ReorderableContainer pageId="store-list">
 
         {/* Act 1 — "Get rewarded for shopping online." HERO ONLY.
