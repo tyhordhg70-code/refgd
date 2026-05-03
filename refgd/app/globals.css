@@ -296,14 +296,23 @@
   0%, 100% { transform: translateY(0)    rotate(0deg);  }
   50%      { transform: translateY(-14px) rotate(0.5deg); }
 }
-/* v6.13.3: mobile-only smaller-amplitude float for the prism cards.
-   The mobile prism face wraps each card with overflow:hidden, so the
-   desktop ~14 px lift was clipping the chip + top of the illustration
-   each cycle (user reported "cards slightly cut off during floating").
-   A 5 px lift breathes visibly without ever touching the face edge. */
-@keyframes floatSlowMobile {
-  0%, 100% { transform: translateY(0)   rotate(0deg);  }
-  50%      { transform: translateY(-5px) rotate(0.25deg); }
+/* v6.13.7 — proper fix for the mobile path-card float.
+   Previous approaches all tried to lift the card with translateY
+   inside a prism face that has overflow:hidden — any vertical
+   translation, even 5 px, eventually clips the chip + title at
+   one edge of the face. The architectural fix is to abandon
+   translateY entirely on the mobile carousel and "float" via
+   subtle scale + rotate. A scale 1 → 1.035 + rotateZ ±0.35°
+   pulse reads unmistakably as a gentle breathing/hover motion
+   in 3D space, but because the centre of the card never moves
+   it CANNOT clip the face — the card simply grows and shrinks
+   inside its own bounding box. transform-origin:center means
+   even at peak scale the chip stays well inside the face
+   silhouette (a 3.5 % grow on a 320 px card = 5.6 px each side,
+   well within the 18 px corner radius). */
+@keyframes floatBreathe {
+  0%, 100% { transform: scale(1)     rotate(0deg);    }
+  50%      { transform: scale(1.035) rotate(0.35deg); }
 }
 @keyframes pulseGlow {
   0%, 100% { opacity: 0.55; transform: scale(1);    }
