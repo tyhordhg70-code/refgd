@@ -95,34 +95,96 @@ export default async function StoreListPage() {
         className="pointer-events-none fixed inset-0 -z-[2] bg-ink-950"
       />
 
-      {/* v6.13.52 — ANIMATED gradient backdrop. The user reported
-          "storelist gradient should be animated"; the existing 1000vh
-          orb layer pulses individual orbs but the overall gradient
-          field was visually static. This adds a fixed-viewport
-          conic+radial gradient that slowly hue-rotates AND drifts so
-          the entire page feels like it's breathing colour. Sits at
-          -z-[3] (behind every other backdrop layer) and is
-          pointer-events-none. */}
+      {/* v6.13.71 — ENHANCED animated gradient backdrop.
+          Three independent motion layers at different speeds:
+            slBgShift   — slow drift + scale breathing (22 s)
+            slBgHue     — full hue rotation with brightness (28 s)
+            slSweep     — diagonal colour stripe sweeps L→R (10 s)
+            slSweep2    — second stripe sweeps R→L at 17 s
+          Colours boosted vs v6.13.52 so the gradient reads on
+          both dark and bright screens. Stars are added below in
+          the 1000vh wrapper. */}
+      {/* ── Layer 1: main radial + conic field ── */}
       <div
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 -z-[3]"
         style={{
           background:
-            "radial-gradient(ellipse 70% 60% at 18% 22%, rgba(245,185,69,0.22), transparent 60%), radial-gradient(ellipse 65% 55% at 82% 32%, rgba(167,139,250,0.28), transparent 60%), radial-gradient(ellipse 70% 60% at 30% 78%, rgba(34,211,238,0.22), transparent 65%), radial-gradient(ellipse 60% 55% at 78% 82%, rgba(244,114,182,0.22), transparent 60%), conic-gradient(from 0deg at 50% 50%, rgba(245,185,69,0.10), rgba(167,139,250,0.12), rgba(34,211,238,0.08), rgba(244,114,182,0.10), rgba(245,185,69,0.10))",
+            "radial-gradient(ellipse 80% 70% at 18% 22%, rgba(245,185,69,0.34), transparent 60%), " +
+            "radial-gradient(ellipse 70% 60% at 82% 32%, rgba(167,139,250,0.40), transparent 58%), " +
+            "radial-gradient(ellipse 80% 70% at 30% 78%, rgba(34,211,238,0.32), transparent 63%), " +
+            "radial-gradient(ellipse 65% 60% at 78% 82%, rgba(244,114,182,0.32), transparent 58%), " +
+            "radial-gradient(ellipse 55% 50% at 50% 50%, rgba(99,102,241,0.22), transparent 70%), " +
+            "conic-gradient(from 0deg at 50% 50%, rgba(245,185,69,0.14), rgba(167,139,250,0.17), rgba(34,211,238,0.13), rgba(244,114,182,0.14), rgba(245,185,69,0.14))",
           animation: "slBgShift 22s ease-in-out infinite, slBgHue 28s linear infinite",
           willChange: "transform, filter",
         }}
       />
+      {/* ── Layer 2: sweeping nebula stripe L→R ── */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 -z-[3]"
+        style={{
+          background:
+            "linear-gradient(105deg, transparent 0%, rgba(245,185,69,0.20) 28%, rgba(167,139,250,0.25) 50%, rgba(34,211,238,0.20) 72%, transparent 100%)",
+          backgroundSize: "220% 100%",
+          animation: "slSweep 10s linear infinite",
+          willChange: "background-position",
+        }}
+      />
+      {/* ── Layer 3: second sweep R→L at different speed/angle ── */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 -z-[3]"
+        style={{
+          background:
+            "linear-gradient(250deg, transparent 0%, rgba(244,114,182,0.14) 25%, rgba(99,102,241,0.18) 52%, rgba(245,185,69,0.13) 78%, transparent 100%)",
+          backgroundSize: "300% 100%",
+          animation: "slSweep2 17s linear infinite",
+          willChange: "background-position",
+        }}
+      />
+      {/* ── All keyframes (bg + float + star twinkle) ── */}
       <style>{`
         @keyframes slBgShift {
-          0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
-          50%      { transform: translate3d(-2%, 1.5%, 0) scale(1.12); }
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1.06); }
+          33%      { transform: translate3d(-3%, 2%, 0) scale(1.14); }
+          66%      { transform: translate3d(2.5%, -1.5%, 0) scale(1.10); }
         }
         @keyframes slBgHue {
-          0%   { filter: hue-rotate(0deg) saturate(1.05); }
-          50%  { filter: hue-rotate(40deg) saturate(1.2); }
-          100% { filter: hue-rotate(0deg) saturate(1.05); }
+          0%   { filter: hue-rotate(0deg) saturate(1.1) brightness(1.0); }
+          33%  { filter: hue-rotate(50deg) saturate(1.35) brightness(1.05); }
+          66%  { filter: hue-rotate(20deg) saturate(1.20) brightness(1.02); }
+          100% { filter: hue-rotate(0deg) saturate(1.1) brightness(1.0); }
         }
+        @keyframes slSweep {
+          0%   { background-position: -100% 0; }
+          100% { background-position: 200% 0; }
+        }
+        @keyframes slSweep2 {
+          0%   { background-position: 200% 0; }
+          100% { background-position: -100% 0; }
+        }
+        @keyframes slTwinkle {
+          0%, 100% { opacity: 0.12; transform: scale(0.8); }
+          50%      { opacity: 1;    transform: scale(1.4); }
+        }
+        @keyframes slTwinkleB {
+          0%, 100% { opacity: 0.06; transform: scale(0.6); }
+          30%      { opacity: 0.85; transform: scale(1.25); }
+          65%      { opacity: 0.25; transform: scale(0.9);  }
+        }
+        @keyframes slTwinkleC {
+          0%, 100% { opacity: 0.22; transform: scale(1.0); }
+          42%      { opacity: 0.95; transform: scale(1.45); }
+          78%      { opacity: 0.45; transform: scale(1.1);  }
+        }
+        @keyframes slFloatA { 0%,100% { transform: translate3d(0,0,0); opacity:0.55; }
+                              50%     { transform: translate3d(8px,-22px,0); opacity:0.95; } }
+        @keyframes slFloatB { 0%,100% { transform: translate3d(0,0,0); opacity:0.45; }
+                              50%     { transform: translate3d(-12px,18px,0); opacity:0.85; } }
+        @keyframes slFloatC { 0%,100% { transform: translate3d(0,0,0) scale(1);  opacity:0.5; }
+                              50%     { transform: translate3d(-6px,-14px,0) scale(1.15); opacity:0.95; } }
       `}</style>
 
       {/* v6.13.39 — The user reported the storelist "looks too dark"
@@ -208,14 +270,6 @@ export default async function StoreListPage() {
             Inline keyframes so we don't grow globals.css for a
             single use-site. Mix of warm + cool gradients drifting
             in y/x and pulsing in opacity. */}
-        <style>{`
-          @keyframes slFloatA { 0%,100% { transform: translate3d(0,0,0); opacity: 0.55; }
-                                50%      { transform: translate3d(8px,-22px,0); opacity: 0.95; } }
-          @keyframes slFloatB { 0%,100% { transform: translate3d(0,0,0); opacity: 0.45; }
-                                50%      { transform: translate3d(-12px,18px,0); opacity: 0.85; } }
-          @keyframes slFloatC { 0%,100% { transform: translate3d(0,0,0) scale(1);   opacity: 0.5; }
-                                50%      { transform: translate3d(-6px,-14px,0) scale(1.15); opacity: 0.95; } }
-        `}</style>
         {Array.from({ length: 90 }).map((_, i) => {
           // Deterministic pseudo-random so SSR + client agree.
           const r = (n: number) => ((Math.sin(i * 12.9898 + n * 78.233) + 1) / 2);
@@ -245,6 +299,46 @@ export default async function StoreListPage() {
                 mixBlendMode: "screen",
                 animation: `${anim} ${dur} ease-in-out ${delay} infinite`,
                 willChange: "transform, opacity",
+              }}
+            />
+          );
+        })}
+        {/* v6.13.71 — STAR FIELD. 200 deterministic twinkling stars
+            distributed across the full 1000vh page height. Colours
+            cycle warm-gold / white / cool-blue / violet to match the
+            gradient palette. Three twinkle animations at different
+            speeds + negative delays so no two stars pulse in sync.
+            Deterministic Math.sin hash → no SSR/client mismatch. */}
+        {Array.from({ length: 200 }).map((_, i) => {
+          const rr = (n: number) => (Math.sin(i * 91.9898 + n * 57.233 + 3.14) + 1) / 2;
+          const starColors = [
+            "rgba(255,255,255,1)",
+            "rgba(255,248,215,1)",
+            "rgba(200,220,255,1)",
+            "rgba(245,185,69,1)",
+            "rgba(167,139,250,0.9)",
+            "rgba(148,210,255,1)",
+          ];
+          const starAnims = ["slTwinkle", "slTwinkleB", "slTwinkleC"];
+          const size = (1 + rr(1) * 3).toFixed(1);
+          const left = (rr(2) * 100).toFixed(2) + "%";
+          const top  = (rr(3) * 980).toFixed(2) + "vh";
+          const dur  = (1.6 + rr(4) * 5.5).toFixed(2) + "s";
+          const delay = (-rr(5) * 5).toFixed(2) + "s";
+          const color = starColors[Math.floor(rr(6) * starColors.length)];
+          const anim  = starAnims[Math.floor(rr(7) * starAnims.length)];
+          const glowPx = parseFloat(size) > 2.5 ? 7 : 3;
+          return (
+            <span
+              key={`star-${i}`}
+              className="absolute rounded-full"
+              style={{
+                left, top,
+                width: size + "px", height: size + "px",
+                background: color,
+                boxShadow: `0 0 ${glowPx}px 1px ${color}`,
+                animation: `${anim} ${dur} ease-in-out ${delay} infinite`,
+                willChange: "opacity, transform",
               }}
             />
           );
