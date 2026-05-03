@@ -1,278 +1,503 @@
 "use client";
 
-  /**
-   * /buy4u — RefundGod's "we shop for you" service page.
-   *
-   * Top: pinned intro box with the 50% flat-rate offer + scheduling
-   * disclaimer. Below: a pill nav bar (mirrors Trip.com style — see
-   * attached_assets reference) that scrolls between service sections:
-   * Flights, Food, Hotels, Trains, Cars, Attractions/Tours/Events,
-   * Furniture, Gift Cards. Each section has BUY4U + REFUND tab modes
-   * (sections that the user marked with an X, like Flights and Gift
-   * Cards, render only the BUY4U mode). Inside each tab: a description
-   * + disclaimer + a card grid of brand logos (auto-fetched via
-   * Clearbit) or activity images.
-   *
-   * EDITABILITY: every visible string is an <EditableText id="buy4u.…">
-   * and every per-card brand/title is also editable. Logos auto-derive
-   * from the domain field via clearbit; admins can override the domain
-   * to swap the logo. Images use <EditableImage id="buy4u.…"> so admins
-   * can drop in a different photo.
-   */
-
-  import { useMemo, useState } from "react";
+  import { useMemo, useState, useCallback } from "react";
   import EditableText from "@/components/EditableText";
   import EditableImage from "@/components/EditableImage";
   import { useEditContext } from "@/lib/edit-context";
 
-  /* ---------- Section configuration ---------- */
-
+  /* ---------- Types ---------- */
+  type CardKind = "brand" | "category" | "image";
   type Card = {
-    /** stable per-section item key */
     key: string;
-    /** Brand or activity name (default; overridable per-card via EditableText). */
     name: string;
-    /** Domain used for clearbit logo. Empty string means use `image`. */
-    domain?: string;
-    /** Image URL (defaults). Used when card is an activity, not a brand. */
-    image?: string;
+    kind: CardKind;
+    /** For kind="brand": clearbit domain. For kind="category": large emoji. For kind="image": unsplash url. */
+    value: string;
+    /** Background gradient class for kind="category" cards. */
+    gradient?: string;
   };
-
   type Tab = {
     intro: string;
     disclaimer?: string;
     cards: Card[];
-    /** When true, render a search box above the grid. */
     withSearch?: boolean;
   };
-
   type Section = {
     id: string;
     label: string;
     icon: string;
-    /** When true the section has BOTH buy4u + refund tabs. */
     hasRefund: boolean;
     buy4u: Tab;
     refund?: Tab;
   };
 
+  /* ---------- Data ---------- */
+
+  /* Helper: brand card (clearbit logo) */
+  const B = (key: string, name: string, domain: string): Card => ({ key, name, kind: "brand", value: domain });
+  /* Helper: category card (emoji + gradient) */
+  const C = (key: string, name: string, emoji: string, gradient = "from-violet-600/40 to-fuchsia-600/40"): Card => ({ key, name, kind: "category", value: emoji, gradient });
+
   const SECTIONS: Section[] = [
+    /* ─── FLIGHTS ─────────────────────────────────────────────────────────── */
     {
-      id: "flights",
-      label: "Flights",
-      icon: "✈",
-      hasRefund: false,
+      id: "flights", label: "Flights", icon: "✈", hasRefund: false,
       buy4u: {
-        intro:
-          "We book your flights at our flat 50% service rate. We must be online and confirmed before any booking is started — message us a few days to a week in advance.",
-        disclaimer:
-          "If you do not see your desired airline, message us and we can look into it. Emirates Airline is NOT possible.",
+        intro: "We book your flights at a flat 50% service rate. Message us a few days to a week in advance — confirm we are online before any booking starts.",
+        disclaimer: "If you do not see your desired airline, message us and we can look into it. Note: Emirates Airline is NOT possible.",
         cards: [
-          { key: "f01", name: "American Airlines", domain: "aa.com" },
-          { key: "f02", name: "Copa Airlines", domain: "copaair.com" },
-          { key: "f03", name: "Alaska Airlines", domain: "alaskaair.com" },
-          { key: "f04", name: "Allegiant Air", domain: "allegiantair.com" },
-          { key: "f05", name: "Frontier Airlines", domain: "flyfrontier.com" },
-          { key: "f06", name: "Southwest Airlines", domain: "southwest.com" },
-          { key: "f07", name: "Spirit Airlines", domain: "spirit.com" },
-          { key: "f08", name: "Qatar Airways", domain: "qatarairways.com" },
-          { key: "f09", name: "Breeze Airways", domain: "flybreeze.com" },
-          { key: "f10", name: "KLM", domain: "klm.com" },
-          { key: "f11", name: "Emirates (limited)", domain: "emirates.com" },
-          { key: "f12", name: "Norse Atlantic", domain: "flynorse.com" },
-          { key: "f13", name: "WestJet", domain: "westjet.com" },
-          { key: "f14", name: "Finnair", domain: "finnair.com" },
-          { key: "f15", name: "Porter Airlines", domain: "flyporter.com" },
-          { key: "f16", name: "Air India (intl only)", domain: "airindia.com" },
-          { key: "f17", name: "Japan Airlines", domain: "jal.co.jp" },
-          { key: "f18", name: "Turkish Airlines", domain: "turkishairlines.com" },
-          { key: "f19", name: "Korean Air", domain: "koreanair.com" },
-          { key: "f20", name: "EVA Air", domain: "evaair.com" },
-          { key: "f21", name: "Cathay Pacific", domain: "cathaypacific.com" },
-          { key: "f22", name: "Vietnam Airlines", domain: "vietnamairlines.com" },
-          { key: "f23", name: "Lufthansa", domain: "lufthansa.com" },
-          { key: "f24", name: "Air Canada", domain: "aircanada.com" },
+          B("f01","American Airlines","aa.com"),
+          B("f02","Copa Airlines","copaair.com"),
+          B("f03","Alaska Airlines","alaskaair.com"),
+          B("f04","Allegiant Air","allegiantair.com"),
+          B("f05","Frontier Airlines","flyfrontier.com"),
+          B("f06","Southwest Airlines","southwest.com"),
+          B("f07","Spirit Airlines","spirit.com"),
+          B("f08","Qatar Airways","qatarairways.com"),
+          B("f09","Breeze Airways","flybreeze.com"),
+          B("f10","KLM","klm.com"),
+          B("f11","Norse Atlantic","flynorse.com"),
+          B("f12","WestJet","westjet.com"),
+          B("f13","Finnair","finnair.com"),
+          B("f14","Porter Airlines","flyporter.com"),
+          B("f15","Air India (Intl Only)","airindia.com"),
+          B("f16","Japan Airlines","jal.co.jp"),
+          B("f17","Turkish Airlines","turkishairlines.com"),
+          B("f18","Korean Air","koreanair.com"),
+          B("f19","EVA Air","evaair.com"),
+          B("f20","Cathay Pacific","cathaypacific.com"),
+          B("f21","Vietnam Airlines","vietnamairlines.com"),
+          B("f22","Lufthansa","lufthansa.com"),
+          B("f23","Air Canada","aircanada.com"),
         ],
       },
     },
+    /* ─── FOOD ────────────────────────────────────────────────────────────── */
     {
-      id: "food",
-      label: "Food",
-      icon: "🍔",
-      hasRefund: true,
+      id: "food", label: "Food", icon: "🍔", hasRefund: true,
       buy4u: {
-        intro:
-          "Food pickup orders via DoorDash & Uber Eats. Uber Eats delivery works as well for up to $100. Instacart for groceries below $100.",
-        disclaimer: "Make sure we are online before placing your order.",
+        intro: "Food pickup via DoorDash & Uber Eats. Uber Eats delivery up to $100. Instacart for groceries below $100.",
+        disclaimer: "Make sure we are ONLINE before placing your order.",
         withSearch: true,
         cards: [
-          { key: "fd01", name: "BJ's Restaurant & Brewhouse", domain: "bjsrestaurants.com" },
-          { key: "fd02", name: "Blaze Pizza", domain: "blazepizza.com" },
-          { key: "fd03", name: "Bojangles", domain: "bojangles.com" },
-          { key: "fd04", name: "Buffalo Wild Wings", domain: "buffalowildwings.com" },
-          { key: "fd05", name: "Burger King", domain: "bk.com" },
-          { key: "fd06", name: "Carl's Jr.", domain: "carlsjr.com" },
-          { key: "fd07", name: "Carrabba's Italian Grill", domain: "carrabbas.com" },
-          { key: "fd08", name: "Cava", domain: "cava.com" },
-          { key: "fd09", name: "Carvel", domain: "carvel.com" },
-          { key: "fd10", name: "Charleys Cheesesteaks", domain: "charleys.com" },
-          { key: "fd11", name: "Chicken Express", domain: "chickene.com" },
-          { key: "fd12", name: "Chili's Grill & Bar", domain: "chilis.com" },
-          { key: "fd13", name: "Chipotle", domain: "chipotle.com" },
-          { key: "fd14", name: "Cold Stone Creamery", domain: "coldstonecreamery.com" },
-          { key: "fd15", name: "Coney Island", domain: "coneyisland.com" },
-          { key: "fd16", name: "Cracker Barrel", domain: "crackerbarrel.com" },
-          { key: "fd17", name: "Crumbl Cookies", domain: "crumblcookies.com" },
-          { key: "fd18", name: "Culver's", domain: "culvers.com" },
-          { key: "fd19", name: "Dairy Queen", domain: "dairyqueen.com" },
-          { key: "fd20", name: "Dave & Buster's", domain: "daveandbusters.com" },
-          { key: "fd21", name: "Dave's Hot Chicken", domain: "daveshotchicken.com" },
-          { key: "fd22", name: "Denny's", domain: "dennys.com" },
-          { key: "fd23", name: "El Pollo Loco", domain: "elpolloloco.com" },
-          { key: "fd24", name: "First Watch", domain: "firstwatch.com" },
-          { key: "fd25", name: "DoorDash", domain: "doordash.com" },
-          { key: "fd26", name: "Uber Eats", domain: "ubereats.com" },
-          { key: "fd27", name: "Instacart", domain: "instacart.com" },
+          B("fd01","Applebee's","applebees.com"),
+          B("fd02","Arby's","arbys.com"),
+          B("fd03","BJ's Restaurant & Brewhouse","bjsrestaurants.com"),
+          B("fd04","Blaze Pizza","blazepizza.com"),
+          B("fd05","Bojangles","bojangles.com"),
+          B("fd06","Buffalo Wild Wings","buffalowildwings.com"),
+          B("fd07","Burger King","bk.com"),
+          B("fd08","Carl's Jr.","carlsjr.com"),
+          B("fd09","Carrabba's Italian Grill","carrabbas.com"),
+          B("fd10","Carvel","carvel.com"),
+          B("fd11","Cava","cava.com"),
+          B("fd12","Charleys Cheesesteaks","charleys.com"),
+          B("fd13","Cheesecake Factory","thecheesecakefactory.com"),
+          B("fd14","Chicken Express","chickene.com"),
+          B("fd15","Chili's Grill & Bar","chilis.com"),
+          B("fd16","Chipotle","chipotle.com"),
+          B("fd17","Cold Stone Creamery","coldstonecreamery.com"),
+          B("fd18","Cracker Barrel","crackerbarrel.com"),
+          B("fd19","Crumbl Cookies","crumblcookies.com"),
+          B("fd20","Culver's","culvers.com"),
+          B("fd21","Dairy Queen","dairyqueen.com"),
+          B("fd22","Dave & Buster's","daveandbusters.com"),
+          B("fd23","Dave's Hot Chicken","daveshotchicken.com"),
+          B("fd24","Denny's","dennys.com"),
+          B("fd25","Domino's","dominos.com"),
+          B("fd26","Dunkin' Donuts","dunkindonuts.com"),
+          B("fd27","El Pollo Loco","elpolloloco.com"),
+          B("fd28","First Watch","firstwatch.com"),
+          B("fd29","Five Guys","fiveguys.com"),
+          B("fd30","Fresh Kitchen","thefreshkitchen.com"),
+          B("fd31","Habit Burger Grill","habitburger.com"),
+          B("fd32","Hardee's","hardees.com"),
+          B("fd33","Hooters","hooters.com"),
+          B("fd34","IHOP","ihop.com"),
+          B("fd35","Insomnia Cookies","insomniacookies.com"),
+          B("fd36","Jack in the Box","jackinthebox.com"),
+          B("fd37","Jersey Mike's Subs","jerseymikes.com"),
+          B("fd38","Jet's Pizza","jetspizza.com"),
+          B("fd39","Jimmy John's","jimmyjohns.com"),
+          B("fd40","Jollibee","jollibeeusa.com"),
+          B("fd41","Just Salad","justsalad.com"),
+          B("fd42","KFC","kfc.com"),
+          B("fd43","Little Caesars","littlecaesars.com"),
+          B("fd44","Marco's Pizza","marcos.com"),
+          B("fd45","McDonald's","mcdonalds.com"),
+          B("fd46","Mellow Mushroom","mellowmushroom.com"),
+          B("fd47","Miller's Ale House","millersalehouse.com"),
+          B("fd48","Moe's Southwest Grill","moes.com"),
+          B("fd49","Noodles & Company","noodles.com"),
+          B("fd50","Outback Steakhouse","outback.com"),
+          B("fd51","P.F. Chang's","pfchangs.com"),
+          B("fd52","Panda Express","pandaexpress.com"),
+          B("fd53","Panera Bread","panerabread.com"),
+          B("fd54","Papa John's Pizza","papajohns.com"),
+          B("fd55","Paris Baguette","parisbaguette.com"),
+          B("fd56","Pizza Hut","pizzahut.com"),
+          B("fd57","Playa Bowls","playabowls.com"),
+          B("fd58","Popeyes","popeyes.com"),
+          B("fd59","Portillo's Hot Dogs","portillos.com"),
+          B("fd60","Qdoba","qdoba.com"),
+          B("fd61","Red Lobster","redlobster.com"),
+          B("fd62","Red Robin","redrobin.com"),
+          B("fd63","Shake Shack","shakeshack.com"),
+          B("fd64","Smashburger","smashburger.com"),
+          B("fd65","Sonic","sonicdrivein.com"),
+          B("fd66","Steak 'n Shake","steaknshake.com"),
+          B("fd67","Subway","subway.com"),
+          B("fd68","Sweetgreen","sweetgreen.com"),
+          B("fd69","Taco Bell","tacobell.com"),
+          B("fd70","Texas de Brazil","texasdebrazil.com"),
+          B("fd71","Texas Roadhouse","texasroadhouse.com"),
+          B("fd72","TGI Fridays","tgifridays.com"),
+          B("fd73","Tropical Smoothie Café","tropicalsmoothie.com"),
+          B("fd74","Wendy's","wendys.com"),
+          B("fd75","Whataburger","whataburger.com"),
+          B("fd76","White Castle","whitecastle.com"),
+          B("fd77","Wingstop","wingstop.com"),
+          B("fd78","Zaxby's","zaxbys.com"),
+          B("fd79","DoorDash","doordash.com"),
+          B("fd80","Uber Eats","ubereats.com"),
+          B("fd81","Instacart","instacart.com"),
+          C("fd82","+ Any Other Chain Restaurant!","🍽","from-amber-600/40 to-orange-600/40"),
         ],
       },
     },
+    /* ─── HOTELS ─────────────────────────────────────────────────────────── */
     {
-      id: "hotels",
-      label: "Hotels",
-      icon: "🛏",
-      hasRefund: true,
+      id: "hotels", label: "Hotels", icon: "🛏", hasRefund: true,
       buy4u: {
-        intro:
-          "We can book hotels for you from Expedia.com or Booking.com.",
-        disclaimer:
-          "Use this service if your booking does not meet our minimum price for the refund service.",
+        intro: "We can book hotels for you from Expedia.com or Booking.com.",
+        disclaimer: "Use this service if your booking does not meet our minimum price for the refund service.",
         cards: [
-          { key: "h01", name: "Expedia", domain: "expedia.com" },
-          { key: "h02", name: "Booking.com", domain: "booking.com" },
-          { key: "h03", name: "Hotels.com", domain: "hotels.com" },
-          { key: "h04", name: "Trip.com", domain: "trip.com" },
-          { key: "h05", name: "Agoda", domain: "agoda.com" },
+          B("h01","Expedia","expedia.com"),
+          B("h02","Booking.com","booking.com"),
+          B("h03","Hotels.com","hotels.com"),
         ],
       },
       refund: {
-        intro:
-          "HOTELS.com / EXPEDIA / AGODA / TRIP.COM — INSIDER INSTANT REFUNDS. Enjoy your vacation at a fraction of the price. Fresh accounts OK. No limits, any property works (Agoda: hotels only, no apartments/houses). Confirm with us prior to booking. MUST be paid in full online — do NOT select pay-later or pay-at-property. ⚠ Refund is processed on first day of check-in OR before checkout for safety. Booking can be as far in advance as you like — handled via our private insider, totally safe.",
-        disclaimer:
-          "💲1,000 minimum fee · 💲2,000 minimum booking · 50% service fee. For the extra paranoid, refund-after-checkout is possible with an upfront payment.",
+        intro: "HOTELS.com / EXPEDIA / AGODA / TRIP.COM — INSIDER INSTANT REFUNDS. Enjoy your vacation at a fraction of the price. Fresh accounts OK. No limit, any property works (Agoda: hotels only — no apartments or houses). Confirm with us BEFORE booking. MUST be paid in full online — do NOT select pay-later or pay-at-property. ⚠️ Refund is done on first day of check-in OR before checkout. YES it is 10000% SAFE! Handled via our private insider.",
+        disclaimer: "💲1,000 minimum fee · 💲2,000 minimum booking · 50% service fee. For the extra paranoid, refund after checkout is possible with an upfront payment.",
         cards: [
-          { key: "rh01", name: "Hotels.com", domain: "hotels.com" },
-          { key: "rh02", name: "Expedia", domain: "expedia.com" },
-          { key: "rh03", name: "Agoda", domain: "agoda.com" },
-          { key: "rh04", name: "Trip.com", domain: "trip.com" },
+          B("rh01","Hotels.com","hotels.com"),
+          B("rh02","Expedia","expedia.com"),
+          B("rh03","Agoda","agoda.com"),
+          B("rh04","Trip.com","trip.com"),
         ],
       },
     },
+    /* ─── TRAINS ─────────────────────────────────────────────────────────── */
     {
-      id: "trains",
-      label: "Trains",
-      icon: "🚆",
-      hasRefund: false,
+      id: "trains", label: "Trains", icon: "🚆", hasRefund: false,
       buy4u: {
-        intro: "Long-distance bus + train ticket bookings.",
+        intro: "Long-distance train and bus ticket bookings.",
         cards: [
-          { key: "t01", name: "Amtrak", domain: "amtrak.com" },
-          { key: "t02", name: "Greyhound", domain: "greyhound.com" },
+          B("t01","Amtrak","amtrak.com"),
+          B("t02","Greyhound","greyhound.com"),
         ],
       },
     },
+    /* ─── CARS ───────────────────────────────────────────────────────────── */
     {
-      id: "cars",
-      label: "Cars",
-      icon: "🚗",
-      hasRefund: false,
+      id: "cars", label: "Cars", icon: "🚗", hasRefund: false,
       buy4u: {
-        intro: "Car rental bookings handled in advance.",
+        intro: "Car rental bookings. Please confirm availability before we book.",
         cards: [
-          { key: "c01", name: "Avis", domain: "avis.com" },
-          { key: "c02", name: "Budget", domain: "budget.com" },
+          B("c01","Avis","avis.com"),
+          B("c02","Budget","budget.com"),
         ],
       },
     },
+    /* ─── ATTRACTIONS ────────────────────────────────────────────────────── */
     {
-      id: "attractions",
-      label: "Attractions & Tours",
-      icon: "🎡",
-      hasRefund: true,
+      id: "attractions", label: "Attractions & Tours", icon: "🎡", hasRefund: true,
       buy4u: {
-        intro:
-          "Theme parks, concerts, tours, cruises, sports games, museums, and more — booked through us at the flat 50% service rate.",
-        disclaimer:
-          "Other recreational activities & many more — open a ticket for custom requests.",
+        intro: "Theme parks, concerts, cruises, tours, sports games, ski resorts, water parks, and everything in between — booked through us at the flat 50% service rate.",
+        disclaimer: "Other recreational activities & many more — open a ticket for custom requests.",
         cards: [
-          { key: "a01", name: "Knott's Berry Farm", image: "https://images.unsplash.com/photo-1583416750470-965b2707b355?w=600" },
-          { key: "a02", name: "Six Flags", image: "https://images.unsplash.com/photo-1597466765990-64ad1c35dafc?w=600" },
-          { key: "a03", name: "SeaWorld", image: "https://images.unsplash.com/photo-1583416750470-965b2707b355?w=600" },
-          { key: "a04", name: "LEGOLAND", image: "https://images.unsplash.com/photo-1517242810446-cc8951b2be40?w=600" },
-          { key: "a05", name: "Hershey Park", image: "https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=600" },
-          { key: "a06", name: "Disney", image: "https://images.unsplash.com/photo-1610465299993-e6675c9f9efa?w=600" },
-          { key: "a07", name: "Universal Studios", image: "https://images.unsplash.com/photo-1604542030723-9a85d4bdfb6f?w=600" },
-          { key: "a08", name: "Cruises", image: "https://images.unsplash.com/photo-1548574505-5e239809ee19?w=600" },
-          { key: "a09", name: "Ski & Winter Sports", image: "https://images.unsplash.com/photo-1551524559-8af4e6624178?w=600" },
-          { key: "a10", name: "Jet Skis & Boat Rentals", image: "https://images.unsplash.com/photo-1542657625-46b46c1f8b8a?w=600" },
-          { key: "a11", name: "Sports Games", image: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600" },
-          { key: "a12", name: "Concerts & Festivals", image: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=600" },
-          { key: "a13", name: "Aquariums", image: "https://images.unsplash.com/photo-1535591273668-578e31182c4f?w=600" },
-          { key: "a14", name: "Museums", image: "https://images.unsplash.com/photo-1565060169187-8e6e0b4c6c95?w=600" },
-          { key: "a15", name: "Edge NYC", image: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=600" },
-          { key: "a16", name: "Empire State Building", image: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=600" },
-          { key: "a17", name: "Helicopter Tours", image: "https://images.unsplash.com/photo-1559113202-c916b8e44373?w=600" },
-          { key: "a18", name: "Sky Diving", image: "https://images.unsplash.com/photo-1517649763962-0c623066013b?w=600" },
-          { key: "a19", name: "Escape Rooms", image: "https://images.unsplash.com/photo-1574169208507-84376144848b?w=600" },
-          { key: "a20", name: "Bowling", image: "https://images.unsplash.com/photo-1538511206890-a8e1b71b46a3?w=600" },
+          /* Named brand venues — show logo */
+          B("a01","Knott's Berry Farm","knotts.com"),
+          B("a02","Kings Dominion","kingsdominion.com"),
+          B("a03","Carowinds","carowinds.com"),
+          B("a04","Six Flags","sixflags.com"),
+          B("a05","SeaWorld","seaworld.com"),
+          B("a06","LEGOLAND","legoland.com"),
+          B("a07","Sesame Place","sesameplace.com"),
+          B("a08","Nickelodeon Universe","nickelodeonuniverse.com"),
+          B("a09","Hershey Park","hersheypark.com"),
+          B("a10","Disney","disney.com"),
+          B("a11","Universal Studios","universalstudios.com"),
+          B("a12","Viator","viator.com"),
+          /* Generic activity categories — show emoji */
+          C("a13","Safari Parks & Zoos","🦁","from-emerald-600/40 to-green-600/40"),
+          C("a14","Water Parks","💦","from-blue-500/40 to-cyan-500/40"),
+          C("a15","Bounce Houses","🎪","from-pink-500/40 to-fuchsia-500/40"),
+          C("a16","Theme Parks","🎢","from-orange-500/40 to-amber-500/40"),
+          C("a17","Concerts & Festivals","🎵","from-purple-600/40 to-violet-600/40"),
+          C("a18","Sports Games","🏆","from-green-600/40 to-teal-600/40"),
+          C("a19","Movie Tickets","🎬","from-slate-600/40 to-zinc-600/40"),
+          C("a20","Cruises","⛴","from-sky-600/40 to-blue-600/40"),
+          C("a21","Ski & Winter Sports","⛷","from-blue-300/40 to-cyan-300/40"),
+          C("a22","Jet Skis & Boat Rentals","🚤","from-cyan-500/40 to-teal-500/40"),
+          C("a23","Golfing Reservations","⛳","from-green-500/40 to-lime-500/40"),
+          C("a24","Excursions","🗺","from-amber-500/40 to-yellow-500/40"),
+          C("a25","Parasailing","🪂","from-sky-500/40 to-indigo-500/40"),
+          C("a26","Food Subscriptions","📦","from-orange-400/40 to-red-400/40"),
+          C("a27","Helicopter Tours","🚁","from-gray-600/40 to-slate-600/40"),
+          C("a28","Sky Diving","🪂","from-indigo-500/40 to-violet-500/40"),
+          C("a29","Escape Rooms","🔐","from-rose-600/40 to-pink-600/40"),
+          C("a30","Aquariums","🐠","from-blue-600/40 to-teal-600/40"),
+          C("a31","Museums","🏛","from-stone-500/40 to-amber-700/40"),
+          C("a32","Bowling","🎳","from-red-500/40 to-orange-500/40"),
+          C("a33","Edge NYC","🏙","from-slate-700/40 to-zinc-700/40"),
+          C("a34","Empire State Building","🗽","from-gray-500/40 to-stone-500/40"),
+          C("a35","Conventions","🎤","from-violet-600/40 to-purple-600/40"),
+          C("a36","Tours (Any)","🧭","from-teal-500/40 to-green-500/40"),
+          C("a37","Radiate","✨","from-yellow-400/40 to-amber-400/40"),
+          C("a38","Train Tickets","🚆","from-zinc-600/40 to-slate-600/40"),
         ],
       },
       refund: {
-        intro:
-          "Book from Viator.com, Agoda.com or Trip.com. 🎟 No ticket limit (must be same event). 💸 Price limit $7,000. ⏳ Time frame: INSTANT. Fee 35%. Minimum order $500. Minimum fee $250. 💬 Message at least a day or 1–2 hours before the event and make sure we are ONLINE.",
+        intro: "Book from Viator.com, Agoda.com or Trip.com. 🎟 Ticket Limit: NO LIMIT (must be same event). 💸 Price Limit: $7,000. ⏳ Time Frame: INSTANT. Fee 35%. Minimum Order: $500. Minimum Fee: $250. 💬 Please message at least a day or 1–2 hours before the event and make sure we are ONLINE.",
         cards: [
-          { key: "ra01", name: "Viator", domain: "viator.com" },
-          { key: "ra02", name: "Agoda", domain: "agoda.com" },
-          { key: "ra03", name: "Trip.com", domain: "trip.com" },
+          B("ra01","Viator","viator.com"),
+          B("ra02","Agoda","agoda.com"),
+          B("ra03","Trip.com","trip.com"),
         ],
       },
     },
+    /* ─── FURNITURE ──────────────────────────────────────────────────────── */
     {
-      id: "furniture",
-      label: "Furniture",
-      icon: "🛋",
-      hasRefund: true,
+      id: "furniture", label: "Furniture", icon: "🛋", hasRefund: true,
       buy4u: {
         intro: "Furniture orders booked through us — IKEA only.",
-        cards: [{ key: "fu01", name: "IKEA", domain: "ikea.com" }],
+        cards: [B("fu01","IKEA","ikea.com")],
       },
       refund: {
-        intro:
-          "For furniture refunds, head to our full Store List for the supported retailers.",
+        intro: "For furniture refunds, head to our full Store List for the supported retailers.",
         cards: [],
       },
     },
+    /* ─── GIFT CARDS — handled by <GiftCardsSection> below ─────────────── */
     {
-      id: "giftcards",
-      label: "Gift Cards",
-      icon: "🎁",
-      hasRefund: false,
-      buy4u: {
-        intro:
-          "Gift card catalog (sourced from spawngc.gg) is being indexed — full filterable list with category + state filters is in progress and will appear here.",
-        cards: [],
-      },
+      id: "giftcards", label: "Gift Cards", icon: "🎁", hasRefund: false,
+      buy4u: { intro: "", cards: [] },
     },
   ];
 
-  
-  /* ---------- Gift Cards (spawngc.gg-mirrored filters) ---------- */
+  /* ---------- Logo helpers ---------- */
 
-  /* v6.13.70 — Real filter metadata extracted directly from spawngc.gg's
-     Next.js RSC stream. Categories, Availability flags, and US states
-     match exactly what spawngc shows on /products. The actual product
-     list is behind login on spawngc, so the cards array is empty until
-     credentials are supplied (then a follow-up scrape pass will populate
-     buy4u.giftcards.items[] in DB). All filter labels are EditableText
+  /** Returns a Clearbit logo URL. Falls back to null (card shows emoji initial). */
+  function logoUrl(domain: string): string {
+    return `https://logo.clearbit.com/${domain}`;
+  }
+
+  /** Derive emoji initial for the brand name as logo fallback. */
+  function initialEmoji(name: string): string {
+    return name.charAt(0).toUpperCase();
+  }
+
+  /** Colour class for the initial-fallback badge — cycles through a palette. */
+  const BADGE_COLOURS = [
+    "bg-amber-500","bg-violet-600","bg-cyan-600","bg-rose-600",
+    "bg-emerald-600","bg-orange-500","bg-fuchsia-600","bg-sky-600",
+  ];
+  function badgeColor(key: string): string {
+    let h = 0;
+    for (const c of key) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff;
+    return BADGE_COLOURS[Math.abs(h) % BADGE_COLOURS.length];
+  }
+
+  /* ---------- Card components ---------- */
+
+  function BrandCard({ secId, mode, card }: { secId: string; mode: "buy4u" | "refund"; card: Card }) {
+    const id = `buy4u.${secId}.${mode}.${card.key}`;
+    const { isAdmin, editMode } = useEditContext();
+    const editing = isAdmin && editMode;
+
+    return (
+      /* overflow:visible so the MoveHandle badge (-right-2 -top-2) sits
+         outside the card rather than covering the content. min-h ensures
+         the badge never overlaps the name text on tiny cards. */
+      <div
+        className="group relative flex flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition hover:-translate-y-0.5 hover:border-amber-300/40 hover:bg-white/[0.07]"
+        style={{ overflow: "visible", minHeight: "100px" }}
+      >
+        {/* ── Logo / emoji / image display ── */}
+        {card.kind === "image" ? (
+          <EditableImage
+            id={`${id}.image`}
+            defaultSrc={card.value}
+            alt={card.name}
+            wrapperClassName="block w-full"
+            className="aspect-[4/3] w-full rounded-xl object-cover"
+          />
+        ) : card.kind === "category" ? (
+          /* Emoji category card */
+          <div
+            className={`grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br ${card.gradient ?? "from-violet-600/40 to-fuchsia-600/40"} text-3xl`}
+          >
+            {card.value}
+          </div>
+        ) : (
+          /* Brand logo — Clearbit, with emoji-initial fallback on error */
+          <BrandLogo domain={card.value} name={card.name} cardKey={card.key} />
+        )}
+
+        {/* Name — EditableText with a min-height wrapper so the MoveHandle
+            badge at -right-2 -top-2 never overlaps the visible text. */}
+        <div className="relative w-full" style={{ minHeight: "28px" }}>
+          <EditableText
+            id={`${id}.name`}
+            defaultValue={card.name}
+            as="p"
+            className="text-center text-xs font-semibold leading-tight text-white"
+          />
+        </div>
+
+        {/* Domain field — only visible in edit mode, hidden from normal visitors */}
+        {editing && (
+          <EditableText
+            id={`${id}.domain`}
+            defaultValue={card.value}
+            as="p"
+            className="w-full text-center font-mono text-[10px] text-white/35"
+            placeholder="clearbit domain…"
+          />
+        )}
+      </div>
+    );
+  }
+
+  /** Stateful logo component that shows clearbit image or initials fallback. */
+  function BrandLogo({ domain, name, cardKey }: { domain: string; name: string; cardKey: string }) {
+    const [err, setErr] = useState(false);
+    const handleErr = useCallback(() => setErr(true), []);
+    if (err || !domain) {
+      return (
+        <div
+          className={`grid h-14 w-14 place-items-center rounded-xl ${badgeColor(cardKey)} text-xl font-extrabold text-white shadow-inner`}
+        >
+          {initialEmoji(name)}
+        </div>
+      );
+    }
+    return (
+      <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-xl bg-white p-1">
+        <img
+          src={logoUrl(domain)}
+          alt={name}
+          className="h-full w-full object-contain"
+          onError={handleErr}
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+
+  function CardGrid({ secId, mode, cards }: { secId: string; mode: "buy4u" | "refund"; cards: Card[] }) {
+    if (cards.length === 0) return null;
+    return (
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+        {cards.map((c) => <BrandCard key={c.key} secId={secId} mode={mode} card={c} />)}
+      </div>
+    );
+  }
+
+  function SearchableGrid({ secId, mode, cards }: { secId: string; mode: "buy4u" | "refund"; cards: Card[] }) {
+    const [q, setQ] = useState("");
+    const filtered = useMemo(() => {
+      const n = q.trim().toLowerCase();
+      if (!n) return cards;
+      return cards.filter((c) => c.name.toLowerCase().includes(n) || c.value.toLowerCase().includes(n));
+    }, [q, cards]);
+    return (
+      <>
+        <div className="mt-4">
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search restaurants & brands…"
+            className="w-full rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60"
+          />
+          <p className="mt-1 text-xs text-white/45">{filtered.length} of {cards.length} brands</p>
+        </div>
+        <CardGrid secId={secId} mode={mode} cards={filtered} />
+      </>
+    );
+  }
+
+  function TabBody({ section, mode }: { section: Section; mode: "buy4u" | "refund" }) {
+    const tab = mode === "buy4u" ? section.buy4u : (section.refund ?? section.buy4u);
+    return (
+      <div>
+        <EditableText
+          id={`buy4u.${section.id}.${mode}.intro`}
+          defaultValue={tab.intro}
+          as="p"
+          multiline
+          className="text-base leading-relaxed text-white/85"
+        />
+        {tab.disclaimer && (
+          <div className="mt-3 rounded-xl border border-amber-300/30 bg-amber-400/[0.06] px-4 py-3">
+            <EditableText
+              id={`buy4u.${section.id}.${mode}.disclaimer`}
+              defaultValue={tab.disclaimer}
+              as="p"
+              multiline
+              className="text-sm text-amber-100"
+            />
+          </div>
+        )}
+        {tab.withSearch
+          ? <SearchableGrid secId={section.id} mode={mode} cards={tab.cards} />
+          : <CardGrid secId={section.id} mode={mode} cards={tab.cards} />}
+      </div>
+    );
+  }
+
+  function SectionBlock({ section }: { section: Section }) {
+    const [mode, setMode] = useState<"buy4u" | "refund">("buy4u");
+    return (
+      <section
+        id={`buy4u-${section.id}`}
+        className="scroll-mt-24 rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8"
+      >
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl" aria-hidden="true">{section.icon}</span>
+            <h2 className="heading-display text-2xl font-bold uppercase tracking-tight text-white">
+              <EditableText id={`buy4u.${section.id}.label`} defaultValue={section.label} />
+            </h2>
+          </div>
+          {section.hasRefund && section.refund && (
+            <div className="inline-flex rounded-full border border-white/10 bg-ink-900 p-1">
+              {(["buy4u","refund"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition ${
+                    mode === m
+                      ? "bg-amber-400 text-ink-950 shadow-[0_0_18px_-4px_rgba(245,185,69,0.6)]"
+                      : "text-white/65 hover:text-white"
+                  }`}
+                >
+                  {m === "buy4u" ? "BUY4U" : "REFUND"}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <TabBody section={section} mode={section.hasRefund ? mode : "buy4u"} />
+      </section>
+    );
+  }
+
+  
      so admin can rename them. Filter UI is fully functional client-side. */
   const SPAWNGC_CATEGORIES = ["Food And Restaurants", "Gas Stations", "Retail", "Groceries", "Entertainment"];
   const SPAWNGC_AVAILABILITY = ["In Stock", "Best Selling", "Instant Delivery", "PIN", "PDF", "Pass2U", "Online", "In-Store"];
@@ -531,7 +756,6 @@
       </section>
     );
   }
-
   function SectionPillNav() {
     return (
       <nav aria-label="Buy4U sections" className="sticky top-16 z-20 -mx-4 mb-8 overflow-x-auto border-y border-white/10 bg-ink-950/85 px-4 py-3 backdrop-blur-xl">
