@@ -1,6 +1,8 @@
 "use client";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
+import EditableImage from "./EditableImage";
+import { useEditContext } from "@/lib/edit-context";
 
 /**
  * FloatingArt — small inline animated illustration intended to live
@@ -12,6 +14,18 @@ import { useRef } from "react";
  *
  * No backdrop / halo — the image must already be a transparent PNG/WebP
  * so the page galaxy shows through cleanly.
+ *
+ * v6.13.15 — Two upgrades from this revision:
+ *   1. ADMIN: when `editId` is provided, the image is rendered inside
+ *      <EditableImage> so admins can swap it, apply animation
+ *      templates, scale, add/remove space below, and reorder. The
+ *      framer rotate animation is suppressed in admin mode so the
+ *      admin can see the image squarely while editing.
+ *   2. USER: rotate amplitude defaults dropped 3° → 1.2° and bob
+ *      amplitude 18 → 10 px. The user reported the previous values
+ *      read as "distorted illustration" on Evade page. Smaller
+ *      values keep the float life without ever appearing to skew
+ *      the artwork.
  */
 type Props = {
   src: string;
@@ -21,6 +35,8 @@ type Props = {
   bobAmplitude?: number;    // px of vertical bob
   spin?: number;            // degrees of gentle continuous rotation
   className?: string;
+  /** When set, image becomes admin-editable under this content id. */
+  editId?: string;
 };
 
 export default function FloatingArt({
@@ -28,10 +44,13 @@ export default function FloatingArt({
   alt,
   size = 320,
   side = "center",
-  bobAmplitude = 18,
-  spin = 3,
+  bobAmplitude = 10,
+  spin = 1.2,
   className = "",
+  editId,
 }: Props) {
+  const { isAdmin, editMode } = useEditContext();
+  const editing = isAdmin && editMode && Boolean(editId);
   const ref = useRef<HTMLDivElement | null>(null);
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -72,23 +91,45 @@ export default function FloatingArt({
         viewport={{ once: true, amount: 0.2 }}
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
       >
-        <motion.img
-          src={src}
-          alt={alt}
-          loading="eager"
-          decoding="async"
-          className="block w-full h-auto object-contain drop-shadow-[0_24px_50px_rgba(0,0,0,0.55)]"
-          animate={{
-            y: [0, -bobAmplitude, 0, bobAmplitude * 0.6, 0],
-            rotate: [0, spin, 0, -spin, 0],
-          }}
-          transition={{
-            duration: 7,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-          suppressHydrationWarning
-        />
+        {editing && editId ? (
+          /* In admin edit-mode we render the EditableImage directly
+             so the click-to-edit popover works. The ambient bob/
+             rotate is suppressed in this mode so the admin can
+             see the artwork squarely while changing settings. */
+          <EditableImage
+            id={editId}
+            defaultSrc={src}
+            alt={alt}
+            wrapperClassName="block w-full"
+            className="block w-full h-auto object-contain drop-shadow-[0_18px_36px_rgba(0,0,0,0.45)]"
+          />
+        ) : (
+          <motion.img
+            src={src}
+            alt={alt}
+            loading="eager"
+            decoding="async"
+            /* v6.13.15 — softened drop-shadow (was 24/50/0.55).
+               The thicker shadow combined with the rotation
+               keyframes was reading as "distorted illustration"
+               on the Evade page: as the image rotated ±3°, the
+               heavy shadow swept along with it and the eye saw
+               the artwork shearing. Smaller shadow + smaller
+               rotation (now ±1.2°) restores a clean float. */
+            className="block w-full h-auto object-contain drop-shadow-[0_18px_36px_rgba(0,0,0,0.45)]"
+            data-editable-id={editId}
+            animate={{
+              y: [0, -bobAmplitude, 0, bobAmplitude * 0.6, 0],
+              rotate: [0, spin, 0, -spin, 0],
+            }}
+            transition={{
+              duration: 7,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            suppressHydrationWarning
+          />
+        )}
       </motion.div>
     </div>
   );
