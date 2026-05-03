@@ -37,7 +37,22 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // complete event (with a 2.4s fallback for routes that don't
   // mount LoadingScreen) before the headline is told to play.
   // ──────────────────────────────────────────────────────────────────
-  const [welcomeReady, setWelcomeReady] = useState(false);
+  /* v6.13.12 — Default to TRUE.
+     Previously defaulted to `false` and waited for the
+     `refgd:loading-complete` event fired by <LoadingScreen> when
+     the splash lifted. <LoadingScreen> was removed in v6.13.10 per
+     user request, so that event NEVER fires any more — the only
+     thing that flipped this flag was the 6-s safety timeout in the
+     useEffect below. That meant on every fresh paint of the home
+     page (including back-nav from another route) the planet, halo,
+     warp streaks AND welcome headline were ALL stuck at opacity:0
+     for six full seconds, leaving the user staring at a blank
+     space until they scrolled back to top and the safety timer
+     finally tripped — exactly the report ("planet and text is
+     blank screen unless I scroll back up"). Defaulting to `true`
+     plays the entrance immediately on mount, which is what users
+     always saw before LoadingScreen was added. */
+  const [welcomeReady, setWelcomeReady] = useState(true);
 
   // Refs for direct DOM mutation during scroll
   const sectionRef      = useRef<HTMLElement>(null);
