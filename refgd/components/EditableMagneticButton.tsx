@@ -106,8 +106,12 @@ export default function EditableMagneticButton({
   };
 
   // Portal popover position — below the button, viewport-clamped.
-  const POP_W = 320;
+  // v6.13.49 — Width now responsive to the viewport so the URL
+  // editor never overflows on small phones. min(320, vw-32) keeps
+  // a 16 px gutter on each side; below ~352 px viewport (very rare)
+  // the popover collapses to fit instead of clipping off-screen.
   const vw = typeof window !== "undefined" ? window.innerWidth : 1024;
+  const POP_W = Math.min(320, Math.max(220, vw - 32));
   const popLeft = anchorRect
     ? Math.max(8, Math.min(anchorRect.left, vw - POP_W - 8))
     : 0;
