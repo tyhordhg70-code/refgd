@@ -9,7 +9,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useInView, useReducedMotion } from "framer-motion";
 import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
@@ -420,22 +420,25 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
     activePointerId.current = null;
   };
 
-  // v6.13.18 — REVERSED the active-only animation gate. User
-  // reported "bring back the actual path card illustration
-  // animation": the previous `animated: i === active` froze the
-  // illustrations on every back-face of the prism, so as the
-  // user looked at the carousel they saw 4 static cards and only
-  // the one currently facing forward animated. The original
-  // perf rationale (5×N infinite animations) is acceptable here
-  // — PathIllustration is mostly compositor-only transforms +
-  // SVG keyframes, so the GPU can absorb it. If lag returns we
-  // can add a IO-based pause (animate only when the prism is
-  // in the viewport) instead of an active-only gate.
+  // v6.13.19 — IntersectionObserver-based animation pause.
+  // All 5 prism faces animate when the carousel is in view (so
+  // every card breathes simultaneously, fixing the "frozen
+  // back-faces" report from v6.13.18). When the prism scrolls
+  // OUT of view we pause every card's animations so the GPU
+  // doesn't burn cycles on offscreen keyframes (the perf
+  // rationale that originally motivated the active-only gate).
+  // This gives the best of both: full visual richness when
+  // visible, zero cost when not. Margin is symmetric ±10 % so
+  // the carousel starts/stops one short scroll before/after it
+  // hits the viewport edges.
+  const prismInView = useInView(stageRef, {
+    margin: "-10% 0px -10% 0px",
+  });
   const renderCard = (card: ReactNode, i: number) => {
     if (!isValidElement(card)) return card;
     return cloneElement(
       card as ReactElement<{ noReveal?: boolean; animated?: boolean }>,
-      { noReveal: true, animated: true },
+      { noReveal: true, animated: prismInView },
     );
   };
 
