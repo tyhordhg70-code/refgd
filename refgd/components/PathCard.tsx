@@ -171,21 +171,18 @@ export default function PathCard({
         className="group relative h-full"
         data-cursor="hover"
         data-cursor-label={title}
-        // v6.13.1: floatSlow restored on mobile. The user reported
-        // "floating animation gone on mobile". The mobile prism
-        // face wrapper has its own `rotateY · translateZ` for the
-        // 3D position, but the card content lives inside the face
-        // — animating its translateY here doesn't affect the prism
-        // geometry. The face has solid bg + overflow:hidden so a
-        // 14 px lift breathes within the face without exposing the
-        // prism backstage. Each card's delay is staggered by index
-        // so neighbouring cards float out of phase.
+        // v6.13.7 — Float restored as a *non-translating* breathing
+        // pulse. Earlier attempts (floatSlow 14 px, floatSlowMobile
+        // 5 px) both used translateY inside a prism face whose
+        // overflow:hidden clips any vertical movement at the chip
+        // and bottom-title edges. floatBreathe replaces the
+        // translation with scale 1 → 1.035 + rotateZ 0.35° so the
+        // card visibly "breathes" but its centre never moves —
+        // physically impossible to clip the face. Stagger via
+        // floatDelay keeps neighbouring cards out of phase.
         style={{
-          // v6.13.3: floatSlowMobile (5 px lift) instead of floatSlow
-          // (14 px lift). The prism face has overflow:hidden, so the
-          // 14 px desktop amplitude was clipping the chip + top of
-          // the illustration each cycle.
-          animation: `floatSlowMobile ${floatDuration} ease-in-out ${floatDelay} infinite`,
+          animation: `floatBreathe ${floatDuration} ease-in-out ${floatDelay} infinite`,
+          transformOrigin: "center center",
           willChange: "transform",
         }}
       >
