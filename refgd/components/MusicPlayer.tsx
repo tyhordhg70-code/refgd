@@ -248,9 +248,20 @@ export default function MusicPlayer() {
     };
     a.addEventListener("canplay", onCanPlay, { once: true });
 
-    // Re-attempt muted autoplay if the tab regains focus.
+    // Re-attempt autoplay if the tab regains focus — but ONLY if the
+    // user has not muted. v6.13.37 fix: previously this called .play()
+    // unconditionally, which (combined with `a.muted` already being
+    // `false` from a successful unmuted bootstrap) caused audio to
+    // resume after a tab switch even though the user had since
+    // toggled mute. Now we hard-respect `mutedRef.current`.
     const onVisible = () => {
       if (cancelled) return;
+      if (mutedRef.current) {
+        // Defensive: make sure the element itself is muted so a stray
+        // .play() from anywhere can never produce audible sound.
+        a.muted = true;
+        return;
+      }
       if (a.paused) {
         const p = a.play();
         if (p) p.catch(() => {});
@@ -293,6 +304,11 @@ export default function MusicPlayer() {
     try { localStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch {}
 
     if (muted) {
+      // v6.13.37 — set element-level muted IMMEDIATELY so any stray
+      // play() (visibilitychange, canplay, dim handler, autoplay
+      // attribute) can never produce audible sound while the user
+      // wants silence. The fade + pause still runs on top of that.
+      a.muted = true;
       fadeVolumeTo(0, 350, () => { try { a.pause(); } catch {} });
     } else {
       a.muted = false;
@@ -312,9 +328,14 @@ export default function MusicPlayer() {
       if (!a) return;
       const detail = (e as CustomEvent).detail || {};
       const dim = !!detail.dim;
+      // v6.13.37 — never raise the volume floor while muted. The
+      // dim path used to unconditionally fade to 0.08, which made
+      // muted music audibly bleed through whenever a YouTube theater
+      // opened. Skip the dim entirely if user is muted.
+      if (mutedRef.current) return;
       if (dim) {
         fadeVolumeTo(0.08, 500);
-      } else if (!mutedRef.current) {
+      } else {
         fadeVolumeTo(TARGET_VOLUME, 700);
       }
     };
@@ -330,6 +351,14 @@ export default function MusicPlayer() {
           src={track.src}
           loop
           autoPlay
+          // v6.13.37 — ALWAYS render with `muted` at the HTML level.
+          // Browsers (Chrome with MEI, Safari on a return visit) will
+          // happily honour HTML autoplay UNMUTED if no muted attr is
+          // present — which fired BEFORE our bootstrap effect could
+          // read the user's persisted mute pref and turn the volume
+          // down. The bootstrap effect explicitly sets `a.muted=false`
+          // when (and only when) it is allowed to start unmuted.
+          muted
           preload="auto"
           aria-label={`Background music — ${track.label}`}
         />
