@@ -76,9 +76,19 @@ export default function ChipScroll({
   // React state mirrored from scrollYProgress through
   // useMotionValueEvent. State starts at 0 and only ever advances
   // when a real scroll event fires — bulletproof.
-  const captionOpacity = useTransform(scrollYProgress, [0.0, 0.04, 0.92, 1.0], [0, 1, 1, 0]);
+  // v6.13.2: caption + scroll prompt VISIBLE FROM PAGE LOAD.
+  // Previously both started at opacity 0 and ramped up only after
+  // the user scrolled — combined with the canvas (which is also
+  // hidden at p=0 by design) this produced a totally blank
+  // 180 svh hero on first load. The user reported this as
+  // "evade page being blank on first load". Caption + scroll
+  // hint now read at full opacity from the very first frame so
+  // the hero is never empty; canvas still blooms in only after
+  // the user scrolls (preserving the original "scrollytelling
+  // unmasks the scene" intent).
+  const captionOpacity = useTransform(scrollYProgress, [0.0, 0.92, 1.0], [1, 1, 0]);
   const captionY       = useTransform(scrollYProgress, [0.0, 1.0], [0, -24]);
-  const scrollPromptOpacity = useTransform(scrollYProgress, [0.0, 0.02, 0.1], [0, 1, 0]);
+  const scrollPromptOpacity = useTransform(scrollYProgress, [0.0, 0.08, 0.18], [1, 1, 0]);
 
   // hasUserScrolled — guarantees the canvas stays invisible until the
   // visitor actually scrolls. Defends against any framer-motion
