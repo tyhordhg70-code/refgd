@@ -2,6 +2,9 @@ import Link from "next/link";
 import { Reveal, Orb } from "@/components/Reveal";
 import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
 
+/* v6.13.50 — Opt out of static prerendering so admin edits go live. */
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Top-tier Methods — RefundGod",
   description: "Top-tier refunding & SE methods. Talk to us on Telegram for the latest list.",
