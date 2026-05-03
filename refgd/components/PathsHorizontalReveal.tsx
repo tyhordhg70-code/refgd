@@ -517,6 +517,17 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
                 background: "rgb(8,8,16)",
                 borderRadius: 18,
                 overflow: "hidden",
+                // v6.13.8 — 8 px of internal padding so the
+                // floatBreathe (scale 1 → 1.02) inside PathCard has
+                // real headroom to grow into. Without this padding
+                // the card filled the face exactly and any scale
+                // pushed the chip past the face's overflow:hidden
+                // top edge. With 8 px headroom, a 2 % grow on a
+                // ~432 px card adds ~4.3 px each side — comfortably
+                // inside the padding. The padding sits on the solid
+                // dark backstop so it's visually invisible against
+                // the page background.
+                padding: 8,
                 // Only the active face accepts pointer/touch — the
                 // others are visually hidden behind the prism.
                 pointerEvents: i === active ? "auto" : "none",
