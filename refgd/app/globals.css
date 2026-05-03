@@ -3,6 +3,9 @@
 @tailwind utilities;
 
 /* Swiper carousel + 3D cube effect (used by mobile path-card carousel). */
+@import "swiper/css";
+@import "swiper/css/pagination";
+
 /* Override Swiper pagination bullets to match the page palette. */
 .swiper-pagination-bullet {
   background: rgba(255, 255, 255, 0.35) !important;
@@ -292,6 +295,15 @@
 @keyframes floatSlow {
   0%, 100% { transform: translateY(0)    rotate(0deg);  }
   50%      { transform: translateY(-14px) rotate(0.5deg); }
+}
+/* v6.13.3: mobile-only smaller-amplitude float for the prism cards.
+   The mobile prism face wraps each card with overflow:hidden, so the
+   desktop ~14 px lift was clipping the chip + top of the illustration
+   each cycle (user reported "cards slightly cut off during floating").
+   A 5 px lift breathes visibly without ever touching the face edge. */
+@keyframes floatSlowMobile {
+  0%, 100% { transform: translateY(0)   rotate(0deg);  }
+  50%      { transform: translateY(-5px) rotate(0.25deg); }
 }
 @keyframes pulseGlow {
   0%, 100% { opacity: 0.55; transform: scale(1);    }
