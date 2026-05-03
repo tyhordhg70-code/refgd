@@ -55,7 +55,15 @@ export default function ChipScroll({
   const framesRef = useRef<HTMLImageElement[]>([]);
   const [loaded, setLoaded] = useState(0);
   const [total, setTotal] = useState(frameCount);
-  const [usingFallback, setUsingFallback] = useState(false);
+  // v6.13.22 — START usingFallback TRUE so the procedural scene
+  // paints from frame 0. Was `false`, which meant on initial
+  // mount we attempted to preload 48 image frames from the
+  // empty `/sequence/evade/` directory; while those 404s came
+  // back, the canvas had no source to draw → blank screen on
+  // page load (the user's report). The frame-load useEffect
+  // below still runs and will keep `usingFallback=true` since
+  // the fallback threshold is exceeded almost immediately.
+  const [usingFallback, setUsingFallback] = useState(true);
 
   // Scroll-driven progress tied to the section's scroll runway. Animation
   // does NOT auto-play on mount — it only advances when the user scrolls
@@ -120,7 +128,17 @@ export default function ChipScroll({
     const next = Math.max(0, Math.min(1, v / 0.04));
     setSceneOpacity(next);
   });
-  const effectiveOpacity = hasUserScrolled ? sceneOpacity : 0;
+  // v6.13.22 — When the procedural fallback is active (frames
+  // missing / 404), bypass the `hasUserScrolled` gate and the
+  // sceneOpacity ramp entirely. The fallback scene IS the
+  // page's hero illustration — keeping it invisible until the
+  // user scrolls left an empty black panel as the FIRST thing
+  // visitors saw on the Evade page (their report: "still blank
+  // illustration on load"). With frames present (real
+  // scrollytelling) the original gate stays active so the
+  // sequence doesn't pre-spoil before scroll. The smooth ramp
+  // is preserved for the frames-present path.
+  const effectiveOpacity = usingFallback ? 1 : (hasUserScrolled ? sceneOpacity : 0);
 
   // ── Preload frames ──────────────────────────────────────────────
   useEffect(() => {
