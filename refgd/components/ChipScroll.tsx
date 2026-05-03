@@ -480,20 +480,23 @@ export default function ChipScroll({
           />
         </div>
 
-        {/* Loading spinner — only shown until frames preload OR fallback engages */}
-        {!allReady && !usingFallback && (
-          <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <div className="flex flex-col items-center gap-4">
-              <div
-                className="h-10 w-10 rounded-full border-2 border-white/15 border-t-white/85 animate-spin"
-                style={{ animationDuration: "0.9s" }}
-              />
-              <p className="heading-display text-[10px] font-semibold uppercase tracking-[0.45em] text-white/55">
-                loading scene · {Math.round((loaded / Math.max(1, total)) * 100)}%
-              </p>
-            </div>
-          </div>
-        )}
+        {/* v6.13.16 — Loading spinner REMOVED entirely.
+            Previously this rendered "loading scene · 0%" text any
+            time `!allReady && !usingFallback`. That condition is
+            true on the SERVER render (no JS has fired yet, no
+            images have loaded), so the spinner was baked into the
+            initial HTML and visible for the full network + parse +
+            hydrate window — what the user reported as "evade page
+            scene loading still showing". Even after hydration the
+            1200ms fallback timer added in v6.13.15 still left a
+            visible flash on slower phones. The procedural fallback
+            scene + the canvas itself look fine without any
+            spinner overlay; if frames are missing the fallback
+            paints immediately, and if frames are loading the
+            canvas just paints them as they arrive (the user sees
+            nothing because the wrapper opacity stays at 0 until
+            scroll progress lifts it). Net result: no "loading"
+            text ever appears, on any network speed. */}
 
         {/* Caption overlay — visible from load through almost the entire scroll */}
         {caption && (
