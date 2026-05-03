@@ -310,9 +310,22 @@
    even at peak scale the chip stays well inside the face
    silhouette (a 3.5 % grow on a 320 px card = 5.6 px each side,
    well within the 18 px corner radius). */
+/* v6.13.8 — refined floatBreathe.
+   v6.13.7 used scale 1.035 + rotate 0.35° but the user reported
+   (a) top still slightly clipped — chip is anchored 5 px from
+       card-top, so when the card scales 3.5 % the chip moves up
+       ~7-8 px relative to the face and crosses the overflow:hidden
+       boundary, AND
+   (b) "scrolling slightly down rotates the card" — the rotateZ
+       keyframe reads as perceived rotation during scroll, which
+       is jarring rather than floaty.
+   Fix: drop the rotation entirely, reduce scale to a gentler 1.02,
+   and pair this keyframe with 8 px of padding inside the prism
+   face wrapper (PathsHorizontalReveal.tsx) so the 2 % grow has
+   real headroom to expand into without ever touching the face edge. */
 @keyframes floatBreathe {
-  0%, 100% { transform: scale(1)     rotate(0deg);    }
-  50%      { transform: scale(1.035) rotate(0.35deg); }
+  0%, 100% { transform: scale(1);    }
+  50%      { transform: scale(1.02); }
 }
 @keyframes pulseGlow {
   0%, 100% { opacity: 0.55; transform: scale(1);    }
