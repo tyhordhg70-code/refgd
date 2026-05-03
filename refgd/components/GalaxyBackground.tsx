@@ -76,14 +76,28 @@ export default function GalaxyBackground() {
         className="absolute inset-0 h-full w-full"
         style={{ mixBlendMode: "screen" }}
       />
-      {/* Static gradients — always visible, cost nothing */}
+      {/* v6.13.6 — Slow pulsating gradient replaces the previous flat
+          ink-950 wash. The old layer was three locked radial gradients
+          on a near-black linear backdrop — visually frozen. Now the
+          stops travel and the whole layer cycles a tiny hue rotate so
+          the page background is continuously alive (~22 s loop) but
+          never busy enough to compete with foreground content. The
+          horizontal-band reports the user kept catching mid-scroll
+          go away too: a flat black bg + a fixed canvas with
+          mix-blend-screen creates a visible seam wherever the canvas
+          ends; an animated colour layer underneath always has tonal
+          variation in the same place so the "line" never reads as
+          discrete. */}
       <div
         className="absolute inset-0"
         style={{
-          background:
-            "radial-gradient(ellipse at 30% 20%, rgba(245,185,69,0.12), transparent 55%)," +
-            "radial-gradient(ellipse at 75% 75%, rgba(167,139,250,0.18), transparent 55%)," +
-            "linear-gradient(180deg, #07060c 0%, #0a0814 50%, #06060c 100%)",
+          backgroundImage:
+            "radial-gradient(ellipse 70% 50% at 30% 20%, rgba(245,185,69,0.16), transparent 55%)," +
+            "radial-gradient(ellipse 80% 60% at 75% 80%, rgba(167,139,250,0.26), transparent 55%)," +
+            "linear-gradient(180deg, #0b0820 0%, #1a0e3a 35%, #0a0820 70%, #07061a 100%)",
+          backgroundSize: "180% 180%, 200% 200%, 100% 280%",
+          animation: "bgPulseSlow 22s ease-in-out infinite",
+          willChange: "background-position, filter",
         }}
       />
       <div
