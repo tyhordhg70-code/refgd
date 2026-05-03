@@ -57,6 +57,22 @@ export default async function AdminDashboard() {
             available.
           </p>
         </Link>
+        {/* v6.13.67 — Direct shortcut to the bulk-import flow so the
+            admin can paste a long store list in one click without
+            having to first open Manage Stores and hunt for the button.
+            Lands on /admin/stores?bulk=1 — StoresAdmin reads that
+            search param and opens the panel automatically. */}
+        <Link
+          href="/admin/stores?bulk=1"
+          className="group rounded-2xl border border-amber-300/30 bg-gradient-to-br from-amber-500/15 to-transparent p-6 transition hover:border-amber-300/60 lg:col-span-2"
+        >
+          <h2 className="heading-display text-xl font-bold text-white">📋 Bulk import stores →</h2>
+          <p className="mt-2 text-sm text-white/65">
+            Paste many stores at once (one per line, or pipe-separated
+            <code className="mx-1 rounded bg-white/10 px-1 text-amber-200">Name | category | domain</code>).
+            Auto-detects category + domain. Imports all rows in one go.
+          </p>
+        </Link>
       </div>
     </div>
   );
