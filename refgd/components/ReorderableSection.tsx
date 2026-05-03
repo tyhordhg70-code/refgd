@@ -1,4 +1,5 @@
 "use client";
+import EditorIsland from "@/components/EditorIsland";
 
 /**
  * Drag-to-reorder wrapper for top-level page sections.
@@ -171,7 +172,7 @@ type SectionProps = {
   className?: string;
 };
 
-export function ReorderableSection({ sectionId, children, className = "" }: SectionProps) {
+function ReorderableSectionInner({ sectionId, children, className = "" }: SectionProps) {
   const ctx = useContext(Ctx);
   const { isAdmin, editMode } = useEditContext();
   const showHandle = isAdmin && editMode && ctx;
@@ -322,5 +323,13 @@ function ReorderHandle({
     >
       ≡ MOVE
     </div>
+  );
+}
+
+export function ReorderableSection(props: SectionProps) {
+  return (
+    <EditorIsland id={props.sectionId}>
+      <ReorderableSectionInner {...props} />
+    </EditorIsland>
   );
 }
