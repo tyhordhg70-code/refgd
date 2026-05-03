@@ -360,14 +360,30 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
     const ax = Math.abs(dx);
     const ay = Math.abs(dy);
     if (decided.current === null) {
-      if (ax + ay < 12) return;
-      if (ay > ax * 1.7 && ay >= 10) {
-        decided.current = "v";
-        startX.current = null;
-        activePointerId.current = null;
+      // Wait for a bigger commit before deciding direction. Tiny
+      // jitter (≤ 16 px combined) is ignored entirely.
+      if (ax + ay < 16) return;
+      // v6.13.1: release to vertical scroll AGGRESSIVELY. Even a
+      // slightly-vertical-dominant gesture should hand off to the
+      // page scroller, otherwise users feel the carousel "grab"
+      // their vertical scrolls and rotate cards. Previously
+      // required ay > 1.7·ax + 10 px — now any vertical-dominant
+      // gesture with ≥ 8 px vertical movement releases.
+      if (ay >= ax) {
+        if (ay >= 8) {
+          decided.current = "v";
+          startX.current = null;
+          activePointerId.current = null;
+        }
         return;
       }
-      decided.current = "h";
+      // Commit to horizontal only when CLEARLY horizontal:
+      //   horizontal must dominate by ≥ 1.5× AND be ≥ 14 px.
+      if (ax >= 14 && ax > ay * 1.5) {
+        decided.current = "h";
+        return;
+      }
+      // Anything else — keep waiting, don't lock.
     }
   };
 
@@ -381,7 +397,11 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
     startX.current = null;
     decided.current = null;
     const w = stageRef.current?.offsetWidth ?? 320;
-    const threshold = Math.min(60, w * 0.25);
+    // v6.13.1: bumped from min(60, 25%w) → min(85, 32%w). The
+    // previous threshold rotated cards on tiny intentional swipes
+    // and even on browser-native overscroll gestures. ~32% width
+    // (~140 px on a 440 px stage) requires a deliberate flick.
+    const threshold = Math.min(85, w * 0.32);
     if (dx <= -threshold) goTo(Math.min(N - 1, active + 1));
     else if (dx >= threshold) goTo(Math.max(0, active - 1));
     if (e && activePointerId.current !== null) {
@@ -429,18 +449,32 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
     <motion.div
       data-testid="paths-mobile-track"
       className="mx-auto"
-      style={{
-        width: "min(92vw, 440px)",
-        // 1:1.42 keeps the cube/prism aspect identical to the
-        // previous version so surrounding layout doesn't shift.
-        aspectRatio: "1 / 1.42",
-        perspective: "1400px",
-      }}
+      style={{ width: "min(92vw, 440px)" }}
       initial={reduced ? false : { opacity: 0, y: 60, scale: 0.88 }}
       whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, amount: 0.25 }}
       transition={{ duration: 0.95, ease: [0.22, 1, 0.36, 1] }}
     >
+      {/*
+        v6.13.1: prism wrapper with overflow:hidden. The user
+        reported "tiny bit of next/previous card visible at the
+        corners". With a regular pentagonal prism, adjacent faces
+        are at 72° to the camera and partially face-forward — so
+        their leading edge pokes past the active face's silhouette
+        at the left/right corners. Clipping the perspective viewport
+        to exactly the front face's footprint (a 2D rect with the
+        same border-radius as the cards) hides those peek edges
+        without breaking the 3D rotation animation. The pagination
+        dots sit OUTSIDE this clipper so they're never clipped.
+      */}
+      <div
+        style={{
+          aspectRatio: "1 / 1.42",
+          perspective: "1400px",
+          overflow: "hidden",
+          borderRadius: 18,
+        }}
+      >
       <div
         ref={stageRef}
         className="relative h-full w-full"
@@ -492,6 +526,7 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
             </div>
           ))}
         </div>
+      </div>
       </div>
 
       {/* Pagination dots — clickable */}
