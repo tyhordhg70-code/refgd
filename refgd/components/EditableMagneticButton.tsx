@@ -1,4 +1,5 @@
 "use client";
+import EditorIsland from "@/components/EditorIsland";
 
 /**
  * EditableMagneticButton — a MagneticButton whose label TEXT and href URL
@@ -44,16 +45,7 @@ const STATIC_VARIANT: Record<Variant, string> = {
     "border border-amber-300/50 bg-transparent text-amber-100",
 };
 
-export default function EditableMagneticButton({
-  labelKey,
-  defaultLabel,
-  urlKey,
-  defaultUrl,
-  external = true,
-  variant = "primary",
-  icon,
-  testId,
-}: {
+type EditableMagneticButtonProps = {
   labelKey: string;
   defaultLabel: string;
   urlKey: string;
@@ -62,7 +54,18 @@ export default function EditableMagneticButton({
   variant?: Variant;
   icon?: ReactNode;
   testId?: string;
-}) {
+};
+
+function EditableMagneticButtonInner({
+  labelKey,
+  defaultLabel,
+  urlKey,
+  defaultUrl,
+  external = true,
+  variant = "primary",
+  icon,
+  testId,
+}: EditableMagneticButtonProps) {
   const { isAdmin, editMode, getValue, setValue } = useEditContext();
   const url = getValue(urlKey, defaultUrl);
   const label = getValue(labelKey, defaultLabel);
@@ -230,5 +233,13 @@ export default function EditableMagneticButton({
         document.body
       )}
     </span>
+  );
+}
+
+export default function EditableMagneticButton(props: EditableMagneticButtonProps) {
+  return (
+    <EditorIsland id={props.labelKey}>
+      <EditableMagneticButtonInner {...props} />
+    </EditorIsland>
   );
 }
