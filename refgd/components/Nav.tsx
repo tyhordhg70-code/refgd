@@ -28,6 +28,8 @@ import { useEditContext } from "@/lib/edit-context";
 const NAV_ITEMS = [
   { href: "/", label: "Home", external: false },
   { href: "/store-list", label: "Store List", external: false },
+    /* v6.13.69 — new "Buy 4 U" service page (we-shop-for-you flow). */
+    { href: "/buy4u", label: "Buy 4 U", external: false },
   { href: "/exclusive-mentorships", label: "Exclusive Mentorships", external: false },
   { href: "/evade-cancelations", label: "Evade Cancelations", external: false },
   { href: "/top-tier-methods", label: "Top-tier Methods", external: false },
