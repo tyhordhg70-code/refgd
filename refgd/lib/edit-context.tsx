@@ -175,6 +175,7 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
   const undo = useCallback(() => {
     if (historyPos <= 0) return;
     const entry = history[historyPos - 1];
+    if (!entry) { setHistoryPos(0); return; }
     setDisplay((m) => ({ ...m, [entry.id]: entry.prev }));
     setPending((q) => {
       const saved = savedRef.current[entry.id] ?? "";
@@ -189,6 +190,7 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
   const redo = useCallback(() => {
     if (historyPos >= history.length) return;
     const entry = history[historyPos];
+    if (!entry) { setHistoryPos(history.length); return; }
     setDisplay((m) => ({ ...m, [entry.id]: entry.next }));
     setPending((q) => {
       const saved = savedRef.current[entry.id] ?? "";
