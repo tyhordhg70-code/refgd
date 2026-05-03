@@ -37,48 +37,88 @@ export default function LedJoySection() {
      bounding rect crosses the viewport — covering the rare case
      where the IntersectionObserver still doesn't fire (back/forward
      restore, low-power mode, etc.). */
-  const inViewIO = useInView(ref, {
-    once: true,
-    amount: 0.05,
-    margin: "200px 0px 200px 0px",
-  });
+  /* v6.13.39 — Bullet-proof play trigger.
+     User reported "still not seeing animation for AHH feel the joy
+     and cash animation is gone". The previous v6.13.36 implementation
+     gated everything on `useInView` + a polling fallback BUT both
+     paths only set `played=true` once. On real iOS Safari with the
+     scroll snap on /store-list, the framer useInView IO callback was
+     occasionally never delivered before the section was already in
+     view (a known Safari issue with composited transforms in scroll-
+     snap containers), and our polling check `r.top - 200 <= vh`
+     required the user to actually scroll into the section's vicinity
+     before firing — fine on desktop, but on iPad / iPhone with the
+     URL bar collapse and momentum scroll the rect can briefly read
+     `top > vh` even after the section is visually showing.
+     This new approach uses THREE independent triggers, any of which
+     flips the play state on:
+       1. Native IntersectionObserver with rootMargin "0px 0px 50% 0px"
+          (so it fires when the top of the section is within 1.5
+          viewports of the bottom of the viewport).
+       2. requestAnimationFrame loop that checks getBoundingClientRect
+          every frame for the first 30 s of the page lifetime — the
+          most expensive option but guaranteed to catch any case the
+          IO misses, and self-disabling after 30 s so it never costs
+          long-running CPU.
+       3. A first-user-scroll listener that flips play on the very
+          first scroll/touchmove, regardless of position. The visitor
+          ALWAYS scrolls down through this page (it's beneath the
+          cashback hero), so this guarantees the letters animate even
+          on the most degenerate Safari case. */
   const [played, setPlayed] = useState(false);
   useEffect(() => {
-    if (inViewIO) {
-      setPlayed(true);
-      return;
-    }
-    if (reduce) {
-      setPlayed(true);
-      return;
-    }
+    if (reduce) { setPlayed(true); return; }
+
     let cancelled = false;
-    const poll = () => {
-      if (cancelled || played) return;
-      const el = ref.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const vh = window.innerHeight || 0;
-      // Fire if the section's top edge is within 200px below the
-      // viewport bottom, OR any part of it is above the viewport
-      // bottom and below the top.
-      if (r.top - 200 <= vh && r.bottom >= 0) {
-        setPlayed(true);
+    const fire = () => { if (!cancelled) setPlayed(true); };
+
+    // 1. IntersectionObserver
+    const el = ref.current;
+    let io: IntersectionObserver | null = null;
+    if (el && "IntersectionObserver" in window) {
+      io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (e.isIntersecting || e.intersectionRatio > 0) { fire(); break; }
+          }
+        },
+        { rootMargin: "0px 0px 50% 0px", threshold: [0, 0.01, 0.05] },
+      );
+      io.observe(el);
+    }
+
+    // 2. rAF poll (max 30 s)
+    const start = performance.now();
+    let rafId = 0;
+    const tick = () => {
+      if (cancelled) return;
+      const node = ref.current;
+      if (node) {
+        const r = node.getBoundingClientRect();
+        const vh = window.innerHeight || 0;
+        if (r.top < vh * 1.4 && r.bottom > -vh * 0.4) { fire(); return; }
+      }
+      if (performance.now() - start < 30000) {
+        rafId = requestAnimationFrame(tick);
       }
     };
-    window.addEventListener("scroll", poll, { passive: true });
-    window.addEventListener("touchmove", poll, { passive: true });
-    window.addEventListener("resize", poll);
-    const id = window.setInterval(poll, 600);
-    poll();
+    rafId = requestAnimationFrame(tick);
+
+    // 3. First scroll/touch — guaranteed safety net.
+    const onAnyScroll = () => fire();
+    window.addEventListener("scroll", onAnyScroll, { passive: true, once: true });
+    window.addEventListener("touchmove", onAnyScroll, { passive: true, once: true });
+    window.addEventListener("wheel", onAnyScroll, { passive: true, once: true });
+
     return () => {
       cancelled = true;
-      window.removeEventListener("scroll", poll);
-      window.removeEventListener("touchmove", poll);
-      window.removeEventListener("resize", poll);
-      window.clearInterval(id);
+      io?.disconnect();
+      cancelAnimationFrame(rafId);
+      window.removeEventListener("scroll", onAnyScroll);
+      window.removeEventListener("touchmove", onAnyScroll);
+      window.removeEventListener("wheel", onAnyScroll);
     };
-  }, [inViewIO, played, reduce]);
+  }, [reduce]);
   const play = played;
   // v6.13.19 — REPLACED `useInView` + state-driven `animate={inView ? ... : undefined}`
   // with framer's `whileInView` API on each <motion.span> below.
@@ -132,9 +172,15 @@ export default function LedJoySection() {
             first 12% of the cycle, ride down to translateY ~150%
             and fade out. No more entering from above with a sliced
             top half. */}
+      {/* v6.13.39 — Cash bills are now visible on EVERY viewport, not
+          just `md:hidden`. The user reported the cash animation was
+          "gone" on desktop too; the previous `md:hidden` gate was a
+          v6.13.33 mobile-only flourish that hid the bills entirely on
+          tablets and laptops. Removing the gate restores the full
+          beat for every visitor. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 -bottom-[60vh] top-[42%] z-0 md:hidden"
+        className="pointer-events-none absolute inset-x-0 -bottom-[60vh] top-[42%] z-0"
       >
         <style>{`
           @keyframes ledCashFall {
