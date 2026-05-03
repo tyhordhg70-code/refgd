@@ -171,14 +171,19 @@ export default function PathCard({
         className="group relative h-full"
         data-cursor="hover"
         data-cursor-label={title}
-        // Static 3D pose. The carousel sets `perspective: 1400px`
-        // on the section, so this rotateX gives the card real
-        // depth — it leans back ~6° as if standing on a stage.
-        // No animation: pose is identical at every scroll
-        // position, so iOS never has to interpolate transform
-        // values mid-swipe and the result is a solid 3D look
-        // with zero per-frame cost.
-        style={{ transform: "translateZ(0)" }}
+        // v6.13.1: floatSlow restored on mobile. The user reported
+        // "floating animation gone on mobile". The mobile prism
+        // face wrapper has its own `rotateY · translateZ` for the
+        // 3D position, but the card content lives inside the face
+        // — animating its translateY here doesn't affect the prism
+        // geometry. The face has solid bg + overflow:hidden so a
+        // 14 px lift breathes within the face without exposing the
+        // prism backstage. Each card's delay is staggered by index
+        // so neighbouring cards float out of phase.
+        style={{
+          animation: `floatSlow ${floatDuration} ease-in-out ${floatDelay} infinite`,
+          willChange: "transform",
+        }}
       >
         <Tag
           {...linkProps}
