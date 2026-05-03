@@ -168,7 +168,7 @@ export default function EditableLink({
       {editing && popOpen && (
         <div
           ref={popRef}
-          className="absolute left-0 top-full z-[85] mt-2 w-72 rounded-xl border border-white/15 bg-ink-900/95 p-3 text-xs shadow-2xl backdrop-blur-xl"
+          className="absolute left-0 top-full z-[1000] mt-2 w-72 rounded-xl border border-white/15 bg-ink-900/98 p-3 text-xs shadow-2xl backdrop-blur-xl"
         >
           <div className="mb-1 text-[10px] uppercase tracking-widest text-white/45">
             URL · {idHref}
