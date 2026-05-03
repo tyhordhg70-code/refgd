@@ -9,7 +9,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
@@ -420,25 +420,24 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
     activePointerId.current = null;
   };
 
-  // v6.13.19 — IntersectionObserver-based animation pause.
-  // All 5 prism faces animate when the carousel is in view (so
-  // every card breathes simultaneously, fixing the "frozen
-  // back-faces" report from v6.13.18). When the prism scrolls
-  // OUT of view we pause every card's animations so the GPU
-  // doesn't burn cycles on offscreen keyframes (the perf
-  // rationale that originally motivated the active-only gate).
-  // This gives the best of both: full visual richness when
-  // visible, zero cost when not. Margin is symmetric ±10 % so
-  // the carousel starts/stops one short scroll before/after it
-  // hits the viewport edges.
-  const prismInView = useInView(stageRef, {
-    margin: "-10% 0px -10% 0px",
-  });
+  // v6.13.21 — REVERTED the IO-based pause from v6.13.19. User
+  // reported "path cards flicker" — root cause: as the user
+  // scrolled past the prism, `prismInView` toggled
+  // true→false→true with the IntersectionObserver margin, and
+  // every toggle re-rendered all 5 cards with a different
+  // `animated` value. Inside PathIllustration that prop drives
+  // `<MotionConfig reducedMotion={freeze ? "always" : "user"}>`,
+  // and flipping `reducedMotion` makes framer-motion restart
+  // every active animation from frame 0 — visible as a flicker
+  // on the prism. Going back to always-on `animated: true`,
+  // which is the v6.13.18 behaviour the user originally
+  // approved. The 5×N infinite animations are absorbed by the
+  // GPU compositor and have not produced a real perf complaint.
   const renderCard = (card: ReactNode, i: number) => {
     if (!isValidElement(card)) return card;
     return cloneElement(
       card as ReactElement<{ noReveal?: boolean; animated?: boolean }>,
-      { noReveal: true, animated: prismInView },
+      { noReveal: true, animated: true },
     );
   };
 
