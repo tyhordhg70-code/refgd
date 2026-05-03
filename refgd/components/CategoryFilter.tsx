@@ -51,6 +51,66 @@ export default function CategoryFilter({
   const [adding, setAdding] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // v6.13.37 — drag-rearrange state. `dragId` is the category being
+  // dragged; `localOrder` mirrors `options` but is mutated on drop so
+  // the visual order updates immediately even before the server
+  // round-trip finishes.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [localOrder, setLocalOrder] = useState<string[]>(options);
+  const [savingOrder, setSavingOrder] = useState(false);
+
+  // Keep the local copy in sync whenever the parent feeds us a new
+  // option list (e.g. after add/remove or initial fetch).
+  useEffect(() => { setLocalOrder(options); }, [options]);
+
+  async function persistOrder(next: string[]) {
+    setSavingOrder(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/admin/categories/order", {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ order: next }),
+      });
+      if (!res.ok) {
+        let detail = "";
+        try { detail = (await res.clone().json())?.error || ""; } catch {}
+        throw new Error(detail || `HTTP ${res.status}`);
+      }
+      const j = await res.json();
+      // Push the canonical merged order back up so /store-list
+      // re-renders its category sections in the new sequence.
+      onCategoriesUpdated({
+        categories: j.categories ?? next,
+        extras: j.extras ?? [],
+        canned: j.canned ?? [],
+      });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Couldn't save order.");
+    } finally {
+      setSavingOrder(false);
+    }
+  }
+
+  function onDropOnto(targetCat: string) {
+    if (!dragId || dragId === targetCat) {
+      setDragId(null);
+      return;
+    }
+    const next = [...localOrder];
+    const from = next.indexOf(dragId);
+    const to = next.indexOf(targetCat);
+    if (from < 0 || to < 0) {
+      setDragId(null);
+      return;
+    }
+    next.splice(from, 1);
+    next.splice(to, 0, dragId);
+    setLocalOrder(next);
+    setDragId(null);
+    void persistOrder(next);
+  }
   const wrapRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -234,19 +294,37 @@ export default function CategoryFilter({
             </button>
           </div>
 
+          {isAdmin && editMode && (
+            <p className="mb-1 px-2 text-[10px] uppercase tracking-widest text-amber-300/70">
+              Drag the ⋮⋮ handle to reorder {savingOrder ? "· saving…" : ""}
+            </p>
+          )}
           <div className="max-h-[340px] overflow-y-auto pr-1">
-            {options.length === 0 ? (
+            {localOrder.length === 0 ? (
               <p className="px-2 py-3 text-xs text-white/50">
                 No categories yet.
               </p>
             ) : (
               <ul className="space-y-0.5">
-                {options.map((cat) => {
+                {localOrder.map((cat) => {
                   const on = selected.has(cat);
                   const canRemove =
                     isAdmin && editMode && removable.has(cat);
+                  const draggable = isAdmin && editMode;
                   return (
-                    <li key={cat}>
+                    <li
+                      key={cat}
+                      draggable={draggable}
+                      onDragStart={() => draggable && setDragId(cat)}
+                      onDragOver={(e) => draggable && e.preventDefault()}
+                      onDrop={() => draggable && onDropOnto(cat)}
+                      onDragEnd={() => setDragId(null)}
+                      className={
+                        draggable && dragId === cat
+                          ? "opacity-50"
+                          : ""
+                      }
+                    >
                       <div
                         className={`group/item flex items-center gap-2 rounded-lg px-2 py-2 transition ${
                           on
@@ -254,6 +332,15 @@ export default function CategoryFilter({
                             : "hover:bg-white/5"
                         }`}
                       >
+                        {draggable && (
+                          <span
+                            title="Drag to reorder"
+                            aria-hidden
+                            className="cursor-grab select-none px-1 text-amber-300/70 hover:text-amber-200 active:cursor-grabbing"
+                          >
+                            ⋮⋮
+                          </span>
+                        )}
                         <label className="flex flex-1 cursor-pointer items-center gap-3">
                           <span
                             className={`flex h-4 w-4 flex-none items-center justify-center rounded border transition ${
