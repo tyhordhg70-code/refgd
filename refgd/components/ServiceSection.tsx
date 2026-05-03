@@ -20,46 +20,95 @@ import SecureLockCenterpiece from "./SecureLockCenterpiece";
  */
 function WastingTimeIllustration({ size }: { size: number }) {
   const reduce = useReducedMotion();
-  // v6.13.6 — Cinematic 3D entrance: the figure now sweeps in from
-  // a tilted plane behind the page (translateZ -120 + rotateY -22°)
-  // with a chromatic-aberration bloom that resolves to a clean
-  // drop-shadow at settle. Implemented as a CSS keyframe
-  // (`wastingTimeCine` in globals.css) so it runs on the GPU and
-  // doesn't fight the inner bob animation. The previous opacity +
-  // scale + y entrance the user called "boring" is replaced wholesale.
+  /* v6.13.12 — User asked for a 3D animation on the image. Rebuilt:
+       1. Cinematic entrance still runs (`wastingTimeCine`), then…
+       2. After 1.6 s settle, THREE looping GPU-only ambient layers
+          take over (defined in globals.css):
+            • wt3DFloat   — perspective rotateY/X parallax sway
+            • wtGlowPulse — colour-cycling halo BEHIND the figure
+            • wtShimmer   — drop-shadow + brightness sweep (rim light)
+       The previous flat `y: [0, -10, 0]` framer-motion bob is
+       gone — the new motion reads as actual 3D presence rather
+       than a simple vertical bounce. */
   return (
-    <motion.div
-      initial={false}
+    <div
       style={{
         width: size,
         height: size,
         position: "relative",
-        perspective: 1200,
-        animation: reduce
-          ? undefined
-          : "wastingTimeCine 1.5s cubic-bezier(0.16, 1, 0.3, 1) both",
+        perspective: 1400,
+        transformStyle: "preserve-3d",
       }}
     >
-      <motion.img
-        src="/uploads/wasting-time-phone.png"
-        alt="Shopper leaping toward a phone with a credit card — saving time and money."
-        loading="lazy"
-        decoding="async"
-        animate={reduce ? undefined : { y: [0, -10, 0] }}
-        transition={{
-          duration: 3.6,
-          repeat: Infinity,
-          ease: "easeInOut",
-          // Defer the bob until after the cinematic entrance lands
-          delay: 1.6,
-        }}
+      {/* (2) Glow halo BEHIND the figure — colour-breath cycle */}
+      {!reduce && (
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            width: "120%",
+            height: "120%",
+            pointerEvents: "none",
+            filter: "blur(28px)",
+            mixBlendMode: "screen",
+            zIndex: 0,
+            animation: "wtGlowPulse 5s ease-in-out infinite",
+            // animation-delay lets it ramp up after the cinematic
+            // entrance lands instead of fighting the bloom in.
+            animationDelay: "1.4s",
+            willChange: "transform, opacity, background",
+          }}
+        />
+      )}
+
+      {/* (1) 3D float wrapper — owns the rotateY/X/translateZ parallax. */}
+      <div
         style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "contain",
+          position: "absolute",
+          inset: 0,
+          zIndex: 1,
+          transformStyle: "preserve-3d",
+          animation: reduce
+            ? undefined
+            : "wt3DFloat 7s ease-in-out infinite",
+          animationDelay: "1.6s",
+          willChange: "transform",
         }}
-      />
-    </motion.div>
+      >
+        {/* Cinematic ENTRANCE keyframe runs once on this layer so it
+            can compose with the float wrapper's transform without
+            clobbering it. */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            animation: reduce
+              ? undefined
+              : "wastingTimeCine 1.5s cubic-bezier(0.16, 1, 0.3, 1) both",
+          }}
+        >
+          <img
+            src="/uploads/wasting-time-phone.png"
+            alt="Shopper leaping toward a phone with a credit card — saving time and money."
+            loading="lazy"
+            decoding="async"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              /* (3) Shimmer / rim-light sweep on the image itself */
+              animation: reduce
+                ? undefined
+                : "wtShimmer 6s ease-in-out infinite",
+              animationDelay: "1.8s",
+              willChange: "filter",
+            }}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
