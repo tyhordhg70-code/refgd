@@ -5,6 +5,7 @@ import KineticText from "./KineticText";
 import GlassCard from "./GlassCard";
 import CinematicCard3D from "./CinematicCard3D";
 import MagneticButton from "./MagneticButton";
+import EditableMagneticButton from "./EditableMagneticButton";
 import InteractiveParticles from "./InteractiveParticles";
 import ParallaxIllustration from "./ParallaxIllustration";
 import CashbackScene from "./CashbackScene";
@@ -427,10 +428,27 @@ export default function ServiceSection(
                 className=""
               >
                 <div className="relative overflow-hidden p-8 sm:p-10">
+                  {/* v6.13.48 — Step illustrations were rendered with
+                      `mixBlendMode: "screen"` which is supposed to make
+                      black pixels transparent. Step 1's source webp
+                      apparently has a slightly-off-black background
+                      (not pure #000), so screen still composited a
+                      visible dark blob over the top-right of the card
+                      — the user reported this as "step1 box has some
+                      black overlay on top of it". `lighten` is more
+                      aggressive: it keeps each pixel's MAX(card, image)
+                      per channel, so any pixel darker than the card
+                      surface is fully suppressed regardless of how
+                      close-to-pure-black it is. The amber/violet card
+                      surfaces are darker than the illustration's
+                      coloured strokes, so the visible art still reads
+                      cleanly while the dark backdrop fully drops out.
+                      Plus a slight contrast/brightness lift so the
+                      remaining strokes pop. */}
                   <div className="pointer-events-none absolute -right-4 -top-4 h-[170px] w-[170px]">
-                    {s.n === "01" && <img src="/images/step-place-order.webp" alt="" loading="eager" decoding="async" className="h-full w-full object-contain" style={{ mixBlendMode:"screen", opacity:0.85 }} />}
-                    {s.n === "02" && <img src="/images/step-submit-order.webp" alt="" loading="eager" decoding="async" className="h-full w-full object-contain" style={{ mixBlendMode:"screen", opacity:0.85 }} />}
-                    {s.n === "03" && <img src="/images/step-enjoy-order.webp" alt="" loading="eager" decoding="async" className="h-full w-full object-contain" style={{ mixBlendMode:"screen", opacity:0.85 }} />}
+                    {s.n === "01" && <img src="/images/step-place-order.webp" alt="" loading="eager" decoding="async" className="h-full w-full object-contain" style={{ mixBlendMode:"lighten", opacity:0.9, filter:"contrast(1.15) brightness(1.05)" }} />}
+                    {s.n === "02" && <img src="/images/step-submit-order.webp" alt="" loading="eager" decoding="async" className="h-full w-full object-contain" style={{ mixBlendMode:"lighten", opacity:0.9, filter:"contrast(1.15) brightness(1.05)" }} />}
+                    {s.n === "03" && <img src="/images/step-enjoy-order.webp" alt="" loading="eager" decoding="async" className="h-full w-full object-contain" style={{ mixBlendMode:"lighten", opacity:0.9, filter:"contrast(1.15) brightness(1.05)" }} />}
                   </div>
                   <div className="relative">
                     <div className="heading-display text-aurora text-[7rem] font-bold leading-none tracking-tighter opacity-30">
@@ -604,22 +622,41 @@ export default function ServiceSection(
                 style={{ textShadow: "0 1px 10px rgba(0,0,0,0.7)" }}
               />
               <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-                <MagneticButton href="#region" variant="primary">
-                  Browse the store list
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <path d="M12 5v14M19 12l-7 7-7-7" />
-                  </svg>
-                </MagneticButton>
-                <MagneticButton
-                  href="https://cryptpad.fr/form/#/2/form/view/8G2YtzZK21kTYT4Hib0yja1VVoh2Q+3dPhBMKQtH37w/"
+                {/* v6.13.48 — Browse-the-store-list CTA: now editable
+                    (label + URL via admin popover) AND the right-side
+                    icon swapped from a down-arrow to a shopping-cart
+                    glyph per user request. */}
+                <EditableMagneticButton
+                  labelKey="service.cta.browse.label"
+                  defaultLabel="Browse the store list"
+                  urlKey="service.cta.browse.url"
+                  defaultUrl="#region"
+                  external={false}
+                  variant="primary"
+                  testId="service-cta-browse"
+                  icon={
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <circle cx="9" cy="21" r="1.4" />
+                      <circle cx="18" cy="21" r="1.4" />
+                      <path d="M2.5 3h2l2.7 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21.5 7H6" />
+                    </svg>
+                  }
+                />
+                {/* v6.13.48 — Submit-your-order CTA: editable label + URL. */}
+                <EditableMagneticButton
+                  labelKey="service.cta.submit.label"
+                  defaultLabel="Submit your order"
+                  urlKey="service.cta.submit.url"
+                  defaultUrl="https://cryptpad.fr/form/#/2/form/view/8G2YtzZK21kTYT4Hib0yja1VVoh2Q+3dPhBMKQtH37w/"
                   external
                   variant="ghost"
-                >
-                  Submit your order
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
-                  </svg>
-                </MagneticButton>
+                  testId="service-cta-submit"
+                  icon={
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+                      <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
+                    </svg>
+                  }
+                />
               </div>
             </div>
           </Reveal>
