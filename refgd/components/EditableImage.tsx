@@ -303,27 +303,37 @@ export default function EditableImage({
       }
     >
       {editing && <MoveHandle id={id} positionClassName="-right-3 -top-3" />}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        ref={imgRef}
-        src={src || defaultSrc}
-        alt={alt}
-        className={
-          (anim ? `${anim} ` : "") +
-          (editing
-            ? `${className} cursor-pointer outline outline-2 outline-transparent transition-[outline-color] hover:outline-amber-300/80`
-            : className)
-        }
+      {/* v6.13.45 — Scale lives on an OUTER span, animation lives on the
+          <img>. Animation templates (float / rotate / pulse / etc.)
+          drive the `transform` property via CSS keyframes; an animated
+          property always overrides any inline `transform` on the SAME
+          element. Splitting them onto two elements means the scale
+          survives even when an animation template is selected. */}
+      <span
+        className="inline-block"
         style={imgScaleStyle}
-        data-editable-id={id}
-        onClick={(e) => {
-          if (!editing) return;
-          e.preventDefault();
-          e.stopPropagation();
-          setPopOpen((o) => !o);
-        }}
-        draggable={false}
-      />
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          ref={imgRef}
+          src={src || defaultSrc}
+          alt={alt}
+          className={
+            (anim ? `${anim} ` : "") +
+            (editing
+              ? `${className} cursor-pointer outline outline-2 outline-transparent transition-[outline-color] hover:outline-amber-300/80`
+              : className)
+          }
+          data-editable-id={id}
+          onClick={(e) => {
+            if (!editing) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setPopOpen((o) => !o);
+          }}
+          draggable={false}
+        />
+      </span>
 
       {editing && popOpen && anchorRect && typeof document !== "undefined" && createPortal(
         <div
