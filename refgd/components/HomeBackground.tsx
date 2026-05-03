@@ -61,6 +61,86 @@ export default function HomeBackground() {
           <div className="orb orb-2 absolute right-[4%] top-[18%] h-[50vh] w-[50vh] rounded-full" />
           <div className="orb orb-3 absolute left-[30%] top-[55%] h-[48vh] w-[48vh] rounded-full" />
           <div className="orb orb-4 absolute right-[24%] top-[78%] h-[40vh] w-[40vh] rounded-full" />
+
+          {/* v6.13.53 — Animated abstract gradient particles + twinkling
+              stars across the home background per user request. Both
+              layers are GPU-only animations (opacity + transform) and
+              only mount on desktop where we already pay the orb stack
+              cost — mobile keeps its lite cosmic field below. */}
+          <style>{`
+            @keyframes hbDriftA { 0%,100% { transform: translate3d(0,0,0); opacity: 0.6; }
+                                  50%      { transform: translate3d(8px,-18px,0); opacity: 0.95; } }
+            @keyframes hbDriftB { 0%,100% { transform: translate3d(0,0,0); opacity: 0.4; }
+                                  50%      { transform: translate3d(-12px,14px,0); opacity: 0.85; } }
+            @keyframes hbDriftC { 0%,100% { transform: translate3d(0,0,0) scale(1);   opacity: 0.55; }
+                                  50%      { transform: translate3d(-6px,-12px,0) scale(1.18); opacity: 1; } }
+            @keyframes hbTwinkle { 0%,100% { opacity: 0.25; } 50% { opacity: 1; } }
+          `}</style>
+          {/* Abstract gradient particles — 24, deterministic seeding so
+              SSR + client agree. Mix of warm + cool tints, drift on a
+              5-13 s cycle, blurred + screen-blended for cosmic dust. */}
+          {Array.from({ length: 24 }).map((_, i) => {
+            const r = (n: number) => ((Math.sin(i * 12.9898 + n * 78.233) + 1) / 2);
+            const palette = [
+              "radial-gradient(circle, rgba(245,185,69,0.85), transparent 70%)",
+              "radial-gradient(circle, rgba(167,139,250,0.85), transparent 70%)",
+              "radial-gradient(circle, rgba(34,211,238,0.80), transparent 70%)",
+              "radial-gradient(circle, rgba(244,114,182,0.80), transparent 70%)",
+            ];
+            const anims = ["hbDriftA", "hbDriftB", "hbDriftC"];
+            const size = 50 + Math.round(r(1) * 160);
+            const left = (r(2) * 100).toFixed(2) + "%";
+            const top = (r(3) * 100).toFixed(2) + "%";
+            const dur = (5 + r(4) * 8).toFixed(2) + "s";
+            const delay = (-r(5) * 8).toFixed(2) + "s";
+            const bg = palette[Math.floor(r(6) * palette.length)];
+            const anim = anims[Math.floor(r(7) * anims.length)];
+            return (
+              <span
+                key={`hb-particle-${i}`}
+                className="absolute rounded-full"
+                style={{
+                  left, top, width: size, height: size,
+                  background: bg,
+                  filter: "blur(28px)",
+                  mixBlendMode: "screen",
+                  animation: `${anim} ${dur} ease-in-out ${delay} infinite`,
+                  willChange: "transform, opacity",
+                }}
+              />
+            );
+          })}
+          {/* Twinkling stars — 60, opacity-only animation (cheapest
+              compositor property). Sized 1-3 px with a soft glow. */}
+          {Array.from({ length: 60 }).map((_, i) => {
+            const seed = i * 9301 + 49297;
+            const left = ((seed * 13) % 1000) / 10;
+            const top = ((seed * 7) % 1000) / 10;
+            const size = 1 + ((seed * 3) % 3);
+            const dur = 3 + ((seed >> 3) % 5);
+            const delay = ((seed >> 5) % 50) / 10;
+            const accent = i % 6 === 0
+              ? "rgba(255,215,130,0.95)"
+              : i % 9 === 0
+                ? "rgba(180,200,255,0.95)"
+                : "#ffffff";
+            return (
+              <span
+                key={`hb-star-${i}`}
+                className="absolute rounded-full"
+                style={{
+                  left: `${left}%`,
+                  top: `${top}%`,
+                  width: `${size}px`,
+                  height: `${size}px`,
+                  background: accent,
+                  boxShadow: `0 0 ${size * 4}px ${accent}`,
+                  animation: `hbTwinkle ${dur}s ease-in-out ${delay}s infinite`,
+                  willChange: "opacity",
+                }}
+              />
+            );
+          })}
         </>
       )}
 
