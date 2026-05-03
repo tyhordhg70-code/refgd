@@ -189,7 +189,7 @@ export default function PathCard({
         <Tag
           {...linkProps}
           data-testid={`path-card-${index + 1}-link`}
-          className={`relative block h-full overflow-hidden ${radius} glass-strong`}
+          className={`relative block h-full overflow-hidden ${radius} glass-strong ${ACCENT_PULSE[accent]}`}
           style={{
             // FULLY OPAQUE — the mobile prism stacks 5 cards in 3D
             // space; any transparency in the active card lets the
@@ -199,10 +199,17 @@ export default function PathCard({
             // bleed-through, ever.
             background:
               "linear-gradient(180deg, rgb(18,16,30), rgb(8,8,16))",
-            // 2-layer shadow (mobile perf): removed 4-layer stack + pulse-glow
             boxShadow:
               "0 20px 40px -12px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.07) inset",
           }}
+          // v6.13.17 — Restored accent-coloured pulse glow on the
+          // mobile carousel branch too. Body stays solid (no
+          // bleed-through of swiped cards behind, that fix from
+          // v6.13.13 is preserved by the opaque gradient + inner
+          // boxShadow above) but the OUTER halo is now in the
+          // card's accent colour, matching the desktop look the
+          // user just asked to bring back.
+          data-mobile-glow
         >
           <div
             aria-hidden="true"
@@ -302,29 +309,16 @@ export default function PathCard({
           <Tag
             {...linkProps}
             data-testid={`path-card-${index + 1}-link`}
-            // v6.13.15 — User reported "path cards glow instead of
-            // black". The desktop card was wearing TWO colored-light
-            // effects:
-            //   1. ACCENT_PULSE[accent] — a continuous pulse-glow-*
-            //      box-shadow halo in the card's accent colour
-            //      (gold/fuchsia/cyan/violet/orange) that ran 24/7,
-            //      so each card visibly bled its colour onto the
-            //      surrounding cosmic backdrop.
-            //   2. ACCENT_GLOW[accent] — a 50px coloured drop-shadow
-            //      on hover that intensified the bleed.
-            // Removed both so the cards now read as solid dark glass
-            // tiles. The 1px ACCENT_RING gradient on the inside
-            // border is kept so each card still has a distinct
-            // colour identity (visible on close inspection / hover)
-            // without lighting up the whole page. A neutral charcoal
-            // hover lift (no colour) replaces the coloured glow.
-            className={`relative block h-full overflow-hidden ${radius} glass-strong transition-all duration-500 hover:shadow-[0_50px_120px_-30px_rgba(0,0,0,0.85)]`}
+            // v6.13.17 — REVERSED v6.13.15. User clarified that the
+            // black-outline cards looked dead; they want the
+            // accent-coloured glow back. Re-enabled the continuous
+            // ACCENT_PULSE halo + the ACCENT_GLOW hover drop-shadow.
+            // Kept the solid dark gradient base from v6.13.15 so the
+            // card body itself still reads as opaque (no
+            // GalaxyBackground bleed-through), but the surrounding
+            // halo is now back in each card's accent colour.
+            className={`relative block h-full overflow-hidden ${radius} glass-strong transition-all duration-500 ${ACCENT_PULSE[accent]} ${ACCENT_GLOW[accent]}`}
             style={{
-              // Fully opaque dark base — was the semi-transparent
-              // 0.55-0.78 gradient that let the GalaxyBackground
-              // bleed through and combined with the pulse glow to
-              // produce the "glowing not black" look. Now solid
-              // ink-950 / ink-900 like the mobile carousel.
               background:
                 "linear-gradient(180deg, rgb(18,16,30), rgb(8,8,16))",
             }}
