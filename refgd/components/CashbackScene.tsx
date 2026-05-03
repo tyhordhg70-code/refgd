@@ -117,10 +117,27 @@ export default function CashbackScene({
             </linearGradient>
           </defs>
 
-          {/* Glow halo behind the card */}
-          <ellipse cx="140" cy="100" rx="170" ry="110"
-            fill="#f5b945" opacity="0.18"
-            style={{ filter: "blur(28px)" }} />
+          {/* Glow halo behind the card.
+              v6.13.33 — User report: "computer card illustration on
+              storelist has hard edge glow". Cause: the previous
+              halo used `style={{ filter: "blur(28px)" }}` on the
+              SVG ellipse. SVG viewBox is 280x180; the ellipse
+              (rx:170 ry:110) already extends past the viewBox, and
+              once Safari runs the 28px blur the result is clipped
+              at the SVG's painted bounds, leaving a sharp
+              rectangular hard edge where the blur is cut off.
+              Switched to a `<radialGradient>` halo — pure paint
+              with built-in falloff, no filter pipeline, no
+              clipping artifact. */}
+          <defs>
+            <radialGradient id="cs-card-halo" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"  stopColor="#f5b945" stopOpacity="0.42" />
+              <stop offset="55%" stopColor="#f5b945" stopOpacity="0.10" />
+              <stop offset="100%" stopColor="#f5b945" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <ellipse cx="140" cy="100" rx="180" ry="118"
+            fill="url(#cs-card-halo)" />
 
           {/* Card body */}
           <rect x="10" y="12" width="260" height="156" rx="18"
