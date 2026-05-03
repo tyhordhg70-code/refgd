@@ -5,15 +5,22 @@ import EditableText from "@/components/EditableText";
 import EditableImage from "@/components/EditableImage";
 import { useEditContext } from "@/lib/edit-context";
 
-type CardKind = "brand" | "category" | "image";
-type Card = {
-  key: string; name: string; kind: CardKind; value: string; gradient?: string;
-};
+type CardKind = "brand" | "photo";
+type Card = { key: string; name: string; kind: CardKind; domain?: string; photo?: string; gradient?: string; };
 type Tab = { intro: string; disclaimer?: string; cards: Card[]; withSearch?: boolean; };
 type Section = { id: string; label: string; icon: string; hasRefund: boolean; buy4u: Tab; refund?: Tab; };
 
-const B = (key: string, name: string, domain: string): Card => ({ key, name, kind: "brand", value: domain });
-const C = (key: string, name: string, emoji: string, gradient = "from-violet-600/40 to-fuchsia-600/40"): Card => ({ key, name, kind: "category", value: emoji, gradient });
+const B = (key: string, name: string, domain: string): Card => ({ key, name, kind: "brand", domain });
+const C = (key: string, name: string, photo: string): Card => ({ key, name, kind: "photo", photo });
+
+const LOGO_SRC: Record<string, string> = {
+  "allegiantair.com": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Allegiant_Air_logo.svg/330px-Allegiant_Air_logo.svg.png",
+  "klm.com":          "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/KLM_logo.svg/330px-KLM_logo.svg.png",
+  "chipotle.com":     "https://upload.wikimedia.org/wikipedia/en/thumb/3/3b/Chipotle_Mexican_Grill_logo.svg/330px-Chipotle_Mexican_Grill_logo.svg.png",
+  "kfc.com":          "https://upload.wikimedia.org/wikipedia/en/thumb/5/57/KFC_logo-image.svg/330px-KFC_logo-image.svg.png",
+  "pizzahut.com":     "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Pizza_Hut_2025.svg/330px-Pizza_Hut_2025.svg.png",
+  "wendys.com":       "https://upload.wikimedia.org/wikipedia/en/thumb/3/32/Wendy%27s_full_logo_2012.svg/330px-Wendy%27s_full_logo_2012.svg.png",
+};
 
 const SECTIONS: Section[] = [
   { id:"flights",label:"Flights",icon:"✈",hasRefund:false,buy4u:{
@@ -87,7 +94,7 @@ const SECTIONS: Section[] = [
       B("fd35","Insomnia Cookies","insomniacookies.com"),
       B("fd36","Jack in the Box","jackinthebox.com"),
       B("fd37","Jersey Mike's Subs","jerseymikes.com"),
-      B("fd38","Jet's Pizza","jetspizza.com"),
+      B("fd38","Jimmy John's","jimmyjohns.com"),
       B("fd39","Jimmy John's","jimmyjohns.com"),
       B("fd40","Jollibee","jollibeeusa.com"),
       B("fd41","Just Salad","justsalad.com"),
@@ -96,42 +103,41 @@ const SECTIONS: Section[] = [
       B("fd44","Marco's Pizza","marcos.com"),
       B("fd45","McDonald's","mcdonalds.com"),
       B("fd46","Mellow Mushroom","mellowmushroom.com"),
-      B("fd47","Miller's Ale House","millersalehouse.com"),
-      B("fd48","Moe's Southwest Grill","moes.com"),
-      B("fd49","Noodles & Company","noodles.com"),
-      B("fd50","Outback Steakhouse","outback.com"),
-      B("fd51","P.F. Chang's","pfchangs.com"),
-      B("fd52","Panda Express","pandaexpress.com"),
-      B("fd53","Panera Bread","panerabread.com"),
-      B("fd54","Papa John's Pizza","papajohns.com"),
-      B("fd55","Paris Baguette","parisbaguette.com"),
-      B("fd56","Pizza Hut","pizzahut.com"),
-      B("fd57","Playa Bowls","playabowls.com"),
-      B("fd58","Popeyes","popeyes.com"),
-      B("fd59","Portillo's Hot Dogs","portillos.com"),
-      B("fd60","Qdoba","qdoba.com"),
-      B("fd61","Red Lobster","redlobster.com"),
-      B("fd62","Red Robin","redrobin.com"),
-      B("fd63","Shake Shack","shakeshack.com"),
-      B("fd64","Smashburger","smashburger.com"),
-      B("fd65","Sonic","sonicdrivein.com"),
-      B("fd66","Steak 'n Shake","steaknshake.com"),
-      B("fd67","Subway","subway.com"),
-      B("fd68","Sweetgreen","sweetgreen.com"),
-      B("fd69","Taco Bell","tacobell.com"),
-      B("fd70","Texas de Brazil","texasdebrazil.com"),
-      B("fd71","Texas Roadhouse","texasroadhouse.com"),
-      B("fd72","TGI Fridays","tgifridays.com"),
-      B("fd73","Tropical Smoothie Café","tropicalsmoothie.com"),
-      B("fd74","Wendy's","wendys.com"),
-      B("fd75","Whataburger","whataburger.com"),
-      B("fd76","White Castle","whitecastle.com"),
-      B("fd77","Wingstop","wingstop.com"),
-      B("fd78","Zaxby's","zaxbys.com"),
-      B("fd79","DoorDash","doordash.com"),
-      B("fd80","Uber Eats","ubereats.com"),
-      B("fd81","Instacart","instacart.com"),
-      C("fd99","+ Any Other Chain Restaurant!","🍽","from-amber-600/40 to-orange-600/40"),
+      B("fd47","Moe's Southwest Grill","moes.com"),
+      B("fd48","Noodles & Company","noodles.com"),
+      B("fd49","Outback Steakhouse","outback.com"),
+      B("fd50","P.F. Chang's","pfchangs.com"),
+      B("fd51","Panda Express","pandaexpress.com"),
+      B("fd52","Panera Bread","panerabread.com"),
+      B("fd53","Papa John's Pizza","papajohns.com"),
+      B("fd54","Paris Baguette","parisbaguette.com"),
+      B("fd55","Pizza Hut","pizzahut.com"),
+      B("fd56","Playa Bowls","playabowls.com"),
+      B("fd57","Popeyes","popeyes.com"),
+      B("fd58","Portillo's Hot Dogs","portillos.com"),
+      B("fd59","Qdoba","qdoba.com"),
+      B("fd60","Red Lobster","redlobster.com"),
+      B("fd61","Red Robin","redrobin.com"),
+      B("fd62","Shake Shack","shakeshack.com"),
+      B("fd63","Smashburger","smashburger.com"),
+      B("fd64","Sonic","sonicdrivein.com"),
+      B("fd65","Steak 'n Shake","steaknshake.com"),
+      B("fd66","Subway","subway.com"),
+      B("fd67","Sweetgreen","sweetgreen.com"),
+      B("fd68","Taco Bell","tacobell.com"),
+      B("fd69","Texas de Brazil","texasdebrazil.com"),
+      B("fd70","Texas Roadhouse","texasroadhouse.com"),
+      B("fd71","TGI Fridays","tgifridays.com"),
+      B("fd72","Tropical Smoothie Café","tropicalsmoothie.com"),
+      B("fd73","Wendy's","wendys.com"),
+      B("fd74","Whataburger","whataburger.com"),
+      B("fd75","White Castle","whitecastle.com"),
+      B("fd76","Wingstop","wingstop.com"),
+      B("fd77","Zaxby's","zaxbys.com"),
+      B("fd78","DoorDash","doordash.com"),
+      B("fd79","Uber Eats","ubereats.com"),
+      B("fd80","Instacart","instacart.com"),
+      { key:"fd99",name:"+ Any Other Chain Restaurant!",kind:"photo",photo:"https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80" },
     ],
   },refund:{ intro:"We can also help place food orders on your behalf. Contact us for more details.", cards:[] },},
   { id:"hotels",label:"Hotels",icon:"🛏",hasRefund:true,buy4u:{
@@ -155,32 +161,32 @@ const SECTIONS: Section[] = [
       B("a07","Sesame Place","sesameplace.com"),B("a08","Nickelodeon Universe","nickelodeonuniverse.com"),
       B("a09","Hershey Park","hersheypark.com"),B("a10","Disney","disney.com"),
       B("a11","Universal Studios","universalstudios.com"),B("a12","Viator","viator.com"),
-      C("a13","Safari Parks & Zoos","🦁","from-emerald-600/40 to-green-600/40"),
-      C("a14","Water Parks","💦","from-blue-500/40 to-cyan-500/40"),
-      C("a15","Bounce Houses","🎪","from-pink-500/40 to-fuchsia-500/40"),
-      C("a16","Theme Parks","🎢","from-orange-500/40 to-amber-500/40"),
-      C("a17","Concerts & Festivals","🎵","from-purple-600/40 to-violet-600/40"),
-      C("a18","Sports Games","🏆","from-green-600/40 to-teal-600/40"),
-      C("a19","Movie Tickets","🎬","from-slate-600/40 to-zinc-600/40"),
-      C("a20","Cruises","⛴","from-sky-600/40 to-blue-600/40"),
-      C("a21","Ski & Winter Sports","⛷","from-blue-300/40 to-cyan-300/40"),
-      C("a22","Jet Skis & Boat Rentals","🚤","from-cyan-500/40 to-teal-500/40"),
-      C("a23","Golfing Reservations","⛳","from-green-500/40 to-lime-500/40"),
-      C("a24","Excursions","🗺","from-amber-500/40 to-yellow-500/40"),
-      C("a25","Parasailing","🪂","from-sky-500/40 to-indigo-500/40"),
-      C("a26","Food Subscriptions","📦","from-orange-400/40 to-red-400/40"),
-      C("a27","Helicopter Tours","🚁","from-gray-600/40 to-slate-600/40"),
-      C("a28","Sky Diving","🪂","from-indigo-500/40 to-violet-500/40"),
-      C("a29","Escape Rooms","🔐","from-rose-600/40 to-pink-600/40"),
-      C("a30","Aquariums","🐠","from-blue-600/40 to-teal-600/40"),
-      C("a31","Museums","🏛","from-stone-500/40 to-amber-700/40"),
-      C("a32","Bowling","🎳","from-red-500/40 to-orange-500/40"),
-      C("a33","Edge NYC","🏙","from-slate-700/40 to-zinc-700/40"),
-      C("a34","Empire State Building","🗽","from-gray-500/40 to-stone-500/40"),
-      C("a35","Conventions","🎤","from-violet-600/40 to-purple-600/40"),
-      C("a36","Tours (Any)","🧭","from-teal-500/40 to-green-500/40"),
-      C("a37","Radiate","✨","from-yellow-400/40 to-amber-400/40"),
-      C("a38","Train Tickets","🚆","from-zinc-600/40 to-slate-600/40"),
+      C("a13","Safari Parks & Zoos","https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?auto=format&fit=crop&w=400&q=80"),
+      C("a14","Water Parks","https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=400&q=80"),
+      C("a15","Bounce Houses","https://images.unsplash.com/photo-1530103862676-de8c9debad1d?auto=format&fit=crop&w=400&q=80"),
+      C("a16","Theme Parks","https://images.unsplash.com/photo-1575037614876-c38a4d44f5b8?auto=format&fit=crop&w=400&q=80"),
+      C("a17","Concerts & Festivals","https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=400&q=80"),
+      C("a18","Sports Games","https://upload.wikimedia.org/wikipedia/commons/7/71/Crowd_at_Cooper_Stadium_-_DPLA_-_62053aa1f1a93825233a537b1ae3f46e.jpg"),
+      C("a19","Movie Tickets","https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=400&q=80"),
+      C("a20","Cruises","https://images.unsplash.com/photo-1548574505-5e239809ee19?auto=format&fit=crop&w=400&q=80"),
+      C("a21","Ski & Winter Sports","https://images.unsplash.com/photo-1520881363902-a0ff4e722963?auto=format&fit=crop&w=400&q=80"),
+      C("a22","Jet Skis & Boat Rentals","https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=400&q=80"),
+      C("a23","Golfing Reservations","https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?auto=format&fit=crop&w=400&q=80"),
+      C("a24","Excursions","https://images.unsplash.com/photo-1496568816309-51d7c20e3b21?auto=format&fit=crop&w=400&q=80"),
+      C("a25","Parasailing","https://upload.wikimedia.org/wikipedia/commons/e/eb/Eilat_by_the_Red_Sea_%287716890532%29.jpg"),
+      C("a26","Food Subscriptions","https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80"),
+      C("a27","Helicopter Tours","https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=400&q=80"),
+      C("a28","Sky Diving","https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=400&q=80"),
+      C("a29","Escape Rooms","https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=400&q=80"),
+      C("a30","Aquariums","https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=400&q=80"),
+      C("a31","Museums","https://upload.wikimedia.org/wikipedia/commons/a/a6/HKU_Art_Gallery_exhibit_wall_picture_n_Armchairs_Dec-2012.jpg"),
+      C("a32","Bowling","https://upload.wikimedia.org/wikipedia/commons/b/b6/19610701_Penguin_bowling_pins_at_inauguration_of_McMurdo_Station%2C_Antarctica%2C_bowling_alley.jpg"),
+      C("a33","Edge NYC","https://upload.wikimedia.org/wikipedia/commons/5/5f/Manhattan_from_Weehawken%2C_NJ.jpg"),
+      C("a34","Empire State Building","https://upload.wikimedia.org/wikipedia/commons/a/a8/NYC_Empire_State_Building_view_ENE.jpg"),
+      C("a35","Conventions","https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=400&q=80"),
+      C("a36","Tours (Any)","https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=400&q=80"),
+      C("a37","Radiate","https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=400&q=80"),
+      C("a38","Train Tickets","https://upload.wikimedia.org/wikipedia/commons/f/f6/Amtrak_California_Zephyr_Green_River_-_Floy%2C_Utah.jpg"),
     ],
   },refund:{
     intro:"Book from Viator.com, Agoda.com or Trip.com. 🎟 Ticket Limit: NO LIMIT (same event). 💸 Price Limit: $7,000. ⏳ Time Frame: INSTANT. Fee 35%. Minimum Order: $500. Minimum Fee: $250. 💬 Message at least a day or 1–2 hours before the event — make sure we are ONLINE.",
@@ -198,53 +204,58 @@ function badgeColor(key: string): string {
   let h = 0; for (const c of key) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff;
   return BADGE_COLOURS[Math.abs(h) % BADGE_COLOURS.length];
 }
-function logoUrl(d: string) { return `https://logo.clearbit.com/${d}`; }
 
 function BrandLogo({ domain, name, cardKey }: { domain: string; name: string; cardKey: string }) {
-  const [err, setErr] = useState(false);
-  const onErr = useCallback(() => setErr(true), []);
-  if (err || !domain) return (
-    <div className={`grid h-14 w-14 place-items-center rounded-xl ${badgeColor(cardKey)} text-xl font-extrabold text-white`}>
+  const [srcIdx, setSrcIdx] = useState(0);
+  const onErr = useCallback(() => setSrcIdx(p => p + 1), []);
+  const sources: string[] = [
+    LOGO_SRC[domain] ?? "",
+    `https://logo.clearbit.com/${domain}`,
+    `https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${domain}&size=256`,
+  ].filter(Boolean);
+  if (srcIdx >= sources.length) return (
+    <div className={`grid h-14 w-14 place-items-center rounded-xl ${badgeColor(cardKey)} text-xl font-extrabold text-white shadow-inner`}>
       {name.charAt(0).toUpperCase()}
     </div>
   );
   return (
-    <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-xl bg-white p-1">
-      <img src={logoUrl(domain)} alt={name} className="h-full w-full object-contain" onError={onErr} loading="lazy" />
+    <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-xl bg-white p-1 shadow">
+      <img src={sources[srcIdx]} alt={name} className="h-full w-full object-contain" onError={onErr} loading="lazy" />
     </div>
   );
 }
 
-function BrandCard({ secId, mode, card }: { secId: string; mode: "buy4u" | "refund"; card: Card }) {
+function BrandCard({ secId, mode, card }: { secId: string; mode: "buy4u"|"refund"; card: Card }) {
   const id = `buy4u.${secId}.${mode}.${card.key}`;
   const { isAdmin, editMode } = useEditContext();
   return (
     <div className="group relative flex flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition hover:-translate-y-0.5 hover:border-amber-300/40 hover:bg-white/[0.07]" style={{ overflow:"visible", minHeight:"100px" }}>
-      {card.kind === "image" ? (
-        <EditableImage id={`${id}.img`} defaultSrc={card.value} alt={card.name} wrapperClassName="block w-full" className="aspect-[4/3] w-full rounded-xl object-cover" />
-      ) : card.kind === "category" ? (
-        <div className={`grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br ${card.gradient ?? "from-violet-600/40 to-fuchsia-600/40"} text-3xl`}>{card.value}</div>
+      {card.kind === "photo" ? (
+        <img src={card.photo} alt={card.name} className="aspect-[4/3] w-full rounded-xl object-cover" loading="lazy" />
       ) : (
-        <BrandLogo domain={card.value} name={card.name} cardKey={card.key} />
+        <BrandLogo domain={card.domain!} name={card.name} cardKey={card.key} />
       )}
       <div className="relative w-full" style={{ minHeight:"28px" }}>
         <EditableText id={`${id}.name`} defaultValue={card.name} as="p" className="text-center text-xs font-semibold leading-tight text-white" />
       </div>
-      {isAdmin && editMode && (
-        <EditableText id={`${id}.domain`} defaultValue={card.value} as="p" className="w-full text-center font-mono text-[10px] text-white/35" placeholder="clearbit domain…" />
+      {isAdmin && editMode && card.domain && (
+        <EditableText id={`${id}.domain`} defaultValue={card.domain} as="p" className="w-full text-center font-mono text-[10px] text-white/35" placeholder="clearbit domain…" />
       )}
     </div>
   );
 }
 
-function CardGrid({ secId, mode, cards }: { secId: string; mode: "buy4u"|"refund"; cards: Card[] }) {
+function CardGrid({ secId, mode, cards, wide }: { secId: string; mode: "buy4u"|"refund"; cards: Card[]; wide?: boolean }) {
   if (!cards.length) return null;
-  return <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">{cards.map(c => <BrandCard key={c.key} secId={secId} mode={mode} card={c} />)}</div>;
+  const grid = wide
+    ? "mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+    : "mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8";
+  return <div className={grid}>{cards.map(c => <BrandCard key={c.key} secId={secId} mode={mode} card={c} />)}</div>;
 }
 
 function SearchableGrid({ secId, mode, cards }: { secId: string; mode: "buy4u"|"refund"; cards: Card[] }) {
   const [q, setQ] = useState("");
-  const filtered = useMemo(() => { const n = q.trim().toLowerCase(); return n ? cards.filter(c => c.name.toLowerCase().includes(n) || c.value.toLowerCase().includes(n)) : cards; }, [q, cards]);
+  const filtered = useMemo(() => { const n = q.trim().toLowerCase(); return n ? cards.filter(c => c.name.toLowerCase().includes(n) || (c.domain??c.photo??"").toLowerCase().includes(n)) : cards; }, [q, cards]);
   return (<>
     <div className="mt-4">
       <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search restaurants & brands…" className="w-full rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" />
@@ -256,10 +267,11 @@ function SearchableGrid({ secId, mode, cards }: { secId: string; mode: "buy4u"|"
 
 function TabBody({ section, mode }: { section: Section; mode: "buy4u"|"refund" }) {
   const tab = mode === "buy4u" ? section.buy4u : (section.refund ?? section.buy4u);
+  const hasPhotos = tab.cards.some(c => c.kind === "photo");
   return (<div>
     <EditableText id={`buy4u.${section.id}.${mode}.intro`} defaultValue={tab.intro} as="p" multiline className="text-base leading-relaxed text-white/85" />
     {tab.disclaimer && <div className="mt-3 rounded-xl border border-amber-300/30 bg-amber-400/[0.06] px-4 py-3"><EditableText id={`buy4u.${section.id}.${mode}.disclaimer`} defaultValue={tab.disclaimer} as="p" multiline className="text-sm text-amber-100" /></div>}
-    {tab.withSearch ? <SearchableGrid secId={section.id} mode={mode} cards={tab.cards} /> : <CardGrid secId={section.id} mode={mode} cards={tab.cards} />}
+    {tab.withSearch ? <SearchableGrid secId={section.id} mode={mode} cards={tab.cards} /> : <CardGrid secId={section.id} mode={mode} cards={tab.cards} wide={hasPhotos} />}
   </div>);
 }
 
@@ -310,19 +322,15 @@ function GiftCardsSection() {
       </div>
       <EditableText id="buy4u.giftcards.intro" defaultValue="Gift card catalog mirrored from spawngc.gg. Full inventory population is in progress (spawngc requires login). Filters below match the real category, state, and availability lists from spawngc.gg." as="p" multiline className="text-base leading-relaxed text-white/85" />
       <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Category</span>
-          <select value={cat} onChange={e=>setCat(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">All categories</option>{SPAWNGC_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
-        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">State</span>
-          <select value={state} onChange={e=>setState(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">All states</option>{SPAWNGC_STATES.map(s=><option key={s} value={s}>{s}</option>)}</select></label>
-        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Availability</span>
-          <select value={avail} onChange={e=>setAvail(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">Any availability</option>{SPAWNGC_AVAILABILITY.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
-        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Search</span>
-          <input type="search" value={q} onChange={e=>setQ(e.target.value)} placeholder="Brand or name…" className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" /></label>
+        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Category</span><select value={cat} onChange={e=>setCat(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">All categories</option>{SPAWNGC_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
+        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">State</span><select value={state} onChange={e=>setState(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">All states</option>{SPAWNGC_STATES.map(s=><option key={s} value={s}>{s}</option>)}</select></label>
+        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Availability</span><select value={avail} onChange={e=>setAvail(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">Any availability</option>{SPAWNGC_AVAILABILITY.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
+        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Search</span><input type="search" value={q} onChange={e=>setQ(e.target.value)} placeholder="Brand or name…" className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" /></label>
       </div>
       {SPAWNGC_CARDS.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-amber-300/30 bg-amber-400/[0.06] px-5 py-6 text-center">
           <p className="text-sm font-semibold uppercase tracking-wider text-amber-200">Catalog being indexed</p>
-          <p className="mt-2 text-sm text-white/75">spawngc.gg requires login to view inventory. The full catalog will appear here once a scrape pass with credentials is run. Filters above already use the real category, state, and availability lists from spawngc.gg.</p>
+          <p className="mt-2 text-sm text-white/75">spawngc.gg requires login to view inventory. The full catalog will appear here once a scrape pass with credentials is run.</p>
         </div>
       ) : (<><p className="mt-3 text-xs text-white/55">{filtered.length} of {SPAWNGC_CARDS.length} cards</p>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">{filtered.map(c => <div key={c.key} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">{c.image&&<img src={c.image} alt={c.name} className="aspect-[4/3] w-full rounded-xl object-cover" />}<p className="mt-2 text-center text-xs font-semibold text-white">{c.name}</p>{c.price&&<p className="mt-1 text-center text-[11px] text-white/55">{c.price}</p>}</div>)}</div>
