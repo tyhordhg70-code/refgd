@@ -380,6 +380,55 @@
     filter: drop-shadow(0 30px 50px rgba(0,0,0,0.55)) drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent) blur(0px);
   }
 }
+/* v6.13.12 — Three GPU-only ambient animations layered onto the
+   "Stop wasting time and money" illustration AFTER the cinematic
+   entrance lands. User asked for "3D animation" on this image, so
+   we replace the previous flat y-only bob with a real 3D presence:
+     (1) wt3DFloat   — perspective-based rotateY/rotateX/translateZ
+                       parallax sway (figure tilts toward viewer
+                       and back, ~7s loop). Pure transform → cheap.
+     (2) wtGlowPulse — radial halo BEHIND the figure breathing
+                       gold→violet→cyan, ~5s loop. Background-
+                       gradient on a sibling div → no paint thrash
+                       on the image itself.
+     (3) wtShimmer   — drop-shadow + brightness sweep on the image,
+                       ~6s loop, simulating a soft rim-light pass
+                       across the figure. Composited on the GPU.
+   Each runs on a different period so the combined motion never
+   reads as a single repeating beat. */
+@keyframes wt3DFloat {
+  0%   { transform: perspective(1200px) rotateY(-7deg) rotateX(3deg)  translate3d(-6px, -4px, 18px); }
+  50%  { transform: perspective(1200px) rotateY( 7deg) rotateX(-3deg) translate3d( 6px,  6px,  0px); }
+  100% { transform: perspective(1200px) rotateY(-7deg) rotateX(3deg)  translate3d(-6px, -4px, 18px); }
+}
+@keyframes wtGlowPulse {
+  0%, 100% {
+    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(0.96);
+    background:
+      radial-gradient(circle at 50% 50%, rgba(245,185,69,0.55) 0%, rgba(167,139,250,0.30) 35%, transparent 70%);
+  }
+  50% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(1.10);
+    background:
+      radial-gradient(circle at 50% 50%, rgba(34,211,238,0.45) 0%, rgba(167,139,250,0.40) 38%, transparent 72%);
+  }
+}
+@keyframes wtShimmer {
+  0%, 100% {
+    filter:
+      drop-shadow(0 16px 28px rgba(0,0,0,0.50))
+      drop-shadow(0  0  0    rgba(255,255,255,0))
+      brightness(1.00) saturate(1.00);
+  }
+  50% {
+    filter:
+      drop-shadow(0 22px 36px rgba(0,0,0,0.55))
+      drop-shadow(0  0 18px   rgba(255,237,180,0.55))
+      brightness(1.08) saturate(1.10);
+  }
+}
 @keyframes orbit {
   from { transform: translate(-50%, -50%) rotate(0deg)   translateY(var(--orbit-r, -30vh)) translateZ(60px); }
   to   { transform: translate(-50%, -50%) rotate(360deg) translateY(var(--orbit-r, -30vh)) translateZ(60px); }
