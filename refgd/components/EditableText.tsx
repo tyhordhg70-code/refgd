@@ -21,6 +21,7 @@
 
 import { useEffect, useRef, type ElementType, type CSSProperties } from "react";
 import { useEditContext } from "@/lib/edit-context";
+import MoveHandle, { useMoveOffset } from "@/components/MoveHandle";
 
 type Props = {
   /** Stable content-block id, e.g. "hero.title". */
@@ -137,12 +138,35 @@ export default function EditableText({
     if (link) e.preventDefault();
   };
 
+  /* v6.13.42 — Per-element drag-to-reposition.
+     The persisted (dx, dy) from useMoveOffset becomes a translate3d
+     transform on the editable element itself, and a small "✥ MOVE"
+     handle is rendered absolutely-positioned in the top-right corner
+     in admin edit mode. The handle floats outside the editable text
+     box (negative offset) so it never gets in the way of typing.
+     Outside edit mode neither the handle nor any wrapper is added —
+     the rendered DOM is byte-identical to the previous behaviour. */
+  const { transform: moveTransform } = useMoveOffset(id);
+  const composedStyle: CSSProperties | undefined =
+    moveTransform || style
+      ? {
+          ...style,
+          ...(moveTransform
+            ? {
+                transform: style?.transform
+                  ? `${moveTransform} ${style.transform}`
+                  : moveTransform,
+              }
+            : {}),
+        }
+      : undefined;
+
   const Component = Tag as ElementType;
-  return (
+  const editable = (
     <Component
       ref={ref as React.RefObject<HTMLElement>}
       className={wrapClass}
-      style={style}
+      style={composedStyle}
       contentEditable={editing}
       suppressContentEditableWarning
       // EditableText is frequently nested inside framer-motion wrappers
@@ -156,6 +180,7 @@ export default function EditableText({
       suppressHydrationWarning
       spellCheck={editing}
       data-editable-id={id}
+      data-move-target={id}
       data-testid={testId}
       data-placeholder={placeholder}
       onBlur={editing ? onBlur : undefined}
@@ -164,5 +189,19 @@ export default function EditableText({
     >
       {value}
     </Component>
+  );
+
+  if (!editing) return editable;
+
+  // In edit mode wrap in a position:relative span so the MoveHandle
+  // can anchor itself. The wrapper is `inline-block` (single-line) or
+  // `block` (multiline) so it doesn't disturb the surrounding flow.
+  return (
+    <span
+      className={`relative ${multiline ? "block" : "inline-block"} align-baseline`}
+    >
+      {editable}
+      <MoveHandle id={id} />
+    </span>
   );
 }
