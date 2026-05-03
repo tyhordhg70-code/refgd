@@ -183,15 +183,16 @@ function StoreScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilter?
         <rect x="10"  y="135" width="60" height="60" rx="3" fill="rgba(5,6,10,0.45)" />
         <rect x="170" y="135" width="60" height="60" rx="3" fill="rgba(5,6,10,0.45)" />
         {/* SALE tag — bobs */}
-        <motion.g
-          transform="translate(180,55)"
-          animate={{ rotate: [-4, 6, -4], y: [0, -3, 0] }}
-          transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-          style={{ transformOrigin: "0px 10px" }}
-        >
-          <polygon points="0,0 26,0 36,10 26,20 0,20" fill={c.primary} />
-          <circle cx="6" cy="10" r="1.8" fill="#05060a" />
-        </motion.g>
+        <g transform="translate(180,55)">
+          <motion.g
+            animate={{ rotate: [-4, 6, -4], y: [0, -3, 0] }}
+            transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+            style={{ transformOrigin: "0px 10px" }}
+          >
+            <polygon points="0,0 26,0 36,10 26,20 0,20" fill={c.primary} />
+            <circle cx="6" cy="10" r="1.8" fill="#05060a" />
+          </motion.g>
+        </g>
       </g>
       <text x="200" y="160" textAnchor="middle"
             fontFamily="Clash Display, system-ui" fontWeight="700"
@@ -205,11 +206,11 @@ function ShieldScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilter
   return (
     <g filter={glowFilter}>
       {/* Shield body — gentle breathing */}
+      <g transform="translate(200,260)">
       <motion.g
-        transform="translate(200,260)"
         animate={{ scale: [1, 1.04, 1] }}
         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-        style={{ transformOrigin: "200px 260px", transformBox: "fill-box" }}
+        style={{ transformOrigin: "0px 0px" }}
       >
         <path
           d="M0,-110 L95,-72 L82,40 C80,90 40,128 0,140 C-40,128 -80,90 -82,40 L-95,-72 Z"
@@ -219,6 +220,7 @@ function ShieldScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilter
         />
         <path d="M-32,-2 L-8,22 L34,-30" stroke={c.secondary} strokeWidth="6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
       </motion.g>
+      </g>
       {/* Arrows fly in then deflect away */}
       {[
         { x: 80,  y: 110, rot: 25 },
@@ -226,15 +228,15 @@ function ShieldScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilter
         { x: 100, y: 360, rot: 45 },
         { x: 310, y: 380, rot: -55 },
       ].map((a, i) => (
-        <motion.g
-          key={i}
-          transform={`translate(${a.x},${a.y}) rotate(${a.rot})`}
-          animate={{ x: [-30, 0, -30], opacity: [0, 1, 0] }}
-          transition={{ duration: 2.6, repeat: Infinity, delay: i * 0.6, ease: "easeOut" }}
-        >
-          <line x1="0" y1="0" x2="46" y2="0" stroke={c.secondary} strokeWidth="2" opacity="0.7" />
-          <polygon points="46,-5 56,0 46,5" fill={c.secondary} opacity="0.7" />
-        </motion.g>
+        <g key={i} transform={`translate(${a.x},${a.y}) rotate(${a.rot})`}>
+          <motion.g
+            animate={{ x: [-30, 0, -30], opacity: [0, 1, 0] }}
+            transition={{ duration: 2.6, repeat: Infinity, delay: i * 0.6, ease: "easeOut" }}
+          >
+            <line x1="0" y1="0" x2="46" y2="0" stroke={c.secondary} strokeWidth="2" opacity="0.7" />
+            <polygon points="46,-5 56,0 46,5" fill={c.secondary} opacity="0.7" />
+          </motion.g>
+        </g>
       ))}
       {/* Tiny lock at top — pulses */}
       <motion.g
@@ -271,8 +273,8 @@ function ChessScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilter?
           })
         )}
       </g>
+      <g transform="translate(170,150)">
       <motion.g
-        transform="translate(170,150)"
         fill={c.secondary} stroke={c.primary} strokeWidth="2"
         animate={{ y: [0, -6, 0] }}
         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
@@ -282,14 +284,17 @@ function ChessScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilter?
         <ellipse cx="30" cy="30" rx="20" ry="7" />
         <rect x="6" y="80" width="48" height="14" rx="3" />
       </motion.g>
+      </g>
+      <g transform="translate(240,200)">
       <motion.g
-        transform="translate(240,200)" fill={c.primary} opacity="0.9"
+        fill={c.primary} opacity="0.9"
         animate={{ y: [0, -4, 0] }}
         transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
       >
         <path d="M0,80 L0,52 Q0,28 18,18 Q24,8 36,8 Q48,8 50,22 Q60,30 56,52 L56,80 Z" stroke={c.secondary} strokeWidth="2" />
         <circle cx="22" cy="28" r="2.5" fill="#05060a" />
       </motion.g>
+      </g>
     </g>
   );
 }
@@ -299,20 +304,21 @@ function SparkScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilter?
   return (
     <g filter={glowFilter}>
       {/* Diamond — slow breathe */}
-      <motion.g
-        transform="translate(200,250)"
-        stroke={c.secondary} strokeWidth="3" fill={c.soft}
-        animate={{ scale: [1, 1.05, 1] }}
-        transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
-        style={{ transformOrigin: "200px 250px", transformBox: "fill-box" }}
-      >
-        <polygon points="0,-90 80,0 0,90 -80,0" />
-        <polygon points="0,-90 30,-30 -30,-30" fill={c.primary} opacity="0.55" />
-        <polygon points="0,90 30,30 -30,30" fill={c.primary} opacity="0.45" />
-        <line x1="-80" y1="0" x2="80" y2="0" />
-        <line x1="-30" y1="-30" x2="30" y2="-30" />
-        <line x1="-30" y1="30" x2="30" y2="30" />
-      </motion.g>
+      <g transform="translate(200,250)">
+        <motion.g
+          stroke={c.secondary} strokeWidth="3" fill={c.soft}
+          animate={{ scale: [1, 1.05, 1] }}
+          transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
+          style={{ transformOrigin: "0px 0px" }}
+        >
+          <polygon points="0,-90 80,0 0,90 -80,0" />
+          <polygon points="0,-90 30,-30 -30,-30" fill={c.primary} opacity="0.55" />
+          <polygon points="0,90 30,30 -30,30" fill={c.primary} opacity="0.45" />
+          <line x1="-80" y1="0" x2="80" y2="0" />
+          <line x1="-30" y1="-30" x2="30" y2="-30" />
+          <line x1="-30" y1="30" x2="30" y2="30" />
+        </motion.g>
+      </g>
       {/* Bursting rays — rotate slowly around center */}
       <motion.g
         animate={{ rotate: 360 }}
@@ -342,15 +348,15 @@ function SparkScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilter?
         { x: 110, y: 380 },
         { x: 300, y: 360 },
       ].map((p, i) => (
-        <motion.g
-          key={i}
-          transform={`translate(${p.x},${p.y})`}
-          animate={{ scale: [0.6, 1.2, 0.6], opacity: [0.4, 1, 0.4] }}
-          transition={{ duration: 2.2, repeat: Infinity, delay: i * 0.4, ease: "easeInOut" }}
-          style={{ transformBox: "fill-box", transformOrigin: "center" }}
-        >
-          <path d="M0,-8 L2,-2 L8,0 L2,2 L0,8 L-2,2 L-8,0 L-2,-2 Z" fill={c.secondary} />
-        </motion.g>
+        <g key={i} transform={`translate(${p.x},${p.y})`}>
+          <motion.g
+            animate={{ scale: [0.6, 1.2, 0.6], opacity: [0.4, 1, 0.4] }}
+            transition={{ duration: 2.2, repeat: Infinity, delay: i * 0.4, ease: "easeInOut" }}
+            style={{ transformOrigin: "0px 0px" }}
+          >
+            <path d="M0,-8 L2,-2 L8,0 L2,2 L0,8 L-2,2 L-8,0 L-2,-2 Z" fill={c.secondary} />
+          </motion.g>
+        </g>
       ))}
     </g>
   );
@@ -379,11 +385,11 @@ function Buy4YouScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilte
       </motion.text>
 
       {/* Shopping bag — bobs */}
+      <g transform="translate(200,250)">
       <motion.g
-        transform="translate(200,250)"
         animate={{ y: [0, -10, 0], rotate: [-3, 3, -3] }}
         transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
-        style={{ transformOrigin: "200px 250px", transformBox: "fill-box" }}
+        style={{ transformOrigin: "0px 0px" }}
       >
         {/* Handle */}
         <path
@@ -417,6 +423,7 @@ function Buy4YouScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilte
           opacity="0.9"
         />
       </motion.g>
+      </g>
 
       {/* Orbiting "FOR YOU" / coin tags */}
       {[
@@ -475,23 +482,24 @@ function MasteryScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilte
       </g>
 
       {/* Levitating gem */}
+      <g transform="translate(200,250)">
       <motion.g
-        transform="translate(200,250)"
         animate={{ y: [0, -10, 0], rotate: [0, 360] }}
         transition={{
           y: { duration: 4, repeat: Infinity, ease: "easeInOut" },
           rotate: { duration: 18, repeat: Infinity, ease: "linear" },
         }}
-        style={{ transformOrigin: "200px 250px", transformBox: "fill-box" }}
+        style={{ transformOrigin: "0px 0px" }}
       >
         <polygon points="0,-32 26,0 0,38 -26,0" fill={c.primary} stroke={c.secondary} strokeWidth="2" />
         <polygon points="0,-32 12,-10 -12,-10" fill={c.secondary} opacity="0.85" />
         <polygon points="0,38 12,10 -12,10" fill="#05060a" opacity="0.4" />
       </motion.g>
+      </g>
 
       {/* Floating crown above the gem */}
+      <g transform="translate(200,180)">
       <motion.g
-        transform="translate(200,180)"
         animate={{ y: [0, -8, 0] }}
         transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
       >
@@ -516,6 +524,7 @@ function MasteryScene({ c, kind, glowFilter }: { c: any; kind: string; glowFilte
         <circle cx="0"   cy="27" r="1.5" fill={c.secondary} />
         <circle cx="22"  cy="27" r="1.5" fill={c.secondary} />
       </motion.g>
+      </g>
 
       {/* Orbiting stars around the crown */}
       {[0, 120, 240].map((a, i) => (
