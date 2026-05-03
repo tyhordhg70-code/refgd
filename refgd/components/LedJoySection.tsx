@@ -45,6 +45,57 @@ export default function LedJoySection() {
          the beat triggers. */
       className="relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden py-12 sm:py-16"
     >
+      {/* v6.13.13 — Slight cash animation pinned to the section's
+          bottom 35 vh (NOT inside the centred container, so the
+          bills drift up from the actual viewport bottom rather
+          than the bottom of the centred LED-text container which
+          would float them halfway up the screen). */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-[35svh] overflow-hidden"
+      >
+        <style>{`
+          @keyframes ledCashDrift {
+            0%   { transform: translate3d(0, 110%, 0) rotate(var(--rot, -8deg)); opacity: 0; }
+            15%  { opacity: 0.85; }
+            60%  { transform: translate3d(calc(var(--sway, 8px)), -40%, 0) rotate(calc(var(--rot, -8deg) * -1)); opacity: 0.7; }
+            100% { transform: translate3d(calc(var(--sway, 8px) * -1), -160%, 0) rotate(var(--rot, -8deg)); opacity: 0; }
+          }
+        `}</style>
+        {[
+          { left: "8%",  size: 36, delay: "0s",   dur: "5.4s", rot: "-9deg",  sway: "10px" },
+          { left: "20%", size: 28, delay: "1.1s", dur: "6.2s", rot: "6deg",   sway: "-12px" },
+          { left: "32%", size: 42, delay: "0.4s", dur: "5.0s", rot: "-5deg",  sway: "14px" },
+          { left: "46%", size: 24, delay: "2.0s", dur: "7.0s", rot: "11deg",  sway: "-9px" },
+          { left: "58%", size: 38, delay: "0.7s", dur: "5.6s", rot: "-12deg", sway: "11px" },
+          { left: "70%", size: 30, delay: "1.6s", dur: "6.4s", rot: "8deg",   sway: "-13px" },
+          { left: "82%", size: 34, delay: "0.2s", dur: "5.2s", rot: "-7deg",  sway: "12px" },
+          { left: "92%", size: 26, delay: "2.3s", dur: "6.8s", rot: "10deg",  sway: "-10px" },
+        ].map((b, i) => (
+          <span
+            key={i}
+            className="absolute bottom-0"
+            style={{
+              left: b.left,
+              width: b.size,
+              height: b.size * 0.55,
+              ["--rot" as string]: b.rot,
+              ["--sway" as string]: b.sway,
+              animation: reduce
+                ? undefined
+                : `ledCashDrift ${b.dur} ${b.delay} ease-in-out infinite`,
+              willChange: "transform, opacity",
+            }}
+          >
+            <svg viewBox="0 0 60 33" width="100%" height="100%"
+              style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.45)) drop-shadow(0 0 10px rgba(74,222,128,0.45))" }}>
+              <rect x="1" y="1" width="58" height="31" rx="3" fill="#1f7d3a" stroke="#86efac" strokeWidth="0.8" />
+              <circle cx="30" cy="16.5" r="8" fill="#143d22" stroke="#86efac" strokeWidth="0.6" />
+              <text x="30" y="20.5" textAnchor="middle" fontFamily="'Courier New', monospace" fontWeight="900" fontSize="11" fill="#dcfce7">$</text>
+            </svg>
+          </span>
+        ))}
+      </div>
 
       <div className="container-wide relative z-10 grid place-items-center text-center">
         {/* AHHHH — letters fly in horizontally fast */}
