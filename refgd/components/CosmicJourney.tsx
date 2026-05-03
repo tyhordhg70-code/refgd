@@ -216,7 +216,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
               aria-hidden="true"
               className="pointer-events-none absolute inset-0"
               initial={reduced ? { opacity: 1 } : { opacity: 0 }}
-              animate={{ opacity: 1 }}
+              animate={reduced || welcomeReady ? { opacity: 1 } : { opacity: 0 }}
               transition={reduced ? { duration: 0 } : { duration: 0.8, ease: "easeOut" }}
               style={{
                 // v6.10.4: removed the gold ellipse at 50% 80%. With
@@ -243,12 +243,16 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
                     key={`streak-${i}`}
                     className="absolute rounded-full"
                     initial={{ x: 0, y: 0, opacity: 0, scaleX: 0.2 }}
-                    animate={{
-                      x: [`0vmin`, `${s.dx * 0.6}vmin`, `${s.dx}vmin`],
-                      y: [`0vmin`, `${s.dy * 0.6}vmin`, `${s.dy}vmin`],
-                      opacity: [0, 1, 0],
-                      scaleX: [0.3, 1, 1.6],
-                    }}
+                    animate={
+                      welcomeReady
+                        ? {
+                            x: [`0vmin`, `${s.dx * 0.6}vmin`, `${s.dx}vmin`],
+                            y: [`0vmin`, `${s.dy * 0.6}vmin`, `${s.dy}vmin`],
+                            opacity: [0, 1, 0],
+                            scaleX: [0.3, 1, 1.6],
+                          }
+                        : { x: 0, y: 0, opacity: 0, scaleX: 0.2 }
+                    }
                     transition={{ duration: 1.8, delay: s.delay, ease: [0.16, 0.9, 0.3, 1], times: [0, 0.45, 1] }}
                     style={{
                       width: s.length, height: s.width,
@@ -267,7 +271,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             <motion.div
               className="absolute h-[60vmin] w-[60vmin] rounded-full"
               initial={reduced ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.18 }}
-              animate={{ opacity: 1, scale: 1 }}
+              animate={
+                reduced || welcomeReady
+                  ? { opacity: 1, scale: 1 }
+                  : { opacity: 0, scale: 0.18 }
+              }
               transition={reduced ? { duration: 0 } : { duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
               style={{
                 background:
@@ -295,7 +303,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
                 aria-hidden="true"
                 className="absolute h-[88vmin] w-[88vmin] rounded-full"
                 initial={{ opacity: 0, scale: 0.55 }}
-                animate={{ opacity: [0, 0.75, 0.4], scale: 1 }}
+                animate={
+                  welcomeReady
+                    ? { opacity: [0, 0.75, 0.4], scale: 1 }
+                    : { opacity: 0, scale: 0.55 }
+                }
                 transition={{ duration: 2.0, ease: "easeOut", delay: 0.4, times: [0, 0.5, 1] }}
                 style={{
                   border: "1px solid rgba(255,225,140,0.40)",
