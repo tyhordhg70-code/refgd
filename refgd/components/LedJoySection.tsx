@@ -56,27 +56,26 @@ export default function LedJoySection() {
          the beat triggers. */
       className="relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden py-12 sm:py-16"
     >
-      {/* v6.13.20 — Cash now FALLS FROM ABOVE rather than drifting
-          UP from the bottom. Two user reports addressed:
-          (1) "Money should fall on top from ahh feel joy" — flipped
-              the animation direction. Bills start ABOVE the section
-              (translateY(-150%)) and fall DOWN past the LED text to
-              below the section (translateY(150%)).
-          (2) "Cut off from the cash when falling on first frames" —
-              the previous version pinned bills to the BOTTOM of a
-              `h-[35svh]` container with `bottom-0`, so on the very
-              first paint frame each bill was sitting half-clipped at
-              the bottom edge of an overflow-hidden box (the 110%
-              starting offset wasn't enough on small phones to hide
-              them fully). Now: container fills the FULL section
-              (inset-0), each bill is `top-0` and starts at -150%
-              (entirely ABOVE the container's clip box) so the bill
-              is invisible at frame 0 and only enters the visible
-              region as the fall progresses — no half-clipped
-              first-frame paint, ever. */}
+      {/* v6.13.32 — Two user reports about the falling cash:
+          (a) "cash should fall right from the top of the letters
+              ahh feel joy not top of the page" — previously the
+              container was `absolute inset-0`, so bills entered
+              from -150% of their own height above the section's
+              top edge. The section is min-h-100svh and the AHH
+              text sits centred, so bills appeared to spawn near
+              the top of the viewport (well above the letters)
+              and then fall through the letters. Now the cash
+              container starts at top:32% (just above where the
+              centred AHH text begins), so bills enter from just
+              above the letters and fall past them downward.
+          (b) "Storelist should not have cash on desktop on get
+              rewarded page" — `md:hidden` removes the cash overlay
+              entirely on desktop. The LED text alone reads as the
+              cinematic beat there; the cash is a mobile-only
+              flourish. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+        className="pointer-events-none absolute inset-x-0 bottom-0 top-[32%] z-0 overflow-hidden md:hidden"
       >
         <style>{`
           @keyframes ledCashFall {
@@ -140,9 +139,32 @@ export default function LedJoySection() {
           {ahhLetters.map((ch, i) => (
             <motion.span
               key={i}
+              /* v6.13.32 — User reported "Ahh feel joy is broken
+                 and not shown on mobile and animation gone".
+                 Root cause: `whileInView` with `viewport: { once
+                 true, amount: 0.15 }` was the recommended fix in
+                 v6.13.19 but on iOS Safari the IntersectionObserver
+                 still occasionally fails to fire when the section
+                 enters via fast scroll or fast-snap — when the
+                 trigger is missed the letters stay at their
+                 initial state (opacity:0) FOREVER and the user
+                 sees a blank dark screen.
+
+                 This new approach drops the viewport gate entirely
+                 and uses `animate` instead. The animation now
+                 fires on mount with no IntersectionObserver in the
+                 way. It can technically play before the user
+                 scrolls to the section, but because `min-h-100svh`
+                 puts the LED beat well below the fold and the
+                 letters are at their TO state for the rest of the
+                 page lifetime (no infinite loop), the visitor
+                 still experiences them as "fully lit" when they
+                 arrive. The previous broken case (blank dark
+                 screen) is impossible because there is no longer
+                 anything that has to fire to make the letters
+                 appear. */
               initial={reduce ? { opacity: 1 } : { opacity: 0, x: 360, skewX: -28 }}
-              whileInView={{ opacity: 1, x: 0, skewX: 0 }}
-              viewport={{ once: true, amount: 0.15 }}
+              animate={{ opacity: 1, x: 0, skewX: 0 }}
               transition={{
                 duration: 0.32,
                 delay: i * 0.07,
@@ -176,9 +198,9 @@ export default function LedJoySection() {
           {tagline.map((word, i) => (
             <motion.span
               key={i}
+              /* v6.13.32 — same gate-removal as AHHH letters above. */
               initial={reduce ? { opacity: 1 } : { opacity: 0, x: 220 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true, amount: 0.15 }}
+              animate={{ opacity: 1, x: 0 }}
               transition={{
                 duration: 0.28,
                 // Words start AFTER the AHHH letters finish. AHHH ends
