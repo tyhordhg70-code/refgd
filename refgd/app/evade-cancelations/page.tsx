@@ -204,7 +204,15 @@ export default function EvadePage() {
             freedom" caption stays visible the entire time. */}
         <ChipScroll
           dir="/sequence/evade"
-          frameCount={48}
+          /* v6.13.57 — was 48. The /public/sequence/evade/ frame
+             folder doesn't exist in this repo, so all 48 preload
+             requests 404'd on every page load (the user pasted
+             the spam from devtools). ChipScroll already falls back
+             to the procedural cinematic scene when frames are
+             missing, so dropping the count to 0 skips the preload
+             entirely and goes straight to the fallback — same
+             visual as before, no console noise. */
+          frameCount={0}
           // v6.7 — was "#05060a" (solid near-black). That painted the
           // entire scrollytelling runway as a black void on first
           // paint, before the user scrolled a single pixel — the
