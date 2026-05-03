@@ -303,7 +303,7 @@ export default function LoadingScreen() {
       }, 6000);
     });
 
-    // v6.10.5: HARD CEILING. windowLoadPromise + paintWaiter both wait
+    // v6.11.0: HARD CEILING. windowLoadPromise + paintWaiter both wait
     // on the 'load' event — if any single resource (slow CDN font,
     // never-resolving script, hung WebGL init) blocks it forever, the
     // Promise.all never resolves and the bar visibly stalls at 95 %
@@ -337,7 +337,7 @@ export default function LoadingScreen() {
 
       timerA = window.setTimeout(() => {
         setVisible(false);
-        // v6.10.3: gated entrance animations (CosmicJourney welcome
+        // v6.11.0: gated entrance animations (CosmicJourney welcome
         // headline, GlassCard / PathCard / MeshEntrance / etc. via
         // useEntranceReady) used to fire HERE — i.e. at the moment
         // the splash STARTS its 800 ms opacity fade. The result:
