@@ -420,16 +420,22 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
     activePointerId.current = null;
   };
 
-  // ── Per-card render helper. Only the active face animates —
-  // back faces are mounted but their inner illustration timers
-  // are paused (animated:false) so we don't run 5×N infinite
-  // animations at once. noReveal disables the desktop entrance
-  // animation per card; the whole prism gets ONE entrance below.
+  // v6.13.18 — REVERSED the active-only animation gate. User
+  // reported "bring back the actual path card illustration
+  // animation": the previous `animated: i === active` froze the
+  // illustrations on every back-face of the prism, so as the
+  // user looked at the carousel they saw 4 static cards and only
+  // the one currently facing forward animated. The original
+  // perf rationale (5×N infinite animations) is acceptable here
+  // — PathIllustration is mostly compositor-only transforms +
+  // SVG keyframes, so the GPU can absorb it. If lag returns we
+  // can add a IO-based pause (animate only when the prism is
+  // in the viewport) instead of an active-only gate.
   const renderCard = (card: ReactNode, i: number) => {
     if (!isValidElement(card)) return card;
     return cloneElement(
       card as ReactElement<{ noReveal?: boolean; animated?: boolean }>,
-      { noReveal: true, animated: i === active },
+      { noReveal: true, animated: true },
     );
   };
 
