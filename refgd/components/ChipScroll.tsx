@@ -229,11 +229,31 @@ export default function ChipScroll({
       schedulePaint();
     };
 
+    // v6.13.23 — When `background === "transparent"`, fillStyle
+    // parses as rgba(0,0,0,0) which composites a no-op (does NOT
+    // clear the previous frame's pixels). The result on the
+    // Evade page (which passes background="transparent" so the
+    // page galaxy can show through) was that every animation
+    // frame's particles + shield shards + concentric rings
+    // smeared on top of the previous frame's pixels — visible
+    // as a thickening BLACK wash as the user scrolled (their
+    // report). Fix: use clearRect() for the transparent path so
+    // each frame starts from real transparency, and keep
+    // fillRect() for solid backgrounds.
+    const isTransparent = background === "transparent" || background === "none";
+    const clearOrFill = () => {
+      if (isTransparent) {
+        c.clearRect(0, 0, w, h);
+      } else {
+        c.fillStyle = background;
+        c.fillRect(0, 0, w, h);
+      }
+    };
+
     const paintFrame = (p: number) => {
       const idx = Math.min(framesRef.current.length - 1, Math.max(0, Math.floor(p * (framesRef.current.length - 1))));
       const img = framesRef.current[idx];
-      c.fillStyle = background;
-      c.fillRect(0, 0, w, h);
+      clearOrFill();
       if (img && img.complete && img.naturalWidth > 0) {
         // contain-fit centered
         const ar = img.naturalWidth / img.naturalHeight;
@@ -248,8 +268,7 @@ export default function ChipScroll({
     // Procedural fallback — a cinematic 3D iris/shield/chess scene that
     // disassembles as you scroll. No external assets needed.
     const paintFallback = (p: number) => {
-      c.fillStyle = background;
-      c.fillRect(0, 0, w, h);
+      clearOrFill();
       const cx = w / 2;
       const cy = h / 2;
       const minDim = Math.min(w, h);
