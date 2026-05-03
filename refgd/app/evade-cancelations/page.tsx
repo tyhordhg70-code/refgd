@@ -120,23 +120,19 @@ export default function EvadePage() {
           transparent so the GalaxyBackground reads through, and
           the deep blue/violet only fades in from the middle of
           the page downward where it actually does scenic work. */}
-      {/* v6.13.24 — z-index FIXED. Was `-z-[1]` (z-index:-1),
-          which on a non-stacking-context body sends the
-          element BEHIND the body's bg-ink-950 (#05060a) — so
-          this overlay was effectively invisible. The user
-          reported "black bar still appears briefly during
-          scrolling" — root cause was body near-black bg
-          showing through anywhere the GalaxyBackground worker
-          hadn't yet repainted (boot delay, prefers-reduced-
-          motion bail on iOS Low Power Mode, or in-between
-          worker frames during fast scroll). Now `z-[1]` so the
-          overlay sits ABOVE the galaxy (z-0) and BELOW the
-          page content (which uses z-10), giving the page a
-          warm violet/blue cosmic atmosphere even when the
-          galaxy is absent — no more black flashes. */}
+      {/* v6.13.26 — REVERTED v6.13.24 z-[1] back to -z-[1].
+          Pushing this overlay above the galaxy (z:1) also
+          pushed it ABOVE all page content that doesn't use
+          z-10 (ChipScroll, dividers, etc.) — visible to the
+          user as "the whole opacity is much lower". The black
+          bar is now solved at the body level instead (see
+          layout.tsx body style: solid bg-ink-950 was replaced
+          with a deep violet→ink gradient so anywhere the body
+          shows through during scroll/galaxy-boot, it's
+          atmospheric instead of black). */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 z-[1]"
+        className="pointer-events-none fixed inset-0 -z-[1]"
         style={{
           background:
             "radial-gradient(ellipse 80% 60% at 20% 0%, rgba(30,18,90,0.32), transparent 60%), radial-gradient(ellipse 70% 60% at 80% 100%, rgba(82,28,140,0.55), transparent 60%), linear-gradient(180deg, rgba(8,8,32,0) 0%, rgba(18,8,40,0.55) 55%, rgba(10,4,32,0.78) 100%)",
