@@ -1885,8 +1885,29 @@ html { scroll-behavior: smooth; }
      after run → TO held (opacity:1); animation evicted →
      declared opacity:1 takes over. Cards can no longer go
      blank on any path. */
-  animation-fill-mode: both;
+  /* v6.13.46 — fill-mode was `both` which held the TO keyframe state
+     forever after the entrance animation completed. The TO state of
+     several variants (curtain, slide-left, slide-right, iris,
+     wipe-diag) ends on `clip-path: inset(0 0 0 0)` (or polygon
+     equivalent). That clip stays applied at the original box edges
+     even after the entrance is over, so when the perpetual
+     `.float-card` layer inside translates the surface up by 10 px
+     every cycle, the TOP of the card gets sliced off by the held
+     clip-path — which the user (correctly) reported as the
+     "Comprehensive solutions" cards being cut off.
+     Switching to `backwards` keeps the FROM state during the delay
+     window (so cards still don't flash visible while waiting for
+     their stagger), but DROPS the TO state on completion and falls
+     back to the declared base styles below — which now explicitly
+     pin clip-path and transform to none so neither the float
+     translation nor any responsive layout shift can ever be
+     clipped. iOS-Safari fallback path is also clean: if the engine
+     drops the animation, it lands on `opacity:1; clip-path:none;
+     transform:none` — fully visible, no held clip. */
+  animation-fill-mode: backwards;
   opacity: 1;
+  clip-path: none;
+  transform: none;
   /* `will-change` removed from base — only kept on .gc-pending
      where it actually helps with the entrance composite. After
      reveal we drop the hint so iPad's GPU memory budget isn't
