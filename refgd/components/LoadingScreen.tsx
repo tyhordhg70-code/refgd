@@ -1,7 +1,42 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { markLoadingActive, markLoadingComplete } from "@/lib/loading-screen-gate";
+
+/**
+ * v6.13.37 — sessionStorage gate.
+ *
+ * The loading splash should only appear ONCE per session. Subsequent
+ * client-side navigations (Link → Link) keep the layout mounted and
+ * therefore the splash never re-renders, but a hard reload (back
+ * button to a stale tab, manual refresh, or some browsers' restore-
+ * after-restart) used to re-trigger the full 1.5-2.4 s splash on
+ * every page view. We persist the "boot already done" flag in
+ * sessionStorage so the same browsing session (across reloads)
+ * skips the overlay entirely after the very first paint.
+ */
+const SESSION_GATE_KEY = "rg:loaded-once";
+function alreadyLoadedThisSession(): boolean {
+  if (typeof window === "undefined") return false;
+  try { return sessionStorage.getItem(SESSION_GATE_KEY) === "1"; } catch { return false; }
+}
+function markSessionLoaded() {
+  if (typeof window === "undefined") return;
+  try { sessionStorage.setItem(SESSION_GATE_KEY, "1"); } catch {}
+}
+
+/** Top-level routes the splash should warm up so subsequent client
+ *  navigations are instant and never trigger a Suspense fallback. */
+const PREFETCH_ROUTES = [
+  "/",
+  "/store-list",
+  "/exclusive-mentorships",
+  "/evade-cancelations",
+  "/top-tier-methods",
+  "/our-service",
+  "/vouches",
+];
 
 // Module-import side-effect: mark the loading screen as active
 // SYNCHRONOUSLY before any other component reads the gate flag.
@@ -9,7 +44,14 @@ import { markLoadingActive, markLoadingComplete } from "@/lib/loading-screen-gat
 // of every entrance component in the page tree, so this flag is
 // already set when GlassCard / PathCard / MeshEntrance / etc.
 // run their mount-time `useEntranceReady()` initializer.
-markLoadingActive();
+//
+// v6.13.37: skip marking active if the session has already booted —
+// otherwise entrance components on a soft-refreshed page would wait
+// for a `refgd:loading-complete` event that never comes (because
+// LoadingScreen never renders).
+if (typeof window !== "undefined" && !alreadyLoadedThisSession()) {
+  markLoadingActive();
+}
 
 /**
  * LoadingScreen — full-screen cinematic boot overlay with a REAL
@@ -58,14 +100,39 @@ const PHASES = [
 ];
 
 export default function LoadingScreen() {
-  const [progress, setProgress] = useState(0);
-  const [phase, setPhase] = useState(PHASES[0]);
-  const [visible, setVisible] = useState(true);
-  const [removed, setRemoved] = useState(false);
+  const router = useRouter();
+  // v6.13.37 — if this session has already shown the splash once,
+  // skip it entirely on reloads / additional mounts. Initialise
+  // BOTH `removed` and `visible` from the gate so the very first
+  // render returns null without flashing the overlay for a frame.
+  const [progress, setProgress] = useState(100);
+  const [phase, setPhase] = useState(PHASES[4]);
+  const [visible, setVisible] = useState(() =>
+    typeof window === "undefined" ? true : !alreadyLoadedThisSession(),
+  );
+  const [removed, setRemoved] = useState(() =>
+    typeof window === "undefined" ? false : alreadyLoadedThisSession(),
+  );
   // Keep last reported value so the bar never goes backwards
   const lastShownRef = useRef(0);
 
+  // v6.13.37 — Even though `removed` short-circuits the render,
+  // we still want subsequent navigations to feel instant — so
+  // prefetch every top-level route once on mount regardless.
   useEffect(() => {
+    PREFETCH_ROUTES.forEach((r) => {
+      try { router.prefetch(r); } catch { /* noop */ }
+    });
+  }, [router]);
+
+  useEffect(() => {
+    // Already done this session → don't even spin up the trackers.
+    if (alreadyLoadedThisSession()) {
+      // Make sure the entrance gate is open for any component that
+      // mounted after us.
+      markLoadingComplete();
+      return;
+    }
     // Lock body so the user can't start scrolling on a half-warm tree
     const prevOverflow = document.body.style.overflow;
     const prevTouchAction = document.body.style.touchAction;
@@ -303,7 +370,7 @@ export default function LoadingScreen() {
       }, 6000);
     });
 
-    // v6.11.0: HARD CEILING. windowLoadPromise + paintWaiter both wait
+    // v6.10.5: HARD CEILING. windowLoadPromise + paintWaiter both wait
     // on the 'load' event — if any single resource (slow CDN font,
     // never-resolving script, hung WebGL init) blocks it forever, the
     // Promise.all never resolves and the bar visibly stalls at 95 %
@@ -337,7 +404,7 @@ export default function LoadingScreen() {
 
       timerA = window.setTimeout(() => {
         setVisible(false);
-        // v6.11.0: gated entrance animations (CosmicJourney welcome
+        // v6.10.3: gated entrance animations (CosmicJourney welcome
         // headline, GlassCard / PathCard / MeshEntrance / etc. via
         // useEntranceReady) used to fire HERE — i.e. at the moment
         // the splash STARTS its 800 ms opacity fade. The result:
@@ -361,6 +428,10 @@ export default function LoadingScreen() {
         setRemoved(true);
         document.body.style.overflow = prevOverflow;
         document.body.style.touchAction = prevTouchAction;
+        // v6.13.37 — record that this session has booted so any
+        // later mount of LoadingScreen (hard refresh, restore from
+        // bfcache) skips the splash entirely.
+        markSessionLoaded();
       }, 1100);
     });
 
