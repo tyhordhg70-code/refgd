@@ -129,19 +129,20 @@ export default function ServiceSection({ slice }: { slice?: "hero" | "rest" } = 
       <>
       {/* ─── Act 1 — "Get rewarded for shopping online." hero ──────── */}
       <section
-        /* v6.13.6 — Mobile fix: was `min-h-[88svh] items-center
-           overflow-hidden`. With `items-center` the headline box +
-           the mobile CashbackScene illustration were centred inside
-           an 88-svh slot, but the COMBINED height of the box and
-           the 260 px scene exceeded 88 svh on most phones. The
-           extra height overflowed BOTH top and bottom of the slot
-           and `overflow-hidden` then sliced the illustration off
-           at the bottom (the user's "illustration is cut off"
-           report). Mobile now uses natural height with
-           `items-start` so the box sits at the top and the scene
-           can render fully below it; desktop keeps the cinematic
-           full-viewport hero. */
-        className="relative isolate flex w-full items-start overflow-hidden bg-ink-950 pt-8 pb-12 md:items-center md:py-0 md:min-h-[92svh]"
+        /* v6.13.11 — REAL fix for the mobile illustration clipping.
+           Previous attempts kept this section as `flex` (which
+           defaults to flex-direction:row) and tried to fix the
+           clipping by toggling items-center vs items-start and
+           tweaking min-h. None of that worked because the actual
+           bug was that the headline <motion.div> and the mobile
+           CashbackScene <div> are SIBLINGS in a flex-row container
+           — they were laying out side-by-side, with the cashback
+           scene pushed beyond the viewport's right edge and then
+           sliced off by `overflow-hidden`. Switching to flex-col
+           on mobile (and only restoring flex-row on md:) makes
+           them stack vertically: headline first, then the 260 px
+           cashback scene fully visible below it. */
+        className="relative isolate flex w-full flex-col items-center overflow-hidden bg-ink-950 pt-8 pb-16 md:flex-row md:items-center md:py-0 md:min-h-[92svh]"
         data-cursor="big"
       >
         {/* mesh orbs + gradient ambience */}
