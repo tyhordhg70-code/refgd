@@ -150,8 +150,18 @@ export default function StoreFilters({
     const emit = (cat: string, list: Store[]) =>
       ordered.push({ category: cat as StoreCategory, stores: list });
 
-    // Pass 1: canned order.
-    for (const cat of CATEGORY_ORDER) {
+    // v6.13.37 — Pass 1 now uses the admin-saved merged order coming
+    // from the server (categoryOptions) when available, so a drag-
+    // rearrange in the filter dropdown immediately reorders the
+    // headlines on the page. Falls back to the canned CATEGORY_ORDER
+    // when categoryOptions is still empty (first paint before the
+    // refresh fetch resolves).
+    const orderSource: string[] =
+      categoryOptions.length > 0
+        ? categoryOptions
+        : (CATEGORY_ORDER as readonly string[] as string[]);
+
+    for (const cat of orderSource) {
       const list = map.get(cat) ?? [];
       if (catFilterActive) {
         if (selectedCategories.has(cat)) emit(cat, list); // always render selected
@@ -161,8 +171,8 @@ export default function StoreFilters({
       map.delete(cat);
     }
 
-    // Pass 2: leftover categories (admin extras / legacy / typos) in
-    // alpha order. Same selection rules.
+    // Pass 2: leftover categories (legacy / typos that aren't even in
+    // the merged order yet) in alpha order. Same selection rules.
     const leftover = Array.from(map.entries()).sort((a, b) =>
       a[0].localeCompare(b[0]),
     );
@@ -185,7 +195,7 @@ export default function StoreFilters({
     }
 
     return ordered;
-  }, [filtered, isAdmin, editMode, search, selectedCategories]);
+  }, [filtered, isAdmin, editMode, search, selectedCategories, categoryOptions]);
 
   // ───── inline CRUD handlers ────────────────────────────────────────
 
