@@ -21,6 +21,7 @@ import SmoothScroll from "@/components/SmoothScroll";
 import EditProvider from "@/lib/edit-context";
 import EditorToolbar from "@/components/EditorToolbar";
 import AutoEditWrapper from "@/components/AutoEditWrapper";
+import EditorErrorBoundary from "@/components/EditorErrorBoundary";
 import { getAllContentMap } from "@/lib/content";
 import { readSession } from "@/lib/auth";
 
@@ -111,6 +112,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             LoadingScreen so it can never strand the page). */}
         <LoadingScreen />
         <EditProvider initialAdmin={initialAdmin} initialContent={initialContent}>
+        <EditorErrorBoundary>
           {/* Site-wide continuous WebGL galaxy field — every page scrolls
               over the same scene so transitions feel like one journey. */}
           <GalaxyBackground />
@@ -131,6 +133,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <CustomCursor />
           {/* Floating inline-editor toolbar (only renders for admins). */}
           <EditorToolbar />
+        </EditorErrorBoundary>
         </EditProvider>
       </body>
     </html>
