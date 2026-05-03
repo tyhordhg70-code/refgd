@@ -10,8 +10,6 @@ import {
   type ReactNode,
 } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Swiper, SwiperSlide } from "swiper/react";
-import { Pagination } from "swiper/modules";
 import PathCardCameraFly from "./PathCardCameraFly";
 
 /**
@@ -179,7 +177,7 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
     >
       {/* Ambient floating orbs — pure CSS keyframes, zero JS cost during swipe */}
       <MobileFloatOrbs />
-      <SwiperCubeStage cards={cards} />
+      <MobilePrismStage cards={cards} />
       <p
         aria-hidden="true"
         className="mt-4 heading-display text-center text-[10px] font-semibold uppercase tracking-[0.4em] text-white/55"
@@ -244,209 +242,270 @@ function MobileFloatOrbs() {
   );
 }
 
-/* ── SwiperCubeStage ─────────────────────────────────────────────
- * v6.10 (2026-05): switched from EffectCube to EffectCards.
+/* ── MobilePrismStage ────────────────────────────────────────────
+ * v6.11 (2026-05): custom N-faced 3D prism, no Swiper.
  *
- * Why: a Swiper cube has only FOUR rotatable side faces (it's a
- * cube). The home page now has FIVE path cards (Refund Store List,
- * Evade Cancelations, Exclusive Mentorships, Shop Methods, BUY 4
- * YOU). With 5 slides on a 4-face cube, Swiper could rotate to
- * cards 1 and 2 but physically had nowhere to put cards 3-5 — the
- * cube would refuse to advance past slide 2 and the user reported
- * exactly that ("can't scroll past card 2") plus "illustrations
- * gone" (the unreachable cards 3-5 contained the illustrations
- * the user expected to swipe to).
+ * Every Swiper effect we tried failed for ≥1 of 4 reasons:
+ *   • EffectCube              — hardcoded 4 faces; with 5 slides
+ *                               cards 3-5 are unreachable.
+ *   • EffectCube + loop=true  — clones slide DOM, duplicate SVG
+ *                               ids → url(#…) refs broken →
+ *                               illustrations disappear.
+ *   • EffectCards             — flickering deck transition.
+ *   • EffectCoverflow         — slides become position:absolute
+ *                               with height:auto → h-full chain
+ *                               collapses → illustrations gone.
+ *   • EffectCreative          — adds backface-visibility:hidden
+ *                               to slides + stacks all slides at
+ *                               the same on-screen position; on
+ *                               iOS Safari this hides child SVG
+ *                               content unpredictably (a known
+ *                               WebKit bug with backface-visibility
+ *                               on a 3D-transformed parent of an
+ *                               <svg>). Also: paint flickering on
+ *                               rest from the layered transforms.
  *
- * EffectCards (Swiper's stacked-deck effect) supports an
- * arbitrary number of slides — they sit in a tactile card stack
- * and the top card swipes off to reveal the next. The user can
- * cycle through all 5 path cards with no face-count limit. The
- * effect is GPU-only (CSS transforms) so the per-frame cost is
- * the same as the cube was.
+ * This component renders a TRUE regular N-sided prism (here N=5)
+ * using bare CSS 3D transforms, with no library involved:
+ *
+ *   • Each card is a "face" positioned via
+ *     rotateY(i·θ) translateZ(r) where θ = 360°/N and r is the
+ *     prism inradius computed from the live face width:
+ *         r = W / (2·tan(π/N))
+ *     So every face sits flush against its neighbours along the
+ *     prism's lateral edges. For N=5, θ = 72°, r ≈ 0.688·W.
+ *
+ *   • The whole prism rotates by –(active+drag)·θ to bring face
+ *     `active` to the front. The container is pulled back by
+ *     translateZ(–r) so the active face lands at z=0 — i.e. at
+ *     its natural display size, no perspective scaling.
+ *
+ *   • Touch gestures use pointer events with the same vertical-
+ *     release rule the previous Swiper version had (|dy| > 1.7·|dx|
+ *     and |dy| ≥ 10 → release the gesture so the document scroll
+ *     wins). Releasing the touch snaps the prism via a 520 ms
+ *     ease-out CSS transition.
+ *
+ *   • NO `backface-visibility: hidden`. Faces 2 and 3 (the back
+ *     of the prism when face 0 is front) are naturally occluded
+ *     by depth, no special hiding needed — and their child SVGs
+ *     are guaranteed to render on iOS Safari.
+ *
+ *   • NO DOM cloning. Each card mounts exactly once, so SVG ids
+ *     stay unique and gradient/filter url(#…) refs always
+ *     resolve.
+ *
+ *   • The whole prism is wrapped in a framer-motion entrance
+ *     reveal (initial opacity:0 / scale:0.85 → animate while in
+ *     view) — the mobile carousel finally has the entrance
+ *     animation that the desktop grid has always had.
  */
-function SwiperCubeStage({ cards }: { cards: ReactNode[] }) {
-  const [activeIndex, setActiveIndex] = useState(0);
+function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
+  const N = cards.length;
+  const FACE_ANGLE = 360 / N;
 
-  // ── Capture-phase vertical-scroll release ──────────────────────
-  // Even with `touchAngle: 30` set on Swiper below, on iOS Safari
-  // Swiper's bubble-phase touchmove handler still consumes the
-  // first ~5-10 px of any gesture before its own angle filter
-  // kicks in. That ate enough of a real horizontal flick that the
-  // cube couldn't commit past slide 2 — Swiper would see the
-  // first chunk of the gesture, partially rotate, then end the
-  // touch before reaching its `longSwipesRatio` threshold.
-  //
-  // Fix: attach our own capture-phase touchstart/touchmove on the
-  // cube wrapper. We classify a gesture as vertical ONLY when:
-  //   • total motion ≥ 12 px (avoid jitter), AND
-  //   • |dy| > |dx| × 1.7 (clearly vertical, not just slightly), AND
-  //   • |dy| ≥ 10 px of vertical travel.
-  // Anything else (every reasonable horizontal flick) flows
-  // through to Swiper untouched and rotates the cube cleanly.
-  // Vertical scrolls past the threshold release immediately via
-  // stopImmediatePropagation, so the page's pan-y scroll wins.
-  const trackRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(0);
+  // Drag fraction in units of one face. -1 = swiped fully right
+  // (next face), +1 = swiped fully left (previous face). Reset to
+  // 0 the moment the gesture ends.
+  const [drag, setDrag] = useState(0);
+
+  const stageRef = useRef<HTMLDivElement>(null);
+  const faceWidth = useRef(0);
+  const faceDepth = useRef(0);
+
+  // Recompute the prism inradius from the live face width. For a
+  // regular N-gon with side W, the inradius (distance from centre
+  // to side mid-point) is r = W / (2·tan(π/N)). We expose r as a
+  // CSS variable so the face transforms can use it directly.
   useEffect(() => {
-    const el = trackRef.current;
-    if (!el) return;
-    let startX = 0;
-    let startY = 0;
-    let decided: "h" | "v" | null = null;
-
-    const onStart = (e: TouchEvent) => {
-      if (!e.touches[0]) return;
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-      decided = null;
+    const stage = stageRef.current;
+    if (!stage) return;
+    const update = () => {
+      const w = stage.offsetWidth;
+      faceWidth.current = w;
+      const r = w / (2 * Math.tan(Math.PI / N));
+      faceDepth.current = r;
+      stage.style.setProperty("--face-depth", `${r}px`);
     };
-    const onMove = (e: TouchEvent) => {
-      if (!e.touches[0]) return;
-      if (decided === "h") return;
-      const dx = e.touches[0].clientX - startX;
-      const dy = e.touches[0].clientY - startY;
-      const ax = Math.abs(dx);
-      const ay = Math.abs(dy);
-      if (decided === "v") {
-        e.stopImmediatePropagation();
-        return;
-      }
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(stage);
+    return () => ro.disconnect();
+  }, [N]);
+
+  // ── Pointer-event swipe handler with vertical-scroll release ──
+  // Same release rule the old Swiper-based version used: a gesture
+  // is treated as horizontal (= prism rotate) by default and only
+  // released to the document's vertical scroll when the user has
+  // moved ≥ 10 px vertically AND |dy| > 1.7·|dx|.
+  const startX = useRef<number | null>(null);
+  const startY = useRef(0);
+  const decided = useRef<"h" | "v" | null>(null);
+  const activeAtStart = useRef(0);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    startX.current = e.clientX;
+    startY.current = e.clientY;
+    decided.current = null;
+    activeAtStart.current = active;
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (startX.current === null) return;
+    const dx = e.clientX - startX.current;
+    const dy = e.clientY - startY.current;
+    const ax = Math.abs(dx);
+    const ay = Math.abs(dy);
+    if (decided.current === null) {
       if (ax + ay < 12) return;
       if (ay > ax * 1.7 && ay >= 10) {
-        decided = "v";
-        e.stopImmediatePropagation();
-      } else {
-        decided = "h";
+        decided.current = "v";
+        startX.current = null;
+        setDrag(0);
+        return;
       }
-    };
-    const onEnd = () => {
-      decided = null;
-    };
+      decided.current = "h";
+    }
+    if (decided.current !== "h") return;
+    // Negative dx = swiping left = advance to next face = positive drag.
+    const fraction = -dx / Math.max(1, faceWidth.current);
+    // Clamp to [-1, +1] so a runaway drag can't spin the prism past
+    // the immediate neighbour during a single gesture.
+    const clamped = Math.max(-1, Math.min(1, fraction));
+    // Edge resistance: rubber-band when trying to drag past the
+    // first or last face. Past the boundary, drag is divided by 3.
+    const wouldGo = activeAtStart.current + clamped;
+    let final = clamped;
+    if (wouldGo < 0) final = -activeAtStart.current + (clamped + activeAtStart.current) / 3;
+    if (wouldGo > N - 1) final = (N - 1 - activeAtStart.current) + (clamped - (N - 1 - activeAtStart.current)) / 3;
+    setDrag(final);
+  };
 
-    el.addEventListener("touchstart", onStart, { capture: true, passive: true });
-    el.addEventListener("touchmove", onMove, { capture: true, passive: true });
-    el.addEventListener("touchend", onEnd, { capture: true, passive: true });
-    el.addEventListener("touchcancel", onEnd, { capture: true, passive: true });
-    return () => {
-      el.removeEventListener("touchstart", onStart, { capture: true } as EventListenerOptions);
-      el.removeEventListener("touchmove", onMove, { capture: true } as EventListenerOptions);
-      el.removeEventListener("touchend", onEnd, { capture: true } as EventListenerOptions);
-      el.removeEventListener("touchcancel", onEnd, { capture: true } as EventListenerOptions);
-    };
-  }, []);
+  const finishGesture = () => {
+    if (startX.current === null) return;
+    startX.current = null;
+    decided.current = null;
+    // Commit threshold: 18% of one face width is enough to advance.
+    let next = activeAtStart.current;
+    if (drag > 0.18) next = Math.min(N - 1, activeAtStart.current + 1);
+    else if (drag < -0.18) next = Math.max(0, activeAtStart.current - 1);
+    setActive(next);
+    setDrag(0);
+  };
+
+  const rotation = -(active + drag) * FACE_ANGLE;
+  // While the finger is down (drag != 0) we want a 1:1 follow with
+  // no transition. After release (drag === 0) we let the snap-back
+  // animation play.
+  const isDragging = drag !== 0;
 
   return (
-    <div
-      ref={trackRef}
+    <motion.div
       data-testid="paths-mobile-track"
-      className="cube-float mx-auto"
+      className="mx-auto"
       style={{
         width: "min(92vw, 440px)",
-        // Reserve a tall stage so the cube has room to rotate.
-        // 1:1.42 aspect roughly matches the path-card aspect.
+        // 1:1.42 keeps the same aspect the old cube used so the
+        // surrounding page layout doesn't shift.
         aspectRatio: "1 / 1.42",
-        // GPU layer for the whole stage; nothing outside is
-        // affected by the cube's 3D context.
-        transform: "translateZ(0)",
+        // Perspective gives the rotation real depth. 1400 px is far
+        // enough that face foreshortening looks natural without
+        // making the prism feel like it's behind glass.
+        perspective: "1400px",
       }}
+      initial={{ opacity: 0, y: 60, scale: 0.88 }}
+      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      viewport={{ once: true, amount: 0.25 }}
+      transition={{ duration: 0.95, ease: [0.22, 1, 0.36, 1] }}
     >
-      <Swiper
-        // v6.10.9: PLAIN SLIDE EFFECT — no 3D, no overlapping slides.
-        //
-        // History of failed 3D attempts:
-        //   • EffectCube     — hardcoded 4-face cube; slide 4 maps to
-        //                      same face as slide 0; cards 3-5 unreachable.
-        //   • EffectCube + loop=true — Swiper clones slide DOM nodes;
-        //                      duplicate SVG ids (pi-bg-store, etc.) make
-        //                      url(#…) refs resolve to wrong/broken nodes
-        //                      → illustrations disappear.
-        //   • EffectCards    — flickering during transition.
-        //   • EffectCoverflow — collapses h-full slides to 0 height
-        //                      → illustrations disappear.
-        //   • EffectCreative — adds backface-visibility:hidden to slides
-        //                      and stacks all 5 slides at the same screen
-        //                      position with full GPU layers; on iOS
-        //                      Safari this hides child SVGs unpredictably
-        //                      and causes paint flickering on rest.
-        //
-        // Plain slide is the only configuration that:
-        //   • lets all 5 cards be reached with normal swipe gestures,
-        //   • keeps slides in their natural side-by-side flex layout
-        //     (no overlap, no stacking, no z-fighting),
-        //   • applies NO backface-visibility / NO 3D transforms — so
-        //     iOS Safari renders the SVG illustrations correctly,
-        //   • doesn't clone slide DOM nodes, so SVG ids stay unique
-        //     and gradient / filter url(#…) refs resolve correctly.
-        modules={[Pagination]}
-        slidesPerView={1}
-        loop={false}
-        grabCursor
-        speed={520}
-        // touchAngle: 30 — Swiper's own filter for vertical-leaning
-        // gestures. Combined with our capture-phase listener above
-        // this gives belt-and-braces release for vertical scrolls.
-        touchAngle={30}
-        // ── Touch sensitivity tuning ─────────────────────────────────
-        // Default Swiper requires the user to drag past 50% of the
-        // slide width (longSwipesRatio: 0.5) OR have ~300 ms+ of
-        // velocity before a swipe commits to the next slide. With the
-        // cube effect that means people had to drag almost the full
-        // width of the card to rotate it — the user reported this as
-        // "takes a really long swipe to change cards".
-        //
-        // The tuning below makes the cube respond like a normal mobile
-        // carousel:
-        //   • threshold:        ignore <6 px finger jitter (fixes
-        //                       accidental "swipe" on tap).
-        //   • touchRatio: 1.35  amplify finger movement so the cube
-        //                       rotates ~35% faster than the finger.
-        //                       The user feels like a small flick
-        //                       moves the cube a meaningful amount.
-        //   • longSwipesRatio:  commit on just 18% drag instead of
-        //                       50% — a quick flick now reliably
-        //                       lands on the next slide.
-        //   • longSwipesMs:     250 ms (default 300) — slightly
-        //                       faster long-swipe detection.
-        //   • shortSwipes/      both true (default) so a fast flick
-        //     followFinger:     also advances regardless of distance.
-        //
-        // None of these change the cube ANIMATION itself — the 3D
-        // rotation still plays at full quality. They only change how
-        // much input is needed to trigger it.
-        threshold={6}
-        touchRatio={1.35}
-        longSwipesRatio={0.18}
-        longSwipesMs={250}
-        shortSwipes
-        followFinger
-        resistanceRatio={0.55}
-        onSwiper={(s) => setActiveIndex(s.realIndex)}
-        onSlideChange={(s) => setActiveIndex(s.realIndex)}
-        pagination={{ clickable: true }}
-        className="h-full w-full"
+      <div
+        ref={stageRef}
+        className="relative h-full w-full"
+        style={{
+          transformStyle: "preserve-3d",
+          // Pull the prism back by `r` so the active face sits at
+          // z=0 (= natural display size with no perspective scale).
+          transform: `translateZ(calc(-1 * var(--face-depth, 0px))) rotateY(${rotation}deg)`,
+          transition: isDragging
+            ? "none"
+            : "transform 520ms cubic-bezier(0.22, 1, 0.36, 1)",
+          touchAction: "pan-y",
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={finishGesture}
+        onPointerCancel={finishGesture}
+        onPointerLeave={finishGesture}
       >
         {cards.map((card, i) => {
           const renderedCard = isValidElement(card)
             ? cloneElement(card as ReactElement<{ noReveal?: boolean; animated?: boolean }>, {
+                // Mobile carousel still uses the noReveal layout
+                // (flat anchor, no per-card framer-motion entrance)
+                // because the entrance animation is now driven by
+                // the prism's outer motion.div above. animated only
+                // on the active face — saves ~100 framer-motion rAF
+                // callbacks per second across the inactive faces.
                 noReveal: true,
-                // Only the currently visible slide gets live animations.
-                // Others are frozen by PathIllustration's MotionConfig gate,
-                // reducing concurrent framer-motion rAF callbacks from
-                // ~125 (5 slides × 25 animations) to ~25 (1 active slide).
-                animated: i === activeIndex,
+                animated: i === active,
               })
             : card;
           return (
-            <SwiperSlide
+            <div
               key={i}
               data-testid={`paths-mobile-slide-${i + 1}`}
-              className="!h-full !w-full"
-              style={{ borderRadius: 18, overflow: "hidden" }}
+              className="absolute inset-0"
+              style={{
+                // Each face: rotate to its prism position, then
+                // translate outward by the inradius so it sits on
+                // the prism's lateral surface.
+                transform: `rotateY(${i * FACE_ANGLE}deg) translateZ(var(--face-depth, 0px))`,
+                borderRadius: 18,
+                overflow: "hidden",
+                // CRITICALLY: no `backface-visibility: hidden`. iOS
+                // Safari has a long-standing bug where that property
+                // on a 3D-transformed parent unpredictably hides
+                // child <svg> content — exactly what was wiping the
+                // path-card illustrations under EffectCreative.
+              }}
             >
               {renderedCard}
-            </SwiperSlide>
+            </div>
           );
         })}
-      </Swiper>
-    </div>
+      </div>
+
+      {/* Pagination dots — clickable, mirrors Swiper's pagination */}
+      <div
+        className="mt-6 flex items-center justify-center gap-2"
+        role="tablist"
+        aria-label="Path card navigation"
+      >
+        {cards.map((_, i) => (
+          <button
+            key={i}
+            type="button"
+            role="tab"
+            aria-selected={i === active}
+            aria-label={`Show card ${i + 1}`}
+            onClick={() => setActive(i)}
+            className="rounded-full transition-all duration-300"
+            style={{
+              height: 8,
+              width: i === active ? 28 : 8,
+              background:
+                i === active
+                  ? "linear-gradient(90deg, #ffe28a, #a78bfa 50%, #67e8f9)"
+                  : "rgba(255,255,255,0.35)",
+              border: "none",
+              cursor: "pointer",
+              padding: 0,
+            }}
+          />
+        ))}
+      </div>
+    </motion.div>
   );
 }
+
