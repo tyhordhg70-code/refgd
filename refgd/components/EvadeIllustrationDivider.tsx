@@ -168,14 +168,16 @@ export default function EvadeIllustrationDivider({
                  applied via CSS variable on a child selector so the
                  framer parallax + drop-shadow remain untouched. */
               <div
-                style={{
-                  transform: savedMove.transform,
+              style={{
+                  /* v6.13.65 — see FloatingArt. Stack scale into wrapper
+                     transform; avoid Tailwind's [&>img]:scale-[var(...)]
+                     variant that clobbered framer transform on inner img. */
+                  transform: [savedMove.transform, savedScale !== 1 ? `scale(${savedScale})` : null]
+                    .filter(Boolean)
+                    .join(" ") || undefined,
+                  transformOrigin: "center",
                   marginBottom: savedMb !== 0 ? `${savedMb}px` : undefined,
-                  ...(savedScale !== 1
-                    ? { ["--rg-saved-scale" as string]: String(savedScale) }
-                    : {}),
                 }}
-                className={savedScale !== 1 ? "[&>img]:scale-[var(--rg-saved-scale)] [&>img]:origin-center" : undefined}
               >
               <motion.img
                 src={src}
