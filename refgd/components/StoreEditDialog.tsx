@@ -262,7 +262,7 @@ export default function StoreEditDialog({
               className={inputCls}
             >
               {REGIONS.map((r) => (
-                <option key={r} value={r}>{r}</option>
+                <option key={r} value={r} className="bg-ink-900 text-white">{r}</option>
               ))}
             </select>
           </Field>
@@ -274,13 +274,13 @@ export default function StoreEditDialog({
               data-testid="store-category-select"
             >
               {CATEGORIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
+                <option key={c} value={c} className="bg-ink-900 text-white">{c}</option>
               ))}
               {/* Existing admin-extras (e.g. "Toys") not in the canned list */}
               {(availableCategories ?? [])
                 .filter((c: string) => !(CATEGORIES as readonly string[]).includes(c))
                 .map((c: string) => (
-                  <option key={c} value={c as StoreCategory}>{c}</option>
+                  <option key={c} value={c as StoreCategory} className="bg-ink-900 text-white">{c}</option>
                 ))}
             </select>
           </Field>
