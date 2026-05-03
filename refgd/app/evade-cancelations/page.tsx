@@ -130,10 +130,32 @@ export default function EvadePage() {
           with a deep violet→ink gradient so anywhere the body
           shows through during scroll/galaxy-boot, it's
           atmospheric instead of black). */}
+      {/* v6.13.30 — Black bar at the very bottom (above iOS home-
+          bar) on iPhone Safari mid-scroll. Cause: `position:fixed;
+          inset:0` on iOS Safari uses the SMALL viewport height
+          while the URL bar is visible. When the URL bar collapses
+          mid-scroll the viewport grows ~75-100px taller but this
+          overlay does NOT — its bottom edge stays at the old small-
+          viewport bottom, exposing the body's bg-ink-950 underneath
+          as a sharp dark strip against the violet atmosphere of
+          the overlay above it. The user reads that strip as "a
+          black bar mid scrolling".
+
+          Fix: extend the overlay 200px past every viewport edge
+          via negative inset. The element is `pointer-events-none`
+          so the overflow can't intercept clicks, and `-z-[1]`
+          keeps it behind every content layer. Now even with the
+          URL bar fully collapsed (or expanded, or rubber-banding)
+          the gradient always reaches past the visible bottom — no
+          gap can form on any iOS viewport state. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-[1]"
+        className="pointer-events-none fixed -z-[1]"
         style={{
+          top: "-200px",
+          bottom: "-200px",
+          left: "-200px",
+          right: "-200px",
           background:
             "radial-gradient(ellipse 80% 60% at 20% 0%, rgba(30,18,90,0.32), transparent 60%), radial-gradient(ellipse 70% 60% at 80% 100%, rgba(82,28,140,0.55), transparent 60%), linear-gradient(180deg, rgba(8,8,32,0) 0%, rgba(18,8,40,0.55) 55%, rgba(10,4,32,0.78) 100%)",
         }}
