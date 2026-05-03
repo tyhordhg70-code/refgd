@@ -83,7 +83,7 @@ function MoveHandleInner({
      siblings naturally fill in). */
   onDropTo?: (targetId: string) => void;
 }) {
-  const { isAdmin, editMode, getValue, setValue } = useEditContext();
+  const { isAdmin, editMode, getValue, setValue, setValueBatch } = useEditContext();
   const editing = isAdmin && editMode;
 
   const startX = useRef(0);
@@ -209,7 +209,9 @@ function MoveHandleInner({
     draft.current = { dx, dy };
     lastPointer.current = { x: cx, y: cy };
     liveTranslate(dx, dy);
-    try { applyCollisionPush(); } catch { /* never crash on push */ }
+      /* v6.13.61 — Collision-push disabled. It baked sibling rects'
+         displacements into their persisted dx/dy, so dragging an image
+         silently moved unrelated text inside neighbouring boxcards. */
   };
 
   /* v6.13.53 — Find the [data-move-target] under the given client
@@ -242,13 +244,14 @@ function MoveHandleInner({
      `order` does the layout work, so leftover translate offsets
      would just look wrong. */
   const resetSelfAndPushed = () => {
-    setValue(`${id}.dx`, "0");
-    setValue(`${id}.dy`, "0");
-    for (const [otherId, rec] of Array.from(pushedRef.current.entries())) {
-      setValue(`${otherId}.dx`, "0");
-      setValue(`${otherId}.dy`, "0");
-      rec.el.style.transform = rec.origInline;
-    }
+      /* v6.13.61 — Batched single history entry; siblings only restored visually. */
+      setValueBatch([
+        { id: `${id}.dx`, next: "0" },
+        { id: `${id}.dy`, next: "0" },
+      ]);
+      for (const [, rec] of Array.from(pushedRef.current.entries())) {
+        rec.el.style.transform = rec.origInline;
+      }
     pushedRef.current.clear();
     const el = findTarget();
     if (el) {
@@ -276,18 +279,20 @@ function MoveHandleInner({
       }
 
       if (draft.current) {
-        setValue(`${id}.dx`, String(Math.round(draft.current.dx)));
-        setValue(`${id}.dy`, String(Math.round(draft.current.dy)));
-      }
+          /* v6.13.61 — Commit dx + dy as ONE batched history entry so a
+             single Ctrl+Z fully reverts the drag. */
+          setValueBatch([
+            { id: `${id}.dx`, next: String(Math.round(draft.current.dx)) },
+            { id: `${id}.dy`, next: String(Math.round(draft.current.dy)) },
+          ]);
+        }
       // Persist pushed siblings — bake (baseDx + pushX) into their stored
       // dx/dy and clear the inline transform we wrote during the drag.
-      for (const [otherId, rec] of Array.from(pushedRef.current.entries())) {
-        const finalX = Math.round(rec.baseDx + rec.pushX);
-        const finalY = Math.round(rec.baseDy + rec.pushY);
-        setValue(`${otherId}.dx`, String(finalX));
-        setValue(`${otherId}.dy`, String(finalY));
-        rec.el.style.transform = rec.origInline;
-      }
+      /* v6.13.61 — Sibling pushes are no longer baked into persisted
+           dx/dy. Just visually restore any in-flight inline transform. */
+        for (const [, rec] of Array.from(pushedRef.current.entries())) {
+          rec.el.style.transform = rec.origInline;
+        }
       pushedRef.current.clear();
       const el = findTarget();
       if (el) {
@@ -331,9 +336,12 @@ function MoveHandleInner({
     e.preventDefault();
     e.stopPropagation();
     try {
-      setValue(`${id}.dx`, "0");
-      setValue(`${id}.dy`, "0");
-    } catch { /* ignore */ }
+        /* v6.13.61 — Batched so a single undo restores the prior position. */
+        setValueBatch([
+          { id: `${id}.dx`, next: "0" },
+          { id: `${id}.dy`, next: "0" },
+        ]);
+      } catch { /* ignore */ }
   };
 
   if (!editing) return null;
