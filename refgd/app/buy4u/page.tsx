@@ -425,7 +425,7 @@ function SearchableGrid({ secId, mode, cards }: { secId: string; mode: "buy4u"|"
     return (<>
       <div className="mt-4">
         <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search restaurants & brands…" className="w-full rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" />
-        <p className="mt-1 text-xs text-white/45">{filtered.length} of {allCards.length} brands</p>
+        <p className="mt-1 text-xs text-white/45">{filtered.length} of {cards.length} brands</p>
       </div>
       <CardGrid secId={secId} mode={mode} cards={filtered} />
     </>);
