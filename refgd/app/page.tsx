@@ -1,5 +1,4 @@
 import PathCard from "@/components/PathCard";
-import MusicPlayer from "@/components/MusicPlayer";
 import AnimatedTelegramBox from "@/components/AnimatedTelegramBox";
 import ParallaxChapter from "@/components/ParallaxChapter";
 import ParallaxIllustration from "@/components/ParallaxIllustration";
@@ -39,7 +38,6 @@ export default async function HomePage() {
 
   return (
     <>
-      <MusicPlayer />
       <HomeBackground />
 
       <ReorderableContainer pageId="home">
