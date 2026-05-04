@@ -88,7 +88,15 @@ export default function EditorToolbar() {
   if (!isAdmin) return null;
 
   async function doSave() {
-    if (saving || !dirty) return;
+    if (saving) return;
+    // Blur any focused editable so its text is committed BEFORE we read pending.
+    // Without this, blur queues a setState that flush() misses in the same batch.
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    // Yield one microtask so React processes the blur's batched setState.
+    await Promise.resolve();
+    if (!dirty) return;
     setSaving(true);
     const ok = await flush();
     setSaving(false);
