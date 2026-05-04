@@ -32,6 +32,7 @@ const TARGET_VOLUME = 0.5;
 const FADE_MS = 250;
 const VISIT_KEY = "rg:music-track";
 const MUTE_KEY = "rg:music-muted";
+const DISMISSED_KEY = "rg:music-dismissed";
 
 function pickTrack() {
   if (typeof window === "undefined") return TRACKS[0];
@@ -70,11 +71,14 @@ export default function MusicPlayer() {
   const [track, setTrack] = useState<{ src: string; label: string } | null>(null);
 
   // Mount-time bootstrap: pick track + read mute preference.
+  const [dismissed, setDismissed] = useState<boolean>(false);
+
   useEffect(() => {
     setTrack(pickTrack());
     const initial = readMutePref();
     setMuted(initial);
     mutedRef.current = initial;
+    try { if (localStorage.getItem(DISMISSED_KEY) === "1") setDismissed(true); } catch {}
   }, []);
 
   function cancelFade() {
@@ -275,8 +279,8 @@ export default function MusicPlayer() {
       detach();
       a.removeEventListener("canplay", onCanPlay);
       document.removeEventListener("visibilitychange", onVisible);
-      // Stop playback on unmount (route change away from home).
-      try { a.pause(); a.currentTime = 0; } catch {}
+      // Do NOT stop playback on unmount — MusicPlayer is in the root
+      // layout and should continue playing across page navigations.
     };
   }, [track]);
 
@@ -343,65 +347,75 @@ export default function MusicPlayer() {
     return () => window.removeEventListener("refgd:music-dim", onDim as EventListener);
   }, []);
 
-  return (
-    <>
-      {track && (
-        <audio
-          ref={audioRef}
-          src={track.src}
-          loop
-          autoPlay
-          // v6.13.37 — ALWAYS render with `muted` at the HTML level.
-          // Browsers (Chrome with MEI, Safari on a return visit) will
-          // happily honour HTML autoplay UNMUTED if no muted attr is
-          // present — which fired BEFORE our bootstrap effect could
-          // read the user's persisted mute pref and turn the volume
-          // down. The bootstrap effect explicitly sets `a.muted=false`
-          // when (and only when) it is allowed to start unmuted.
-          muted
-          preload="auto"
-          aria-label={`Background music — ${track.label}`}
-        />
-      )}
-      {/* Mute button — fixed BOTTOM-right so it never collides with the
-          announcement banner / nav. Bright amber glow + pulsing ring so
-          it is always findable against the dark cosmos. */}
-      <div className="fixed bottom-5 right-5 z-[60] sm:bottom-6 sm:right-6">
-        {/* v6.13.1: removed the amber halo disc entirely. The
-            previous wide blurred radial gradient still read as a
-            "hard glow" against the dark cosmos because its 55%
-            centre alpha + 14 px blur still left a clearly visible
-            amber wash 50 px out from the button. The button itself
-            now stands alone with no halo — the gradient amber fill
-            is enough visual weight without any surrounding glow. */}
-        <button
-          type="button"
-          onClick={() => setMuted((m) => !m)}
-          aria-label={muted ? "Unmute background music" : "Mute background music"}
-          aria-pressed={muted}
-          data-cursor="link"
-          data-cursor-label={muted ? "unmute" : "mute"}
-          className="group relative grid h-12 w-12 place-items-center rounded-full text-ink-950 transition active:scale-95"
-          style={{
-            background: "linear-gradient(135deg, #ffe28a, #f5b945 55%, #d99520)",
-            boxShadow: "none",
-          }}
-        >
-          {muted ? (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="relative">
-              <path d="M11 5 6 9H2v6h4l5 4V5z" />
-              <line x1="22" y1="9" x2="16" y2="15" />
-              <line x1="16" y1="9" x2="22" y2="15" />
-            </svg>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="relative">
-              <path d="M11 5 6 9H2v6h4l5 4V5z" />
-              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-            </svg>
-          )}
-        </button>
-      </div>
-    </>
-  );
-}
+    // If dismissed: render audio-only (music keeps playing, controls hidden)
+    if (dismissed) {
+      return track ? (
+        <audio ref={audioRef} src={track.src} loop autoPlay muted preload="auto"
+          aria-label={`Background music — ${track.label}`} />
+      ) : null;
+    }
+
+    return (
+      <>
+        {track && (
+          <audio
+            ref={audioRef}
+            src={track.src}
+            loop
+            autoPlay
+            muted
+            preload="auto"
+            aria-label={`Background music — ${track.label}`}
+          />
+        )}
+        {/* Music controls — fixed bottom-right, on every page */}
+        <div className="fixed bottom-5 right-5 z-[60] flex items-end gap-1.5 sm:bottom-6 sm:right-6">
+          {/* Small × close button above the mute button */}
+          <div className="flex flex-col items-center gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                setDismissed(true);
+                try { localStorage.setItem(DISMISSED_KEY, "1"); } catch {}
+              }}
+              aria-label="Hide music controls"
+              data-cursor="link"
+              data-cursor-label="hide player"
+              className="grid h-6 w-6 place-items-center rounded-full border border-white/20 bg-ink-900/80 text-white/50 backdrop-blur-sm transition hover:border-white/40 hover:text-white/80 active:scale-95"
+            >
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+            {/* Mute / unmute button */}
+            <button
+              type="button"
+              onClick={() => setMuted((m) => !m)}
+              aria-label={muted ? "Unmute background music" : "Mute background music"}
+              aria-pressed={muted}
+              data-cursor="link"
+              data-cursor-label={muted ? "unmute" : "mute"}
+              className="grid h-12 w-12 place-items-center rounded-full text-ink-950 transition active:scale-95"
+              style={{ background: "linear-gradient(135deg, #ffe28a, #f5b945 55%, #d99520)" }}
+            >
+              {muted ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                  <line x1="22" y1="9" x2="16" y2="15" />
+                  <line x1="16" y1="9" x2="22" y2="15" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
+  
