@@ -604,43 +604,56 @@ const SPAWNGC_CARDS: GiftCard[] = [
 {key:"sgc138",name:"Victoria's Secret",brand:"Victoria's Secret",category:"Retail",states:["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","PR","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"],availability:["In Stock","Best Selling","PDF","In-Store"],image:"https://spawngc.gg/media/images/7de6fd49-b558-4523-a930-24d8d5e99a9b.png",price:"35% off",denominations:"$10, $15, $20, $25, $30, $40, $50"}
 ];
 
-function GiftCardsSection() {
-  const [cat, setCat] = useState("");
-  const [state, setState] = useState("");
-  const [avail, setAvail] = useState("");
-  const [q, setQ] = useState("");
-  const filtered = useMemo(() => SPAWNGC_CARDS.filter(c => {
-    if (cat && c.category !== cat) return false;
-    if (state && !c.states?.includes(state)) return false;
-    if (avail && !c.availability.includes(avail)) return false;
-    if (q && !c.name.toLowerCase().includes(q.toLowerCase()) && !c.brand.toLowerCase().includes(q.toLowerCase())) return false;
-    return true;
-  }), [cat, state, avail, q]);
-  return (
-    <section id="buy4u-giftcards" className="scroll-mt-24 rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
-      <div className="mb-4 flex items-center gap-3"><span className="text-3xl">🎁</span>
-        <h2 className="heading-display text-2xl font-bold uppercase tracking-tight text-white"><EditableText id="buy4u.giftcards.label" defaultValue="Gift Cards" /></h2>
-      </div>
-      <EditableText id="buy4u.giftcards.intro" defaultValue="Gift cards from top brands at exclusive discounts. Use the filters below to find cards by category, state, or availability. Discounts shown are off face value. DM us on Telegram to order." as="p" multiline className="text-base leading-relaxed text-white/85" />
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Category</span><select value={cat} onChange={e=>setCat(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">All categories</option>{SPAWNGC_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
-        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">State</span><select value={state} onChange={e=>setState(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">All states</option>{SPAWNGC_STATES.map(s=><option key={s} value={s}>{s}</option>)}</select></label>
-        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Availability</span><select value={avail} onChange={e=>setAvail(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">Any availability</option>{SPAWNGC_AVAILABILITY.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
-        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Search</span><input type="search" value={q} onChange={e=>setQ(e.target.value)} placeholder="Brand or name…" className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" /></label>
-      </div>
-      {SPAWNGC_CARDS.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-amber-300/30 bg-amber-400/[0.06] px-5 py-6 text-center">
-          <p className="text-sm font-semibold uppercase tracking-wider text-amber-200">No matching cards</p>
-          <p className="mt-2 text-sm text-white/75">Try adjusting your filters or search query.</p>
-        </div>
-      ) : (<><p className="mt-3 text-xs text-white/55">{filtered.length} of {SPAWNGC_CARDS.length} cards</p>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">{filtered.map(c => <div key={c.key} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">{c.image&&<img src={c.image} alt={c.name} className="aspect-[4/3] w-full rounded-xl object-cover" />}<p className="mt-2 text-center text-xs font-semibold text-white">{c.name}</p>{c.price&&<p className="mt-1 text-center text-[11px] font-bold text-amber-300">{c.price}</p>}{c.denominations&&<p className="mt-0.5 text-center text-[10px] text-white/45">{c.denominations}</p>}</div>)}</div>
-      </>)}
-    </section>
-  );
-}
+const CARDS_PER_PAGE = 24;
 
-function SectionPillNav() {
+  function GiftCardsSection() {
+    const [cat, setCat] = useState("");
+    const [state, setState] = useState("");
+    const [avail, setAvail] = useState("");
+    const [q, setQ] = useState("");
+    const [visible, setVisible] = useState(CARDS_PER_PAGE);
+    const filtered = useMemo(() => SPAWNGC_CARDS.filter(c => {
+      if (cat && c.category !== cat) return false;
+      if (state && !c.states?.includes(state)) return false;
+      if (avail && !c.availability.includes(avail)) return false;
+      if (q && !c.name.toLowerCase().includes(q.toLowerCase()) && !c.brand.toLowerCase().includes(q.toLowerCase())) return false;
+      return true;
+    }), [cat, state, avail, q]);
+    useEffect(() => { setVisible(CARDS_PER_PAGE); }, [cat, state, avail, q]);
+    const shown = filtered.slice(0, visible);
+    const hasMore = visible < filtered.length;
+    return (
+      <section id="buy4u-giftcards" className="scroll-mt-24 rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
+        <div className="mb-4 flex items-center gap-3"><span className="text-3xl">🎁</span>
+          <h2 className="heading-display text-2xl font-bold uppercase tracking-tight text-white"><EditableText id="buy4u.giftcards.label" defaultValue="Gift Cards" /></h2>
+        </div>
+        <EditableText id="buy4u.giftcards.intro" defaultValue="Gift cards from top brands at exclusive discounts. Use the filters below to find cards by category, state, or availability. Discounts shown are off face value. DM us on Telegram to order." as="p" multiline className="text-base leading-relaxed text-white/85" />
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Category</span><select value={cat} onChange={e=>setCat(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">All categories</option>{SPAWNGC_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
+          <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">State</span><select value={state} onChange={e=>setState(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">All states</option>{SPAWNGC_STATES.map(s=><option key={s} value={s}>{s}</option>)}</select></label>
+          <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Availability</span><select value={avail} onChange={e=>setAvail(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">Any availability</option>{SPAWNGC_AVAILABILITY.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
+          <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Search</span><input type="search" value={q} onChange={e=>setQ(e.target.value)} placeholder="Brand or name…" className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" /></label>
+        </div>
+        {SPAWNGC_CARDS.length === 0 ? (
+          <div className="mt-6 rounded-2xl border border-amber-300/30 bg-amber-400/[0.06] px-5 py-6 text-center">
+            <p className="text-sm font-semibold uppercase tracking-wider text-amber-200">No matching cards</p>
+            <p className="mt-2 text-sm text-white/75">Try adjusting your filters or search query.</p>
+          </div>
+        ) : (<><p className="mt-3 text-xs text-white/55">Showing {shown.length} of {filtered.length} cards</p>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">{shown.map(c => <div key={c.key} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">{c.image&&<img src={c.image} alt={c.name} loading="lazy" decoding="async" width={200} height={150} className="aspect-[4/3] w-full rounded-xl object-cover" />}<p className="mt-2 text-center text-xs font-semibold text-white">{c.name}</p>{c.price&&<p className="mt-1 text-center text-[11px] font-bold text-amber-300">{c.price}</p>}{c.denominations&&<p className="mt-0.5 text-center text-[10px] text-white/45">{c.denominations}</p>}</div>)}</div>
+          {hasMore && (
+            <div className="mt-5 text-center">
+              <button type="button" onClick={() => setVisible(v => v + CARDS_PER_PAGE)} className="inline-flex items-center gap-2 rounded-full border border-amber-300/40 bg-amber-400/10 px-6 py-2.5 text-sm font-semibold text-amber-200 transition hover:bg-amber-400/20 hover:border-amber-300/60">
+                Show more ({filtered.length - visible} remaining)
+              </button>
+            </div>
+          )}
+        </>)}
+      </section>
+    );
+  }
+
+  function SectionPillNav() {
   return (
     <nav aria-label="Buy4U sections" className="sticky top-16 z-20 -mx-4 mb-8 overflow-x-auto border-y border-white/10 bg-ink-950/85 px-4 py-3 backdrop-blur-xl">
       <ul className="flex min-w-max items-center gap-2">
