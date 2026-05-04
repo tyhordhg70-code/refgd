@@ -379,6 +379,8 @@ function EditableImageInner({
             e.stopPropagation();
             setPopOpen((o) => !o);
           }}
+          loading="lazy"
+          decoding="async"
           draggable={false}
         />
       </span>
