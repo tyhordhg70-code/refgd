@@ -311,17 +311,13 @@ function BrandCard({ secId, mode, card, onDelete }: { secId: string; mode: "buy4
         {onDelete && (
           <button onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Remove card" className="absolute -right-2 -top-2 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[11px] font-bold text-white shadow-lg hover:bg-red-400 transition-colors">×</button>
         )}
-      {card.kind === "photo" ? (
-        <EditableImage
-            id={`${id}.photo`}
-            defaultSrc={card.photo!}
-            alt={card.name}
-            className="h-full w-full object-contain"
-            wrapperClassName="block aspect-[4/3] w-full overflow-hidden rounded-xl"
-          />
-      ) : (
-        <BrandLogo domain={card.domain!} name={card.name} cardKey={card.key} />
-      )}
+      <EditableImage
+          id={card.kind === "photo" ? `${id}.photo` : `${id}.logo`}
+          defaultSrc={card.kind === "photo" ? card.photo! : (LOGO_SRC[card.domain!] || `https://www.google.com/s2/favicons?domain=${card.domain}&sz=128`)}
+          alt={card.name}
+          className="h-full w-full object-contain"
+          wrapperClassName={card.kind === "photo" ? "block aspect-[4/3] w-full overflow-hidden rounded-xl" : "grid h-14 w-14 place-items-center overflow-hidden rounded-xl bg-white p-1 shadow"}
+        />
       <div className="relative w-full" style={{ minHeight:"28px" }}>
         <EditableText id={`${id}.name`} defaultValue={card.name} as="span" className={`block text-center text-xs font-semibold leading-tight text-white${isAdmin && editMode ? " rounded px-1 outline-dashed outline-1 outline-amber-300/40 hover:outline-amber-300/80" : ""}`} />
       </div>
