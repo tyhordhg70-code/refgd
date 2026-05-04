@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import EditableText from "@/components/EditableText";
 import EditableImage from "@/components/EditableImage";
 import { useEditContext } from "@/lib/edit-context";
@@ -43,8 +43,8 @@ const LOGO_SRC: Record<string, string> = {
 };
 
 const SECTIONS: Section[] = [
-  { id:"flights",label:"Flights",icon:"â",hasRefund:false,buy4u:{
-    intro:"We book your flights at a flat 50% service rate. Message us a few days to a week in advance â confirm we are online before any booking starts.",
+  { id:"flights",label:"Flights",icon:"✈",hasRefund:false,buy4u:{
+    intro:"We book your flights at a flat 50% service rate. Message us a few days to a week in advance — confirm we are online before any booking starts.",
     disclaimer:"If you do not see your desired airline, message us and we can look into it. Note: Emirates Airline is NOT possible.",
     cards:[
       B("f01","American Airlines","aa.com"),
@@ -72,7 +72,7 @@ const SECTIONS: Section[] = [
       B("f23","Air Canada","aircanada.com"),
     ],
   }},
-  { id:"food",label:"Food",icon:"ð",hasRefund:true,buy4u:{
+  { id:"food",label:"Food",icon:"🍔",hasRefund:true,buy4u:{
     intro:"Food pickup via DoorDash & Uber Eats. Uber Eats delivery up to $100. Instacart for groceries below $100.",
     disclaimer:"Make sure we are ONLINE before placing your order.",
     withSearch:true,
@@ -148,7 +148,7 @@ const SECTIONS: Section[] = [
       B("fd69","Texas de Brazil","texasdebrazil.com"),
       B("fd70","Texas Roadhouse","texasroadhouse.com"),
       B("fd71","TGI Fridays","tgifridays.com"),
-      B("fd72","Tropical Smoothie CafÃ©","tropicalsmoothie.com"),
+      B("fd72","Tropical Smoothie Café","tropicalsmoothie.com"),
       B("fd73","Wendy's","wendys.com"),
       B("fd74","Whataburger","whataburger.com"),
       B("fd75","White Castle","whitecastle.com"),
@@ -160,20 +160,20 @@ const SECTIONS: Section[] = [
       { key:"fd99",name:"+ Any Other Chain Restaurant!",kind:"photo",photo:"https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80" },
     ],
   },refund:{ intro:"We can also help place food orders on your behalf. Contact us for more details.", cards:[] },},
-  { id:"hotels",label:"Hotels",icon:"ð",hasRefund:true,buy4u:{
+  { id:"hotels",label:"Hotels",icon:"🛏",hasRefund:true,buy4u:{
     intro:"We can book hotels for you from Expedia.com or Booking.com.",
     disclaimer:"Use this service if your booking does not meet our minimum price for the refund service.",
     cards:[B("h01","Expedia","expedia.com"),B("h02","Booking.com","booking.com"),B("h03","Hotels.com","hotels.com")],
   },refund:{
-    intro:"HOTELS.com / EXPEDIA / AGODA / TRIP.COM â INSIDER INSTANT REFUNDS. Enjoy your vacation at a fraction of the price. Fresh accounts OK. No limit, any property works (Agoda: hotels only â no apartments or houses). Confirm with us BEFORE booking. MUST be paid in full online â do NOT select pay-later or pay-at-property. â ï¸ Refund is done on first day of check-in OR before checkout. YES it is 10000% SAFE! Handled via our private insider.",
-    disclaimer:"ð²1,000 minimum fee Â· ð²2,000 minimum booking Â· 50% service fee. For the extra paranoid, refund after checkout is possible with an upfront payment.",
+    intro:"HOTELS.com / EXPEDIA / AGODA / TRIP.COM — INSIDER INSTANT REFUNDS. Enjoy your vacation at a fraction of the price. Fresh accounts OK. No limit, any property works (Agoda: hotels only — no apartments or houses). Confirm with us BEFORE booking. MUST be paid in full online — do NOT select pay-later or pay-at-property. ⚠️ Refund is done on first day of check-in OR before checkout. YES it is 10000% SAFE! Handled via our private insider.",
+    disclaimer:"💲1,000 minimum fee · 💲2,000 minimum booking · 50% service fee. For the extra paranoid, refund after checkout is possible with an upfront payment.",
     cards:[B("rh01","Hotels.com","hotels.com"),B("rh02","Expedia","expedia.com"),B("rh03","Agoda","agoda.com"),B("rh04","Trip.com","trip.com")],
   }},
-  { id:"trains",label:"Trains",icon:"ð",hasRefund:false,buy4u:{ intro:"Long-distance train and bus ticket bookings.", cards:[B("t01","Amtrak","amtrak.com"),B("t02","Greyhound","greyhound.com")] }},
-  { id:"cars",label:"Cars",icon:"ð",hasRefund:false,buy4u:{ intro:"Car rental bookings â confirm availability before we book.", cards:[B("c01","Avis","avis.com"),B("c02","Budget","budget.com")] }},
-  { id:"attractions",label:"Attractions & Tours",icon:"ð¡",hasRefund:true,buy4u:{
-    intro:"Theme parks, concerts, cruises, tours, sports games, ski resorts, water parks â booked at the flat 50% service rate.",
-    disclaimer:"Other recreational activities & many more â open a ticket for custom requests.",
+  { id:"trains",label:"Trains",icon:"🚆",hasRefund:false,buy4u:{ intro:"Long-distance train and bus ticket bookings.", cards:[B("t01","Amtrak","amtrak.com"),B("t02","Greyhound","greyhound.com")] }},
+  { id:"cars",label:"Cars",icon:"🚗",hasRefund:false,buy4u:{ intro:"Car rental bookings — confirm availability before we book.", cards:[B("c01","Avis","avis.com"),B("c02","Budget","budget.com")] }},
+  { id:"attractions",label:"Attractions & Tours",icon:"🎡",hasRefund:true,buy4u:{
+    intro:"Theme parks, concerts, cruises, tours, sports games, ski resorts, water parks — booked at the flat 50% service rate.",
+    disclaimer:"Other recreational activities & many more — open a ticket for custom requests.",
     cards:[
             C("a01","Knott's Berry Farm","https://live.staticflickr.com/3087/3117082737_a328c57946_b.jpg"),
       C("a02","Kings Dominion","https://live.staticflickr.com/4010/4571006662_447cbf34d2_b.jpg"),
@@ -215,14 +215,14 @@ const SECTIONS: Section[] = [
       C("a38","Train Tickets","https://live.staticflickr.com/6173/6207643946_b38ba729c9_b.jpg"),
     ],
   },refund:{
-    intro:"Book from Viator.com, Agoda.com or Trip.com. ð Ticket Limit: NO LIMIT (same event). ð¸ Price Limit: $7,000. â³ Time Frame: INSTANT. Fee 35%. Minimum Order: $500. Minimum Fee: $250. ð¬ Message at least a day or 1â2 hours before the event â make sure we are ONLINE.",
+    intro:"Book from Viator.com, Agoda.com or Trip.com. 🎟 Ticket Limit: NO LIMIT (same event). 💸 Price Limit: $7,000. ⏳ Time Frame: INSTANT. Fee 35%. Minimum Order: $500. Minimum Fee: $250. 💬 Message at least a day or 1–2 hours before the event — make sure we are ONLINE.",
     cards:[B("ra01","Viator","viator.com"),B("ra02","Agoda","agoda.com"),B("ra03","Trip.com","trip.com")],
   }},
-  { id:"furniture",label:"Furniture",icon:"ð",hasRefund:true,
-    buy4u:{ intro:"Furniture orders booked through us â IKEA only.", cards:[B("fu01","IKEA","ikea.com")] },
+  { id:"furniture",label:"Furniture",icon:"🛋",hasRefund:true,
+    buy4u:{ intro:"Furniture orders booked through us — IKEA only.", cards:[B("fu01","IKEA","ikea.com")] },
     refund:{ intro:"For furniture refunds, head to our full Store List for the supported retailers.", cards:[] },
   },
-  { id:"giftcards",label:"Gift Cards",icon:"ð",hasRefund:false,buy4u:{ intro:"", cards:[] } },
+  { id:"giftcards",label:"Gift Cards",icon:"🎁",hasRefund:false,buy4u:{ intro:"", cards:[] } },
 ];
 
 const BADGE_COLOURS = ["bg-amber-500","bg-violet-600","bg-cyan-600","bg-rose-600","bg-emerald-600","bg-orange-500","bg-fuchsia-600","bg-sky-600"];
@@ -231,7 +231,59 @@ function badgeColor(key: string): string {
   return BADGE_COLOURS[Math.abs(h) % BADGE_COLOURS.length];
 }
 
-function BrandLogo({ domain, name, cardKey }: { domain: string; name: string; cardKey: string }) {
+
+  // ─── Animated background ─────────────────────────────────────────────────
+
+  function ParticleCanvas() {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+      resize();
+      window.addEventListener("resize", resize);
+      type P = { x:number;y:number;r:number;dx:number;dy:number;a:number;da:number;hue:number };
+      const particles: P[] = Array.from({ length: 60 }, () => ({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        r: Math.random() * 2.2 + 0.4,
+        dx: (Math.random() - 0.5) * 0.35,
+        dy: (Math.random() - 0.5) * 0.35,
+        a: Math.random(),
+        da: (Math.random() - 0.5) * 0.006,
+        hue: Math.random() < 0.6 ? Math.random() * 40 + 220 : Math.random() * 30 + 280,
+      }));
+      let raf = 0;
+      const draw = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (const p of particles) {
+          p.x += p.dx; p.y += p.dy; p.a += p.da;
+          if (p.a > 1) { p.a = 1; p.da = -Math.abs(p.da); }
+          if (p.a < 0) { p.a = 0; p.da = Math.abs(p.da); }
+          if (p.x < -5) p.x = canvas.width + 5;
+          if (p.x > canvas.width + 5) p.x = -5;
+          if (p.y < -5) p.y = canvas.height + 5;
+          if (p.y > canvas.height + 5) p.y = -5;
+          const al = p.a * 0.65;
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 5);
+          g.addColorStop(0, `hsla(${p.hue},80%,72%,${al})`);
+          g.addColorStop(0.4, `hsla(${p.hue},70%,60%,${al * 0.5})`);
+          g.addColorStop(1, "transparent");
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 5, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = `hsla(${p.hue},90%,82%,${p.a * 0.9})`; ctx.fill();
+        }
+        raf = requestAnimationFrame(draw);
+      };
+      draw();
+      return () => { window.removeEventListener("resize", resize); cancelAnimationFrame(raf); };
+    }, []);
+    return <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 z-0" style={{ opacity: 0.38 }} />;
+  }
+
+  function BrandLogo({ domain, name, cardKey }: { domain: string; name: string; cardKey: string }) {
   const [srcIdx, setSrcIdx] = useState(0);
   const onErr = useCallback(() => setSrcIdx(p => p + 1), []);
   const sources: string[] = [
@@ -251,11 +303,14 @@ function BrandLogo({ domain, name, cardKey }: { domain: string; name: string; ca
   );
 }
 
-function BrandCard({ secId, mode, card }: { secId: string; mode: "buy4u"|"refund"; card: Card }) {
+function BrandCard({ secId, mode, card, onDelete }: { secId: string; mode: "buy4u"|"refund"; card: Card; onDelete?: () => void }) {
   const id = `buy4u.${secId}.${mode}.${card.key}`;
   const { isAdmin, editMode } = useEditContext();
   return (
     <div className="group relative flex flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition hover:-translate-y-0.5 hover:border-amber-300/40 hover:bg-white/[0.07]" style={{ overflow:"visible", minHeight:"100px" }}>
+        {onDelete && (
+          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Remove card" className="absolute -right-2 -top-2 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[11px] font-bold text-white shadow-lg hover:bg-red-400 transition-colors">×</button>
+        )}
       {card.kind === "photo" ? (
         <EditableImage
             id={`${id}.photo`}
@@ -271,32 +326,101 @@ function BrandCard({ secId, mode, card }: { secId: string; mode: "buy4u"|"refund
         <EditableText id={`${id}.name`} defaultValue={card.name} as="p" className="text-center text-xs font-semibold leading-tight text-white" />
       </div>
       {isAdmin && editMode && card.domain && (
-        <EditableText id={`${id}.domain`} defaultValue={card.domain} as="p" className="w-full text-center font-mono text-[10px] text-white/35" placeholder="clearbit domainâ¦" />
+        <EditableText id={`${id}.domain`} defaultValue={card.domain} as="p" className="w-full text-center font-mono text-[10px] text-white/35" placeholder="clearbit domain…" />
       )}
     </div>
   );
 }
 
 function CardGrid({ secId, mode, cards, wide }: { secId: string; mode: "buy4u"|"refund"; cards: Card[]; wide?: boolean }) {
-  if (!cards.length) return null;
-  const grid = wide
-    ? "mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
-    : "mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8";
-  return <div className={grid}>{cards.map(c => <BrandCard key={c.key} secId={secId} mode={mode} card={c} />)}</div>;
-}
+    const { isAdmin, editMode, getValue, setValue } = useEditContext();
+    const [showAdd, setShowAdd] = useState(false);
+    const [addKind, setAddKind] = useState<CardKind>("brand");
+    const [addName, setAddName] = useState("");
+    const [addVal, setAddVal] = useState("");
 
+    let deleted: string[] = [];
+    let extra: Card[] = [];
+    try { deleted = JSON.parse(getValue(`buy4u.${secId}.${mode}.deleted`, "[]")); } catch {}
+    try { extra = JSON.parse(getValue(`buy4u.${secId}.${mode}.extra`, "[]")); } catch {}
+
+    const visible = [...cards.filter(c => !deleted.includes(c.key)), ...extra];
+
+    const handleDelete = (key: string) => {
+      const isExtra = extra.some(c => c.key === key);
+      if (isExtra) setValue(`buy4u.${secId}.${mode}.extra`, JSON.stringify(extra.filter(c => c.key !== key)));
+      else setValue(`buy4u.${secId}.${mode}.deleted`, JSON.stringify([...deleted, key]));
+    };
+    const handleAdd = () => {
+      if (!addName.trim()) return;
+      const nk = `x${Date.now()}`;
+      const nc: Card = addKind === "brand"
+        ? { key: nk, name: addName.trim(), kind: "brand", domain: addVal.trim() || "example.com" }
+        : { key: nk, name: addName.trim(), kind: "photo", photo: addVal.trim() || "https://loremflickr.com/400/300/travel" };
+      setValue(`buy4u.${secId}.${mode}.extra`, JSON.stringify([...extra, nc]));
+      setAddName(""); setAddVal(""); setShowAdd(false);
+    };
+
+    if (!visible.length && !(isAdmin && editMode)) return null;
+    const grid = wide
+      ? "mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+      : "mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8";
+
+    return (
+      <div>
+        <div className={grid}>
+          {visible.map(c => (
+            <BrandCard key={c.key} secId={secId} mode={mode} card={c}
+              onDelete={isAdmin && editMode ? () => handleDelete(c.key) : undefined} />
+          ))}
+          {isAdmin && editMode && !showAdd && (
+            <button onClick={() => setShowAdd(true)}
+              className="flex min-h-[100px] flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-white/20 bg-transparent text-white/40 transition hover:border-amber-300/50 hover:text-amber-300/70">
+              <span className="text-2xl leading-none">+</span>
+              <span className="text-[11px]">Add Card</span>
+            </button>
+          )}
+        </div>
+        {isAdmin && editMode && showAdd && (
+          <div className="mt-3 space-y-3 rounded-2xl border border-amber-300/30 bg-white/[0.05] p-4">
+            <div className="flex gap-2">
+              <button onClick={() => setAddKind("brand")} className={`rounded-lg border px-3 py-1 text-xs font-semibold ${addKind==="brand" ? "border-amber-300 text-amber-300" : "border-white/20 text-white/50"}`}>Brand / Logo</button>
+              <button onClick={() => setAddKind("photo")} className={`rounded-lg border px-3 py-1 text-xs font-semibold ${addKind==="photo" ? "border-amber-300 text-amber-300" : "border-white/20 text-white/50"}`}>Photo Card</button>
+            </div>
+            <input value={addName} onChange={e => setAddName(e.target.value)} placeholder="Card name"
+              className="w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-amber-300/50" />
+            <input value={addVal} onChange={e => setAddVal(e.target.value)}
+              placeholder={addKind === "brand" ? "Domain (e.g. nike.com)" : "Photo URL"}
+              className="w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-amber-300/50" />
+            <div className="flex gap-2">
+              <button onClick={handleAdd} className="rounded-lg bg-amber-400/90 px-4 py-2 text-xs font-bold text-black hover:bg-amber-300 transition-colors">Add Card</button>
+              <button onClick={() => setShowAdd(false)} className="rounded-lg border border-white/20 px-4 py-2 text-xs text-white/60 hover:text-white transition-colors">Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+  
 function SearchableGrid({ secId, mode, cards }: { secId: string; mode: "buy4u"|"refund"; cards: Card[] }) {
-  const [q, setQ] = useState("");
-  const filtered = useMemo(() => { const n = q.trim().toLowerCase(); return n ? cards.filter(c => c.name.toLowerCase().includes(n) || (c.domain??c.photo??"").toLowerCase().includes(n)) : cards; }, [q, cards]);
-  return (<>
-    <div className="mt-4">
-      <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search restaurants & brandsâ¦" className="w-full rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" />
-      <p className="mt-1 text-xs text-white/45">{filtered.length} of {cards.length} brands</p>
-    </div>
-    <CardGrid secId={secId} mode={mode} cards={filtered} />
-  </>);
-}
-
+    const { getValue } = useEditContext();
+    const [q, setQ] = useState("");
+    let extra: Card[] = [];
+    try { extra = JSON.parse(getValue(`buy4u.${secId}.${mode}.extra`, "[]")); } catch {}
+    const allCards = useMemo(() => [...cards, ...extra], [cards, extra]);
+    const filtered = useMemo(() => {
+      const n = q.trim().toLowerCase();
+      return n ? allCards.filter(c => c.name.toLowerCase().includes(n) || (c.domain ?? c.photo ?? "").toLowerCase().includes(n)) : allCards;
+    }, [q, allCards]);
+    return (<>
+      <div className="mt-4">
+        <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search restaurants & brands…" className="w-full rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" />
+        <p className="mt-1 text-xs text-white/45">{filtered.length} of {allCards.length} brands</p>
+      </div>
+      <CardGrid secId={secId} mode={mode} cards={filtered} />
+    </>);
+  }
+  
 function TabBody({ section, mode }: { section: Section; mode: "buy4u"|"refund" }) {
   const tab = mode === "buy4u" ? section.buy4u : (section.refund ?? section.buy4u);
   const hasPhotos = tab.cards.some(c => c.kind === "photo");
@@ -349,7 +473,7 @@ function GiftCardsSection() {
   }), [cat, state, avail, q]);
   return (
     <section id="buy4u-giftcards" className="scroll-mt-24 rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
-      <div className="mb-4 flex items-center gap-3"><span className="text-3xl">ð</span>
+      <div className="mb-4 flex items-center gap-3"><span className="text-3xl">🎁</span>
         <h2 className="heading-display text-2xl font-bold uppercase tracking-tight text-white"><EditableText id="buy4u.giftcards.label" defaultValue="Gift Cards" /></h2>
       </div>
       <EditableText id="buy4u.giftcards.intro" defaultValue="Gift card catalog mirrored from spawngc.gg. Full inventory population is in progress (spawngc requires login). Filters below match the real category, state, and availability lists from spawngc.gg." as="p" multiline className="text-base leading-relaxed text-white/85" />
@@ -357,7 +481,7 @@ function GiftCardsSection() {
         <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Category</span><select value={cat} onChange={e=>setCat(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">All categories</option>{SPAWNGC_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
         <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">State</span><select value={state} onChange={e=>setState(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">All states</option>{SPAWNGC_STATES.map(s=><option key={s} value={s}>{s}</option>)}</select></label>
         <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Availability</span><select value={avail} onChange={e=>setAvail(e.target.value)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-300/60"><option value="">Any availability</option>{SPAWNGC_AVAILABILITY.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
-        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Search</span><input type="search" value={q} onChange={e=>setQ(e.target.value)} placeholder="Brand or nameâ¦" className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" /></label>
+        <label className="flex flex-col gap-1"><span className="text-[11px] font-bold uppercase tracking-wider text-white/55">Search</span><input type="search" value={q} onChange={e=>setQ(e.target.value)} placeholder="Brand or name…" className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" /></label>
       </div>
       {SPAWNGC_CARDS.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-amber-300/30 bg-amber-400/[0.06] px-5 py-6 text-center">
@@ -384,19 +508,31 @@ function SectionPillNav() {
 export default function Buy4uPage() {
   const { isAdmin } = useEditContext();
   return (
-    <main className="container-px py-12">
+    <>
+        <style>{
+          `@keyframes gradientPulse{0%,100%{opacity:.7;transform:scale(1) rotate(0deg)}50%{opacity:1;transform:scale(1.08) rotate(1.5deg)}}
+           @keyframes gradientPulse2{0%,100%{opacity:.5;transform:scale(1) rotate(0deg)}50%{opacity:.95;transform:scale(1.12) rotate(-2deg)}}`
+        }</style>
+        {/* Gradient animation layer */}
+        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+          <div className="absolute inset-0" style={{background:"radial-gradient(ellipse 70% 60% at 20% 40%, rgba(124,58,237,0.18) 0%, transparent 70%)",animation:"gradientPulse 9s ease-in-out infinite"}} />
+          <div className="absolute inset-0" style={{background:"radial-gradient(ellipse 60% 50% at 80% 70%, rgba(56,189,248,0.12) 0%, transparent 65%)",animation:"gradientPulse2 11s ease-in-out infinite"}} />
+          <div className="absolute inset-0" style={{background:"radial-gradient(ellipse 50% 40% at 50% 10%, rgba(245,158,11,0.07) 0%, transparent 60%)",animation:"gradientPulse 13s ease-in-out infinite reverse"}} />
+        </div>
+        <ParticleCanvas />
+        <main className="relative z-10 container-px py-12">
       <header className="mb-8 text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-300/85"><EditableText id="buy4u.kicker" defaultValue="we shop for you" /></p>
         <h1 className="heading-display mt-2 text-4xl font-bold uppercase tracking-tight text-white sm:text-5xl"><EditableText id="buy4u.title" defaultValue="Buy 4 U" /></h1>
       </header>
       <div className="mx-auto max-w-3xl rounded-3xl border border-amber-300/35 bg-gradient-to-br from-amber-400/[0.10] to-transparent p-6 sm:p-8 shadow-[0_0_60px_-20px_rgba(245,185,69,0.45)]">
-        <EditableText id="buy4u.intro.headline" defaultValue="â­ï¸ Introducing our service where we shop for you at a flat 50% discount rate â­ï¸" as="p" multiline className="text-center text-xl font-bold text-amber-100" />
+        <EditableText id="buy4u.intro.headline" defaultValue="⭐️ Introducing our service where we shop for you at a flat 50% discount rate ⭐️" as="p" multiline className="text-center text-xl font-bold text-amber-100" />
         <EditableText id="buy4u.intro.body" defaultValue="We place the order/booking for you and upon confirmation you simply pay us our fee." as="p" multiline className="mt-4 text-center text-base text-white/85" />
         <div className="mt-5 rounded-2xl border border-white/10 bg-ink-900/60 p-4">
           <EditableText id="buy4u.intro.notice" defaultValue="Note: We require at least 24 hours prior notice to be able to attend to your booking in a timely manner, so please schedule in advance accordingly. Thank you!" as="p" multiline className="text-sm leading-relaxed text-white/75" />
         </div>
         <div className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-400/[0.06] p-4">
-          <EditableText id="buy4u.intro.warning" defaultValue="FOR ANY OF YOUR BOOKING NEEDS KINDLY MESSAGE US A FEW DAYS OR A WEEK PRIOR! IF YOUR BOOKING IS MONTHS UP AHEAD, PLEASE DON'T SHARE DETAILS SO FAR IN ADVANCE! WE DO NOT OFFER THIS FOR STANDARD RETAIL STORES LIKE APPLE, AMAZON â DO NOT ASK!" as="p" multiline className="text-sm font-semibold uppercase leading-relaxed tracking-wide text-rose-200" />
+          <EditableText id="buy4u.intro.warning" defaultValue="FOR ANY OF YOUR BOOKING NEEDS KINDLY MESSAGE US A FEW DAYS OR A WEEK PRIOR! IF YOUR BOOKING IS MONTHS UP AHEAD, PLEASE DON'T SHARE DETAILS SO FAR IN ADVANCE! WE DO NOT OFFER THIS FOR STANDARD RETAIL STORES LIKE APPLE, AMAZON — DO NOT ASK!" as="p" multiline className="text-sm font-semibold uppercase leading-relaxed tracking-wide text-rose-200" />
         </div>
       </div>
       <SectionPillNav />
@@ -404,6 +540,7 @@ export default function Buy4uPage() {
         {SECTIONS.map(s => s.id==="giftcards" ? <GiftCardsSection key={s.id} /> : <SectionBlock key={s.id} section={s} />)}
       </div>
       {isAdmin && <p className="mt-10 text-center text-xs text-white/35">Admin: every label, intro, disclaimer, brand name, and image on this page is editable in edit mode.</p>}
-    </main>
+      </main>
+    </>
   );
 }
