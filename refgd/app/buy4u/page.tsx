@@ -417,15 +417,11 @@ function CardGrid({ secId, mode, cards, wide }: { secId: string; mode: "buy4u"|"
   }
   
 function SearchableGrid({ secId, mode, cards }: { secId: string; mode: "buy4u"|"refund"; cards: Card[] }) {
-    const { getValue } = useEditContext();
-    const [q, setQ] = useState("");
-    let extra: Card[] = [];
-    try { extra = JSON.parse(getValue(`buy4u.${secId}.${mode}.extra`, "[]")); } catch {}
-    const allCards = useMemo(() => [...cards, ...extra], [cards, extra]);
-    const filtered = useMemo(() => {
-      const n = q.trim().toLowerCase();
-      return n ? allCards.filter(c => c.name.toLowerCase().includes(n) || (c.domain ?? c.photo ?? "").toLowerCase().includes(n)) : allCards;
-    }, [q, allCards]);
+      const [q, setQ] = useState("");
+      const filtered = useMemo(() => {
+        const n = q.trim().toLowerCase();
+        return n ? cards.filter(c => c.name.toLowerCase().includes(n) || (c.domain ?? c.photo ?? "").toLowerCase().includes(n)) : cards;
+      }, [q, cards]);
     return (<>
       <div className="mt-4">
         <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search restaurants & brands…" className="w-full rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-amber-300/60" />
