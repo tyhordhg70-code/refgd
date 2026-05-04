@@ -337,27 +337,41 @@ function CardGrid({ secId, mode, cards, wide }: { secId: string; mode: "buy4u"|"
     const [showAdd, setShowAdd] = useState(false);
     const [addKind, setAddKind] = useState<CardKind>("brand");
     const [addName, setAddName] = useState("");
-    const [addVal, setAddVal] = useState("");
+    const [addVal,  setAddVal]  = useState("");
 
-    let deleted: string[] = [];
-    let extra: Card[] = [];
-    try { deleted = JSON.parse(getValue(`buy4u.${secId}.${mode}.deleted`, "[]")); } catch {}
-    try { extra = JSON.parse(getValue(`buy4u.${secId}.${mode}.extra`, "[]")); } catch {}
+    // Use local state so delete/add update the UI IMMEDIATELY (not waiting on context re-render).
+    // Initialise lazily from the edit-context (picks up previously saved values from DB).
+    const [deleted, setDeleted] = useState<string[]>(() => {
+      try { return JSON.parse(getValue(`buy4u.${secId}.${mode}.deleted`, "[]")); } catch { return []; }
+    });
+    const [extra, setExtra] = useState<Card[]>(() => {
+      try { return JSON.parse(getValue(`buy4u.${secId}.${mode}.extra`, "[]")); } catch { return []; }
+    });
 
     const visible = [...cards.filter(c => !deleted.includes(c.key)), ...extra];
 
     const handleDelete = (key: string) => {
-      const isExtra = extra.some(c => c.key === key);
-      if (isExtra) setValue(`buy4u.${secId}.${mode}.extra`, JSON.stringify(extra.filter(c => c.key !== key)));
-      else setValue(`buy4u.${secId}.${mode}.deleted`, JSON.stringify([...deleted, key]));
+      const isExtraCard = extra.some(c => c.key === key);
+      if (isExtraCard) {
+        const next = extra.filter(c => c.key !== key);
+        setExtra(next);
+        setValue(`buy4u.${secId}.${mode}.extra`, JSON.stringify(next));
+      } else {
+        const next = [...deleted, key];
+        setDeleted(next);
+        setValue(`buy4u.${secId}.${mode}.deleted`, JSON.stringify(next));
+      }
     };
+
     const handleAdd = () => {
       if (!addName.trim()) return;
       const nk = `x${Date.now()}`;
       const nc: Card = addKind === "brand"
         ? { key: nk, name: addName.trim(), kind: "brand", domain: addVal.trim() || "example.com" }
         : { key: nk, name: addName.trim(), kind: "photo", photo: addVal.trim() || "https://loremflickr.com/400/300/travel" };
-      setValue(`buy4u.${secId}.${mode}.extra`, JSON.stringify([...extra, nc]));
+      const next = [...extra, nc];
+      setExtra(next);
+      setValue(`buy4u.${secId}.${mode}.extra`, JSON.stringify(next));
       setAddName(""); setAddVal(""); setShowAdd(false);
     };
 
