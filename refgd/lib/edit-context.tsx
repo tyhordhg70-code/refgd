@@ -121,6 +121,11 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
   const [display, setDisplay] = useState<ContentMap>({ ...initialContent });
   /** Pending edits not yet saved. Keys are content ids. */
   const [pending, setPending] = useState<ContentMap>({});
+  // Always-current ref so flush() sees the very latest pending even if React
+  // hasn't processed the setState batch from a simultaneous blur event yet.
+  const pendingRef = useRef<ContentMap>({});
+
+  pendingRef.current = pending;
 
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyPos, setHistoryPos] = useState<number>(0);
@@ -285,7 +290,9 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
     }, [history, historyPos]);
 
   const flush = useCallback(async () => {
-    const blocks = Object.entries(pending).map(([id, value]) => ({ id, value }));
+    // Use the ref so we always get the latest queue, even when called in the
+    // same React batch as a blur-triggered setValue.
+    const blocks = Object.entries(pendingRef.current).map(([id, value]) => ({ id, value }));
     if (blocks.length === 0) return true;
     try {
       const res = await fetch("/api/admin/content", {
@@ -297,6 +304,7 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
       if (!res.ok) throw new Error(`save failed: ${res.status}`);
       // Mark these values as the new saved snapshot.
       savedRef.current = { ...savedRef.current, ...Object.fromEntries(blocks.map((b) => [b.id, b.value])) };
+      pendingRef.current = {};
       setPending({});
       setHistory([]);
       setHistoryPos(0);
@@ -306,7 +314,9 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
       console.error("[edit] flush failed", err);
       return false;
     }
-  }, [pending]);
+  // pendingRef removed from deps — we read via ref, not closure
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const discard = useCallback(() => {
     setDisplay({ ...savedRef.current });
