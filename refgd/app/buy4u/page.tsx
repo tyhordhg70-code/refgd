@@ -317,7 +317,7 @@ function BrandCard({ secId, mode, card, onDelete }: { secId: string; mode: "buy4
             defaultSrc={card.photo!}
             alt={card.name}
             className="h-full w-full object-contain"
-            wrapperClassName="block aspect-[4/3] w-full overflow-hidden rounded-xl"
+            wrapperClassName="grid h-14 w-14 place-items-center overflow-hidden rounded-xl bg-white p-1 shadow"
           />
       ) : (
         <BrandLogo domain={card.domain!} name={card.name} cardKey={card.key} />
