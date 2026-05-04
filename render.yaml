@@ -1,11 +1,20 @@
 services:
-  - type: web
-    name: refgd
-    rootDir: refgd
-    buildCommand: corepack enable && pnpm install --frozen-lockfile --ignore-workspace && pnpm run build
-    startCommand: pnpm start
-    env: node
-    autoDeploy: true
-    envVars:
-      - key: NODE_VERSION
-        value: 20
+    - type: web
+      name: refgd
+      rootDir: refgd
+      buildCommand: corepack enable && pnpm install --frozen-lockfile --ignore-workspace && pnpm run build
+      startCommand: pnpm start
+      env: node
+      autoDeploy: true
+      envVars:
+        - key: NODE_VERSION
+          value: 20
+        - key: NEON_DATABASE_URL
+          sync: false
+        - key: SESSION_SECRET
+          sync: false
+        - key: ADMIN_USERNAME
+          sync: false
+        - key: ADMIN_PASSWORD_HASH
+          sync: false
+  
