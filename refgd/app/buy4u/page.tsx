@@ -323,7 +323,7 @@ function BrandCard({ secId, mode, card, onDelete }: { secId: string; mode: "buy4
         <BrandLogo domain={card.domain!} name={card.name} cardKey={card.key} />
       )}
       <div className="relative w-full" style={{ minHeight:"28px" }}>
-        <EditableText id={`${id}.name`} defaultValue={card.name} as="p" className="text-center text-xs font-semibold leading-tight text-white" />
+        <EditableText id={`${id}.name`} defaultValue={card.name} as="span" className={`block text-center text-xs font-semibold leading-tight text-white${isAdmin && editMode ? " rounded px-1 outline-dashed outline-1 outline-amber-300/40 hover:outline-amber-300/80" : ""}`} />
       </div>
       {isAdmin && editMode && card.domain && (
         <EditableText id={`${id}.domain`} defaultValue={card.domain} as="p" className="w-full text-center font-mono text-[10px] text-white/35" placeholder="clearbit domain…" />
