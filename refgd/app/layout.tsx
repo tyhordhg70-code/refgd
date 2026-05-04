@@ -32,6 +32,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import CustomCursor from "@/components/CustomCursor";
+import MusicPlayer from "@/components/MusicPlayer";
 import PulsatingOverlay from "@/components/PulsatingOverlay";
 import GalaxyBackground from "@/components/GalaxyBackground";
 import Cosmic3DShapes from "@/components/Cosmic3DShapes";
@@ -159,6 +160,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </AutoEditWrapper>
           <Footer />
           <CustomCursor />
+          {/* Persistent background music — lives here so it survives
+              navigation between pages. Close button lets users hide it. */}
+          <MusicPlayer />
           {/* Floating inline-editor toolbar (only renders for admins). */}
           <EditorToolbar />
         </EditorErrorBoundary>
