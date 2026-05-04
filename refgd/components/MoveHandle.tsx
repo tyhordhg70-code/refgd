@@ -1,5 +1,6 @@
 "use client";
 import EditorIsland from "@/components/EditorIsland";
+import { usePathname } from "next/navigation";
 
 /**
  * MoveHandle — drag-to-reposition affordance for editable elements.
@@ -344,7 +345,8 @@ function MoveHandleInner({
       } catch { /* ignore */ }
   };
 
-  if (!editing) return null;
+  const pathname = usePathname();
+    if (!editing || pathname?.startsWith("/buy4u")) return null;
 
   return (
     <span
