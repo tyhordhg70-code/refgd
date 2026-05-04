@@ -152,6 +152,7 @@ export default function StoreCard({
                 width={56}
                 height={56}
                 loading="lazy"
+                data-editable-skip=""
                 className="h-full w-full object-contain p-1"
                 onError={() => setLogoIdx((i) => i + 1)}
               />
