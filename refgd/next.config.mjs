@@ -22,6 +22,8 @@ const nextConfig = {
       { protocol: "https", hostname: "**.clearbit.com" },
       { protocol: "https", hostname: "icons.duckduckgo.com" },
       { protocol: "https", hostname: "www.google.com" },
+        { protocol: "https", hostname: "spawngc.gg" },
+        { protocol: "https", hostname: "**.spawngc.gg" },
     ],
   },
 };
