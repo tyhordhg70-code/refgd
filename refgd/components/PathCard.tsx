@@ -96,7 +96,7 @@ export default function PathCard({
   const titleClass =
     size === "sm"
       ? "text-base md:text-lg lg:text-xl xl:text-2xl"
-      : "text-2xl sm:text-3xl";
+      : "text-xl sm:text-2xl";
   const labelClass = size === "sm" ? "mt-2 text-[9px] tracking-[0.22em]" : "mt-3 text-[10px] tracking-[0.3em]";
   const chipClass = size === "sm" ? "px-2 py-0.5 text-[9px] tracking-[0.18em]" : "px-3 py-1 text-[11px] tracking-[0.25em]";
   const textPad = size === "sm" ? "p-3 md:p-4 xl:p-5" : "p-6";
