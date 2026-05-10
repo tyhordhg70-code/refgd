@@ -131,6 +131,7 @@ export default async function StoreListPage() {
           animation: "slSweep 10s linear infinite",
           willChange: "background-position",
         }}
+        data-sl-sweep
       />
       {/* ── Layer 3: second sweep R→L at different speed/angle ── */}
       <div
@@ -143,6 +144,7 @@ export default async function StoreListPage() {
           animation: "slSweep2 17s linear infinite",
           willChange: "background-position",
         }}
+        data-sl-sweep
       />
       {/* ── All keyframes (bg + float + star twinkle) ── */}
       <style>{`
@@ -185,6 +187,9 @@ export default async function StoreListPage() {
                               50%     { transform: translate3d(-12px,18px,0); opacity:0.85; } }
         @keyframes slFloatC { 0%,100% { transform: translate3d(0,0,0) scale(1);  opacity:0.5; }
                               50%     { transform: translate3d(-6px,-14px,0) scale(1.15); opacity:0.95; } }
+        @media (max-width: 767px) {
+          [data-sl-sweep] { display: none; }
+        }
       `}</style>
 
       {/* v6.13.39 — The user reported the storelist "looks too dark"
