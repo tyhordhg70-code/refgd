@@ -491,6 +491,7 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
           perspective: "1400px",
           overflow: "hidden",
           borderRadius: 18,
+          background: "rgb(8,8,16)",
         }}
       >
       <div
@@ -568,7 +569,7 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
                 // safe headroom. The accent-glow padding doubles
                 // as a visible halo, so increasing it improves
                 // both the float clearance AND the visual.
-                padding: 12,
+                padding: 4,
                 // Only the active face accepts pointer/touch — the
                 // others are visually hidden behind the prism.
                 pointerEvents: i === active ? "auto" : "none",
