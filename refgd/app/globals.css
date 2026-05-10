@@ -41,6 +41,7 @@
      in the tree can't push the layout sideways either. */
   body {
     overflow-x: clip;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   main {
     overflow-x: clip;
@@ -2100,11 +2101,26 @@ html { scroll-behavior: smooth; }
   .pulse-glow-cyan,
   .pulse-glow-violet,
   .pulse-glow-amber,
+  .pulse-glow-gold,
+  .pulse-glow-orange,
+  .pulse-glow-fuchsia,
   .pulse-glow {
     animation: none !important;
+    box-shadow: none !important;
   }
   .atpl-shimmer,
   .atpl-glow-cycle {
+    animation: none !important;
+  }
+  /* Disable the galaxy background filter animation — the primary source
+     of whole-page repaint flicker on iPad (filter on a fixed full-viewport
+     element forces a compositing pass on every animation frame). */
+  .galaxy-bg-pulse {
+    animation: none !important;
+    filter: none !important;
+  }
+  /* Disable float animations on iPad to reduce layer count */
+  .float-card, .float-card-2, .float-card-3 {
     animation: none !important;
   }
 }
@@ -2135,3 +2151,22 @@ select option:hover {
   background-color: #1f1c33 !important;
   color: #ffe28a !important;
 }
+
+  /* ─── Mobile phones: remove the hard 1px ring from pulse-glow halos ───────
+   * The `0 0 0 1px rgba(..., 0.16)` in the 50% keyframe renders as a
+   * fully opaque single-pixel border on high-DPI OLED phone screens.
+   * Override with `box-shadow: none` on phones so the soft diffuse glow
+   * animates without the hard-edged ring artefact. The glow itself is
+   * preserved by keeping the animation; only the ring value is replaced. */
+  @media (hover: none) and (max-width: 699px) {
+    .pulse-glow,
+    .pulse-glow-gold,
+    .pulse-glow-cyan,
+    .pulse-glow-violet,
+    .pulse-glow-orange,
+    .pulse-glow-fuchsia {
+      animation: none !important;
+      box-shadow: none !important;
+    }
+  }
+  
