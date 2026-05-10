@@ -1,5 +1,5 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 /**
  * v6.13.50 — FORCE DYNAMIC RENDERING FOR THE ENTIRE APP.
@@ -53,6 +53,12 @@ import AutoEditWrapper from "@/components/AutoEditWrapper";
 import EditorErrorBoundary from "@/components/EditorErrorBoundary";
 import { getAllContentMap } from "@/lib/content";
 import { readSession } from "@/lib/auth";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: "RefundGod — Refunds, Replacements, Mentorships",
