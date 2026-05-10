@@ -89,7 +89,7 @@ export default function GalaxyBackground() {
           variation in the same place so the "line" never reads as
           discrete. */}
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 galaxy-bg-pulse"
         style={{
           backgroundImage:
             "radial-gradient(ellipse 70% 50% at 30% 20%, rgba(245,185,69,0.16), transparent 55%)," +
@@ -97,7 +97,6 @@ export default function GalaxyBackground() {
             "linear-gradient(180deg, #0b0820 0%, #1a0e3a 35%, #0a0820 70%, #07061a 100%)",
           backgroundSize: "180% 180%, 200% 200%, 100% 280%",
           animation: "bgPulseSlow 22s ease-in-out infinite",
-          willChange: "background-position, filter",
         }}
       />
       <div
