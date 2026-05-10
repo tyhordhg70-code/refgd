@@ -344,7 +344,8 @@ function CardGrid({ secId, mode, cards, wide }: { secId: string; mode: "buy4u"|"
       try { return JSON.parse(getValue(`buy4u.${secId}.${mode}.extra`, "[]")); } catch { return []; }
     });
 
-    const visible = [...cards.filter(c => !deleted.includes(c.key)), ...extra];
+    const visible = [...cards.filter(c => !deleted.includes(c.key)), ...extra]
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 
     const handleDelete = (key: string) => {
       const isExtraCard = extra.some(c => c.key === key);
@@ -365,7 +366,7 @@ function CardGrid({ secId, mode, cards, wide }: { secId: string; mode: "buy4u"|"
       const nc: Card = addKind === "brand"
         ? { key: nk, name: addName.trim(), kind: "brand", domain: addVal.trim() || "example.com" }
         : { key: nk, name: addName.trim(), kind: "photo", photo: addVal.trim() || "https://loremflickr.com/400/300/travel" };
-      const next = [...extra, nc];
+      const next = [...extra, nc].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
       setExtra(next);
       setValue(`buy4u.${secId}.${mode}.extra`, JSON.stringify(next));
       setAddName(""); setAddVal(""); setShowAdd(false);
@@ -626,7 +627,8 @@ const CARDS_PER_PAGE = 24;
       try { return JSON.parse(getValue("buy4u.giftcards.extra", "[]")); } catch { return []; }
     });
 
-    const allCards = [...GC_CARDS.filter(c => !deleted.includes(c.key)), ...extra];
+    const allCards = [...GC_CARDS.filter(c => !deleted.includes(c.key)), ...extra]
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 
     const filtered = useMemo(() => allCards.filter(c => {
       if (cat && c.category !== cat) return false;
@@ -665,7 +667,7 @@ const CARDS_PER_PAGE = 24;
         image: addImage.trim() || undefined,
         price: addPrice.trim() || undefined,
       };
-      const next = [...extra, nc];
+      const next = [...extra, nc].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
       setExtra(next);
       setValue("buy4u.giftcards.extra", JSON.stringify(next));
       setAddName(""); setAddPrice(""); setAddImage(""); setShowAdd(false);
