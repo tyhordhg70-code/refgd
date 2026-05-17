@@ -110,7 +110,7 @@ function DesktopGrid({
             ))}
           </div>
         )}
-        <p className="heading-display mt-4 text-center text-[10px] font-semibold uppercase tracking-[0.38em] text-white/55 sm:text-xs">
+        <p className="path-scroll-glow heading-display mt-4 text-center text-[10px] font-semibold uppercase tracking-[0.38em] sm:text-xs">
           Choose your door
         </p>
       </motion.div>
@@ -180,7 +180,7 @@ function MobileSnapCarousel({ cards }: { cards: ReactNode[] }) {
       <MobilePrismStage cards={cards} />
       <p
         aria-hidden="true"
-        className="mt-4 heading-display text-center text-[10px] font-semibold uppercase tracking-[0.4em] text-white/55"
+        className="path-scroll-glow mt-4 heading-display text-center text-[10px] font-semibold uppercase tracking-[0.4em]"
       >
         Swipe or tap a dot to rotate
       </p>
@@ -489,9 +489,16 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
         style={{
           aspectRatio: "1 / 1.42",
           perspective: "1400px",
-          overflow: "hidden",
+          // v6.13.58 — Removed the solid rgb(8,8,16) background that was
+          // visible as a literal "black box" behind every prism card.
+          // Replaced overflow:hidden with a polygon clipPath that clamps
+          // LEFT/RIGHT to the container but allows ~80 px of vertical
+          // bleed, so the active card's floatBreathe (scale 1 → 1.04) +
+          // floatCard (translateY -10 px) NEVER get clipped mid-bob.
+          clipPath: "polygon(0% -80px, 100% -80px, 100% calc(100% + 80px), 0% calc(100% + 80px))",
+          WebkitClipPath: "polygon(0% -80px, 100% -80px, 100% calc(100% + 80px), 0% calc(100% + 80px))",
           borderRadius: 18,
-          background: "rgb(8,8,16)",
+          background: "transparent",
         }}
       >
       <div
@@ -559,17 +566,22 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
                 // colour family. Solid base layer at the bottom
                 // keeps back faces opaque so the prism backstage
                 // never bleeds through.
+                // v6.13.58 — Dropped the opaque rgba(8,8,16) base layer
+                // that was visible as a black plane behind the card during
+                // every rotation. The face now renders ONLY the accent
+                // halo, fading to fully transparent at the edges. Back
+                // faces are hidden via backfaceVisibility; side faces are
+                // clipped by the outer container's clipPath; so no dark
+                // plane can ever bleed through.
                 background:
-                  `radial-gradient(ellipse at center, rgba(${rgb},0.32) 0%, rgba(${rgb},0.14) 55%, rgba(8,8,16,0.95) 100%), rgb(8,8,16)`,
+                  `radial-gradient(ellipse at center, rgba(${rgb},0.38) 0%, rgba(${rgb},0.18) 55%, rgba(${rgb},0) 100%)`,
                 borderRadius: 22,
-                overflow: "hidden",
-                // v6.13.9 — Bumped from 8 → 12 px so the more
-                // noticeable floatBreathe (scale 1 → 1.04) on a
-                // ~432 px card (≈8.6 px grow each side) still has
-                // safe headroom. The accent-glow padding doubles
-                // as a visible halo, so increasing it improves
-                // both the float clearance AND the visual.
-                padding: 4,
+                overflow: "visible",
+                // v6.13.58 — Bumped from 4 → 24 px so the floatBreathe
+                // scale-up (~9 px each side on a 432 px card) AND
+                // floatCard translateY(-10 px) BOTH fit comfortably
+                // inside the face without ever clipping the card edges.
+                padding: 24,
                 // Only the active face accepts pointer/touch — the
                 // others are visually hidden behind the prism.
                 pointerEvents: i === active ? "auto" : "none",
