@@ -18,6 +18,7 @@ import EvadeIllustrationDivider from "@/components/EvadeIllustrationDivider";
 import TrailerTitle3D from "@/components/TrailerTitle3D";
 import ChapterHeader from "@/components/ChapterHeader";
 import FloatingArt from "@/components/FloatingArt";
+import EvadeImmersiveBg from "@/components/EvadeImmersiveBg";
 /* v6.13.15 — Pricing card thumbnails migrated to EditableImage so
    admin can swap them, apply animation templates, scale + adjust
    spacing from the popover. */
@@ -113,90 +114,16 @@ const TRUST = [
 export default function EvadePage() {
   return (
     <ReorderableContainer pageId="evade-cancelations">
-      {/* Page-wide deep blue → purple gradient overlay so the Evade page
-          has its own distinct atmosphere, sitting above the global
-          galaxy backdrop. Subtle radial accents reinforce a "vault"
-          mood without overpowering text. */}
-      {/* v6.9 — page-wide overlay used to start at rgba(8,8,32,0.65)
-          at 0 % (top), which on first paint and after the splash
-          fades stamped a hard dark band across the entire upper
-          viewport (the user reported this as "the black screen
-          upon loading is still there"). Now the top stop is fully
-          transparent so the GalaxyBackground reads through, and
-          the deep blue/violet only fades in from the middle of
-          the page downward where it actually does scenic work. */}
-      {/* v6.13.26 — REVERTED v6.13.24 z-[1] back to -z-[1].
-          Pushing this overlay above the galaxy (z:1) also
-          pushed it ABOVE all page content that doesn't use
-          z-10 (ChipScroll, dividers, etc.) — visible to the
-          user as "the whole opacity is much lower". The black
-          bar is now solved at the body level instead (see
-          layout.tsx body style: solid bg-ink-950 was replaced
-          with a deep violet→ink gradient so anywhere the body
-          shows through during scroll/galaxy-boot, it's
-          atmospheric instead of black). */}
-      {/* v6.13.30 — Black bar at the very bottom (above iOS home-
-          bar) on iPhone Safari mid-scroll. Cause: `position:fixed;
-          inset:0` on iOS Safari uses the SMALL viewport height
-          while the URL bar is visible. When the URL bar collapses
-          mid-scroll the viewport grows ~75-100px taller but this
-          overlay does NOT — its bottom edge stays at the old small-
-          viewport bottom, exposing the body's bg-ink-950 underneath
-          as a sharp dark strip against the violet atmosphere of
-          the overlay above it. The user reads that strip as "a
-          black bar mid scrolling".
+      {/* v6.14 — IMMERSIVE 3D PLAYGROUND BACKGROUND.
+            Replaces the previous static gradient overlay + animated bgShift
+            layer with EvadeImmersiveBg, which mounts five depth-layered
+            background tiers (nebula, aurora ribbons, perspective floor +
+            ceiling wireframe, drifting 3D shards, cosmic dust). All text,
+            sections, and components on the page remain identical — only the
+            atmosphere has been upgraded to feel like a real 3D playground. */}
+        <EvadeImmersiveBg />
 
-          Fix: extend the overlay 200px past every viewport edge
-          via negative inset. The element is `pointer-events-none`
-          so the overflow can't intercept clicks, and `-z-[1]`
-          keeps it behind every content layer. Now even with the
-          URL bar fully collapsed (or expanded, or rubber-banding)
-          the gradient always reaches past the visible bottom — no
-          gap can form on any iOS viewport state. */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed -z-[1]"
-        style={{
-          top: "-200px",
-          bottom: "-200px",
-          left: "-200px",
-          right: "-200px",
-          background:
-            "radial-gradient(ellipse 80% 60% at 20% 0%, rgba(30,18,90,0.32), transparent 60%), radial-gradient(ellipse 70% 60% at 80% 100%, rgba(82,28,140,0.55), transparent 60%), linear-gradient(180deg, rgba(8,8,32,0) 0%, rgba(18,8,40,0.55) 55%, rgba(10,4,32,0.78) 100%)",
-        }}
-      />
-
-      {/* v6.13.52 — ANIMATED gradient backdrop for the evade page.
-          The user asked for "gradient to evade page that is animated
-          also background"; previously the page only had the static
-          violet wash above plus PixelRainCosmic. This new layer adds
-          a continuously-shifting cyan/violet/fuchsia colour field
-          that slowly drifts and hue-rotates so the page feels alive
-          all the way down — independent of scroll. Sits at -z-[2]
-          (behind the static violet wash so the existing depth still
-          reads), pointer-events-none, fixed-viewport. */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-[2]"
-        style={{
-          background:
-            "radial-gradient(ellipse 70% 55% at 22% 18%, rgba(34,211,238,0.22), transparent 62%), radial-gradient(ellipse 65% 55% at 80% 28%, rgba(124,58,237,0.32), transparent 60%), radial-gradient(ellipse 60% 60% at 30% 78%, rgba(244,114,182,0.22), transparent 65%), radial-gradient(ellipse 70% 55% at 78% 82%, rgba(34,211,238,0.18), transparent 60%), conic-gradient(from 30deg at 50% 50%, rgba(34,211,238,0.10), rgba(124,58,237,0.14), rgba(244,114,182,0.12), rgba(34,211,238,0.10))",
-          animation: "evBgShift 24s ease-in-out infinite, evBgHue 30s linear infinite",
-          willChange: "transform, filter",
-        }}
-      />
-      <style>{`
-        @keyframes evBgShift {
-          0%, 100% { transform: translate3d(0, 0, 0) scale(1.06); }
-          50%      { transform: translate3d(2.5%, -1.5%, 0) scale(1.14); }
-        }
-        @keyframes evBgHue {
-          0%   { filter: hue-rotate(0deg) saturate(1.1); }
-          50%  { filter: hue-rotate(35deg) saturate(1.25); }
-          100% { filter: hue-rotate(0deg) saturate(1.1); }
-        }
-      `}</style>
-
+  
       <ReorderableSection sectionId="hero">
         {/* Act 1 — Scroll-driven scene. The animation does NOT play on
             page-load — it advances only as the user scrolls past the
