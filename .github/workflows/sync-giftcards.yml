@@ -1,0 +1,52 @@
+name: Sync giftcards from spawngc
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # daily at 06:00 UTC
+  workflow_dispatch:       # also allow manual runs from the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-giftcards
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run spawngc sync
+        env:
+          SPAWN_LOGIN: ${{ secrets.SPAWN_LOGIN }}
+          SPAWN_PASS:  ${{ secrets.SPAWN_PASS }}
+          MARGIN_PCT:  ${{ vars.MARGIN_PCT }}
+          MIN_DISCOUNT: ${{ vars.MIN_DISCOUNT }}
+        run: node scripts/sync-giftcards.mjs refgd/app/buy4u/page.tsx
+
+      - name: Commit and push if changed
+        id: commit
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet refgd/app/buy4u/page.tsx; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes to commit."
+            exit 0
+          fi
+          git add refgd/app/buy4u/page.tsx
+          git commit -m "chore(sync): daily spawngc inventory refresh"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger Render deploy
+        if: steps.commit.outputs.changed == 'true' && env.RENDER_DEPLOY_HOOK != ''
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK"
