@@ -102,9 +102,8 @@ export default function MeshExpansionReveal({
         if (!e) return;
         if (e.intersectionRatio >= viewportAmount) {
           fire();
-        } else if (e.intersectionRatio < 0.2) {
-          setPhase((c) => (c === "done" ? "idle" : c));
-        }
+        } // v6.13.66 - removed done->idle re-arm; burst plays once then stays stable
+        // (the inner AnimatedTelegramBox planet/rings/sweep keep looping)
       },
       { threshold: [0, 0.05, 0.2, viewportAmount, 0.5, 1] },
     );
