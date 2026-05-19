@@ -17,13 +17,23 @@ const nextConfig = {
   // when Render builds from the repo root).
   outputFileTracingRoot: path.join(__dirname, ".."),
   images: {
-    remotePatterns: [
-      { protocol: "https", hostname: "logo.clearbit.com" },
-      { protocol: "https", hostname: "**.clearbit.com" },
-      { protocol: "https", hostname: "icons.duckduckgo.com" },
-      { protocol: "https", hostname: "www.google.com" },
-    ],
-  },
+      // v6.13.65 — Enable Next.js image optimization for all external image hosts
+      // we reference. Images get resized to the requested width, converted to
+      // AVIF/WebP, and cached at the edge — cuts a 1.9 MB source PNG down to
+      // ~10 KB for the 200 px thumbnails we display. Massive perf win.
+      remotePatterns: [
+        { protocol: "https", hostname: "spawngc.gg" },
+        { protocol: "https", hostname: "logo.clearbit.com" },
+        { protocol: "https", hostname: "**.clearbit.com" },
+        { protocol: "https", hostname: "icons.duckduckgo.com" },
+        { protocol: "https", hostname: "www.google.com" },
+        { protocol: "https", hostname: "images.unsplash.com" },
+        { protocol: "https", hostname: "live.staticflickr.com" },
+        { protocol: "https", hostname: "upload.wikimedia.org" },
+      ],
+      formats: ["image/avif", "image/webp"],
+      minimumCacheTTL: 604800,
+    },
 };
 
 export default nextConfig;
