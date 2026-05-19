@@ -134,7 +134,9 @@
     let image = null;
     if (p.image && typeof p.image === 'string') {
       const idx = p.image.indexOf('/media/');
-      if (idx >= 0) image = '/api/gc-img' + p.image.slice(idx);
+      // v6.13.65 — emit absolute spawngc URLs so next/image can optimize them
+          // (resize + AVIF/WebP) and the proxy hop is avoided entirely.
+          if (idx >= 0) image = 'https://spawngc.gg' + p.image.slice(idx);
     }
 
     const card = {
