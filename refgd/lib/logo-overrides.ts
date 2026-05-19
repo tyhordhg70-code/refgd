@@ -89,6 +89,7 @@ export const LOGO_DOMAIN_OVERRIDES: Record<string, string> = {
   shopify: "shopify.com",
   staples: "staples.com",
   petco: "petco.com",
+  aritzia: "aritzia.com",
   petsmart: "petsmart.com",
   chewy: "chewy.com",
   gnc: "gnc.com",
