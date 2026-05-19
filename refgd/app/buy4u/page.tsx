@@ -453,13 +453,15 @@ function SectionBlock({ section }: { section: Section }) {
           <span className="text-3xl" aria-hidden="true">{section.icon}</span>
           <h2 className="heading-display text-2xl font-bold uppercase tracking-tight text-white"><EditableText id={`buy4u.${section.id}.label`} defaultValue={section.label} /></h2>
         </div>
-        {section.hasRefund && section.refund && (
-          <div className="inline-flex rounded-full border border-white/10 bg-ink-900 p-1">
-            {(["buy4u","refund"] as const).map(m => (
-              <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition ${mode===m ? "bg-amber-400 text-ink-950 shadow-[0_0_18px_-4px_rgba(245,185,69,0.6)]" : "text-white/65 hover:text-white"}`}>{m==="buy4u"?"BUY4U":"REFUND"}</button>
-            ))}
-          </div>
-        )}
+        {section.hasRefund && section.refund ? (
+            <div className="inline-flex rounded-full border border-white/10 bg-ink-900 p-1">
+              {(["buy4u","refund"] as const).map(m => (
+                <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition ${mode===m ? "bg-amber-400 text-ink-950 shadow-[0_0_18px_-4px_rgba(245,185,69,0.6)]" : "text-white/65 hover:text-white"}`}>{m==="buy4u"?"BUY4U":"REFUND"}</button>
+              ))}
+            </div>
+          ) : section.staticBadge ? (
+            <span className="inline-flex rounded-full border border-amber-300/40 bg-amber-400/10 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-amber-200 shadow-[0_0_18px_-4px_rgba(245,185,69,0.45)]">{section.staticBadge}</span>
+          ) : null}
       </div>
       <TabBody section={section} mode={section.hasRefund ? mode : "buy4u"} />
     </section>
@@ -748,11 +750,18 @@ const CARDS_PER_PAGE = 24;
 
   function SectionPillNav() {
   return (
-    <nav aria-label="Buy4U sections" className="sticky top-16 z-20 -mx-4 mb-8 overflow-x-auto border-y border-white/10 bg-ink-950/85 px-4 py-3 backdrop-blur-xl">
-      <ul className="flex min-w-max items-center gap-2">
-        {SECTIONS.map(s => <li key={s.id}><a href={`#buy4u-${s.id}`} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:border-amber-300/60 hover:bg-amber-400/10 hover:text-white"><span aria-hidden="true">{s.icon}</span><span>{s.label}</span></a></li>)}
-      </ul>
-    </nav>
+    <nav aria-label="Buy4U sections" className="sticky top-16 z-20 -mx-4 mb-8 border-y border-white/10 bg-ink-950/90 backdrop-blur-xl">
+        <div className="relative">
+          <ul className="flex items-center gap-2 overflow-x-auto px-4 py-3 snap-x scroll-px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {SECTIONS.map(s => <li key={s.id} className="snap-start shrink-0"><a href={`#buy4u-${s.id}`} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/90 transition active:scale-95 active:bg-amber-400/20 hover:border-amber-300/60 hover:bg-amber-400/10 hover:text-white"><span aria-hidden="true">{s.icon}</span><span>{s.label}</span></a></li>)}
+          </ul>
+          {/* Mobile scroll hints — visible fades + arrow so users know the bar scrolls */}
+          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-ink-950 to-transparent md:hidden" />
+          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 flex w-12 items-center justify-end bg-gradient-to-l from-ink-950 via-ink-950/85 to-transparent pr-2 md:hidden">
+            <span className="text-amber-300/90 text-xl leading-none animate-pulse">›</span>
+          </div>
+        </div>
+      </nav>
   );
 }
 
