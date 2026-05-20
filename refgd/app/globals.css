@@ -2200,7 +2200,6 @@ select option:hover {
   .path-scroll-glow {
     color: rgba(255,255,255,0.95);
     animation: pathScrollGlow 3.8s ease-in-out infinite;
-    will-change: text-shadow, color;
   }
   @media (prefers-reduced-motion: reduce) {
     .path-scroll-glow {
