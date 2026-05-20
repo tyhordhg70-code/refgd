@@ -85,70 +85,93 @@ export default function LedJoySection() {
     }>({ enabled: false, ratio: 0, isIntersecting: false, rectTop: 0, rectBottom: 0, vh: 0, scrollY: 0, fired: false });
 
     useEffect(() => {
-      /* v6.13.67 — STRICT IN-VIEW TRIGGER ONLY. */
-      const el = ref.current;
-      if (typeof window === "undefined") return;
-      const sp = new URLSearchParams(window.location.search);
-      const debugOn = sp.get("debug") === "1";
-      if (debugOn) setDebug((d) => ({ ...d, enabled: true }));
+        /* v6.13.72 — robust play trigger.
+           Reverted v6.13.67's STRICT-IO-ONLY (threshold 0.3) approach
+           because on iOS Safari + Android Chrome the IO callback was
+           being missed on fast scrolls into the section, leaving the
+           letters stuck at opacity:0 / x:360 ("ahh fly-in is gone"
+           report). This restores the v6.13.39 triple-trigger design:
+             1. IO with low threshold (0.05) + rootMargin so it fires
+                as soon as the section enters the viewport.
+             2. scroll-listener fallback for the rare case where IO is
+                coalesced; fires when section top is within 85 % of
+                the viewport height.
+             3. first user-interaction listener as a last-ditch safety.
+           All three set the same one-shot `played` flag, so the fly-in
+           still plays exactly once. */
+        const el = ref.current;
+        if (typeof window === "undefined") return;
+        const sp = new URLSearchParams(window.location.search);
+        const debugOn = sp.get("debug") === "1";
+        if (debugOn) setDebug((d) => ({ ...d, enabled: true }));
 
-      if (!el || !("IntersectionObserver" in window)) {
-        setPlayed(true);
-        if (debugOn) setDebug((d) => ({ ...d, fired: true }));
-        return;
-      }
-      const io = new IntersectionObserver(
-        (entries) => {
-          for (const e of entries) {
-            if (debugOn) {
-              const r = e.boundingClientRect;
-              setDebug((d) => ({
-                ...d,
-                ratio: e.intersectionRatio,
-                isIntersecting: e.isIntersecting,
-                rectTop: Math.round(r.top),
-                rectBottom: Math.round(r.bottom),
-                vh: window.innerHeight,
-                scrollY: Math.round(window.scrollY),
-              }));
-            }
-            if (e.isIntersecting && e.intersectionRatio >= 0.3) {
-              setPlayed(true);
-              if (debugOn) setDebug((d) => ({ ...d, fired: true }));
-              io.disconnect();
-              break;
-            }
+        let done = false;
+        const fire = () => {
+          if (done) return;
+          done = true;
+          setPlayed(true);
+          if (debugOn) setDebug((d) => ({ ...d, fired: true }));
+        };
+
+        if (!el) {
+          fire();
+          return;
+        }
+
+        // 1) IntersectionObserver — low threshold for reliable trigger.
+        let io: IntersectionObserver | null = null;
+        if ("IntersectionObserver" in window) {
+          io = new IntersectionObserver(
+            (entries) => {
+              for (const e of entries) {
+                if (debugOn) {
+                  const r = e.boundingClientRect;
+                  setDebug((d) => ({
+                    ...d,
+                    ratio: e.intersectionRatio,
+                    isIntersecting: e.isIntersecting,
+                    rectTop: Math.round(r.top),
+                    rectBottom: Math.round(r.bottom),
+                    vh: window.innerHeight,
+                    scrollY: Math.round(window.scrollY),
+                  }));
+                }
+                if (e.isIntersecting && e.intersectionRatio >= 0.05) {
+                  fire();
+                  io?.disconnect();
+                  break;
+                }
+              }
+            },
+            { threshold: [0, 0.05, 0.1, 0.2, 0.3, 0.5, 1], rootMargin: "0px 0px -10% 0px" },
+          );
+          io.observe(el);
+        }
+
+        // 2) Scroll-listener fallback — if IO misses, fire when section
+        //    top is within 85 % of the viewport.
+        const onScroll = () => {
+          if (done) return;
+          const r = el.getBoundingClientRect();
+          if (r.top < window.innerHeight * 0.85 && r.bottom > 0) {
+            fire();
           }
-        },
-        { threshold: [0, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1] },
-      );
-      io.observe(el);
-
-      /* Debug-mode-only: also tick scroll position so the overlay
-         updates while the user is scrolling. */
-      let onScroll: (() => void) | null = null;
-      if (debugOn) {
-        onScroll = () => {
-          const node = ref.current;
-          if (!node) return;
-          const r = node.getBoundingClientRect();
-          setDebug((d) => ({
-            ...d,
-            rectTop: Math.round(r.top),
-            rectBottom: Math.round(r.bottom),
-            vh: window.innerHeight,
-            scrollY: Math.round(window.scrollY),
-          }));
         };
         window.addEventListener("scroll", onScroll, { passive: true });
-        onScroll();
-      }
+        onScroll(); // initial check in case section is already in view on mount
 
-      return () => {
-        io.disconnect();
-        if (onScroll) window.removeEventListener("scroll", onScroll);
-      };
-    }, []);
+        // 3) First user-interaction fallback — pure safety net.
+        const onInteract = () => {
+          fire();
+        };
+        window.addEventListener("touchstart", onInteract, { once: true, passive: true });
+
+        return () => {
+          io?.disconnect();
+          window.removeEventListener("scroll", onScroll);
+          window.removeEventListener("touchstart", onInteract);
+        };
+      }, []);
   const play = played;
   // v6.13.19 — REPLACED `useInView` + state-driven `animate={inView ? ... : undefined}`
   // with framer's `whileInView` API on each <motion.span> below.
