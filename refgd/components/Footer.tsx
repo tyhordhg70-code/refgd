@@ -36,14 +36,6 @@ export default function Footer() {
 
   return (
     <footer className="relative z-[2] bg-transparent" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 -top-16 h-16"
-        style={{
-          background:
-            "linear-gradient(to bottom, transparent 0%, rgba(5,6,10,0.30) 60%, rgba(5,6,10,0.55) 100%)",
-        }}
-      />
       <div className="container-px grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Logo className="h-10 w-auto" />
