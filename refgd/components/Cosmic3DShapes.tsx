@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 /**
  * Cosmic3DShapes — three slowly-rotating 3D wireframe shapes that
@@ -43,10 +43,17 @@ export default function Cosmic3DShapes() {
   // their 12+ static compositor layers still cost the GPU on every
   // scroll frame. Drop the entire layer on mobile so scrolling +
   // the path cards have the full GPU budget to themselves.
-  if (isMobile) return null;
+  // v6.13.60 — Re-enabled on mobile per user request, but in a
+  // performance-careful way: only the CUBE renders on mobile (the
+  // cheapest shape — 6 static compositor faces, one transform
+  // animation). Gyro (4 layers) and diamond (3 layers) stay
+  // desktop-only so the mobile GPU budget for scrolling and the
+  // path-card prism is preserved. The cube is shrunk, dimmed, and
+  // pushed to the top-right corner with `contain:strict` so it
+  // never invalidates neighbouring paint during scroll.
 
   // Sizes tuned per breakpoint
-  const cubeSize = isMobile ? 70 : 130;
+  const cubeSize = isMobile ? 56 : 130;
   const gyroSize = isMobile ? 90 : 170;
   const pyrSize  = isMobile ? 80 : 150;
 
@@ -57,16 +64,26 @@ export default function Cosmic3DShapes() {
       className="pointer-events-none fixed inset-0 z-[1] overflow-hidden"
       style={{ contain: "layout paint" }}
     >
-      {/* Cube — top-right */}
+      {/* Cube — top-right. On mobile we shrink + dim + isolate the
+          compositor layer (contain:strict + translateZ(0)) so this
+          single shape cannot pile invalidations onto the scroll or
+          path-card paint path. */}
       <div
         className="shape-3d-stage"
         style={{
-          right: isMobile ? "6%" : "8%",
-          top: isMobile ? "12%" : "14%",
+          right: isMobile ? "5%" : "8%",
+          top: isMobile ? "10%" : "14%",
           width: cubeSize,
           height: cubeSize,
-          opacity: 0.55,
+          opacity: isMobile ? 0.38 : 0.55,
           animationDelay: "0s",
+          ...(isMobile
+            ? ({
+                contain: "strict",
+                transform: "translateZ(0)",
+                isolation: "isolate",
+              } as CSSProperties)
+            : {}),
         }}
       >
         <div
@@ -82,25 +99,28 @@ export default function Cosmic3DShapes() {
         </div>
       </div>
 
-      {/* Gyroscope — middle-left */}
-      <div
-        className="shape-3d-stage"
-        style={{
-          left: isMobile ? "-3%" : "4%",
-          top: isMobile ? "44%" : "42%",
-          width: gyroSize,
-          height: gyroSize,
-          opacity: 0.65,
-          animationDelay: "1.4s",
-        }}
-      >
-        <div className="shape-gyro">
-          <div className="ring ring-1" />
-          <div className="ring ring-2" />
-          <div className="ring ring-3" />
-          <div className="core" />
+      {/* Gyroscope — middle-left (desktop only on mobile we render only the cube) */}
+      {!isMobile && (
+        {/* Gyroscope — middle-left */}
+        <div
+          className="shape-3d-stage"
+          style={{
+            left: isMobile ? "-3%" : "4%",
+            top: isMobile ? "44%" : "42%",
+            width: gyroSize,
+            height: gyroSize,
+            opacity: 0.65,
+            animationDelay: "1.4s",
+          }}
+        >
+          <div className="shape-gyro">
+            <div className="ring ring-1" />
+            <div className="ring ring-2" />
+            <div className="ring ring-3" />
+            <div className="core" />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Octahedron diamond — lower-right (desktop only) */}
       {!isMobile && (
