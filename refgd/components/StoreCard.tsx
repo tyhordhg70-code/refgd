@@ -85,7 +85,7 @@ export default function StoreCard({
       }`}
     >
       <div
-        className="relative h-full rounded-2xl bg-ink-900/70 p-5 backdrop-blur-xl transition group-hover:bg-ink-800/85"
+        className="relative h-full rounded-2xl bg-ink-900/95 p-5 backdrop-blur-xl transition group-hover:bg-ink-800/95"
         draggable={draggable}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
