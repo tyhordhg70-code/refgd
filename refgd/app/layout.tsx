@@ -169,6 +169,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <CustomCursor />
           {/* Persistent background music — lives here so it survives
               navigation between pages. Close button lets users hide it. */}
+          {/* iOS toolbar fade — fixed gradient at viewport bottom that
+              blends page content into the theme-color #06030f matching the
+              iOS Safari URL toolbar so the toolbar boundary becomes invisible.
+              pointer-events:none so it can't block interactions. Hidden on
+              desktop (lg+) where there's no mobile browser chrome. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none fixed inset-x-0 bottom-0 z-[55] h-[140px] lg:hidden"
+            style={{
+              background:
+                "linear-gradient(to bottom, rgba(6,3,15,0) 0%, rgba(6,3,15,0.6) 55%, rgba(6,3,15,1) 100%)",
+            }}
+          />
           <MusicPlayer />
           {/* Floating inline-editor toolbar (only renders for admins). */}
           <EditorToolbar />
