@@ -135,7 +135,7 @@
     return (
       <div className="flex flex-col items-start gap-4">
         <ChapterPill
-          editId="evade.ch4.eyebrow"
+          editId="evade.features.eyebrow"
           defaultValue="chapter 04 / features"
           accent="amber"
           size="md"
@@ -143,7 +143,7 @@
         <KineticText
           as="h2"
           text="What you'll master."
-          editId="evade.ch4.title"
+          editId="evade.features.title"
           className="editorial-display max-w-3xl text-balance uppercase text-white text-[clamp(1.8rem,4.8vw,3.6rem)]"
           style={{
             textShadow:
