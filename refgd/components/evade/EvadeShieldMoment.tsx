@@ -41,8 +41,6 @@
       offset: ["start end", "end start"],
     });
     const scale  = useTransform(scrollYProgress, [0, 0.5, 1], [0.55, 1.15, 0.75]);
-    const dim    = useTransform(scrollYProgress, [0, 0.5, 1], [0.0, 0.45, 0.0]);
-    const labelY = useTransform(scrollYProgress, [0, 1], ["8%", "-8%"]);
 
     if (disable) {
       return (
@@ -65,34 +63,6 @@
     return (
       <section ref={ref} className="relative z-10" style={{ height: "150vh" }}>
         <div className="sticky top-0 flex h-screen items-center justify-center overflow-hidden">
-          {/* Dimming overlay for the cosmic background */}
-          <motion.div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(ellipse 70% 60% at 50% 50%, transparent 30%, rgba(0,0,0,0.85) 90%)",
-              opacity: dim,
-            }}
-          />
-          {/* Editorial backdrop label */}
-          <motion.div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 grid place-items-center"
-            style={{ y: labelY }}
-          >
-            <span
-              className="editorial-display select-none font-black leading-none"
-              style={{
-                fontSize: "clamp(8rem, 22vw, 22rem)",
-                color: "rgba(34,211,238,0.10)",
-                textShadow: "0 0 80px rgba(34,211,238,0.35)",
-                letterSpacing: "-0.06em",
-              }}
-            >
-              EVADE
-            </span>
-          </motion.div>
           {/* The shield itself */}
           <motion.div className="relative z-10" style={{ scale }}>
             <EditableImage
