@@ -65,7 +65,7 @@
         {/* Layer 2 — CSS 3D wireframe floor (recedes into the distance). */}
         <div
           aria-hidden="true"
-          className="pointer-events-none fixed inset-x-0 bottom-0 -z-[6]"
+          className="pointer-events-none fixed inset-x-0 bottom-0 -z-[6] hidden lg:block"
           style={{ height: "70vh", perspective: "1000px", perspectiveOrigin: "50% 100%" }}
         >
           <div className="ev-imm-floor" />
@@ -74,7 +74,7 @@
         {/* Layer 3 — CSS 3D wireframe ceiling (recedes upward into the distance). */}
         <div
           aria-hidden="true"
-          className="pointer-events-none fixed inset-x-0 top-0 -z-[6]"
+          className="pointer-events-none fixed inset-x-0 top-0 -z-[6] hidden lg:block"
           style={{ height: "70vh", perspective: "1000px", perspectiveOrigin: "50% 0%" }}
         >
           <div className="ev-imm-ceiling" />
