@@ -15,6 +15,7 @@
   import PixelRainCosmic from "@/components/PixelRainCosmic";
   import TrailerTitle3D from "@/components/TrailerTitle3D";
   import EvadeImmersiveBg from "@/components/EvadeImmersiveBg";
+import EvadeMorphAnchor from "@/components/evade/EvadeMorphAnchor";
 
   import EvadeIntroEditorial from "@/components/evade/EvadeIntroEditorial";
   import EvadeSolutionsStack from "@/components/evade/EvadeSolutionsStack";
@@ -79,6 +80,9 @@
     return (
       <ReorderableContainer pageId="evade-cancelations">
         <EvadeImmersiveBg />
+      {/* Shared morphing 3D anchor — cube → shield → planet, fixed
+          behind page content. Lazy-loaded, desktop-only. */}
+      <EvadeMorphAnchor />
 
         <ReorderableSection sectionId="hero">
           <ChipScroll
