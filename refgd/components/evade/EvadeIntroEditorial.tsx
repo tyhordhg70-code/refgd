@@ -64,10 +64,10 @@
               ].map((blk, i) => (
                 <motion.div
                   key={blk.id}
-                  initial={reduced ? { opacity: 1 } : { opacity: 0, x: blk.fromX, y: 30 }}
+                  initial={reduced ? false : { opacity: 1, x: blk.fromX, y: 40 }}
                   whileInView={reduced ? undefined : { opacity: 1, x: 0, y: 0 }}
-                  viewport={{ once: false, amount: 0.05 }}
-                  transition={{ duration: 1.0, delay: 0.05 + i * 0.12, ease: [0.22, 1, 0.36, 1] }}
+                  viewport={{ once: false, amount: 0.3 }}
+                  transition={{ duration: 1.1, delay: 0.05 + i * 0.14, ease: [0.22, 1, 0.36, 1] }}
                   className="relative pl-7"
                 >
                   <span
