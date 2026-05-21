@@ -94,7 +94,7 @@
                 key={i}
                 initial={reduced ? { opacity: 1 } : { opacity: 0, x: i === 0 ? -50 : i === 2 ? 50 : 0, y: i === 1 ? 60 : 30, scale: 0.92 }}
                 whileInView={reduced ? undefined : { opacity: 1, x: 0, y: 0, scale: 1 }}
-                viewport={{ once: true, amount: 0.1 }}
+                viewport={{ once: false, amount: 0.05 }}
                 transition={{ duration: 0.9, delay: i * 0.15, ease: [0.22, 1, 0.36, 1] }}
                 className="group relative"
               >
@@ -176,7 +176,7 @@
                       defaultValue={p.title}
                       as="h3"
                       className="relative heading-display text-2xl font-bold uppercase tracking-tight text-white"
-                      style={{ textShadow: "0 2px 14px rgba(0,0,0,0.8)" }}
+                      style={{ textShadow: "0 2px 14px rgba(0,0,0,0.8)", lineHeight: 1.2 }}
                     />
 
                     {/* Hair-rule under title */}
