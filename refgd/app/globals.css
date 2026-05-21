@@ -47,7 +47,8 @@
     overflow-x: clip;
   }
   html, body {
-    background: rgb(var(--bg));
+      background-color: #06030f !important;
+      min-height: 100dvh;
     color: rgb(var(--fg));
     font-family: "Geist", "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
     font-feature-settings: "ss01", "ss02", "cv01", "cv11";
