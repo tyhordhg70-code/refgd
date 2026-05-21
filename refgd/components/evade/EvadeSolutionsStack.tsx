@@ -41,7 +41,11 @@
         <div className="container-wide relative">
           {/* Integrated editorial header — chapter pill, title AND sol-locks
               artwork share one frame so the image stops "floating". */}
-          <div
+          <motion.div
+            initial={reduced ? {} : { clipPath: "inset(100% 0 0 0 round 2rem)", opacity: 0 }}
+            whileInView={reduced ? undefined : { clipPath: "inset(0% 0 0 0 round 2rem)", opacity: 1 }}
+            viewport={{ once: true, amount: 0.15 }}
+            transition={{ duration: 0.85, ease: [0.76, 0, 0.24, 1] }}
             className="relative rounded-[2rem] border border-violet-400/25 px-6 py-10 sm:p-12 lg:p-14"
             style={{
               background:
@@ -78,7 +82,13 @@
                 />
               </div>
               {/* sol-locks artwork — integrated, sits on a plinth so it reads as composed */}
-              <div className="relative mx-auto block w-full max-w-[300px] sm:max-w-[380px]">
+              <motion.div
+                className="relative mx-auto block w-full max-w-[300px] sm:max-w-[380px]"
+                initial={reduced ? {} : { scale: 0.25, rotate: -18, opacity: 0, filter: "blur(12px)" }}
+                whileInView={reduced ? undefined : { scale: 1, rotate: 0, opacity: 1, filter: "blur(0px)" }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ type: "spring", stiffness: 75, damping: 13, delay: 0.5 }}
+              >
                   {/* v6.14.5 — simplified: source image is 800x800 square. Removed
                       max-h cap + flex parent + object-contain because that combo
                       was rendering the image inside a non-square box and clipping
@@ -104,10 +114,15 @@
             {SOLUTIONS.map((s, i) => (
               <motion.div
                 key={s.id}
-                initial={reduced ? false : { opacity: 1, x: isDesktop ? s.fromX : 0, y: isDesktop ? 0 : 60, rotate: 0, scale: 0.9 }}
-                whileInView={reduced ? undefined : { opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
+                initial={reduced ? false : {
+                    opacity: 0, y: 55,
+                    rotateX: i === 1 ? 22 : 0,
+                    rotateY: i === 0 ? -28 : i === 2 ? 28 : 0,
+                    scale: 0.88,
+                  }}
+                whileInView={reduced ? undefined : { opacity: 1, y: 0, rotateX: 0, rotateY: 0, scale: 1 }}
                 viewport={{ once: true, amount: 0.15, margin: "0px 0px -10% 0px" }}
-                transition={{ duration: 1.1, delay: i * 0.14, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 1.0, delay: 0.12 + i * 0.16, ease: [0.22, 1, 0.36, 1] }}
                 className="group relative"
               >
                 <div
