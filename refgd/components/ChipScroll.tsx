@@ -550,7 +550,7 @@ export default function ChipScroll({
           >
             <h3
               className="editorial-display mx-auto max-w-5xl text-balance text-white text-[clamp(2.2rem,7vw,6rem)] uppercase"
-              style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)" }}
+              style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)", lineHeight: 1.05, letterSpacing: "-0.01em" }}
             >
               {/* v6.14.0 — CHARACTER-stagger caption reveal (Lusion/Noomo).
                     Each glyph rotates up from the baseline with a tight
@@ -599,7 +599,7 @@ export default function ChipScroll({
                   delay: 0.15 + caption.split(" ").length * 0.12 + 0.1,
                   ease: [0.16, 1, 0.3, 1],
                 }}
-                className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/90 sm:text-lg"
+                className="mx-auto mt-8 sm:mt-10 max-w-2xl text-base leading-relaxed text-white/90 sm:text-lg"
               >
                 {subCaption}
               </motion.p>
