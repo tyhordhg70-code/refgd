@@ -78,7 +78,7 @@
                 />
               </div>
               {/* sol-locks artwork — integrated, sits on a plinth so it reads as composed */}
-              <div className="relative mx-auto block aspect-square w-full max-w-[300px] overflow-visible sm:max-w-[380px]">
+              <div className="relative mx-auto block w-full max-w-[300px] sm:max-w-[380px]">
                   {/* v6.14.5 — simplified: source image is 800x800 square. Removed
                       max-h cap + flex parent + object-contain because that combo
                       was rendering the image inside a non-square box and clipping
@@ -91,7 +91,7 @@
                     defaultSrc="/uploads/sol-locks.webp"
                     alt="Comprehensive security solutions — checklist, shields, locks."
                     wrapperClassName="relative z-10 block w-full"
-                    className="block h-auto w-full drop-shadow-[0_30px_60px_rgba(0,0,0,0.7)]"
+                    className="block h-auto w-full max-w-full drop-shadow-[0_30px_60px_rgba(0,0,0,0.7)]" style={{ maxWidth: '100%', width: '100%', height: 'auto' }}
                   />
                 </div>
             </div>
@@ -102,9 +102,9 @@
             {SOLUTIONS.map((s, i) => (
               <motion.div
                 key={s.id}
-                initial={reduced ? false : { opacity: 1, x: isDesktop ? s.fromX : 0, y: isDesktop ? 0 : 24, rotate: isDesktop ? s.rotate : 0, scale: isDesktop ? 0.94 : 0.98 }}
+                initial={reduced ? false : { opacity: 1, x: isDesktop ? s.fromX : 0, y: isDesktop ? 0 : 60, rotate: 0, scale: 0.9 }}
                 whileInView={reduced ? undefined : { opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
-                viewport={{ once: false, amount: 0.3 }}
+                viewport={{ once: true, amount: 0.15, margin: "0px 0px -10% 0px" }}
                 transition={{ duration: 1.1, delay: i * 0.14, ease: [0.22, 1, 0.36, 1] }}
                 className="group relative"
               >
