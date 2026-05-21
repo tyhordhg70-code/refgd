@@ -92,10 +92,10 @@
             {PRICING.map((p, i) => (
               <motion.div
                 key={i}
-                initial={reduced ? { opacity: 1 } : { opacity: 0, y: 36 }}
-                whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
-                transition={{ duration: 0.8, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
+                initial={reduced ? { opacity: 1 } : { opacity: 0, x: i === 0 ? -50 : i === 2 ? 50 : 0, y: i === 1 ? 60 : 30, scale: 0.92 }}
+                whileInView={reduced ? undefined : { opacity: 1, x: 0, y: 0, scale: 1 }}
+                viewport={{ once: true, amount: 0.1 }}
+                transition={{ duration: 0.9, delay: i * 0.15, ease: [0.22, 1, 0.36, 1] }}
                 className="group relative"
               >
                 {/* Outer editorial frame — layered panel + ring */}
@@ -108,19 +108,6 @@
                     WebkitBackdropFilter: "blur(14px)",
                   }}
                 >
-                  {/* Animated accent ring */}
-                  <span
-                    aria-hidden
-                    className="pointer-events-none absolute inset-0 rounded-[2rem] opacity-70"
-                    style={{
-                      padding: "1px",
-                      background: `conic-gradient(from 180deg at 50% 50%, rgba(${p.rgb},0.0), rgba(${p.rgb},0.65), rgba(255,255,255,0.18), rgba(${p.rgb},0.0))`,
-                      WebkitMask:
-                        "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-                      WebkitMaskComposite: "xor",
-                      maskComposite: "exclude",
-                    }}
-                  />
                   {/* Top inner highlight */}
                   <span
                     aria-hidden
