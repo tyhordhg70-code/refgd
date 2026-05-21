@@ -42,7 +42,7 @@
           {/* Integrated editorial header — chapter pill, title AND sol-locks
               artwork share one frame so the image stops "floating". */}
           <div
-            className="relative overflow-hidden rounded-[2rem] border border-violet-400/25 px-6 py-10 sm:p-12 lg:p-14"
+            className="relative rounded-[2rem] border border-violet-400/25 px-6 py-10 sm:p-12 lg:p-14"
             style={{
               background:
                 "linear-gradient(160deg, rgba(167,139,250,0.13), rgba(34,211,238,0.08) 50%, rgba(10,8,22,0.92))",
@@ -95,12 +95,12 @@
                       className="block h-auto w-full drop-shadow-[0_30px_60px_rgba(0,0,0,0.7)]"
                     />
                   </div>
-                </div>
+                </motion.div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Solution cards — varied per-card entrance, repeat on scroll */}
-          <div className="relative mt-10 grid gap-6 lg:grid-cols-3 lg:gap-7">
+          <div className="relative mt-10 grid gap-6 lg:grid-cols-3 lg:gap-7" style={{ perspective: 1200 }}>
             {SOLUTIONS.map((s, i) => (
               <motion.div
                 key={s.id}
