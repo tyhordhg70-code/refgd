@@ -490,7 +490,7 @@ export default function YouTubeTheater({
                   pointerEvents: "none",
                   zIndex: 50,
                   background:
-                    "radial-gradient(ellipse 75% 55% at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.45) 55%, rgba(0,0,0,0.85) 100%)",
+                    "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.18) 55%, rgba(0,0,0,0.35) 100%)",
                 }}
               />
             ) : null}
