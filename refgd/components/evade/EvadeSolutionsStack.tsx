@@ -78,18 +78,22 @@
                 />
               </div>
               {/* sol-locks artwork — integrated, sits on a plinth so it reads as composed */}
-              <div className="relative mx-auto flex w-full max-w-[280px] items-center justify-center sm:max-w-[340px]">
-                {/* Soft elliptical plinth shadow */}
-                <span aria-hidden className="pointer-events-none absolute inset-x-6 bottom-2 h-8 rounded-[100%]"
-                  style={{ background: "radial-gradient(ellipse 60% 100% at 50% 0%, rgba(167,139,250,0.55), transparent 70%)", filter: "blur(14px)" }} />
-                <EditableImage
-                  id="evade.art.solLocks"
-                  defaultSrc="/uploads/sol-locks.webp"
-                  alt="Comprehensive security solutions — checklist, shields, locks."
-                  wrapperClassName="relative z-10 block w-full"
-                  className="mx-auto block h-auto w-full max-h-[260px] object-contain drop-shadow-[0_30px_60px_rgba(0,0,0,0.7)] sm:max-h-[340px]"
-                />
-              </div>
+              <div className="relative mx-auto w-full max-w-[300px] sm:max-w-[380px]">
+                  {/* v6.14.5 — simplified: source image is 800x800 square. Removed
+                      max-h cap + flex parent + object-contain because that combo
+                      was rendering the image inside a non-square box and clipping
+                      it on some mobile browsers. Now it renders at its natural
+                      square aspect at whatever width the column gives it. */}
+                  <span aria-hidden className="pointer-events-none absolute inset-x-6 -bottom-2 h-8 rounded-[100%]"
+                    style={{ background: "radial-gradient(ellipse 60% 100% at 50% 0%, rgba(167,139,250,0.55), transparent 70%)", filter: "blur(14px)" }} />
+                  <EditableImage
+                    id="evade.art.solLocks"
+                    defaultSrc="/uploads/sol-locks.webp"
+                    alt="Comprehensive security solutions — checklist, shields, locks."
+                    wrapperClassName="relative z-10 block w-full"
+                    className="block h-auto w-full drop-shadow-[0_30px_60px_rgba(0,0,0,0.7)]"
+                  />
+                </div>
             </div>
           </div>
 
