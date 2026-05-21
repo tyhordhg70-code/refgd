@@ -147,7 +147,7 @@
           window.removeEventListener("scroll", onScroll);
           [cube, shield, planet].forEach((m) => {
             m.geometry.dispose();
-            (m.material as THREE.Material).dispose();
+            (m.material as any).dispose();
           });
           renderer.dispose();
           if (dom.parentNode === container) container.removeChild(dom);
