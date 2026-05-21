@@ -35,7 +35,7 @@
           <motion.div
             initial={reduced ? { opacity: 1 } : { opacity: 1, y: 40 }}
             whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
-            viewport={{ once: false, amount: 0.1, margin: "0px 0px -10% 0px" }}
+            viewport={{ once: true, amount: 0.15, margin: "0px 0px -10% 0px" }}
             transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
             className="relative overflow-hidden rounded-[2rem] border border-amber-400/30 p-6 sm:p-10 lg:p-14"
             style={{
@@ -91,9 +91,9 @@
               {TRUST.map((t, i) => (
                 <motion.div
                   key={t.id}
-                  initial={reduced ? { opacity: 1 } : { opacity: 1, x: t.fromX, y: 20 }}
-                  whileInView={reduced ? undefined : { opacity: 1, x: 0, y: 0 }}
-                  viewport={{ once: false, amount: 0.1, margin: "0px 0px -10% 0px" }}
+                  initial={reduced ? { opacity: 1 } : { opacity: 0, x: 0, y: 50, scale: 0.92 }}
+                  whileInView={reduced ? undefined : { opacity: 1, x: 0, y: 0, scale: 1 }}
+                  viewport={{ once: true, amount: 0.15, margin: "0px 0px -10% 0px" }}
                   transition={{ duration: 0.8, delay: 0.15 + i * 0.14, ease: [0.22, 1, 0.36, 1] }}
                   className="relative"
                 >
