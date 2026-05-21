@@ -55,7 +55,12 @@
 
             {/* Header row — chapter chip + title + trust-reviews image inline */}
             <div className="relative grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-12">
-              <div>
+              <motion.div
+                initial={reduced ? { opacity: 1 } : { opacity: 0, y: 36 }}
+                whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+              >
                 <EditableText
                   id="evade.ch3.eyebrow"
                   defaultValue="chapter 03 / reputation"
@@ -73,9 +78,15 @@
                     lineHeight: 1.28,
                   }}
                 />
-              </div>
+              </motion.div>
               {/* Trust-reviews image — inline inside the unified box, same edit id */}
-              <div className="relative w-full max-w-[280px] justify-self-center lg:max-w-[320px] lg:justify-self-end">
+              <motion.div
+                className="relative w-full max-w-[280px] justify-self-center lg:max-w-[320px] lg:justify-self-end"
+                initial={reduced ? { opacity: 1 } : { opacity: 0, x: 40, scale: 0.93 }}
+                whileInView={reduced ? undefined : { opacity: 1, x: 0, scale: 1 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 1.0, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              >
                 <EditableImage
                   id="evade.divider.trustReviews"
                   defaultSrc="/uploads/trust-reviews.webp"
@@ -83,7 +94,7 @@
                   wrapperClassName="relative block w-full"
                   className="h-auto w-full object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.65)]"
                 />
-              </div>
+              </motion.div>
             </div>
 
             {/* 3 unique trust cards — different styling from the rest of the page */}
