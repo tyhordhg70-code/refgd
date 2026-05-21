@@ -552,22 +552,43 @@ export default function ChipScroll({
               className="editorial-display mx-auto max-w-5xl text-balance text-white text-[clamp(2.2rem,7vw,6rem)] uppercase"
               style={{ textShadow: "0 4px 40px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.85)" }}
             >
-              {caption.split(" ").map((word, i, arr) => (
-                <motion.span
-                  key={i}
-                  initial={{ opacity: 0, y: 36, filter: "blur(6px)" }}
-                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                  transition={{
-                    duration: 0.7,
-                    delay: 0.15 + i * 0.12,
-                    ease: [0.16, 1, 0.3, 1],
-                  }}
-                  className="inline-block"
-                  style={{ marginRight: i < arr.length - 1 ? "0.35em" : 0 }}
-                >
-                  {word}
-                </motion.span>
-              ))}
+              {/* v6.14.0 — CHARACTER-stagger caption reveal (Lusion/Noomo).
+                    Each glyph rotates up from the baseline with a tight
+                    stagger so the headline reads as one fluid kinetic
+                    line instead of word-by-word popcorn. */}
+                {caption.split(" ").map((word, wi, words) => {
+                  let charIndex = 0;
+                  for (let k = 0; k < wi; k++) charIndex += words[k].length;
+                  return (
+                    <span
+                      key={wi}
+                      className="inline-block"
+                      style={{ whiteSpace: "pre", perspective: 800, marginRight: wi < words.length - 1 ? "0.35em" : 0 }}
+                      aria-label={word}
+                    >
+                      {[...word].map((ch, ci) => {
+                        const idx = charIndex + ci;
+                        return (
+                          <motion.span
+                            key={ci}
+                            aria-hidden
+                            className="inline-block"
+                            initial={{ opacity: 0, y: "110%", rotateX: -85, filter: "blur(8px)" }}
+                            animate={{ opacity: 1, y: "0%", rotateX: 0, filter: "blur(0px)" }}
+                            transition={{
+                              duration: 0.85,
+                              delay: 0.15 + idx * 0.028,
+                              ease: [0.22, 1, 0.36, 1],
+                            }}
+                            style={{ transformOrigin: "50% 100%" }}
+                          >
+                            {ch}
+                          </motion.span>
+                        );
+                      })}
+                    </span>
+                  );
+                              ))}
             </h3>
             {subCaption && (
               <motion.p
