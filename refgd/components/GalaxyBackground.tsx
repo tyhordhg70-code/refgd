@@ -99,13 +99,14 @@ export default function GalaxyBackground() {
           animation: "bgPulseSlow 22s ease-in-out infinite",
         }}
       />
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 65% 50% at 50% 45%, transparent 0%, transparent 12%, rgba(5,6,10,0.55) 50%, rgba(5,6,10,0.92) 80%, rgb(5,6,10) 100%)",
-        }}
-      />
+      {/* v6.14.6 — REMOVED radial vignette overlay. Previously a fixed
+            radial gradient hit solid rgb(5,6,10) at its outer edge, which
+            on mobile painted a visible dark BAR across the bottom of the
+            viewport (because the ellipse is centered at 50% 45% and its
+            bottom-edge stop is fully opaque). User reported repeatedly as
+            "bar on the bottom". Removed entirely — per-section text uses
+            its own contrast (text-shadow / per-element backgrounds), so
+            this global vignette is unnecessary. */}
       {/* v6.8 (2026-05): top vignette previously started at full
           opaque rgb(5,6,10) for the first 25 vh of the viewport,
           which read on every page as a "horizontal black strip"
