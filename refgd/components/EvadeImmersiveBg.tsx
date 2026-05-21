@@ -81,7 +81,7 @@
         </div>
 
         {/* Layer 4 — 12 floating glowing 3D shards. */}
-        <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-[5] overflow-hidden">
+        <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-[5] overflow-hidden hidden lg:block">
           {shards.map((s) => (
             <div
               key={s.id}
@@ -99,7 +99,7 @@
         </div>
 
         {/* Layer 5 — Twinkling cosmic dust. */}
-        <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-[4] overflow-hidden">
+        <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-[4] overflow-hidden hidden lg:block">
           {dust.map((d) => (
             <span
               key={d.id}
