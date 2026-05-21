@@ -219,9 +219,21 @@
     );
   }
 
+  const CARD_INTROS = [
+    { x: -40, y: 20, rotate: -2 },
+    { x:  40, y: 30, rotate:  2 },
+    { x: -30, y: 40, rotate: -1.5 },
+    { x:  30, y: 25, rotate:  1.5 },
+  ];
+
   function FeatureCard({ f, i }: { f: typeof FEATURES[number]; i: number }) {
+    const intro = CARD_INTROS[i % CARD_INTROS.length];
     return (
-      <div
+      <motion.div
+        initial={{ opacity: 0, x: intro.x, y: intro.y, rotate: intro.rotate }}
+        whileInView={{ opacity: 1, x: 0, y: 0, rotate: 0 }}
+        viewport={{ once: true, amount: 0.15 }}
+        transition={{ duration: 0.85, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
         className="relative overflow-hidden rounded-[1.75rem] p-8"
         style={{
           background: `linear-gradient(160deg, rgba(${f.rgb},0.18), rgba(10,8,22,0.85))`,
@@ -253,7 +265,7 @@
           multiline
           className="mt-4 text-base leading-relaxed text-white/95"
         />
-      </div>
+    </motion.div>
     );
   }
   
