@@ -125,8 +125,8 @@
               radial-gradient(ellipse 60% 60% at 30% 78%, rgba(244,114,182,0.28), transparent 62%),
               radial-gradient(ellipse 70% 55% at 78% 82%, rgba(34,211,238,0.24), transparent 60%),
               radial-gradient(ellipse 55% 50% at 50% 50%, rgba(255,200,80,0.16), transparent 70%);
-            animation: evImmNebDrift 30s ease-in-out infinite, evImmNebHue 36s linear infinite;
-            will-change: transform, filter;
+            animation: evImmNebDrift 30s ease-in-out infinite;
+            will-change: transform;
           }
           @keyframes evImmNebDrift {
             0%, 100% { transform: scale(1.08) translate3d(0,0,0); }
@@ -151,8 +151,7 @@
               transparent 100%);
             background-size: 220% 100%;
             animation: evImmAur1 14s linear infinite;
-            will-change: background-position;
-          }
+                      }
           .ev-imm-aurora-2 {
             background: linear-gradient(245deg,
               transparent 0%,
@@ -162,8 +161,7 @@
               transparent 100%);
             background-size: 300% 100%;
             animation: evImmAur2 22s linear infinite;
-            will-change: background-position;
-          }
+                      }
           @keyframes evImmAur1 {
             0%   { background-position: -100% 0; }
             100% { background-position:  200% 0; }
@@ -280,7 +278,7 @@
            * Disable the secondary aurora, kill the nebula hue rotation,
            * and slow the shard / grid animations so the page stays calm. */
           @media (hover: none) and (max-width: 1366px) {
-            .ev-imm-nebula { animation: evImmNebDrift 40s ease-in-out infinite !important; filter: none !important; }
+            .ev-imm-nebula { animation: evImmNebDrift 40s ease-in-out infinite !important; }
             .ev-imm-aurora-2 { display: none; }
             .ev-imm-shard { animation-duration: 30s !important; }
             .ev-imm-floor { animation-duration: 15s !important; opacity: 0.45; }
