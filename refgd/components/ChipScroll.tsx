@@ -588,7 +588,7 @@ export default function ChipScroll({
                       })}
                     </span>
                   );
-                              ))}
+                              })}
             </h3>
             {subCaption && (
               <motion.p
