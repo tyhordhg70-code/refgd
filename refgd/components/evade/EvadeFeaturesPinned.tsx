@@ -233,7 +233,7 @@
       <motion.div
         initial={{ opacity: 1, x: intro.x, y: intro.y * 1.5, rotate: intro.rotate, scale: 0.94 }}
           whileInView={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
-          viewport={{ once: false, amount: 0.3 }}
+          viewport={{ once: false, amount: 0.15, margin: "0px 0px -10% 0px" }}
           transition={{ duration: 1.15, delay: i * 0.12, ease: [0.22, 1, 0.36, 1] }}
         className="relative overflow-hidden rounded-[1.75rem] p-8"
         style={{
