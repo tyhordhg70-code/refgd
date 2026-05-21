@@ -70,7 +70,7 @@
         <div className="container-wide relative">
           <div className="flex flex-col items-start gap-4">
             <ChapterPill
-              editId="evade.pricing.eyebrow"
+              editId="evade.ch4.eyebrow"
               defaultValue="Get started, today"
               accent="amber"
               size="md"
@@ -78,7 +78,7 @@
             <KineticText
               as="h2"
               text="Our pricing — select your plan."
-              editId="evade.pricing.title"
+              editId="evade.ch4.title"
               className="editorial-display max-w-4xl text-balance uppercase text-white text-[clamp(2rem,5.6vw,4.4rem)]"
               style={{
                 textShadow:
