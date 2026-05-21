@@ -55,10 +55,11 @@ import { getAllContentMap } from "@/lib/content";
 import { readSession } from "@/lib/auth";
 
 export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  viewportFit: "cover",
-};
+    width: "device-width",
+    initialScale: 1,
+    viewportFit: "cover",
+    themeColor: "#06030f",
+  };
 
 export const metadata: Metadata = {
   title: "RefundGod — Refunds, Replacements, Mentorships",
