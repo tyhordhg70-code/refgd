@@ -205,6 +205,7 @@
             style={{
               textShadow: "0 4px 24px rgba(0,0,0,0.95)",
               letterSpacing: "-0.025em",
+              lineHeight: 1.15,
             }}
           />
           <EditableText
@@ -232,8 +233,8 @@
       <motion.div
         initial={{ opacity: 0, x: intro.x, y: intro.y, rotate: intro.rotate }}
         whileInView={{ opacity: 1, x: 0, y: 0, rotate: 0 }}
-        viewport={{ once: true, amount: 0.15 }}
-        transition={{ duration: 0.85, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
+        viewport={{ once: false, amount: 0.05 }}
+        transition={{ duration: 1.0, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
         className="relative overflow-hidden rounded-[1.75rem] p-8"
         style={{
           background: `linear-gradient(160deg, rgba(${f.rgb},0.18), rgba(10,8,22,0.85))`,
