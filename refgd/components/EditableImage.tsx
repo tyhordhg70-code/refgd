@@ -358,7 +358,7 @@ function EditableImageInner({
           element. Splitting them onto two elements means the scale
           survives even when an animation template is selected. */}
       <span
-        className="inline-block"
+        className="block w-full"
         style={imgScaleStyle}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
