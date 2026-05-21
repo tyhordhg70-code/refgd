@@ -35,7 +35,7 @@
           <motion.div
             initial={reduced ? { opacity: 1 } : { opacity: 0, y: 40 }}
             whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.05 }}
+            viewport={{ once: false, amount: 0.05 }}
             transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
             className="relative overflow-hidden rounded-[2rem] border border-amber-400/30 p-6 sm:p-10 lg:p-14"
             style={{
@@ -70,7 +70,7 @@
                   style={{
                     textShadow: "0 6px 36px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.95)",
                     letterSpacing: "-0.025em",
-                    lineHeight: 1.04,
+                    lineHeight: 1.28,
                   }}
                 />
               </div>
@@ -93,7 +93,7 @@
                   key={t.id}
                   initial={reduced ? { opacity: 1 } : { opacity: 0, x: t.fromX, y: 20 }}
                   whileInView={reduced ? undefined : { opacity: 1, x: 0, y: 0 }}
-                  viewport={{ once: true, amount: 0.1 }}
+                  viewport={{ once: false, amount: 0.05 }}
                   transition={{ duration: 0.8, delay: 0.15 + i * 0.14, ease: [0.22, 1, 0.36, 1] }}
                   className="relative"
                 >
