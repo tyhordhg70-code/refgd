@@ -66,7 +66,7 @@
                   key={blk.id}
                   initial={reduced ? false : { opacity: 1, x: blk.fromX, y: 40 }}
                   whileInView={reduced ? undefined : { opacity: 1, x: 0, y: 0 }}
-                  viewport={{ once: false, amount: 0.1, margin: "0px 0px -10% 0px" }}
+                  viewport={{ once: true, amount: 0.1, margin: "0px 0px -10% 0px" }}
                   transition={{ duration: 1.1, delay: 0.05 + i * 0.14, ease: [0.22, 1, 0.36, 1] }}
                   className="relative pl-7"
                 >
