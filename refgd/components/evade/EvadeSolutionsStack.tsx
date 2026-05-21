@@ -86,13 +86,15 @@
                       square aspect at whatever width the column gives it. */}
                   <span aria-hidden className="pointer-events-none absolute inset-x-6 -bottom-2 h-8 rounded-[100%]"
                     style={{ background: "radial-gradient(ellipse 60% 100% at 50% 0%, rgba(167,139,250,0.55), transparent 70%)", filter: "blur(14px)" }} />
-                  <EditableImage
-                    id="evade.art.solLocks"
-                    defaultSrc="/uploads/sol-locks.webp"
-                    alt="Comprehensive security solutions — checklist, shields, locks."
-                    wrapperClassName="relative z-10 block w-full"
-                    className="block h-auto w-full max-w-full drop-shadow-[0_30px_60px_rgba(0,0,0,0.7)]" style={{ maxWidth: '100%', width: '100%', height: 'auto' }}
-                  />
+                  <div style={{ width: '100%' }}>
+                    <EditableImage
+                      id="evade.art.solLocks"
+                      defaultSrc="/uploads/sol-locks.webp"
+                      alt="Comprehensive security solutions — checklist, shields, locks."
+                      wrapperClassName="relative z-10 block w-full"
+                      className="block h-auto w-full drop-shadow-[0_30px_60px_rgba(0,0,0,0.7)]"
+                    />
+                  </div>
                 </div>
             </div>
           </div>
