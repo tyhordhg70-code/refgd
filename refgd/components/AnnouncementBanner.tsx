@@ -68,7 +68,10 @@ export default function AnnouncementBanner({
     return () => clearTimeout(t);
   }, [autoFadeMs]);
 
-  if (hidden && !forceVisible) return null;
+  // v6.14.7 — user repeatedly reported the gradient banner at top of page as
+    // a "color-changing line going across the screen". Hidden site-wide except
+    // when an admin is in edit mode (so they can still edit the banner copy).
+    if (!forceVisible) return null;
 
   function dismiss() {
     setFading(true);
