@@ -124,8 +124,7 @@
               radial-gradient(ellipse 65% 60% at 82% 28%, rgba(124,58,237,0.42), transparent 60%),
               radial-gradient(ellipse 60% 60% at 30% 78%, rgba(244,114,182,0.28), transparent 62%),
               radial-gradient(ellipse 70% 55% at 78% 82%, rgba(34,211,238,0.24), transparent 60%),
-              radial-gradient(ellipse 55% 50% at 50% 50%, rgba(255,200,80,0.16), transparent 70%),
-              linear-gradient(180deg, #06030f 0%, #160a3a 35%, #0a061f 70%, #04020e 100%);
+              radial-gradient(ellipse 55% 50% at 50% 50%, rgba(255,200,80,0.16), transparent 70%);
             animation: evImmNebDrift 30s ease-in-out infinite, evImmNebHue 36s linear infinite;
             will-change: transform, filter;
           }
