@@ -94,7 +94,7 @@
                 key={i}
                 initial={reduced ? { opacity: 1 } : { opacity: 0, x: i === 0 ? -50 : i === 2 ? 50 : 0, y: i === 1 ? 60 : 30, scale: 0.92 }}
                 whileInView={reduced ? undefined : { opacity: 1, x: 0, y: 0, scale: 1 }}
-                viewport={{ once: false, amount: 0.3 }}
+                viewport={{ once: true, amount: 0.2, margin: "0px 0px -10% 0px" }}
                 transition={{ duration: 0.9, delay: i * 0.15, ease: [0.22, 1, 0.36, 1] }}
                 className="group relative"
               >
