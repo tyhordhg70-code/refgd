@@ -78,7 +78,7 @@
                 />
               </div>
               {/* sol-locks artwork — integrated, sits on a plinth so it reads as composed */}
-              <div className="relative mx-auto w-full max-w-[340px]">
+              <div className="relative mx-auto flex w-full max-w-[280px] items-center justify-center sm:max-w-[340px]">
                 {/* Soft elliptical plinth shadow */}
                 <span aria-hidden className="pointer-events-none absolute inset-x-6 bottom-2 h-8 rounded-[100%]"
                   style={{ background: "radial-gradient(ellipse 60% 100% at 50% 0%, rgba(167,139,250,0.55), transparent 70%)", filter: "blur(14px)" }} />
@@ -87,7 +87,7 @@
                   defaultSrc="/uploads/sol-locks.webp"
                   alt="Comprehensive security solutions — checklist, shields, locks."
                   wrapperClassName="relative z-10 block w-full"
-                  className="block h-auto w-full object-contain drop-shadow-[0_30px_60px_rgba(0,0,0,0.7)]"
+                  className="mx-auto block h-auto w-full max-h-[260px] object-contain drop-shadow-[0_30px_60px_rgba(0,0,0,0.7)] sm:max-h-[340px]"
                 />
               </div>
             </div>
@@ -98,10 +98,10 @@
             {SOLUTIONS.map((s, i) => (
               <motion.div
                 key={s.id}
-                initial={reduced ? { opacity: 1 } : { opacity: 0, x: isDesktop ? s.fromX : 0, y: isDesktop ? 0 : s.fromY, rotate: isDesktop ? s.rotate : 0, scale: 0.92 }}
+                initial={reduced ? false : { opacity: 1, x: isDesktop ? s.fromX : 0, y: isDesktop ? 0 : s.fromY * 1.4, rotate: isDesktop ? s.rotate : 0, scale: 0.94 }}
                 whileInView={reduced ? undefined : { opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
-                viewport={{ once: false, amount: 0.05 }}
-                transition={{ duration: 0.95, delay: i * 0.12, ease: [0.22, 1, 0.36, 1] }}
+                viewport={{ once: false, amount: 0.3 }}
+                transition={{ duration: 1.1, delay: i * 0.14, ease: [0.22, 1, 0.36, 1] }}
                 className="group relative"
               >
                 <div
