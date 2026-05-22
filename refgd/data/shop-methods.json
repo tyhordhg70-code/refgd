@@ -1,0 +1,141 @@
+{
+  "_meta": {
+    "source": "https://refundgod.bgng.io/",
+    "scrapedAt": "2026-05-22",
+    "note": "Hero + 5 category cards extracted from refundgod.bgng.io homepage. Individual products inside each category are placeholders — fill in from admin editor or replace `products` arrays below."
+  },
+  "hero": {
+    "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/d5066dd5-185c-46ca-b062-87911ab55800/w=1920",
+    "eyebrow": "chapter 00 / catalog",
+    "title": "Shop Methods.",
+    "subtitle": "Everything we offer besides our main service — books, mentorships, aged-order inserts, refund / SE methods and stealth / OPSec. Pick a category to see the products inside.",
+    "telegram": "https://t.me/refunflawfirm"
+  },
+  "categories": [
+    {
+      "slug": "evasion-books",
+      "title": "Evasion Books",
+      "tagline": "Learn to evade your ban & order cancelations.",
+      "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/401ca283-477c-4cdd-9433-16d5662e0c00/w=900",
+      "accent": "violet",
+      "rgb": "167,139,250",
+      "longDescription": "Comprehensive playbooks covering every angle of ban evasion and order-cancelation defence — store-specific procedures, fraud-score management, identity hygiene and seasoning routines you can run today.",
+      "products": [
+        {
+          "id": "ev-1",
+          "title": "Amazon Ghost Guide",
+          "price": 149,
+          "summary": "Avoid bans, rebills and cancelations on Amazon.",
+          "description": "Replace with your full product description from admin."
+        },
+        {
+          "id": "ev-2",
+          "title": "eBay Stealth Book",
+          "price": 129,
+          "summary": "Stay anonymous and rebill-proof on eBay.",
+          "description": "Replace with your full product description from admin."
+        }
+      ]
+    },
+    {
+      "slug": "exclusive-mentorships",
+      "title": "Exclusive Mentorships",
+      "tagline": "Look into our different exclusive Refund & SE mentorships.",
+      "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/97ada5ea-d591-4fd3-691f-49df17368d00/w=900",
+      "accent": "amber",
+      "rgb": "251,191,36",
+      "longDescription": "One-to-one mentorships from operators who run refunds and SE at scale. You learn the live playbook, get assigned drops, and walk away with a repeatable process — not a PDF.",
+      "products": [
+        {
+          "id": "men-1",
+          "title": "1-on-1 Refund Mentorship",
+          "price": 1499,
+          "summary": "Personal coaching on the full refund stack.",
+          "description": "Replace with your full product description from admin."
+        },
+        {
+          "id": "men-2",
+          "title": "1-on-1 SE Mentorship",
+          "price": 1499,
+          "summary": "Live social-engineering coaching.",
+          "description": "Replace with your full product description from admin."
+        }
+      ]
+    },
+    {
+      "slug": "insert-aged-orders",
+      "title": "Insert Aged Orders",
+      "tagline": "Age your account the express way! Insert large & high-value orders to your personal account.",
+      "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/d7281d48-1bd8-443e-8d40-650b7689ac00/w=900",
+      "accent": "cyan",
+      "rgb": "34,211,238",
+      "longDescription": "Stop waiting months to age an account. We insert real, large-value historical orders onto your personal account so it reads as a long-standing, trusted customer from day one.",
+      "products": [
+        {
+          "id": "ins-1",
+          "title": "Aged Order — Tier 1 ($500)",
+          "price": 99,
+          "summary": "Single inserted order, $500 historical value.",
+          "description": "Replace with your full product description from admin."
+        },
+        {
+          "id": "ins-2",
+          "title": "Aged Order — Tier 2 ($1,500)",
+          "price": 199,
+          "summary": "Single inserted order, $1,500 historical value.",
+          "description": "Replace with your full product description from admin."
+        }
+      ]
+    },
+    {
+      "slug": "refund-se-methods",
+      "title": "Refund / SE Methods",
+      "tagline": "Not interested in our all-inclusive mentorships? Look into our various high-quality methods for both Refunds & SE.",
+      "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/975e9982-b36c-499e-8a1f-14405d5c0600/w=900",
+      "accent": "rose",
+      "rgb": "244,114,182",
+      "longDescription": "À-la-carte methods for refund and social-engineering operators who want a specific store or vector without buying the full mentorship.",
+      "products": [
+        {
+          "id": "ref-1",
+          "title": "Method Pack — Tier 1",
+          "price": 249,
+          "summary": "Curated refund/SE methods.",
+          "description": "Replace with your full product description from admin."
+        },
+        {
+          "id": "ref-2",
+          "title": "Method Pack — Tier 2",
+          "price": 499,
+          "summary": "Advanced curated pack.",
+          "description": "Replace with your full product description from admin."
+        }
+      ]
+    },
+    {
+      "slug": "stealth-opsec",
+      "title": "Stealth / OPSec",
+      "tagline": "Take your online security to the next level. Invest in your safety today and never face a rebill while remaining fully secure no matter the activity you are doing.",
+      "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/ec08b1ce-2b68-4a6a-eef8-a9caa58b1e00/w=900",
+      "accent": "violet",
+      "rgb": "167,139,250",
+      "longDescription": "End-to-end operational-security stack: identity setup, network hygiene, browser/device fingerprint management, payment isolation and recovery routines.",
+      "products": [
+        {
+          "id": "ops-1",
+          "title": "Stealth / OPSec Guide",
+          "price": 199,
+          "summary": "Full OPSec setup playbook.",
+          "description": "Replace with your full product description from admin."
+        },
+        {
+          "id": "ops-2",
+          "title": "Stealth / OPSec + Rebill Bypass",
+          "price": 299,
+          "summary": "OPSec stack + rebill-proof config.",
+          "description": "Replace with your full product description from admin."
+        }
+      ]
+    }
+  ]
+}
