@@ -5,16 +5,7 @@
   import EditableImage from "@/components/EditableImage";
   import EditableText from "@/components/EditableText";
 
-  type Product = { price: number };
-  type Category = {
-    slug: string;
-    title: string;
-    tagline: string;
-    image: string;
-    accent: string;
-    rgb: string;
-    products?: Product[];
-  };
+  import type { ShopCategory as Category } from "@/lib/shop-catalog";
 
   /**
    * ShopMethodsGrid — 5 category cards, 3D fan entrance.

@@ -6,13 +6,7 @@
   import ChapterPill from "@/components/ChapterPill";
   import KineticText from "@/components/KineticText";
 
-  type Hero = {
-    image: string;
-    eyebrow: string;
-    title: string;
-    subtitle: string;
-    telegram: string;
-  };
+  import type { ShopHero as Hero } from "@/lib/shop-catalog";
 
   /**
    * ShopMethodsHero — full-bleed hero, matches evade-page editorial language.

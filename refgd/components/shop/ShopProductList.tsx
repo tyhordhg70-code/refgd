@@ -6,24 +6,7 @@
   import EditableImage from "@/components/EditableImage";
   import ShopMarkdown from "@/components/shop/ShopMarkdown";
 
-  type Product = {
-    id: string;
-    title: string;
-    price: number;
-    currency?: string;
-    image?: string;
-    summary?: string;
-    description: string;
-    chargeType?: string;
-    customFields?: { name: string; required: boolean; placeholder?: string; defaultValue?: string; type?: string }[];
-    sourceUrl?: string;
-  };
-
-  type Category = {
-    slug: string;
-    rgb: string;
-    products: Product[];
-  };
+  import type { ShopCategory as Category, ShopProduct as Product } from "@/lib/shop-catalog";
 
   type CheckoutState =
     | { phase: "idle" }

@@ -7,16 +7,7 @@
   import ChapterPill from "@/components/ChapterPill";
   import KineticText from "@/components/KineticText";
 
-  type Category = {
-    slug: string;
-    title: string;
-    tagline: string;
-    image: string;
-    accent: string;
-    rgb: string;
-    longDescription: string;
-    products?: { price: number }[];
-  };
+  import type { ShopCategory as Category } from "@/lib/shop-catalog";
 
   /**
    * ShopCategoryHeader — header for /shop-methods/[slug].
