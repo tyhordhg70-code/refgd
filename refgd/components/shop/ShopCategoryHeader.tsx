@@ -6,7 +6,6 @@
   import EditableText from "@/components/EditableText";
   import ChapterPill from "@/components/ChapterPill";
   import KineticText from "@/components/KineticText";
-  import catalog from "@/data/shop-methods.json";
 
   type Category = {
     slug: string;
@@ -27,9 +26,11 @@
    *   • Split layout: text left, category image right
    *   • Spring scale-in on image, clip-path wipe on text panel
    */
-  export default function ShopCategoryHeader({ category: c }: { category: Category }) {
+  export default function ShopCategoryHeader({
+    category: c,
+    allCategories,
+  }: { category: Category; allCategories: Category[] }) {
     const reduced = useReducedMotion();
-    const allCategories = catalog.categories as Category[];
 
     return (
       <section className="relative z-10 pt-12 pb-10 sm:pt-20 sm:pb-14">

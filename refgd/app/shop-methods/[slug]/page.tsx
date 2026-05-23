@@ -4,6 +4,8 @@ export const dynamic = "force-dynamic";
   import Link from "next/link";
   import ShopCategoryHeader from "@/components/shop/ShopCategoryHeader";
   import ShopProductList from "@/components/shop/ShopProductList";
+  import ShopReviewsTelegram from "@/components/shop/ShopReviewsTelegram";
+  import ShopReviewsFab from "@/components/shop/ShopReviewsFab";
   import EvadeImmersiveBg from "@/components/EvadeImmersiveBg";
   import { getShopCatalog } from "@/lib/shop-catalog";
 
@@ -26,16 +28,15 @@ export const dynamic = "force-dynamic";
     return (
       <main className="relative">
         <EvadeImmersiveBg />
-        <ShopCategoryHeader category={category} />
+        <ShopCategoryHeader category={category} allCategories={catalog.categories} />
         <ShopProductList category={category} />
-        <div className="container-wide relative z-10 pb-20">
-          <Link
-            href="/shop-methods"
-            className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white transition"
-          >
+        <div className="container-wide relative z-10 pb-10">
+          <Link href="/shop-methods" className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white transition">
             ← Back to all categories
           </Link>
         </div>
+        <ShopReviewsTelegram editIdPrefix={`shop.reviews.${slug}`} />
+        <ShopReviewsFab />
       </main>
     );
   }
