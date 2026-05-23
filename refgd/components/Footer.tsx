@@ -22,7 +22,7 @@ const COL1_LINKS = [
 ];
 const COL2_LINKS = [
   { id: 0, href: "/evade-cancelations", label: "Evade Cancelations" },
-  { id: 1, href: "/top-tier-methods", label: "Top-tier Methods" },
+  { id: 1, href: "/shop-methods", label: "Shop Methods" },
   { id: 2, href: "/vouches", label: "Vouches" },
 ];
 const COL3_LINKS = [
@@ -35,7 +35,7 @@ export default function Footer() {
   if (pathname === "/") return null;
 
   return (
-    <footer className="relative z-[2] bg-transparent" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+    <footer className="relative z-[2] bg-transparent">
       <div className="container-px grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Logo className="h-10 w-auto" />

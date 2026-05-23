@@ -8,7 +8,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/store-list",
     "/exclusive-mentorships",
     "/evade-cancelations",
-    "/top-tier-methods",
+    "/shop-methods",
     "/vouches",
   ];
   return routes.map((r) => ({

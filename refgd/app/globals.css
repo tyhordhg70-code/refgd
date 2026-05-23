@@ -41,7 +41,6 @@
      in the tree can't push the layout sideways either. */
   body {
     overflow-x: clip;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   main {
     overflow-x: clip;

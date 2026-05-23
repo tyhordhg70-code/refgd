@@ -34,6 +34,15 @@ const nextConfig = {
       formats: ["image/avif", "image/webp"],
       minimumCacheTTL: 604800,
     },
-};
+      async redirects() {
+        return [
+          {
+            source: "/top-tier-methods",
+            destination: "/shop-methods",
+            permanent: true,
+          },
+        ];
+      },
+  };
 
-export default nextConfig;
+  export default nextConfig;

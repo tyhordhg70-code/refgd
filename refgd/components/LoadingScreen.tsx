@@ -33,7 +33,7 @@ const PREFETCH_ROUTES = [
   "/store-list",
   "/exclusive-mentorships",
   "/evade-cancelations",
-  "/top-tier-methods",
+  "/shop-methods",
   "/our-service",
   "/vouches",
 ];

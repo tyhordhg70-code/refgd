@@ -32,7 +32,7 @@ const NAV_ITEMS = [
     { href: "/buy4u", label: "Buy 4 U", external: false },
   { href: "/exclusive-mentorships", label: "Exclusive Mentorships", external: false },
   { href: "/evade-cancelations", label: "Evade Cancelations", external: false },
-  { href: "/top-tier-methods", label: "Top-tier Methods", external: false },
+  { href: "/shop-methods", label: "Shop Methods", external: false },
   { href: "https://t.me/refundlawfirm", label: "Group Chat", external: true },
   { href: "/vouches", label: "Vouches", external: false },
 ];
