@@ -83,9 +83,9 @@
       setCheckoutById((s) => ({ ...s, [pid]: { phase: "idle" } }));
 
     return (
-      <section className="relative z-10 pb-16">
+      <section className="relative z-10 pb-16 overflow-x-clip">
         <div className="container-wide relative" style={{ perspective: 1200 }}>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
             {c.products.map((p, i) => {
               const isOpen = openId === p.id;
               const priceLabel = `$${p.price}${p.currency && p.currency !== "USD" ? " " + p.currency : ""}`;
@@ -112,10 +112,10 @@
                 >
                   <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
 
-                  <div className="relative p-6 sm:p-7">
+                  <div className="relative p-4 sm:p-7">
                     <div className="flex flex-wrap items-start gap-5">
                       {p.image && (
-                        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl border border-white/15"
+                        <div className="relative h-20 w-20 sm:h-24 sm:w-24 shrink-0 overflow-hidden rounded-2xl border border-white/15"
                           style={{ boxShadow: `0 0 30px -10px rgba(${c.rgb},0.55)` }}>
                           <EditableImage
                             id={`shop.prod.${p.id}.image`}
@@ -132,7 +132,7 @@
                             id={`shop.prod.${p.id}.title`}
                             defaultValue={p.title}
                             as="h3"
-                            className="editorial-display text-lg uppercase text-white sm:text-xl"
+                            className="editorial-display text-base uppercase text-white sm:text-xl break-words min-w-0"
                             style={{ letterSpacing: "-0.02em", lineHeight: 1.2 }}
                           />
                           <div
@@ -163,7 +163,7 @@
                       onClick={() => setOpenId(isOpen ? null : p.id)}
                       aria-expanded={isOpen}
                       aria-controls={`prod-panel-${p.id}`}
-                      className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/5 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white/10"
+                      className="mt-6 inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-full border border-white/25 bg-white/5 px-5 py-3 sm:py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white/10"
                       style={{ boxShadow: `0 0 32px -8px rgba(${c.rgb},0.65)` }}
                     >
                       {isOpen ? "Hide details" : "Buy Now"}
@@ -182,14 +182,14 @@
                         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                         className="overflow-hidden border-t border-white/10"
                       >
-                        <div className="p-6 sm:p-7">
+                        <div className="p-4 sm:p-7">
                           <div className="mb-3 text-xs font-bold uppercase tracking-[0.32em] text-white/50">
                             What's included
                           </div>
                           <ShopMarkdown source={p.description} className="text-sm" />
 
                           {/* Checkout block */}
-                          <div className="mt-7 rounded-2xl border border-white/15 bg-black/30 p-5">
+                          <div className="mt-7 rounded-2xl border border-white/15 bg-black/30 p-4 sm:p-5">
                             <div className="mb-4 text-xs font-bold uppercase tracking-[0.32em] text-white/60">
                               Checkout · Pay with crypto
                             </div>
@@ -209,7 +209,7 @@
                                 <iframe
                                   src={checkout.url}
                                   title={`NowPayments checkout for ${p.title}`}
-                                  className="block h-[720px] w-full rounded-xl border border-white/10 bg-white"
+                                  className="block h-[560px] sm:h-[720px] w-full rounded-xl border border-white/10 bg-white"
                                   allow="payment *; clipboard-write"
                                   referrerPolicy="no-referrer"
                                 />

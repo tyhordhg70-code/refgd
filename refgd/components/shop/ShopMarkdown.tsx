@@ -137,6 +137,6 @@
       );
     });
 
-    return <div className={className}>{elements.map((e, i) => <Fragment key={i}>{e}</Fragment>)}</div>;
+    return <div className={`break-words [&_pre]:overflow-x-auto [&_img]:max-w-full [&_img]:h-auto [&_table]:block [&_table]:overflow-x-auto [&_a]:break-all ${className}`}>{elements.map((e, i) => <Fragment key={i}>{e}</Fragment>)}</div>;
   }
   

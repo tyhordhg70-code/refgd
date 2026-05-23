@@ -24,7 +24,7 @@
     const reduced = useReducedMotion();
 
     return (
-      <section className="relative z-10 pt-16 pb-12 sm:pt-24 sm:pb-16">
+      <section className="relative z-10 pt-12 pb-10 sm:pt-24 sm:pb-16 overflow-x-clip">
         <div className="container-wide relative">
           {/* Framed banner */}
           <motion.div
@@ -62,7 +62,7 @@
             whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ type: "spring", stiffness: 80, damping: 16, delay: 0.45 }}
-            className="relative z-10 mx-auto mt-[-6rem] max-w-4xl rounded-[1.75rem] border border-white/10 bg-[rgba(10,8,22,0.78)] p-8 text-center backdrop-blur-md sm:mt-[-7rem] sm:p-12"
+            className="relative z-10 mx-auto -mt-16 max-w-4xl rounded-[1.75rem] border border-white/10 bg-[rgba(10,8,22,0.78)] p-6 text-center backdrop-blur-md sm:-mt-28 sm:p-12"
             style={{
               boxShadow:
                 "0 40px 100px -30px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06)",

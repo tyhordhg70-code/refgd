@@ -27,7 +27,7 @@
     const reduced = useReducedMotion();
 
     return (
-      <section className="relative z-10 py-16 sm:py-24">
+      <section className="relative z-10 py-16 sm:py-24 overflow-x-clip">
         <div className="container-wide relative">
           <EditableText
             id="shop.grid.eyebrow"
@@ -51,7 +51,7 @@
           />
 
           <div
-            className="relative mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-7"
+            className="relative mt-12 sm:mt-14 grid gap-5 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-7"
             style={{ perspective: 1400 }}
           >
             {categories.map((c, i) => {

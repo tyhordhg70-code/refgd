@@ -41,12 +41,13 @@
             exit={{ opacity: 0, scale: 0.6, y: 20 }}
             transition={{ type: "spring", stiffness: 200, damping: 18 }}
             aria-label={phase === "top" ? "Back to top" : "Jump to reviews"}
-            className="fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-[0_12px_40px_-10px_rgba(34,211,238,0.7)] sm:bottom-8 sm:right-8 sm:h-16 sm:w-16"
+            className="fixed right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-[0_12px_40px_-10px_rgba(34,211,238,0.7)] sm:right-8 sm:h-16 sm:w-16"
             style={{
-              background: phase === "top"
-                ? "linear-gradient(135deg, #a855f7, #3b82f6)"
-                : "linear-gradient(135deg, #06b6d4, #3b82f6)",
-            }}
+                bottom: "max(1.25rem, env(safe-area-inset-bottom, 0px))",
+                background: phase === "top"
+                  ? "linear-gradient(135deg, #a855f7, #3b82f6)"
+                  : "linear-gradient(135deg, #06b6d4, #3b82f6)",
+              }}
           >
             <svg viewBox="0 0 36 36" className="absolute inset-0 h-full w-full -rotate-90" aria-hidden>
               <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="2" />

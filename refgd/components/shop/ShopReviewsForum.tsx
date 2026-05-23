@@ -58,12 +58,13 @@
       return "text-slate-400 border-slate-600/40 bg-slate-700/20";
     }
 
-    function PostAvatar({ author }: { author: string }) {
+    function PostAvatar({ author, small = false }: { author: string; small?: boolean }) {
       const [a, b] = avatarGradient(author);
       const initials = author.replace("@", "").slice(0, 2).toUpperCase();
+      const size = small ? "w-10 h-10 text-xs" : "w-12 h-12 text-sm";
       return (
         <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-lg"
+          className={`${size} rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0 shadow-lg`}
           style={{ background: `linear-gradient(135deg, ${a}, ${b})` }}
         >
           {initials}
@@ -92,27 +93,27 @@
           className="border border-white/[0.07] rounded-2xl overflow-hidden bg-white/[0.02] hover:bg-white/[0.04] transition-colors duration-300"
         >
           {/* Post header bar */}
-          <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06] bg-white/[0.03]">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-xs font-mono text-slate-500">#</span>
-              <span className="text-xs font-bold text-slate-400">{review.postNum}</span>
+          <div className="flex items-center justify-between px-3 sm:px-4 py-2 border-b border-white/[0.06] bg-white/[0.03] gap-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="text-xs font-mono text-slate-500 flex-shrink-0">#</span>
+              <span className="text-xs font-bold text-slate-400 flex-shrink-0">{review.postNum}</span>
               {review.title && (
-                <span className="text-xs text-slate-300 font-medium ml-1 truncate max-w-[240px]">
+                <span className="text-xs text-slate-300 font-medium ml-1 truncate min-w-0">
                   {review.title}
                 </span>
               )}
             </div>
             {review.date && (
-              <span className="text-xs text-slate-600 font-mono flex-shrink-0">{review.date}</span>
+              <span className="text-[10px] sm:text-xs text-slate-600 font-mono flex-shrink-0">{review.date}</span>
             )}
           </div>
 
           {/* Post body */}
           <div className="flex gap-0">
-            {/* User sidebar — hidden on mobile */}
-            <div className="hidden sm:flex flex-col items-center gap-2 w-[148px] flex-shrink-0 px-4 py-4 border-r border-white/[0.06] bg-white/[0.02]">
+            {/* User sidebar — hidden on mobile/tablet, shown on desktop */}
+            <div className="hidden md:flex flex-col items-center gap-2 w-[148px] flex-shrink-0 px-4 py-4 border-r border-white/[0.06] bg-white/[0.02]">
               <PostAvatar author={review.author} />
-              <div className="text-center mt-1">
+              <div className="text-center mt-1 w-full min-w-0">
                 <p className="text-sm font-bold text-white leading-tight break-all">{review.author}</p>
                 <p className="text-lg leading-none mt-0.5">{review.country}</p>
               </div>
@@ -137,28 +138,32 @@
             </div>
 
             {/* Post content */}
-            <div className="flex-1 px-5 py-4 min-w-0">
-              {/* Mobile author strip */}
-              <div className="flex sm:hidden items-center gap-3 mb-3">
-                <PostAvatar author={review.author} />
-                <div>
-                  <p className="text-sm font-bold text-white">
+            <div className="flex-1 px-4 sm:px-5 py-4 min-w-0">
+              {/* Mobile/tablet author strip */}
+              <div className="flex md:hidden items-center gap-3 mb-3 min-w-0">
+                <PostAvatar author={review.author} small />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-white truncate">
                     {review.author}
                     <span className="ml-1.5">{review.country}</span>
                   </p>
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${rankCls}`}>
+                  <span className={`inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${rankCls}`}>
                     {review.rank}
                   </span>
+                </div>
+                <div className="text-right text-[10px] text-slate-600 font-mono flex-shrink-0 hidden xs:block">
+                  <div>{review.posts.toLocaleString()} posts</div>
+                  <div>{review.thanks.toLocaleString()} thanks</div>
                 </div>
               </div>
 
               {/* Quote block */}
               {review.quote && (
-                <div className="mb-4 rounded-lg border-l-2 border-violet-500/50 bg-violet-950/20 px-4 py-3">
+                <div className="mb-4 rounded-lg border-l-2 border-violet-500/50 bg-violet-950/20 px-3 sm:px-4 py-3">
                   <p className="text-[11px] text-slate-500 mb-1 font-semibold">
                     Originally Posted by {review.quote.author}
                   </p>
-                  <p className="text-xs text-slate-400 italic leading-relaxed line-clamp-3">
+                  <p className="text-xs text-slate-400 italic leading-relaxed line-clamp-3 break-words">
                     {review.quote.text}
                   </p>
                 </div>
@@ -167,7 +172,7 @@
               {/* Body */}
               <div className="space-y-2.5">
                 {lines.map((line, i) => (
-                  <p key={i} className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
+                  <p key={i} className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap break-words">
                     {line}
                   </p>
                 ))}
@@ -195,7 +200,7 @@
       const hasMore = !collapsed && visibleCount < all.length;
 
       return (
-        <section id="reviews" className="relative py-20 px-4">
+        <section id="reviews" className="relative py-14 sm:py-20 px-3 sm:px-4 overflow-x-clip">
           {/* Section header */}
           <div className="max-w-4xl mx-auto mb-6">
             <div className="inline-flex items-center gap-2 mb-3">
@@ -210,7 +215,7 @@
             <EditableText
               id={`${editIdPrefix}.title`}
               defaultValue="Dear customers, please leave your vouches for the Evasion Book here. Was it worth it? What are your honest thoughts?"
-              className="text-2xl sm:text-3xl font-bold text-white leading-snug"
+              className="text-xl sm:text-3xl font-bold text-white leading-snug"
               tag="h2"
             />
             <EditableText
@@ -222,38 +227,44 @@
             <div className="mt-6 h-px bg-gradient-to-r from-violet-500/30 via-white/10 to-transparent" />
           </div>
 
-          {/* Sticky toolbar — follows scroll while inside the reviews section */}
-          <div className="sticky top-4 z-30 max-w-4xl mx-auto mb-4 pointer-events-none">
-            <div className="pointer-events-auto flex items-center justify-between gap-3 rounded-full border border-white/10 bg-slate-950/85 backdrop-blur-md px-4 py-2 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)]">
-              <div className="flex items-center gap-2 text-xs text-slate-400 min-w-0">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
-                <span className="font-mono text-slate-500">
+          {/* Sticky toolbar — follows scroll while inside the reviews section.
+              Wrapper is pointer-events-none so taps pass through to posts; the
+              inner pill re-enables pointer events. */}
+          <div className="sticky top-3 sm:top-4 z-30 max-w-4xl mx-auto mb-4 pointer-events-none">
+            <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-full border border-white/10 bg-slate-950/90 backdrop-blur-md px-3 sm:px-4 py-2 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.7)]">
+              <div className="flex items-center gap-2 text-xs text-slate-400 min-w-0 flex-shrink">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse flex-shrink-0" />
+                <span className="font-mono text-slate-500 whitespace-nowrap">
                   {collapsed ? `0 / ${all.length}` : `${Math.min(visibleCount, all.length)} / ${all.length}`}
                 </span>
                 <span className="hidden sm:inline text-slate-600">vouches</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                 {!collapsed && hasMore && (
                   <button
                     onClick={() => setVisibleCount((v) => Math.min(v + STEP, all.length))}
-                    className="text-[11px] sm:text-xs font-semibold text-violet-300 hover:text-violet-200 px-2.5 py-1 rounded-full hover:bg-violet-500/10 transition-colors"
+                    aria-label={`Load ${Math.min(STEP, all.length - visibleCount)} more vouches`}
+                    className="text-[11px] sm:text-xs font-semibold text-violet-300 hover:text-violet-200 px-2 sm:px-2.5 py-1 rounded-full hover:bg-violet-500/10 transition-colors whitespace-nowrap"
                   >
-                    +{Math.min(STEP, all.length - visibleCount)} more
+                    +{Math.min(STEP, all.length - visibleCount)}
+                    <span className="hidden sm:inline"> more</span>
                   </button>
                 )}
                 {!collapsed && visibleCount > INITIAL_VISIBLE && (
                   <button
                     onClick={() => setVisibleCount(INITIAL_VISIBLE)}
-                    className="text-[11px] sm:text-xs text-slate-500 hover:text-slate-300 px-2.5 py-1 rounded-full hover:bg-white/5 transition-colors"
+                    aria-label="Reset to 8 vouches"
+                    className="hidden sm:inline text-[11px] sm:text-xs text-slate-500 hover:text-slate-300 px-2.5 py-1 rounded-full hover:bg-white/5 transition-colors"
                   >
                     Reset
                   </button>
                 )}
                 <button
                   onClick={() => setCollapsed((v) => !v)}
-                  className="text-[11px] sm:text-xs font-semibold text-white border border-white/15 hover:border-white/30 rounded-full px-3 py-1 transition-colors bg-white/5 hover:bg-white/10"
+                  className="text-[11px] sm:text-xs font-semibold text-white border border-white/15 hover:border-white/30 rounded-full px-2.5 sm:px-3 py-1 transition-colors bg-white/5 hover:bg-white/10 whitespace-nowrap"
                 >
-                  {collapsed ? "Expand ↓" : "Collapse ↑"}
+                  {collapsed ? "Expand" : "Collapse"}
+                  <span className="ml-1" aria-hidden>{collapsed ? "↓" : "↑"}</span>
                 </button>
               </div>
             </div>
@@ -277,16 +288,16 @@
                 </div>
 
                 {hasMore && (
-                  <div className="mt-6 flex justify-center gap-3 flex-wrap">
+                  <div className="mt-6 flex justify-center gap-3 flex-wrap px-2">
                     <button
                       onClick={() => setVisibleCount((v) => Math.min(v + STEP, all.length))}
-                      className="text-sm font-semibold text-violet-400 hover:text-violet-300 border border-violet-500/30 hover:border-violet-400/50 rounded-xl px-6 py-2.5 transition-all duration-200 bg-violet-500/5 hover:bg-violet-500/10"
+                      className="text-sm font-semibold text-violet-400 hover:text-violet-300 border border-violet-500/30 hover:border-violet-400/50 rounded-xl px-5 sm:px-6 py-2.5 transition-all duration-200 bg-violet-500/5 hover:bg-violet-500/10"
                     >
-                      Load {Math.min(STEP, all.length - visibleCount)} more vouches ↓
+                      Load {Math.min(STEP, all.length - visibleCount)} more ↓
                     </button>
                     <button
                       onClick={() => setVisibleCount(all.length)}
-                      className="text-sm font-semibold text-slate-400 hover:text-slate-200 border border-white/10 hover:border-white/20 rounded-xl px-6 py-2.5 transition-all duration-200"
+                      className="text-sm font-semibold text-slate-400 hover:text-slate-200 border border-white/10 hover:border-white/20 rounded-xl px-5 sm:px-6 py-2.5 transition-all duration-200"
                     >
                       Show all {all.length}
                     </button>

@@ -33,7 +33,7 @@
     const reduced = useReducedMotion();
 
     return (
-      <section className="relative z-10 pt-12 pb-10 sm:pt-20 sm:pb-14">
+      <section className="relative z-10 pt-10 pb-8 sm:pt-20 sm:pb-14 overflow-x-clip">
         <div className="container-wide relative">
           <Link
             href="/shop-methods"
@@ -86,7 +86,7 @@
             whileInView={reduced ? undefined : { clipPath: "inset(0% 0 0 0 round 2rem)", opacity: 1 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.9, ease: [0.76, 0, 0.24, 1] }}
-            className="relative rounded-[2rem] border border-white/15 px-6 py-10 sm:p-12 lg:p-14"
+            className="relative rounded-[2rem] border border-white/15 px-5 py-8 sm:p-12 lg:p-14"
             style={{
               background: `linear-gradient(160deg, rgba(${c.rgb},0.16), rgba(34,211,238,0.06) 50%, rgba(10,8,22,0.94))`,
               boxShadow: `0 60px 140px -30px rgba(0,0,0,0.85), 0 0 90px -25px rgba(${c.rgb},0.45), inset 0 1px 0 rgba(255,255,255,0.08)`,
