@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
   import ShopMethodsHero from "@/components/shop/ShopMethodsHero";
   import ShopMethodsGrid from "@/components/shop/ShopMethodsGrid";
-  import ShopReviewsTelegram from "@/components/shop/ShopReviewsTelegram";
+  import ShopReviewsForum from "@/components/shop/ShopReviewsForum";
   import ShopReviewsFab from "@/components/shop/ShopReviewsFab";
   import EvadeImmersiveBg from "@/components/EvadeImmersiveBg";
   import { getShopCatalog } from "@/lib/shop-catalog";
@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
         <EvadeImmersiveBg />
         <ShopMethodsHero hero={catalog.hero} />
         <ShopMethodsGrid categories={catalog.categories} />
-        <ShopReviewsTelegram editIdPrefix="shop.reviews.home" />
+        <ShopReviewsForum editIdPrefix="shop.reviews.home" />
         <ShopReviewsFab />
       </main>
     );

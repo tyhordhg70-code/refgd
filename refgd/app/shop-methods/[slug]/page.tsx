@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
   import Link from "next/link";
   import ShopCategoryHeader from "@/components/shop/ShopCategoryHeader";
   import ShopProductList from "@/components/shop/ShopProductList";
-  import ShopReviewsTelegram from "@/components/shop/ShopReviewsTelegram";
+  import ShopReviewsForum from "@/components/shop/ShopReviewsForum";
   import ShopReviewsFab from "@/components/shop/ShopReviewsFab";
   import EvadeImmersiveBg from "@/components/EvadeImmersiveBg";
   import { getShopCatalog } from "@/lib/shop-catalog";
@@ -35,7 +35,7 @@ export const dynamic = "force-dynamic";
             ← Back to all categories
           </Link>
         </div>
-        <ShopReviewsTelegram editIdPrefix={`shop.reviews.${slug}`} />
+        <ShopReviewsForum editIdPrefix={`shop.reviews.${slug}`} />
         <ShopReviewsFab />
       </main>
     );
