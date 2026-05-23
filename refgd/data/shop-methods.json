@@ -1,14 +1,15 @@
 {
   "_meta": {
-    "source": "https://refundgod.bgng.io/",
-    "scrapedAt": "2026-05-22",
-    "note": "Hero + 5 category cards extracted from refundgod.bgng.io homepage. Individual products inside each category are placeholders — fill in from admin editor or replace `products` arrays below."
+    "source": "https://refundgod.bgng.io/ (Billgang API)",
+    "scrapedAt": "2026-05-23",
+    "productCount": 20,
+    "note": "Full catalog auto-pulled from the owner's own Billgang store via /shops/{host}/product%2F{slug}. Source-of-truth for the refgd /shop-methods page."
   },
   "hero": {
     "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/d5066dd5-185c-46ca-b062-87911ab55800/w=1920",
     "eyebrow": "chapter 00 / catalog",
     "title": "Shop Methods.",
-    "subtitle": "Everything we offer besides our main service — books, mentorships, aged-order inserts, refund / SE methods and stealth / OPSec. Pick a category to see the products inside.",
+    "subtitle": "Books, exclusive mentorships, aged-order inserts, refund / SE methods and stealth / OPSec. Pick a category to see every product inside.",
     "telegram": "https://t.me/refunflawfirm"
   },
   "categories": [
@@ -22,18 +23,44 @@
       "longDescription": "Comprehensive playbooks covering every angle of ban evasion and order-cancelation defence — store-specific procedures, fraud-score management, identity hygiene and seasoning routines you can run today.",
       "products": [
         {
-          "id": "ev-1",
-          "title": "Amazon Ghost Guide",
-          "price": 149,
-          "summary": "Avoid bans, rebills and cancelations on Amazon.",
-          "description": "Replace with your full product description from admin."
+          "id": "evade1",
+          "title": "Evasion Book - Level 1",
+          "price": 139.99,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/387001e4-7fd9-4de8-57d2-13ffbaec4c00/w=900",
+          "summary": "What's included? You will receive a tutorial on how each stores anti-fraud system works, and how to get around it so you can successfully pl…",
+          "description": "**What's included?**\n\nYou will receive a tutorial on how each stores anti-fraud system works, and how to get around it so you can successfully place an order with them so it doesn't get canceled. \n\nEven if you are not banned stores are vigilantly aware of refunders, and have very advanced algorithms to detect chance of fraud when placing an order. This Is called a fraud score. \n\nWhen it reaches a certain score, your order will keep getting canceled, and every future you try placing will get canceled as well no matter what you try. \n\nWith it, you can work your way around it, so you can keep r@ping these stores to the max!\n\n____________________________________________________\n\n#### The Secret Step-By-Step Guide Companies Do Not Want You To Read That Is Going To Get You Back On Fresh in just hours! \n\n**Inside our 'Evasion Book'  You'll Discover How to Create  Stealth Accounts (Step-by-Step):**\n \n**Get Back On Today**\n![image](https://www.auctionstealth.com/lp/images-lp/icons/cart.png)\n**No more sleepless nights worrying if you have been suspended. No more worrying about looking for new stores. Get back on within a few days with our help.**\n\n**Newbie Friendly**\n![image](https://www.auctionstealth.com/lp/images-lp/icons/bubble.png)\nIt’s an easy-to-follow step-by-step guide anyone can follow no matter their skill level. \n\n**Works With EVERY Country**\n![image](https://www.auctionstealth.com/lp/images-lp/icons/world.png)\nIt doesn’t matter where you are in the world, our guides will work for you. You could be in one country but operate accounts from anywhere else in the world. Especially using our private residential drop service where you can ship your orders \n\n\n\n**Sell/Refund with Multiple Accounts Safely**\n![image](https://c51786c25e8899440e95-a743f1b96ea079aed4cacf6de5ac10d9.ssl.cf2.rackcdn.com/33887.png)\nLearn how to create multiple accounts the right way, without linking or requiring constant verification. Nowadays, companies are vigilantly aware of refunders and invest hundreds of thousands if not millions to do everything in their power to stop multi-accounting and link you back in ways you would never even imagine, such as via email IP web crawlers that catch you off guard and link you back getting you banned! Even if you currently are currently using a stealth setup, and do not believe that anonymity is an issue, we can assure you that we can point out MULTIPLE flaws in your strategy !\n\n**Stealth Refreshed & Updated!**\nThings change and with that you NEED updated information. We work tirelessly to keep our methods fresh and ALWAYS up to date",
+          "chargeType": "ONE_TIME",
+          "customFields": [
+            {
+              "name": "Please write the store you are interested in:",
+              "required": true,
+              "placeholder": "",
+              "defaultValue": "(Example: Amazon)",
+              "type": "TEXT"
+            }
+          ],
+          "sourceUrl": "https://refundgod.bgng.io/product/evade1"
         },
         {
-          "id": "ev-2",
-          "title": "eBay Stealth Book",
-          "price": 129,
-          "summary": "Stay anonymous and rebill-proof on eBay.",
-          "description": "Replace with your full product description from admin."
+          "id": "evasion-book---level-2",
+          "title": "Evasion Book - Level 2",
+          "price": 329.99,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/401ca283-477c-4cdd-9433-16d5662e0c00/w=900",
+          "summary": "Have you exhausted all the possible stores you can hit, or are you focusing on one specific store that keeps canceling your orders?",
+          "description": "Have you exhausted all the possible stores you can hit, or are you focusing on one specific store that keeps canceling your orders? May it be Walmart, Amazon, Target, Apple... or perhaps you're a reseller using botting software looking to buy in bulk for hype items when the next drop comes out but your orders just keep getting canceled!?\n\nNot Anymore. We’ll Help You Change All That.\n\nStarting Today, Your Ban Problems Are Gone!\n![image](https://rendia.com/wp-content/uploads/2021/06/cybersecurity.png)\nDear User,\nWe know what it feels like to receive that horrible email stating your order has been canceled or your account has been locked due to being traced back to your other accounts, or may it be Amazon hits you with AVS & that annoying procedure asking you to verify your billing statement, payment info, address, and so on. We know the frustrations of your orders or accounts being put on hold and weeks of back and forth research on what to do which goes nowhere.\n\n![image](https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR5CgeaRr64mz66Ww9Do2DLzXV8Wxg0Unx6dYWNNWXHQrVdKHUzOU7EKmw3orefzORNIfE&usqp=CAU)\nWe've been there and done it all. We are now here to show you how to take things to the next level, so you can quickly and easily get back on.\n\nYou will learn how to overcome anything these companies EVER throw at you. You will learn how to create multiple accounts while keeping your real name, address, phone number, and credit card number totally secure in a total legal way!\n\n#### If Your Account Is Blocked Or Your Orders Keep                                                                   Getting Canceled & You Don't What To Do,                                       Then You NEED To Read On.            \nOur level 2 Evade Book, outlines all the steps you need to go from absolutely nothing to a full Pro! \n\nBut we know (and will show you) every secret and workaround there is to create new full anonymous unlinkable accounts! \n\nSo what Is the difference between Evade Book Level 1 and Level 2?\n![image](https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRV2pxU0c24iyIGmTAsav_5J9dBt2wCMHq19tlgGMtgqr6RLR43qkgljALkU5DPTjVQSzQ&usqp=CAU)\nEvade Book - Level 2 is a complete 100% guaranteed-to-work no bull guide to creating totally new unlinkable fully anonymous accounts while teaching the most up-to-date reasons why order cancelations occur and how each stores anti-fraud/anti-botting algorithms work. This is also perfect for stores that limit the number of times you can purchase a select item, such as Xbox, PS5, Apple items, and more!\n\nWhat does this mean? It means that after reading Evade Book - Level 2 you WILL be capable of creating not one, not two, but as many new accounts as you need and keep hitting while never being detected to your previous accounts using our in-depth methods.\n\nIf you are looking at Amazon, it works for ALL Amazon Marketplaces including US, UK, Canada, etc!\n\nIt doesn’t matter what happened to your previous account; be it suspended, blocked, banned, blacklisted, or anything else, you WILL learn how to crank out new accounts. Not only that, but this also covers the most advanced techniques and tools to push your orders through on multiple accounts at once and to NOT face order cancelations, as well as the BEST and most up to date ways to refund stores!\n\nOf course, anyone can show you how to make thousands of accounts, but what good are they if you get blocked again and again.\n![image](https://img.freepik.com/premium-vector/designers-agency-flat-design-concept-illustration-people-characters_9209-5399.jpg?size=626&ext=jpg&ga=GA1.1.2082370165.1716422400&semt=ais_user)\nWe outline exact step-by-step methods to take in order to keep your new anonymous accounts safe and secure, avoid getting your account closed, getting failed refunds, order cancelations, accounts put on hold asking to verify information/documents and more!\n\nWe show you how to stay under the radar, how to pass account reviews, and so on.\n\n\nWhat else is included?\n\n- Lifetime Updates.\n- OVER 48 pages of PURE quality and canon material! NO Fillers and straight to the point! \n- Learn to be Fully Anonymous You will learn how to cloak your online presence, not only for stores but this can be used anywhere else you might go online.\n- Verify Your Account I will show you how to verify your (for example: Amazon accounts) the right way without compromising your identity!\n- Suppliers and Wholesalers Get access to the suppliers and wholesalers that are proven to work if you're an Amazon/eBay Seller to unlock your account!\n- Sell Without Getting Suspended Learn how to sell whatever you want while minimizing your chances of having those items removed or your accounts suspended. \n- For example: It's a known fact that companies like PayPal ban new users when they start to receive many payments as G&S, or eBay restricting accounts when you reach a certain selling limit. \nPrevent Account Linking We show you how to easily prevent your accounts from ever being linked again!\nAnd Much More!\n\n\n\nFollowing this book, you will never again be left empty-handed worrying and keep refreshing the page, wondering if your order went through or not.\n\nYou will always be one step ahead.",
+          "chargeType": "ONE_TIME",
+          "customFields": [
+            {
+              "name": "Please write the store you are interested in:",
+              "required": true,
+              "placeholder": "",
+              "defaultValue": "Example: Amazon",
+              "type": "TEXT"
+            }
+          ],
+          "sourceUrl": "https://refundgod.bgng.io/product/evasion-book---level-2"
         }
       ]
     },
@@ -47,18 +74,28 @@
       "longDescription": "One-to-one mentorships from operators who run refunds and SE at scale. You learn the live playbook, get assigned drops, and walk away with a repeatable process — not a PDF.",
       "products": [
         {
-          "id": "men-1",
-          "title": "1-on-1 Refund Mentorship",
-          "price": 1499,
-          "summary": "Personal coaching on the full refund stack.",
-          "description": "Replace with your full product description from admin."
+          "id": "refund-se-mentorship---level-1",
+          "title": "Refund / SE Mentorship - Level 1",
+          "price": 449.99,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/cd0e41a5-05c4-437a-66be-b3ea34eb4200/w=900",
+          "summary": "#### Private Mentorship Program.",
+          "description": "#### Private Mentorship Program. | All the Knowledge, Success, & Methods Gathered from the top-tier refunders for you to replicate.\n\n✒️This mentorship covers all the fundamentals of refunding and social engineering.\n it includes all the knowledge and most up-to-date methods that top-tier refunders use and covers literally EVERYTHING there is to refunding OR social engineering. \n Not the BS methods like boxing, DNA, FTID!\n\n We provide the top tier methods:\n\n-  what to do in case of investigations by companies\n- protect your payment system and identity\n- bypass police reports\n- proof of destruction\n- Claim DNA even if photo and signature / one time passcode delivery\n- fix failed refunds\n-  find private stores to hit\n- repeatedly refund the same stores and much much more.\n\n It's all a very very detailed explanation, and we can guarantee you that you'll be making ATLEAST $2,000/week within 2 weeks of starting if you follow everything correctly.\n You also get access to a community where students discuss strategies to go even more beyond with these methods.\n We also include -\n\n📖 How to Sell your Refunded Goods OVERSEAS for over 145%+ Its MSRP rather than 80%. Become your own Apple Buyer.\n\n📖 Refund the best stores on repeat. Monopolize accounts, and build empires with 5 accounts at once per store and refund simultaneously on them. \nDon't wish to refund under your name? Can't Refund USA stores because you're not from the USA? Want to refund European stores from the USA?\n\n☑️ All of those concerns are covered!\n\n📖 Methods, Waves, SEs, OPSEC Setup, & More. This is just the tip of the iceberg.\n\n**--PLEASE NOTE: THE PRICE IS FOR EITHER REFUND OR SE MENTORSHIP. FOR SUBSEQUENT PLANS DISCOUNTS ARE AVAILABLE.--**\n\nPLEASE LOOK INTO OUR REFUND MENTORSHIP LEVEL 2 IF YOU ARE INTERESTED NOT ONLY IN LEARNING GENERAL FUNDAMENTALS AND LEARNING HOW TO TAKE UP SPECIFIC SCENARIOS ON YOUR OWN BUT WISH TO OBTAIN SPECIFIC METHODS FOR EACH STORE, MORE ADVANCED TECHNIQUES AND APPROACHES, THEN REFUND MENTORSHIP LEVEL 2 IS FOR YOU! \n\nIt's a continuation of this current mentorship pertaining methods bundles for most stores out there! \n\n",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/refund-se-mentorship---level-1"
         },
         {
-          "id": "men-2",
-          "title": "1-on-1 SE Mentorship",
-          "price": 1499,
-          "summary": "Live social-engineering coaching.",
-          "description": "Replace with your full product description from admin."
+          "id": "refund-se-mentorship---level-2",
+          "title": "Refund / SE Mentorship - Level 2",
+          "price": 1400,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/2b93ff22-b085-427a-6e2c-fa6797d03800/w=900",
+          "summary": "Please read Mentorship Level 1 first, before reading this.",
+          "description": "Please read Mentorship Level 1 first, before reading this. \n(go back and select Level 1, if you have not already)\n\nThis mentorship concludes the first part of the mentorship and provides all necessary fundamentals for most specific stores and more specific methods to go over with proven and tested stores that they have been applied to already, whereas the first part of the mentorship basically prepares you to be able to handle specific scenarios and deal with situations where in case of methods go wrong or give troubles which is pretty often.\n\nThis Level 2 mentorship contains the wide methods used to be able to refund specific stores but doesn’t teach about how to approach each order, handle specific situations, and investigations, fix failed orders, deal with scenarios where methods go wrong or not according to plan, and every other necessary and crucially important trait to complete order successfully, with Level 2 mentorship you just follow the script/method to achieve a successful refund, however sometimes it may not go according to plan and we do NOT provide support for these situations unless you have purchased Level 1 mentorship. \nThis is why we highly advise purchasing this as a part 2 of the first mentorship as it’s a follow-up and a conclusion to it.\n\nWe provide support for most specific stores while engaging in a 1:1 guidance + lifetime support.",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/refund-se-mentorship---level-2"
         }
       ]
     },
@@ -72,18 +109,52 @@
       "longDescription": "Stop waiting months to age an account. We insert real, large-value historical orders onto your personal account so it reads as a long-standing, trusted customer from day one.",
       "products": [
         {
-          "id": "ins-1",
-          "title": "Aged Order — Tier 1 ($500)",
-          "price": 99,
-          "summary": "Single inserted order, $500 historical value.",
-          "description": "Replace with your full product description from admin."
+          "id": "walmartagedordersmethod",
+          "title": "Walmart - Insert Aged Orders Method",
+          "price": 349,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/8ef80e9d-ed18-4f9b-a0fe-9203d9ac2200/w=900",
+          "summary": "This is the method to insert Aged orders for Walmart to your own personal account.",
+          "description": "This is the method to insert Aged orders for Walmart to your own personal account. \nThese are high-value aged orders from 2013-2023. This beats use of aged accounts in every single way possible in terms of reliability, impact on algorithms, safety, success and so on!\nBest solution for those who need this for bulk accounts, or to choose orders at refined quality. \n**Works worldwide.  95% automatic.**",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/walmartagedordersmethod"
         },
         {
-          "id": "ins-2",
-          "title": "Aged Order — Tier 2 ($1,500)",
-          "price": 199,
-          "summary": "Single inserted order, $1,500 historical value.",
-          "description": "Replace with your full product description from admin."
+          "id": "walmartagedorders",
+          "title": "Walmart - Insert Aged Orders from 2013-2021",
+          "price": 140,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/7cf2af5d-d36c-4ff1-f3e7-472376b77100/w=900",
+          "summary": "This is a SERVICE where we INSERT 2013-2021 purchases into YOUR personal Walmart account.",
+          "description": "This is a SERVICE where we INSERT 2013-2021 purchases into YOUR personal Walmart account. \nAGE YOUR OWN PERSONAL WALMART ACCOUNT.\nTHIS IS NOT CRACKED/STOLEN ACCOUNTS/ORDERS!! THOSE NEVER WORK, AS THE CHANCE OF GETTING LOCKED OUT IS EXTREMLY HIGH.\nThese are aged large high value orders such as IPhone's, IPad's, PS5 & more that are being inserted directly to YOUR personal account!\n\nThis can be used to age your personal brand new Walmart account.\nHaving legit large purchases in between your refunds or even before a big order you plan on refunding, this is a proven way to create history and build trust with the account so your order DO NOT get canceled and you can hit Walmart dozens of times on the SAME account as it won't be suspicious and your account will not get closed. \nIf you are BANNED from Walmart, this service is not a solution for that. Please refer to our Evade Book for more information.\n\nThis service is ideal for those who are looking to place big orders, either for drop shipping or to being able to purchase high demand hype items for resell purposes! \n\n**How it looks like:**\n![image](https://gcdnb.pbrd.co/images/NDHhedwgpA5f.png?o=1)\n![image](https://gcdnb.pbrd.co/images/ujQ6rXr8HWfg.png?o=1)",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/walmartagedorders"
+        },
+        {
+          "id": "target---insert-aged-orders-method",
+          "title": "Target - Insert Aged Orders Method",
+          "price": 420,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/0d5a5755-c8b2-42ca-7fb9-9d3d957a8d00/w=900",
+          "summary": "##### Target - Insert Aged Orders Method + Points to Target Circle This is a METHOD that allows you to insert as many orders to as many accounts as you want!",
+          "description": "##### Target - Insert Aged Orders Method + Points to Target Circle\n\nThis is a METHOD that allows you to insert as many orders to as many accounts as you want! \n\nUnfortunately at this time, we do NOT offer a service for Target. We provide full support along the way, in case you are to face any difficulties. \n\nThis is an ideal solution for those looking for a consistent way to keep hitting Target with botting software or for refunds. Target is building in such a way that aged accounts prevail over fresh accounts, for large orders.\n\n**What's included with this method?**\n\n✔️Insert Orders + Add Points to Target Circle\n⚠️  ONLY Method Available. Utilize inserting orders to its maximum capability and push those orders through whether it's for hype items such as Ps5 or you are looking hit for a refund.\n⭐FULL Support Provided\nMethod Difficulty - Medium ",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/target---insert-aged-orders-method"
+        },
+        {
+          "id": "amazon-insert-orders-aging-service-",
+          "title": "Amazon Insert Orders (Aging Service)",
+          "price": 149.99,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/f6eab5dc-8323-42f9-90e8-ffe7d6152600/w=900",
+          "summary": "Need to age your personal Amazon account for whatever purpose, but don't really need any items?",
+          "description": "Need to age your personal Amazon account for whatever purpose, but don't really need any items? \nUsing our service we place high value orders on your Amazon account, totaling atleast over $1,000 for a flat fee. \n\nWho is eligible? \nYou must have an existing Amazon.com (USA) account with atleast some prior history on it.\n\n",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/amazon-insert-orders-aging-service-"
         }
       ]
     },
@@ -97,18 +168,136 @@
       "longDescription": "À-la-carte methods for refund and social-engineering operators who want a specific store or vector without buying the full mentorship.",
       "products": [
         {
-          "id": "ref-1",
-          "title": "Method Pack — Tier 1",
-          "price": 249,
-          "summary": "Curated refund/SE methods.",
-          "description": "Replace with your full product description from admin."
+          "id": "walmartagedordersmethod",
+          "title": "Walmart - Insert Aged Orders Method",
+          "price": 349,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/8ef80e9d-ed18-4f9b-a0fe-9203d9ac2200/w=900",
+          "summary": "This is the method to insert Aged orders for Walmart to your own personal account.",
+          "description": "This is the method to insert Aged orders for Walmart to your own personal account. \nThese are high-value aged orders from 2013-2023. This beats use of aged accounts in every single way possible in terms of reliability, impact on algorithms, safety, success and so on!\nBest solution for those who need this for bulk accounts, or to choose orders at refined quality. \n**Works worldwide.  95% automatic.**",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/walmartagedordersmethod"
         },
         {
-          "id": "ref-2",
-          "title": "Method Pack — Tier 2",
-          "price": 499,
-          "summary": "Advanced curated pack.",
-          "description": "Replace with your full product description from admin."
+          "id": "target---insert-aged-orders-method",
+          "title": "Target - Insert Aged Orders Method",
+          "price": 420,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/0d5a5755-c8b2-42ca-7fb9-9d3d957a8d00/w=900",
+          "summary": "##### Target - Insert Aged Orders Method + Points to Target Circle This is a METHOD that allows you to insert as many orders to as many accounts as you want!",
+          "description": "##### Target - Insert Aged Orders Method + Points to Target Circle\n\nThis is a METHOD that allows you to insert as many orders to as many accounts as you want! \n\nUnfortunately at this time, we do NOT offer a service for Target. We provide full support along the way, in case you are to face any difficulties. \n\nThis is an ideal solution for those looking for a consistent way to keep hitting Target with botting software or for refunds. Target is building in such a way that aged accounts prevail over fresh accounts, for large orders.\n\n**What's included with this method?**\n\n✔️Insert Orders + Add Points to Target Circle\n⚠️  ONLY Method Available. Utilize inserting orders to its maximum capability and push those orders through whether it's for hype items such as Ps5 or you are looking hit for a refund.\n⭐FULL Support Provided\nMethod Difficulty - Medium ",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/target---insert-aged-orders-method"
+        },
+        {
+          "id": "samsung-instant-refund-method",
+          "title": "Samsung INSTANT Refund Method",
+          "price": 380,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/91facadf-4b4b-4f8d-412c-5b42e985bb00/w=900",
+          "summary": "Samsung Instant Refund Method (after delivery) & Samsung 7-14 Days Method Difference between the two is mainly in security of the order, alt…",
+          "description": "**Samsung Instant Refund Method (after delivery)  & Samsung 7-14 Days Method**\nDifference between the two is mainly in security of the order, although over the past years we have not seen a single issue arise with either of these methods some may prefer peace of mind and not mind a longer wait for a slight safer process.\n\nKeep in mind sucess rate for instant method is much higher.\n\n✔️Full support with placing order and approving cart\n✔️ Working & tested as of 2024\n✔️Instant is available for USA only\n✔️NO PRICE OR ITEM LIMIT\n✔️Fresh accounts can be used\n✔️Hit Samsung back to back with each of these methods on same account\n-----------------",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/samsung-instant-refund-method"
+        },
+        {
+          "id": "hp-laptop-se-method",
+          "title": "HP Laptop SE Method",
+          "price": 380,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/ffd9f88e-3b13-42b4-5231-d87c52c8ef00/w=900",
+          "summary": "HP SE - Obtain a brand new HP product without purchasing and waiting for a refund, while your money is held hostage.",
+          "description": "**HP SE  - Obtain a brand new HP product without purchasing and waiting for a refund, while your money is held hostage. Breathe easy while obtaining a social engineered HP machine without paying a single cent for one!**\n\n✔️ Works for ANY HP Product\n✔️FULL Support included. \nHit for HP OMEN 17-CM2120ND (1,999$ resell minus $380, you are left with 1,619$ clean and pure profit! Repeat again for double profit!)\n✔️ Fast turnaround time\n✔️ Minimal effort required\n✔️ Works for EU aswell\n✔️ +$100 for Double Dip method included (GET TWO MACHINES from just ONE SE)",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/hp-laptop-se-method"
+        },
+        {
+          "id": "apple-se-method-usa-eu",
+          "title": "Apple SE Method USA/EU",
+          "price": 380,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/c6fdc92e-aaa9-4524-01cf-d6efe76d2e00/w=900",
+          "summary": "Apple SE Method - Obtain a brand new Apple product without purchasing and waiting for a refund, while your money is held hostage.",
+          "description": "**Apple SE Method - Obtain a brand new Apple product without purchasing and waiting for a refund, while your money is held hostage. Breathe easy while obtaining a social engineered Apple device without paying a single cent for one!**\n\n✔️ Works for ANY Apple Product\n✔️FULL Support included. \nHit for iPhone 15 Pro Max (1,479$ resell minus $480, you are left with 999$ clean and pure profit! Repeat again for double profit!)\n✔️ Fast turnaround time\n✔️ Minimal effort required\n⚠️ You must have an existing Apple ID / Device for this to be able to work",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/apple-se-method-usa-eu"
+        },
+        {
+          "id": "breville-se-method",
+          "title": "Breville SE Method",
+          "price": 380,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/27d89932-efbf-4c0b-de3d-d488f69bc900/w=900",
+          "summary": "Breville SE - Obtain a brand new Breville product without purchasing and waiting for a refund, while your money is held hostage.",
+          "description": "Breville SE  - Obtain a brand new Breville product without purchasing and waiting for a refund, while your money is held hostage. Breathe easy while obtaining a social engineered Breville machine without paying a single cent for one!\n\n✔️ Works for ANY Breville Product\n✔️FULL Support included. \nHit for Oracle Touch (19OO$ resell minus $38O, you are left with 152O$ clean and pure profit! Repeat again for double profit!)\n✔️ Fast turnaround time\n✔️ Minimal effort required\n✔️ Works for EU aswell\n✔️ +$100 for Double Dip method included (GET TWO MACHINES from just ONE SE)",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/breville-se-method"
+        },
+        {
+          "id": "custom-store-method",
+          "title": "Custom Store Method",
+          "price": 380,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/a52d6af1-38aa-4b3d-9f37-c2f4094df500/w=900",
+          "summary": "Interested in a store that is not listed on our shop?",
+          "description": "Interested in a store that is not listed on our shop?\nObtain Method for any store of your choice!\nUpon purchase please contact us and let us know the store you are interested in. ",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/custom-store-method"
+        },
+        {
+          "id": "49-pages-of-various-se-methods-stores",
+          "title": "49 PAGES OF VARIOUS SE METHODS + STORES",
+          "price": 320,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/b275a272-ae92-438e-6ebe-a5f38cfb0400/w=900",
+          "summary": "Each page contains 1-3 methods and stores.",
+          "description": "\n**Each page contains 1-3 methods and stores. Now multiple that by 49.**\n\nEnjoy 49 pages of high quality methods for specific stores with templates and guidance included. Lifetime support included as well! \n\nNote: This is mostly for begginers and is a great start for begginers who are just getting started in the world of SE, it is perfect practice to evolve your communication and SE skills and to learn to push representatives, investigations, requests to send product back and much more! Some may say this is the fundementals to master, before taking your skills to the next level. \n\n\n",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/49-pages-of-various-se-methods-stores"
+        },
+        {
+          "id": "banana-republic-method",
+          "title": "Banana Republic Method",
+          "price": 249.99,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/9a10b1a2-9455-4375-4638-93c7b6110000/w=900",
+          "summary": "Get fancy and in style with amazing selection from Banana Republic.",
+          "description": "Get fancy and in style with amazing selection from Banana Republic.\n\nThis works in USA/CA with following limits:\n- $2,500 \n- No items limit\n- Any payment method\n- Instant timeframe",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/banana-republic-method"
+        },
+        {
+          "id": "ralph-lauren-worldwide-method",
+          "title": "Ralph Lauren WORLDWIDE Method",
+          "price": 249.99,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/d9b32fc6-db87-4e8d-75da-8c5e98ac2700/w=900",
+          "summary": "Get drippy clothes and look good in style!",
+          "description": "Get drippy clothes and look good in style!\nThis works worlwide with the following limits:\n\n- $2,000 (for instant)\n- $5,000 (2 weeks)\n- 25 items\n- Any payment method",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/ralph-lauren-worldwide-method"
+        },
+        {
+          "id": "apple-usa-ca-buy-1-get-1free",
+          "title": "Apple USA/CA: Buy 1 Get 1Free",
+          "price": 250,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/50108aad-fef4-4620-95ef-1e75d8668d00/w=900",
+          "summary": "Apple Replacements Learn how to get Buy 1 get 1 free from Apple on your purchase.",
+          "description": "Apple Replacements\n\nLearn how to get Buy 1 get 1 free from Apple on your purchase. \nThis offer is only valid in US & CA.\n\nYou will get a replacement for whatever you order from Apple, meaning if you order x1 device, you will get the same identical device for FREE.\nYou can return it for a refund afterwards if you wish.\n\n- 1 item maximum per order\n- US & CA only\n- Reships allowed\n- Any payment method \n- Takes around a week\n- Very simple! Just place the order regularly, no BS coupons or anything like that",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/apple-usa-ca-buy-1-get-1free"
         }
       ]
     },
@@ -122,18 +311,16 @@
       "longDescription": "End-to-end operational-security stack: identity setup, network hygiene, browser/device fingerprint management, payment isolation and recovery routines.",
       "products": [
         {
-          "id": "ops-1",
-          "title": "Stealth / OPSec Guide",
-          "price": 199,
-          "summary": "Full OPSec setup playbook.",
-          "description": "Replace with your full product description from admin."
-        },
-        {
-          "id": "ops-2",
-          "title": "Stealth / OPSec + Rebill Bypass",
-          "price": 299,
-          "summary": "OPSec stack + rebill-proof config.",
-          "description": "Replace with your full product description from admin."
+          "id": "stealth-opsec-guide-rebill-bypass-guide",
+          "title": "Stealth / OPsec Guide + Rebill Bypass Guide",
+          "price": 149.99,
+          "currency": "USD",
+          "image": "https://imagedelivery.net/A5gbiev6F8AaBvp6M146Kw/ec08b1ce-2b68-4a6a-eef8-a9caa58b1e00/w=900",
+          "summary": "Refunding can be risky, getting you into all sorts of troubles if done incorrectly or simply because a huge rebill wave is currently going o…",
+          "description": "Refunding can be risky, getting you into all sorts of troubles if done incorrectly or simply because a huge rebill wave is currently going on, like the time with Walmart when the instant script got patched or the time with Costco when they launched a huge rebill wave. Canceling your card or blocking merchants does not help in these cases, as merchants can offline charge your card. Banks have a feature called VAU for cards, which unfortunately makes it near impossible to escape from a rebill. Luckily there are ways around it, and i also include how to be 100% private and anonymous creating absolutely 0 links to your real identity even without changing payment or address.\n\nBE SMART AND DONT BE ONE OF THESE PEOPLE BELOW:\n![image](https://gcdnb.pbrd.co/images/2tr77C8PdqFH.png?o=1)\n![image](https://gcdnb.pbrd.co/images/cbYbI147T0QX.png?o=1)\n![image](https://gcdnb.pbrd.co/images/JtcnjWg85nAL.png?o=1)\n![image](https://gcdnb.pbrd.co/images/nPcxhKVjZ6i8.png?o=1)\n![image](https://gcdnb.pbrd.co/images/Sfl6Chh7aVs8.png?o=1)\n\n### HAVE YOU BEEN ALREADY REBILLED? IF SO KEEP READING, BUT IF NOT NO NEED!\n\n**Addressing Rebills At The Source from a Consumer perspective**\n\nRebill protection for refunders is a big necessity as stores are vigilantly aware of refunders and are investing hundreds of thousands every month into fighting against us, and finding solutions to put an end to their loss. This is why, they prevent their loss, and once determined your order has participated in such a service, they rebill your refund whether due to a poor job by the service or due to the store catching on to the mass pattern. \n\nWhile closing your Credit Card is helpful in the short term that usually doesn't address the cause of rebills. Until you invest in a solution that addresses the root cause, you'll be stuck fighting the same battle over and over. \n\nYour best chance of success is to analyze past data of the store to determine the possibility and risk of a rebill and only then fight the real problem. Only then can you revise your refunds to get rid of the causes and launch targeted solutions and rebill protection methods. \n\nOur rebill management strategies help you fight these processes, freeing you to handle the core refunds functions you excel at. With our solutions, we’ll save you time , stress and manpower you’d normally need to fight and prevent rebills.\n\n![image](https://telegra.ph/file/a7684852492d847a596ff.jpg)\n\n#### Learn to prevent rebills and fight existing rebills!\n\nAlready been rebilled and have no choice but to fight it with a chargeback? \n\nBefore rushing in panic and filing a dispute with your financial institution, be aware that these merchants have very advanced ways of fighting disputes, especially ones associated with refunders. No matter what your situation is, if you do not know what you are doing, the bank will always side with a trusted and large merchant with set strict policies, instead of a small customer who may be demanding a resolution outside of policy. \n\nWhen you fight a chargeback, you are asking the bank to take money away from the merchant. That’s a really big deal — especially if it is a substantial amount of money! So in order to be successful, you need to present the most compelling and convincing case possible. \n\n**Want Help Creating Compelling Evidence Packages That Actually Win?**\n\nCreating a compelling case is usually the most time-consuming part of fighting chargebacks. But it is also the most important. \n\nWith Midigator’s help, you can achieve the best results possible with the greatest efficiency. Say goodbye to the cumbersome tasks that are weighing you down.\n\n⦿ Automatically populate certain data points — half the work is done before you even get started!\n\n\n\n⦿ Receive prompts on what evidence should and shouldn’t be included so you have the perfect case each time.\n\n⦿ Use saved templates to improve the speed, accuracy, and ease of each response.\n\n ![image](https://telegra.ph/file/cb4d46d4ead0f8af5e8ba.png)\n\nWant Help Creating Compelling Evidence Packages That Actually Win?\nCreating a compelling case is usually the most time-consuming part of fighting chargebacks. But it is also the most important. \n\nWith our help, you can achieve the best results possible with the greatest efficiency. Say goodbye to the cumbersome tasks that are weighing you down.\n\nWe populate certain data points — half the work is done before you even get started!\nWe prompt you on what evidence should and shouldn’t be included so you have the perfect case each time.\nUse saved templates to improve the speed, accuracy, and ease of each response.\nWith our well-established industry partnerships, we know what payment processors want. With our insider intelligence, it’s easy to abide by banks' preferences.  \n\nAnd because we’ve created efficient technology, the days of fax, email, snail mail, and other manual submission processes are long gone!\n\nMonitor submission deadlines at a glance.\nWe customize responses to exceed processor expectations and have the best possible chance of winning.\nSend dispute responses with just one click.\nUnlike other services, you only pay our fee once we successfully win your case!\n\n",
+          "chargeType": "ONE_TIME",
+          "customFields": [],
+          "sourceUrl": "https://refundgod.bgng.io/product/stealth-opsec-guide-rebill-bypass-guide"
         }
       ]
     }
