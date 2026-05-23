@@ -38,7 +38,7 @@
     const [showAll, setShowAll] = useState(false);
 
     const all: Review[] = useMemo(
-      () => seededShuffle(reviewsData.reviews as Review[], 17),
+      () => seededShuffle(reviewsData as unknown as Review[], 17),
       []
     );
     const visible = showAll ? all : all.slice(0, 6);
