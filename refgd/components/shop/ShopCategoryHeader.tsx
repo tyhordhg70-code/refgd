@@ -6,6 +6,7 @@
   import EditableText from "@/components/EditableText";
   import ChapterPill from "@/components/ChapterPill";
   import KineticText from "@/components/KineticText";
+  import catalog from "@/data/shop-methods.json";
 
   type Category = {
     slug: string;
@@ -15,28 +16,69 @@
     accent: string;
     rgb: string;
     longDescription: string;
+    products?: { price: number }[];
   };
 
   /**
    * ShopCategoryHeader — header for /shop-methods/[slug].
    *   • Breadcrumb back to /shop-methods
+   *   • Category quick-switcher chip row (one chip per category) so users can
+   *     hop between groups without scrolling back — matches the Billgang tab feel.
    *   • Split layout: text left, category image right
    *   • Spring scale-in on image, clip-path wipe on text panel
-   *   • All fields admin-editable per category slug
    */
   export default function ShopCategoryHeader({ category: c }: { category: Category }) {
     const reduced = useReducedMotion();
+    const allCategories = catalog.categories as Category[];
 
     return (
       <section className="relative z-10 pt-12 pb-10 sm:pt-20 sm:pb-14">
         <div className="container-wide relative">
-          {/* breadcrumb */}
           <Link
             href="/shop-methods"
-            className="mb-8 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/60 transition hover:text-white"
+            className="mb-6 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/60 transition hover:text-white"
           >
             <span aria-hidden>←</span> All Categories
           </Link>
+
+          {/* Quick-switcher chip row */}
+          <nav
+            aria-label="Categories"
+            className="mb-8 flex flex-wrap gap-2"
+          >
+            {allCategories.map((cat) => {
+              const active = cat.slug === c.slug;
+              return (
+                <Link
+                  key={cat.slug}
+                  href={`/shop-methods/${cat.slug}`}
+                  aria-current={active ? "page" : undefined}
+                  className={`group inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] transition ${
+                    active
+                      ? "border-white/50 bg-white/15 text-white"
+                      : "border-white/15 bg-white/[0.04] text-white/70 hover:border-white/35 hover:bg-white/10 hover:text-white"
+                  }`}
+                  style={
+                    active
+                      ? { boxShadow: `0 0 28px -6px rgba(${cat.rgb},0.7)` }
+                      : undefined
+                  }
+                >
+                  <span
+                    aria-hidden
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ background: `rgb(${cat.rgb})`, boxShadow: `0 0 10px rgba(${cat.rgb},0.9)` }}
+                  />
+                  {cat.title}
+                  {cat.products?.length ? (
+                    <span className="ml-1 rounded-full bg-black/40 px-1.5 text-[10px] text-white/70">
+                      {cat.products.length}
+                    </span>
+                  ) : null}
+                </Link>
+              );
+            })}
+          </nav>
 
           <motion.div
             initial={reduced ? {} : { clipPath: "inset(100% 0 0 0 round 2rem)", opacity: 0 }}
@@ -51,7 +93,6 @@
               WebkitBackdropFilter: "blur(10px)",
             }}
           >
-            {/* corner glows */}
             <span aria-hidden className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full"
               style={{ background: `radial-gradient(circle, rgba(${c.rgb},0.30), transparent 70%)`, filter: "blur(24px)" }} />
             <span aria-hidden className="pointer-events-none absolute -right-24 -bottom-24 h-72 w-72 rounded-full"
