@@ -209,20 +209,20 @@
                 id={`${editIdPrefix}.eyebrow`}
                 defaultValue="Community Vouches"
                 className="text-xs font-semibold tracking-widest text-violet-400 uppercase"
-                tag="span"
+                as="span"
               />
             </div>
             <EditableText
               id={`${editIdPrefix}.title`}
               defaultValue="Dear customers, please leave your vouches for the Evasion Book here. Was it worth it? What are your honest thoughts?"
               className="text-xl sm:text-3xl font-bold text-white leading-snug"
-              tag="h2"
+              as="h2"
             />
             <EditableText
               id={`${editIdPrefix}.subtitle`}
               defaultValue="Level 1 — $149 · Level 2 — $399 (mentorship included). Real reviews from real buyers."
               className="mt-3 text-sm text-slate-400"
-              tag="p"
+              as="p"
             />
             <div className="mt-6 h-px bg-gradient-to-r from-violet-500/30 via-white/10 to-transparent" />
           </div>
