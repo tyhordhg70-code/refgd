@@ -57,7 +57,16 @@ export default async function AdminDashboard() {
             available.
           </p>
         </Link>
-        {/* v6.13.67 — Direct shortcut to the bulk-import flow so the
+        <Link
+            href="/admin/shop"
+            className="group rounded-2xl border border-white/10 bg-gradient-to-br from-rose-500/15 to-transparent p-6 transition hover:border-rose-300/40"
+          >
+            <h2 className="heading-display text-xl font-bold text-white">Manage shop →</h2>
+            <p className="mt-2 text-sm text-white/65">
+              Create, edit, delete products and categories. Upload images, set prices, configure checkout fields.
+            </p>
+          </Link>
+          {/* v6.13.67 — Direct shortcut to the bulk-import flow so the
             admin can paste a long store list in one click without
             having to first open Manage Stores and hunt for the button.
             Lands on /admin/stores?bulk=1 — StoresAdmin reads that

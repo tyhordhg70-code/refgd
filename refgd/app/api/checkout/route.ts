@@ -1,16 +1,8 @@
 import { NextResponse } from "next/server";
-  import catalog from "@/data/shop-methods.json";
+  import { getProduct } from "@/lib/shop-catalog";
 
   export const runtime = "nodejs";
   export const dynamic = "force-dynamic";
-
-  type Product = {
-    id: string;
-    title: string;
-    price: number;
-    currency?: string;
-    customFields?: { name: string; required: boolean }[];
-  };
 
   type Body = {
     productId: string;
@@ -21,20 +13,10 @@ import { NextResponse } from "next/server";
   /**
    * POST /api/checkout
    *
-   * Creates a NowPayments invoice for one of the products in
-   * /data/shop-methods.json and returns its hosted `invoice_url` so the
-   * client can embed it in an iframe (no full-page redirect).
-   *
-   * Body:
-   *   { productId: "evasion-book---level-1",
-   *     customFields: { "Which store?": "amazon" },
-   *     email?: "buyer@example.com" }
-   *
-   * Response:
-   *   { ok: true, invoiceId, invoiceUrl }
+   * Creates a NowPayments invoice for one of the shop products (DB-backed)
+   * and returns the hosted invoice_url for inline iframe embed.
    *
    * Required env: NOWPAYMENTS_API_KEY
-   *               (optional) NOWPAYMENTS_IPN_SECRET — for /api/checkout/ipn
    */
   export async function POST(req: Request) {
     const apiKey = process.env.NOWPAYMENTS_API_KEY;
@@ -52,16 +34,11 @@ import { NextResponse } from "next/server";
       return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
     }
 
-    // Look up product across all categories
-    const product: Product | undefined = catalog.categories
-      .flatMap((c) => c.products)
-      .find((p) => p.id === body.productId) as Product | undefined;
-
+    const product = await getProduct(body.productId);
     if (!product) {
       return NextResponse.json({ ok: false, error: "Unknown productId" }, { status: 404 });
     }
 
-    // Validate required custom fields
     for (const cf of product.customFields ?? []) {
       if (cf.required && !body.customFields?.[cf.name]?.trim()) {
         return NextResponse.json(
@@ -72,8 +49,6 @@ import { NextResponse } from "next/server";
     }
 
     const orderId = `refgd_${product.id}_${Date.now().toString(36)}`;
-
-    // Build a compact, human-readable order description
     const fieldLines = Object.entries(body.customFields ?? {})
       .filter(([, v]) => v?.trim())
       .map(([k, v]) => `${k}: ${v}`)
@@ -82,7 +57,6 @@ import { NextResponse } from "next/server";
       .filter(Boolean)
       .join(" ");
 
-    // Resolve absolute URLs for success / cancel callbacks
     const origin =
       req.headers.get("origin") ??
       `https://${req.headers.get("host") ?? "refgd.onrender.com"}`;
@@ -103,10 +77,7 @@ import { NextResponse } from "next/server";
     try {
       npRes = await fetch("https://api.nowpayments.io/v1/invoice", {
         method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "Content-Type": "application/json",
-        },
+        headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
         body: JSON.stringify(npBody),
         cache: "no-store",
       });
@@ -119,15 +90,12 @@ import { NextResponse } from "next/server";
 
     const raw = await npRes.text();
     let json: { id?: string | number; invoice_url?: string; message?: string };
-    try {
-      json = JSON.parse(raw);
-    } catch {
+    try { json = JSON.parse(raw); } catch {
       return NextResponse.json(
         { ok: false, error: "NowPayments returned non-JSON", detail: raw.slice(0, 200) },
         { status: 502 },
       );
     }
-
     if (!npRes.ok || !json.invoice_url) {
       return NextResponse.json(
         {
@@ -138,7 +106,6 @@ import { NextResponse } from "next/server";
         { status: 502 },
       );
     }
-
     return NextResponse.json({
       ok: true,
       invoiceId: String(json.id ?? ""),
