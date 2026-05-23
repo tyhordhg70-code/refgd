@@ -25,15 +25,62 @@
     products: Product[];
   };
 
+  type CheckoutState =
+    | { phase: "idle" }
+    | { phase: "loading" }
+    | { phase: "ready"; url: string; orderId: string }
+    | { phase: "error"; message: string };
+
   /**
    * ShopProductList — list of products inside one category.
-   * Phase 1B: real catalog, markdown-rendered descriptions, product image,
-   *           custom-field preview (e.g. "Which store are you interested in?").
-   * Phase 2 will swap the placeholder checkout block for the NowPayments widget.
+   *
+   * Phase 2: "Buy Now" expands the card; the expanded panel renders the full
+   * markdown description, the product's checkout custom-fields (e.g.
+   * "Which store?"), and a Pay-with-Crypto button. Pay click POSTs to
+   * /api/checkout, which mints a NowPayments invoice — we then embed
+   * `invoice_url` in an iframe so the buyer pays without leaving refgd.
    */
   export default function ShopProductList({ category: c }: { category: Category }) {
     const reduced = useReducedMotion();
     const [openId, setOpenId] = useState<string | null>(null);
+    const [fieldValues, setFieldValues] = useState<Record<string, Record<string, string>>>({});
+    const [emailById, setEmailById] = useState<Record<string, string>>({});
+    const [checkoutById, setCheckoutById] = useState<Record<string, CheckoutState>>({});
+
+    const setFieldVal = (pid: string, name: string, val: string) =>
+      setFieldValues((s) => ({ ...s, [pid]: { ...(s[pid] ?? {}), [name]: val } }));
+
+    const startCheckout = async (p: Product) => {
+      setCheckoutById((s) => ({ ...s, [p.id]: { phase: "loading" } }));
+      try {
+        const res = await fetch("/api/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            productId: p.id,
+            customFields: fieldValues[p.id] ?? {},
+            email: emailById[p.id],
+          }),
+        });
+        const data = (await res.json()) as { ok: boolean; invoiceUrl?: string; orderId?: string; error?: string };
+        if (!res.ok || !data.ok || !data.invoiceUrl) {
+          setCheckoutById((s) => ({
+            ...s,
+            [p.id]: { phase: "error", message: data.error ?? `Checkout failed (${res.status})` },
+          }));
+          return;
+        }
+        setCheckoutById((s) => ({
+          ...s,
+          [p.id]: { phase: "ready", url: data.invoiceUrl!, orderId: data.orderId ?? "" },
+        }));
+      } catch (e) {
+        setCheckoutById((s) => ({ ...s, [p.id]: { phase: "error", message: String(e) } }));
+      }
+    };
+
+    const resetCheckout = (pid: string) =>
+      setCheckoutById((s) => ({ ...s, [pid]: { phase: "idle" } }));
 
     return (
       <section className="relative z-10 pb-16">
@@ -42,6 +89,11 @@
             {c.products.map((p, i) => {
               const isOpen = openId === p.id;
               const priceLabel = `$${p.price}${p.currency && p.currency !== "USD" ? " " + p.currency : ""}`;
+              const checkout: CheckoutState = checkoutById[p.id] ?? { phase: "idle" };
+              const missingRequired = (p.customFields ?? []).some(
+                (cf) => cf.required && !fieldValues[p.id]?.[cf.name]?.trim(),
+              );
+
               return (
                 <motion.article
                   key={p.id}
@@ -136,30 +188,90 @@
                           </div>
                           <ShopMarkdown source={p.description} className="text-sm" />
 
-                          {p.customFields && p.customFields.length > 0 && (
-                            <div className="mt-6">
-                              <div className="mb-3 text-xs font-bold uppercase tracking-[0.32em] text-white/50">
-                                Required at checkout
-                              </div>
-                              <ul className="space-y-2">
-                                {p.customFields.map((cf, idx) => (
-                                  <li key={idx} className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/80">
-                                    <span className="font-semibold text-white">{cf.name}</span>
-                                    {cf.required && <span className="ml-2 text-amber-300">*required</span>}
-                                    {cf.placeholder && (
-                                      <div className="mt-1 text-xs text-white/55">e.g. {cf.placeholder || cf.defaultValue}</div>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
+                          {/* Checkout block */}
+                          <div className="mt-7 rounded-2xl border border-white/15 bg-black/30 p-5">
+                            <div className="mb-4 text-xs font-bold uppercase tracking-[0.32em] text-white/60">
+                              Checkout · Pay with crypto
                             </div>
-                          )}
 
-                          <div
-                            className="mt-6 rounded-2xl border border-dashed border-white/20 bg-black/30 p-5 text-center text-xs uppercase tracking-[0.2em] text-white/50"
-                            aria-label="Payment widget placeholder"
-                          >
-                            Checkout (NowPayments widget) — phase 2
+                            {checkout.phase === "ready" ? (
+                              <div>
+                                <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.18em] text-white/60">
+                                  <span>Order {checkout.orderId}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => resetCheckout(p.id)}
+                                    className="rounded-full border border-white/20 px-3 py-1 hover:bg-white/10"
+                                  >
+                                    Start over
+                                  </button>
+                                </div>
+                                <iframe
+                                  src={checkout.url}
+                                  title={`NowPayments checkout for ${p.title}`}
+                                  className="block h-[720px] w-full rounded-xl border border-white/10 bg-white"
+                                  allow="payment *; clipboard-write"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <p className="mt-3 text-center text-[11px] uppercase tracking-[0.2em] text-white/45">
+                                  Having trouble? <a className="text-amber-300 underline" href={checkout.url} target="_blank" rel="noopener noreferrer">Open in new tab</a>
+                                </p>
+                              </div>
+                            ) : (
+                              <>
+                                {p.customFields && p.customFields.length > 0 && (
+                                  <div className="mb-4 space-y-3">
+                                    {p.customFields.map((cf) => (
+                                      <label key={cf.name} className="block">
+                                        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/70">
+                                          {cf.name}
+                                          {cf.required && <span className="ml-1 text-amber-300">*</span>}
+                                        </span>
+                                        <input
+                                          type="text"
+                                          placeholder={cf.placeholder || cf.defaultValue || ""}
+                                          value={fieldValues[p.id]?.[cf.name] ?? ""}
+                                          onChange={(e) => setFieldVal(p.id, cf.name, e.target.value)}
+                                          className="block w-full rounded-xl border border-white/15 bg-black/40 px-4 py-2.5 text-sm text-white placeholder:text-white/35 focus:border-white/40 focus:outline-none"
+                                        />
+                                      </label>
+                                    ))}
+                                  </div>
+                                )}
+                                <label className="mb-4 block">
+                                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/70">
+                                    Email <span className="text-white/40 normal-case">(optional, for receipt)</span>
+                                  </span>
+                                  <input
+                                    type="email"
+                                    placeholder="you@example.com"
+                                    value={emailById[p.id] ?? ""}
+                                    onChange={(e) => setEmailById((s) => ({ ...s, [p.id]: e.target.value }))}
+                                    className="block w-full rounded-xl border border-white/15 bg-black/40 px-4 py-2.5 text-sm text-white placeholder:text-white/35 focus:border-white/40 focus:outline-none"
+                                  />
+                                </label>
+
+                                <button
+                                  type="button"
+                                  disabled={checkout.phase === "loading" || missingRequired}
+                                  onClick={() => startCheckout(p)}
+                                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/25 bg-white/10 px-6 py-3 text-sm font-bold uppercase tracking-[0.16em] text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                  style={{ boxShadow: `0 0 36px -8px rgba(${c.rgb},0.7)` }}
+                                >
+                                  {checkout.phase === "loading"
+                                    ? "Creating invoice…"
+                                    : missingRequired
+                                    ? "Fill required fields"
+                                    : `Pay ${priceLabel} with crypto →`}
+                                </button>
+
+                                {checkout.phase === "error" && (
+                                  <p className="mt-3 rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                                    {checkout.message}
+                                  </p>
+                                )}
+                              </>
+                            )}
                           </div>
                         </div>
                       </motion.div>
