@@ -174,13 +174,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <EditorToolbar />
         </EditorErrorBoundary>
         </EditProvider>
-        <script
-            dangerouslySetInnerHTML={{
-              __html: `
-  (function(){
-    if (typeof window==='undefined') return;
-    function init(){
-  
       </body>
     </html>
   );
