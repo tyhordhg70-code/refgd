@@ -61,11 +61,24 @@ export default function KineticText({
   const value = editId ? ctx.getValue(editId, text) : text;
   const words = value.split(" ");
 
+  // v6.14 — always render statically. The word-by-word entry animation
+  // emitted opacity:0 + translateY(110%) per word on SSR; on parent
+  // re-renders or slow hydration the words would visibly snap back to
+  // opacity:0 — read by users as "headers vanishing on rescroll".
+  // Render plain text in the same tag + classes + style. Layout is
+  // identical, no entry animation, no vanish.
+  {
+    const Plain = Tag as any;
+    return <Plain className={className} style={style} aria-label={value}>{value}</Plain>;
+  }
+
+  // eslint-disable-next-line no-unreachable
   if (reduced) {
     const Plain = Tag as any;
     return <Plain className={className} style={style}>{value}</Plain>;
   }
 
+  // eslint-disable-next-line no-unreachable
   const M = motion[Tag as keyof typeof motion] as any;
   const useMountMode = mountTrigger !== undefined;
   return (

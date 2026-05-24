@@ -1,6 +1,7 @@
 "use client";
   import { motion, useReducedMotion } from "framer-motion";
   import EditableText from "@/components/EditableText";
+  import EditableImage from "@/components/EditableImage";
   import ChapterPill from "@/components/ChapterPill";
   import KineticText from "@/components/KineticText";
 
@@ -38,6 +39,23 @@
                   lineHeight: 1.15,
                 }}
               />
+
+              {/* Vault art — editorial composition element. Static
+                 (no scroll animation) so it can't vanish on rescroll. */}
+              <div className="relative mt-10 overflow-hidden rounded-[2rem] border border-white/12"
+                style={{
+                  boxShadow: "0 40px 90px -30px rgba(0,0,0,0.85), 0 0 60px -20px rgba(34,211,238,0.35)",
+                  background: "linear-gradient(165deg, rgba(34,211,238,0.10), rgba(10,8,22,0.85) 60%)",
+                }}>
+                <EditableImage
+                  id="evade.intro.vault"
+                  defaultSrc="/uploads/evade-vault.webp"
+                  alt="Evade — vault art for chapter 01"
+                  width={720}
+                  height={540}
+                  className="block h-auto w-full"
+                />
+              </div>
             </div>
 
             {/* RIGHT — editorial excerpt blocks. Transform-only entrance

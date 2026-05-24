@@ -142,11 +142,12 @@
               "evade.art.solLocks.scale", "evade.art.solLocks.mb",
               "evade.art.solLocks.anim",
               "evade.ch1.eyebrow.dx", "evade.ch1.eyebrow.dy",
-                // v2: also clear the base src key for secShield — a 328KB
-                // base64 PNG had been uploaded into this slot that renders
-                // blank. Clearing it falls back to /uploads/sec-shield.webp
-                // (the working default). Admin can re-upload via edit mode.
-                "evade.divider.secShield",
+                // v2 originally also cleared "evade.divider.secShield"
+                // (base src). That was wrong — the admin upload there was
+                // intentional. Removed. Existing DBs already had v2 run
+                // (the base64 src is gone there and must be re-uploaded
+                // via admin edit mode); the marker stays v2 so the
+                // migration won't run again.
               ];
             await pool.query(
               "DELETE FROM content_blocks WHERE id = ANY($1::text[])",
