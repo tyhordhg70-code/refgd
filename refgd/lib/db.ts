@@ -119,7 +119,7 @@
         // content_blocks so future intentional drags are preserved.
         try {
           const pool = getPool();
-          const MARK = "_migration.reset_evade_positions_v1";
+          const MARK = "_migration.reset_evade_positions_v2";
           const { rows } = await pool.query(
             "SELECT 1 FROM content_blocks WHERE id = $1",
             [MARK]
@@ -142,7 +142,12 @@
               "evade.art.solLocks.scale", "evade.art.solLocks.mb",
               "evade.art.solLocks.anim",
               "evade.ch1.eyebrow.dx", "evade.ch1.eyebrow.dy",
-            ];
+                // v2: also clear the base src key for secShield — a 328KB
+                // base64 PNG had been uploaded into this slot that renders
+                // blank. Clearing it falls back to /uploads/sec-shield.webp
+                // (the working default). Admin can re-upload via edit mode.
+                "evade.divider.secShield",
+              ];
             await pool.query(
               "DELETE FROM content_blocks WHERE id = ANY($1::text[])",
               [badKeys]

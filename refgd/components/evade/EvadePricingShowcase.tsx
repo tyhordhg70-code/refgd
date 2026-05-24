@@ -1,5 +1,7 @@
 "use client";
-  import { motion, useReducedMotion } from "framer-motion";
+  // v6.13.61 — removed framer-motion entry animation on pricing cards:
+  // the whileInView + initial transform caused cards/buttons/text to
+  // flicker out + back on scroll-up + rescroll. Cards now render static.
   import EditableText from "@/components/EditableText";
   import EditableImage from "@/components/EditableImage";
   import MagneticButton from "@/components/MagneticButton";
@@ -64,7 +66,6 @@
    * page's previous content so first-paint reads the same.
    */
   export default function EvadePricingShowcase() {
-    const reduced = useReducedMotion();
     return (
       <section className="relative z-10 py-24" id="Learn">
         <div className="container-wide relative">
@@ -90,12 +91,8 @@
 
           <div className="mt-12 grid gap-7 md:grid-cols-3">
             {PRICING.map((p, i) => (
-              <motion.div
+              <div
                 key={i}
-                initial={reduced ? { opacity: 1 } : { opacity: 1, x: i === 0 ? -40 : i === 2 ? 40 : 0, y: i === 1 ? 28 : 0 }}
-                whileInView={reduced ? undefined : { opacity: 1, x: 0, y: 0 }}
-                viewport={{ once: true, amount: 0.2, margin: "0px 0px -10% 0px" }}
-                transition={{ duration: 0.9, delay: i * 0.15, ease: [0.22, 1, 0.36, 1] }}
                 className="group relative"
               >
                 {/* Outer editorial frame — layered panel + ring */}
@@ -158,7 +155,6 @@
                         defaultSrc={p.img}
                         alt={p.title}
                         wrapperClassName="relative z-10 block h-full"
-                        wrapperStyle={{ animationDelay: `${i * 0.6}s` }}
                         className="relative h-full w-auto max-w-full object-contain drop-shadow-[0_22px_44px_rgba(0,0,0,0.65)]"
                       />
                     </div>
@@ -206,7 +202,7 @@
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
