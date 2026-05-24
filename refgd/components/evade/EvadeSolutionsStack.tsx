@@ -37,7 +37,7 @@
     }, []);
 
     return (
-      <section className="relative z-10 overflow-x-clip py-20 sm:py-28">
+      <section className="relative z-10 overflow-x-clip pt-8 pb-20 sm:pt-12 sm:pb-28">
         <div className="container-wide relative">
           {/* Integrated editorial header — chapter pill, title AND sol-locks
               artwork share one frame so the image stops "floating". */}

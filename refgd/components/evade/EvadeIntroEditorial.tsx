@@ -15,7 +15,7 @@
   export default function EvadeIntroEditorial() {
     const reduced = useReducedMotion();
     return (
-      <section className="relative z-10 py-16 sm:py-24">
+      <section className="relative z-10 pt-16 pb-4 sm:pt-24 sm:pb-6">
         <div className="container-wide relative">
           <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] lg:gap-16">
             {/* LEFT — chapter pill + KineticText title */}

@@ -92,8 +92,8 @@
             {PRICING.map((p, i) => (
               <motion.div
                 key={i}
-                initial={reduced ? { opacity: 1 } : { opacity: 1, x: i === 0 ? -40 : i === 2 ? 40 : 0, y: i === 1 ? 50 : 24, scale: 0.92 }}
-                whileInView={reduced ? undefined : { opacity: 1, x: 0, y: 0, scale: 1 }}
+                initial={reduced ? { opacity: 1 } : { opacity: 1, x: i === 0 ? -40 : i === 2 ? 40 : 0, y: i === 1 ? 50 : 24 }}
+                whileInView={reduced ? undefined : { opacity: 1, x: 0, y: 0 }}
                 viewport={{ once: true, amount: 0.2, margin: "0px 0px -10% 0px" }}
                 transition={{ duration: 0.9, delay: i * 0.15, ease: [0.22, 1, 0.36, 1] }}
                 className="group relative"

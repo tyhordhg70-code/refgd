@@ -40,7 +40,7 @@
       target: ref,
       offset: ["start end", "end start"],
     });
-    const scale  = useTransform(scrollYProgress, [0, 0.5, 1], [0.55, 1.15, 0.75]);
+    const scale  = useTransform(scrollYProgress, [0, 0.5, 1], [0.5, 0.95, 0.7]);
 
     if (disable) {
       return (

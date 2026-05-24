@@ -75,7 +75,7 @@ export default function KineticText({
       initial="hidden"
       {...(useMountMode
         ? { animate: mountTrigger ? "show" : "hidden" }
-        : { whileInView: "show", viewport: { once: false, amount: 0.05 } })}
+        : { whileInView: "show", viewport: { once: true, amount: 0.05 } })}
       transition={{ staggerChildren: stagger, delayChildren: delay }}
       aria-label={value}
     >

@@ -231,8 +231,8 @@
     const intro = CARD_INTROS[i % CARD_INTROS.length];
     return (
       <motion.div
-        initial={{ opacity: 1, x: intro.x, y: intro.y * 1.5, rotate: intro.rotate, scale: 0.94 }}
-          whileInView={{ opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 }}
+        initial={{ opacity: 1, x: intro.x, y: intro.y * 1.5, rotate: intro.rotate }}
+          whileInView={{ opacity: 1, x: 0, y: 0, rotate: 0 }}
           viewport={{ once: true, amount: 0.15, margin: "0px 0px -10% 0px" }}
           transition={{ duration: 1.15, delay: i * 0.12, ease: [0.22, 1, 0.36, 1] }}
         className="relative overflow-hidden rounded-[1.75rem] p-8"
@@ -242,7 +242,7 @@
           boxShadow: `0 40px 90px -20px rgba(0,0,0,0.85), 0 0 50px -20px rgba(${f.rgb},0.4)`,
         }}
       >
-        <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 opacity-30 mix-blend-screen" aria-hidden="true">
+        <div className="pointer-events-none absolute right-2 top-2 h-24 w-24 opacity-25 mix-blend-screen" aria-hidden="true">
           <ParallaxIllustration kind={f.illo} accent={f.tint} size={130} />
         </div>
         <div
