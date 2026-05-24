@@ -139,6 +139,40 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           above — the page can't be scrolled until galaxy +
           critical assets are warm. */}
       <body className="min-h-screen bg-ink-950 text-white antialiased">
+          {/* TEMP DEBUG — bottom-bar element identifier. Will be removed once we know the culprit. */}
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+  (function(){
+    if (typeof window==='undefined') return;
+    function init(){
+      if (document.getElementById('__bar_debug')) return;
+      var b=document.createElement('div');
+      b.id='__bar_debug';
+      b.style.cssText='position:fixed;top:72px;left:6px;z-index:99999;background:#0f0;color:#000;padding:4px 6px;font:10px/1.2 ui-monospace,monospace;border-radius:4px;max-width:94vw;word-break:break-all;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.5)';
+      b.textContent='bar-debug: scroll to sample';
+      document.body.appendChild(b);
+      function desc(e){ if(!e) return 'null'; var cls=(typeof e.className==='string'?e.className:''); return e.tagName+(e.id?'#'+e.id:'')+(cls?'.'+cls.split(/\\s+/).slice(0,3).join('.'):'')+' ['+e.getBoundingClientRect().height.toFixed(0)+'px]'; }
+      function sample(){
+        var x=innerWidth/2;
+        var samples=[];
+        [10,40,80].forEach(function(off){
+          var y=innerHeight-off;
+          var stack=document.elementsFromPoint?document.elementsFromPoint(x,y):[document.elementFromPoint(x,y)];
+          samples.push('y-'+off+': '+stack.slice(0,3).map(desc).join(' | '));
+        });
+        b.textContent='vh='+innerHeight+' | '+samples.join('   ');
+      }
+      var t;
+      function onScroll(){ clearTimeout(t); t=setTimeout(sample,150); }
+      window.addEventListener('scroll',onScroll,{passive:true});
+      sample();
+    }
+    if (document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded',init);
+  })();
+              `,
+            }}
+          />
         {/* Lenis-powered smooth scroll for the entire site (no-op for
             users with prefers-reduced-motion). */}
         <SmoothScroll />
