@@ -51,9 +51,8 @@
                   id="evade.intro.vault"
                   defaultSrc="/uploads/evade-vault.webp"
                   alt="Evade — vault art for chapter 01"
-                  width={720}
-                  height={540}
-                  className="block h-auto w-full"
+                  wrapperClassName="relative block w-full"
+                  className="block h-auto w-full object-contain"
                 />
               </div>
             </div>
