@@ -42,7 +42,7 @@
           {/* Integrated editorial header — chapter pill, title AND sol-locks
               artwork share one frame so the image stops "floating". */}
           <motion.div
-            initial={reduced ? {} : { clipPath: "inset(100% 0 0 0 round 2rem)", opacity: 0 }}
+            initial={reduced ? {} : { clipPath: "inset(100% 0 0 0 round 2rem)" }}
             whileInView={reduced ? undefined : { clipPath: "inset(0% 0 0 0 round 2rem)", opacity: 1 }}
             viewport={{ once: true, amount: 0.15 }}
             transition={{ duration: 0.85, ease: [0.76, 0, 0.24, 1] }}
@@ -84,8 +84,8 @@
               {/* sol-locks artwork — integrated, sits on a plinth so it reads as composed */}
               <motion.div
                 className="relative mx-auto block w-full max-w-[300px] sm:max-w-[380px]"
-                initial={reduced ? {} : { scale: 0.25, rotate: -18, opacity: 0, filter: "blur(12px)" }}
-                whileInView={reduced ? undefined : { scale: 1, rotate: 0, opacity: 1, filter: "blur(0px)" }}
+                initial={reduced ? {} : { scale: 0.25, rotate: -18, filter: "blur(12px)" }}
+                whileInView={reduced ? undefined : { scale: 1, rotate: 0, filter: "blur(0px)" }}
                 viewport={{ once: true, amount: 0.2 }}
                 transition={{ type: "spring", stiffness: 75, damping: 13, delay: 0.5 }}
               >
