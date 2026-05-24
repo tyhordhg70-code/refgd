@@ -139,58 +139,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           above — the page can't be scrolled until galaxy +
           critical assets are warm. */}
       <body className="min-h-screen bg-ink-950 text-white antialiased">
-        {/* TEMP DEBUG v2 — sample DURING touch-drag (not after scrollend) to catch the transient bar. */}
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-  (function(){
-    if (typeof window==='undefined') return;
-    function init(){
-      if (document.getElementById('__bar_debug')) return;
-      var b=document.createElement('div');
-      b.id='__bar_debug';
-      b.style.cssText='position:fixed;top:72px;left:6px;right:6px;z-index:99999;background:#0f0;color:#000;padding:5px 7px;font:10px/1.25 ui-monospace,monospace;border-radius:4px;word-break:break-all;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.6);max-height:55vh;overflow:hidden;white-space:pre-wrap';
-      b.textContent='bar-debug v2: touch and drag the screen';
-      document.body.appendChild(b);
-      function desc(e){
-        if(!e) return 'null';
-        var cls=(typeof e.className==='string'?e.className:'');
-        var bg='';
-        try{ var s=getComputedStyle(e); bg=s.backgroundColor; }catch(_){}
-        var r=e.getBoundingClientRect();
-        return e.tagName+(e.id?'#'+e.id:'')+(cls?'.'+cls.split(/\\s+/).slice(0,3).join('.'):'')+' bg='+bg+' h='+r.height.toFixed(0)+' top='+r.top.toFixed(0);
-      }
-      var history=[];
-      function add(line){
-        if(history.length && history[history.length-1]===line) return;
-        history.push(line);
-        if(history.length>14) history.shift();
-        b.textContent='vh='+innerHeight+' vv='+(window.visualViewport?window.visualViewport.height.toFixed(0):'-')+'\\n'+history.join('\\n');
-      }
-      function sample(tag){
-        var x=Math.round(innerWidth/2);
-        var ys=[5,30,60,100];
-        var seen=[];
-        ys.forEach(function(off){
-          var y=innerHeight-off;
-          var stack=document.elementsFromPoint?document.elementsFromPoint(x,y):[document.elementFromPoint(x,y)];
-          var top=stack[0];
-          seen.push('  y-'+off+': '+desc(top));
-        });
-        add('['+tag+' sy='+Math.round(window.scrollY)+']\\n'+seen.join('\\n'));
-      }
-      // Fire constantly during drag
-      window.addEventListener('touchstart',function(){ sample('Ts'); },{passive:true});
-      window.addEventListener('touchmove',function(){ sample('Tm'); },{passive:true});
-      window.addEventListener('touchend',function(){ sample('Te'); setTimeout(function(){ sample('+200'); },200); },{passive:true});
-      window.addEventListener('scroll',function(){ sample('Sc'); },{passive:true});
-      sample('init');
-    }
-    if (document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded',init);
-  })();
-              `,
-            }}
-          />
         {/* Lenis-powered smooth scroll for the entire site (no-op for
             users with prefers-reduced-motion). */}
         <SmoothScroll />

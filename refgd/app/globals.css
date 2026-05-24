@@ -54,7 +54,10 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    }
+    
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+}
     /* ─────────────────────────────────────────────────────────────────
        KILL THE BOTTOM BLACK BAR ON MOBILE (Samsung Internet / Chrome
        Android / iOS Safari with viewport-fit:cover).
