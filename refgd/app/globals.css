@@ -54,8 +54,35 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-  }
-  /* framer-motion's `useScroll({ target })` checks
+    }
+    /* ─────────────────────────────────────────────────────────────────
+       KILL THE BOTTOM BLACK BAR ON MOBILE (Samsung Internet / Chrome
+       Android / iOS Safari with viewport-fit:cover).
+
+       Problem: on mobile, fixed inset-0 elements anchor to the LAYOUT
+       viewport (which excludes the bottom safe-area / gesture-nav
+       strip). The decorative cosmic layers (Galaxy/Pulsating/Cosmic3D/
+       Home/EvadeImmersive) therefore stop ~60-100px above the visible
+       viewport bottom, while body bg #06030f keeps filling the strip
+       beneath them. That visible body-bg strip is the "black bar"
+       reported on every page, exposed when the URL bar collapses on
+       scroll-stop + scroll-resume.
+
+       Fix: push the four decorative cosmic layers PAST the safe-area
+       on every edge so they actually paint cosmic colors into the
+       strip and the body-bg can never be the topmost paint there.
+       Targeted by the exact class combo all cosmic layers share, so
+       Nav, Footer, MusicPlayer, EditorToolbar, SkipToStoreListButton,
+       LoadingScreen are unaffected (none of them use pointer-events-
+       none + fixed + inset-0 together).
+       ───────────────────────────────────────────────────────────── */
+    .pointer-events-none.fixed.inset-0 {
+      top:    calc(0px - env(safe-area-inset-top, 0px))    !important;
+      right:  calc(0px - env(safe-area-inset-right, 0px))  !important;
+      bottom: calc(0px - env(safe-area-inset-bottom, 0px)) !important;
+      left:   calc(0px - env(safe-area-inset-left, 0px))   !important;
+    }
+    /* framer-motion's `useScroll({ target })` checks
      `getComputedStyle(container).position !== "static"` where
      `container` defaults to `document.documentElement`. Promoting
      <html> (and <body>/<main> for ancestor chains) to relative
