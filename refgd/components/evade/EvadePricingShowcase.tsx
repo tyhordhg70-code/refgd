@@ -159,7 +159,7 @@
                         alt={p.title}
                         wrapperClassName="relative z-10 block h-full"
                         wrapperStyle={{ animationDelay: `${i * 0.6}s` }}
-                        className="pricing-img-bob relative h-full w-auto max-w-full object-contain drop-shadow-[0_22px_44px_rgba(0,0,0,0.65)]"
+                        className="relative h-full w-auto max-w-full object-contain drop-shadow-[0_22px_44px_rgba(0,0,0,0.65)]"
                       />
                     </div>
 
