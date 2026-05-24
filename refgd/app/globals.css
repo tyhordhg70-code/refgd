@@ -80,10 +80,18 @@
        none + fixed + inset-0 together).
        ───────────────────────────────────────────────────────────── */
     .pointer-events-none.fixed.inset-0 {
-      top:    calc(0px - env(safe-area-inset-top, 0px))    !important;
-      right:  calc(0px - env(safe-area-inset-right, 0px))  !important;
-      bottom: calc(0px - env(safe-area-inset-bottom, 0px)) !important;
-      left:   calc(0px - env(safe-area-inset-left, 0px))   !important;
+      top:    calc(0px - env(safe-area-inset-top, 0px))        !important;
+      right:  calc(0px - env(safe-area-inset-right, 0px))      !important;
+      /* v6.14.7 — Previous fix used only env(safe-area-inset-bottom) which
+         is 0 on Android (gesture navigation does not report a safe-area value).
+         So the extension was a no-op there. Added -120px unconditional:
+         this pre-paints 120px below the layout viewport on every device.
+         During first-scroll URL-bar hide (viewport expands ~56px on Android),
+         the compositor already has that painted zone ready → no body-bg flash.
+         GalaxyBackground's solid galaxy-bg-pulse gradient fills those 120px. */
+      bottom: calc(-120px - env(safe-area-inset-bottom, 0px))  !important;
+      left:   calc(0px - env(safe-area-inset-left, 0px))       !important;
+      will-change: transform;
     }
     /* framer-motion's `useScroll({ target })` checks
      `getComputedStyle(container).position !== "static"` where

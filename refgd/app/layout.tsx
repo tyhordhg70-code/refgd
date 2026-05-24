@@ -151,7 +151,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <EditorErrorBoundary>
           {/* Site-wide continuous WebGL galaxy field — every page scrolls
               over the same scene so transitions feel like one journey. */}
-          {/* TEMP-PROBE: GalaxyBackground disabled to confirm it is the source of the first-scroll black bar */}
+          <GalaxyBackground />
           {/* Subtle 3D wireframe shapes drifting behind every chapter —
               pure CSS @keyframes, GPU-only, zero JS thread cost. */}
           <Cosmic3DShapes />
