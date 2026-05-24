@@ -111,7 +111,60 @@
           updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
       `)
-      .then(() => setDbInitialized());
+      .then(async () => {
+        // v6.13.60 — One-time migration: clear known-bad saved admin-drag
+        // positions on /evade-cancelations elements that were dragged out of
+        // bounds in a prior session (tier-1 pricing image cut off, shield
+        // image pushed offscreen). Idempotent via a marker row in
+        // content_blocks so future intentional drags are preserved.
+        try {
+          const pool = getPool();
+          const MARK = "_migration.reset_evade_positions_v1";
+          const { rows } = await pool.query(
+            "SELECT 1 FROM content_blocks WHERE id = $1",
+            [MARK]
+          );
+          if (rows.length === 0) {
+            const badKeys = [
+              "evade.pricing.0.img.dx", "evade.pricing.0.img.dy",
+              "evade.pricing.0.img.scale", "evade.pricing.0.img.mb",
+              "evade.pricing.0.img.anim",
+              "evade.pricing.1.img.dx", "evade.pricing.1.img.dy",
+              "evade.pricing.1.img.scale", "evade.pricing.1.img.mb",
+              "evade.pricing.1.img.anim",
+              "evade.pricing.2.img.dx", "evade.pricing.2.img.dy",
+              "evade.pricing.2.img.scale", "evade.pricing.2.img.mb",
+              "evade.pricing.2.img.anim",
+              "evade.divider.secShield.dx", "evade.divider.secShield.dy",
+              "evade.divider.secShield.scale", "evade.divider.secShield.mb",
+              "evade.divider.secShield.anim",
+              "evade.art.solLocks.dx", "evade.art.solLocks.dy",
+              "evade.art.solLocks.scale", "evade.art.solLocks.mb",
+              "evade.art.solLocks.anim",
+              "evade.ch1.eyebrow.dx", "evade.ch1.eyebrow.dy",
+            ];
+            await pool.query(
+              "DELETE FROM content_blocks WHERE id = ANY($1::text[])",
+              [badKeys]
+            );
+            await pool.query(
+              "INSERT INTO content_blocks (id, value, updated_at) " +
+                "VALUES ($1, 'done', NOW()) " +
+                "ON CONFLICT (id) DO NOTHING",
+              [MARK]
+            );
+            // eslint-disable-next-line no-console
+            console.log(
+              "[db] migration reset_evade_positions_v1: cleared " +
+                badKeys.length + " saved-position keys"
+            );
+          }
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error("[db] migration reset_evade_positions_v1 failed:", err);
+        }
+        setDbInitialized();
+      });
 
     setDbInitPromise(p);
     return p;
