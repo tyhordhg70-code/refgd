@@ -139,7 +139,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           above — the page can't be scrolled until galaxy +
           critical assets are warm. */}
       <body className="min-h-screen bg-ink-950 text-white antialiased">
-          {/* TEMP DEBUG — bottom-bar element identifier. Will be removed once we know the culprit. */}
+        {/* TEMP DEBUG v2 — sample DURING touch-drag (not after scrollend) to catch the transient bar. */}
           <script
             dangerouslySetInnerHTML={{
               __html: `
@@ -149,24 +149,42 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       if (document.getElementById('__bar_debug')) return;
       var b=document.createElement('div');
       b.id='__bar_debug';
-      b.style.cssText='position:fixed;top:72px;left:6px;z-index:99999;background:#0f0;color:#000;padding:4px 6px;font:10px/1.2 ui-monospace,monospace;border-radius:4px;max-width:94vw;word-break:break-all;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.5)';
-      b.textContent='bar-debug: scroll to sample';
+      b.style.cssText='position:fixed;top:72px;left:6px;right:6px;z-index:99999;background:#0f0;color:#000;padding:5px 7px;font:10px/1.25 ui-monospace,monospace;border-radius:4px;word-break:break-all;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.6);max-height:55vh;overflow:hidden;white-space:pre-wrap';
+      b.textContent='bar-debug v2: touch and drag the screen';
       document.body.appendChild(b);
-      function desc(e){ if(!e) return 'null'; var cls=(typeof e.className==='string'?e.className:''); return e.tagName+(e.id?'#'+e.id:'')+(cls?'.'+cls.split(/\\s+/).slice(0,3).join('.'):'')+' ['+e.getBoundingClientRect().height.toFixed(0)+'px]'; }
-      function sample(){
-        var x=innerWidth/2;
-        var samples=[];
-        [10,40,80].forEach(function(off){
+      function desc(e){
+        if(!e) return 'null';
+        var cls=(typeof e.className==='string'?e.className:'');
+        var bg='';
+        try{ var s=getComputedStyle(e); bg=s.backgroundColor; }catch(_){}
+        var r=e.getBoundingClientRect();
+        return e.tagName+(e.id?'#'+e.id:'')+(cls?'.'+cls.split(/\\s+/).slice(0,3).join('.'):'')+' bg='+bg+' h='+r.height.toFixed(0)+' top='+r.top.toFixed(0);
+      }
+      var history=[];
+      function add(line){
+        if(history.length && history[history.length-1]===line) return;
+        history.push(line);
+        if(history.length>14) history.shift();
+        b.textContent='vh='+innerHeight+' vv='+(window.visualViewport?window.visualViewport.height.toFixed(0):'-')+'\\n'+history.join('\\n');
+      }
+      function sample(tag){
+        var x=Math.round(innerWidth/2);
+        var ys=[5,30,60,100];
+        var seen=[];
+        ys.forEach(function(off){
           var y=innerHeight-off;
           var stack=document.elementsFromPoint?document.elementsFromPoint(x,y):[document.elementFromPoint(x,y)];
-          samples.push('y-'+off+': '+stack.slice(0,3).map(desc).join(' | '));
+          var top=stack[0];
+          seen.push('  y-'+off+': '+desc(top));
         });
-        b.textContent='vh='+innerHeight+' | '+samples.join('   ');
+        add('['+tag+' sy='+Math.round(window.scrollY)+']\\n'+seen.join('\\n'));
       }
-      var t;
-      function onScroll(){ clearTimeout(t); t=setTimeout(sample,150); }
-      window.addEventListener('scroll',onScroll,{passive:true});
-      sample();
+      // Fire constantly during drag
+      window.addEventListener('touchstart',function(){ sample('Ts'); },{passive:true});
+      window.addEventListener('touchmove',function(){ sample('Tm'); },{passive:true});
+      window.addEventListener('touchend',function(){ sample('Te'); setTimeout(function(){ sample('+200'); },200); },{passive:true});
+      window.addEventListener('scroll',function(){ sample('Sc'); },{passive:true});
+      sample('init');
     }
     if (document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded',init);
   })();
