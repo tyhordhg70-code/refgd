@@ -151,7 +151,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <EditorErrorBoundary>
           {/* Site-wide continuous WebGL galaxy field — every page scrolls
               over the same scene so transitions feel like one journey. */}
-          <GalaxyBackground />
+          {/* TEMP-PROBE: GalaxyBackground disabled to confirm it is the source of the first-scroll black bar */}
           {/* Subtle 3D wireframe shapes drifting behind every chapter —
               pure CSS @keyframes, GPU-only, zero JS thread cost. */}
           <Cosmic3DShapes />
@@ -180,74 +180,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   (function(){
     if (typeof window==='undefined') return;
     function init(){
-      if (document.getElementById('__bar_debug3')) return;
-      var b=document.createElement('div');
-      b.id='__bar_debug3';
-      b.style.cssText='position:fixed;top:64px;left:4px;right:4px;z-index:99999;background:#ff0;color:#000;padding:4px 6px;font:9.5px/1.2 ui-monospace,monospace;border-radius:4px;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.6);max-height:70vh;overflow:hidden;white-space:pre-wrap;word-break:break-all';
-      b.textContent='v3: touch+drag ONCE. Capturing first 3s in rAF.';
-      document.body.appendChild(b);
-      var armed=true; var startT=0; var rafOn=false;
-      var snapshots=[]; // each = { t, lines:[...] }
-      function describeFull(el){
-        if(!el) return 'null';
-        var cls=(typeof el.className==='string'?el.className.trim():'');
-        var bg='';
-        try{ var s=getComputedStyle(el); bg=s.backgroundColor; }catch(_){}
-        var rect=el.getBoundingClientRect();
-        var tag=el.tagName.toLowerCase();
-        var idStr=(el.id?'#'+el.id:'');
-        var clsStr=cls?'.'+cls.split(/\\s+/).slice(0,2).join('.'):'';
-        // Mark non-transparent bgs
-        var marker='';
-        if(bg && bg!=='rgba(0, 0, 0, 0)' && bg!=='transparent'){
-          marker=' [BG!]';
-        }
-        return tag+idStr+clsStr+' bg='+bg+' h='+rect.height.toFixed(0)+marker;
-      }
-      function scan(){
-        if(!armed) return;
-        var now=performance.now();
-        if(startT===0) startT=now;
-        var dt=now-startT;
-        if(dt>3000){
-          armed=false; freeze(); return;
-        }
-        // Sample y=innerHeight-15 and capture FULL stack (up to 5 deep)
-        var x=Math.round(innerWidth/2);
-        var y=innerHeight-15;
-        var stack=document.elementsFromPoint?document.elementsFromPoint(x,y):[];
-        var stackDesc=stack.slice(0,5).map(describeFull);
-        // Only save if this stack differs from last saved
-        var key=stackDesc.join('|');
-        if(snapshots.length===0 || snapshots[snapshots.length-1].key!==key){
-          snapshots.push({t:dt.toFixed(0), key:key, lines:stackDesc});
-          if(snapshots.length>20) snapshots.shift();
-        }
-        requestAnimationFrame(scan);
-      }
-      function freeze(){
-        var out=['vh='+innerHeight+' vv='+(window.visualViewport?window.visualViewport.height.toFixed(0):'-')+' sy='+window.scrollY.toFixed(0)];
-        out.push('=== '+snapshots.length+' unique stacks during 3s window ===');
-        snapshots.forEach(function(s){
-          out.push('t+'+s.t+'ms:');
-          s.lines.forEach(function(l,i){ out.push('  '+i+': '+l); });
-        });
-        b.textContent=out.join('\\n');
-      }
-      function arm(){
-        if(!armed) return;
-        if(startT===0){ startT=performance.now(); b.textContent='v3 capturing... drag now'; }
-        if(!rafOn){ rafOn=true; requestAnimationFrame(scan); }
-      }
-      window.addEventListener('touchstart',arm,{passive:true});
-      window.addEventListener('touchmove',arm,{passive:true});
-      window.addEventListener('scroll',arm,{passive:true});
-    }
-    if (document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded',init);
-  })();
-              `,
-            }}
-          />
   
       </body>
     </html>
