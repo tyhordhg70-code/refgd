@@ -13,7 +13,7 @@ const SOLUTIONS = [
 ];
 
 /**
- * EvadeSolutionsStack v4 — root-cause fix for vanishing/half-cut cards
+ * EvadeSolutionsStack v5 — RC16 applied: remove outer-panel backdropFilter
  * and sol-locks image clipping on rescroll.
  *
  *  • Outer header panel is a STATIC <div>. Previously wrapped in
@@ -39,8 +39,6 @@ export default function EvadeSolutionsStack() {
               "linear-gradient(160deg, rgba(167,139,250,0.13), rgba(34,211,238,0.08) 50%, rgba(10,8,22,0.92))",
             boxShadow:
               "0 60px 140px -30px rgba(0,0,0,0.85), 0 0 90px -25px rgba(167,139,250,0.40), inset 0 1px 0 rgba(255,255,255,0.08)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
           }}
         >
           <span aria-hidden className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full"
@@ -100,8 +98,6 @@ export default function EvadeSolutionsStack() {
                   background: `linear-gradient(160deg, rgba(${s.rgb},0.18), rgba(10,8,22,0.85))`,
                   border: `1px solid rgba(${s.rgb},0.35)`,
                   boxShadow: `0 40px 90px -20px rgba(0,0,0,0.85), 0 0 70px -20px rgba(${s.rgb},0.45), inset 0 1px 0 rgba(255,255,255,0.08)`,
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
                 }}
               />
               <div className="relative p-7 sm:p-8">
