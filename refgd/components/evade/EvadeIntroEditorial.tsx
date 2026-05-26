@@ -5,6 +5,11 @@ import ChapterPill from "@/components/ChapterPill";
 import KineticText from "@/components/KineticText";
 import SafeReveal from "@/components/SafeReveal";
 
+const BODIES = [
+  { id: "evade.intro.body1", accent: "rgba(34,211,238,0.95)",  label: "01 · DEEP DIVE",   body: "Dive into a comprehensive overview of each store's anti-fraud system and their ability to detect suspicious user behaviour. Stores invest hundreds of thousands each year to fight against refunders and are equipped with advanced machine learning algorithms to identify potential fraud — even if you are not banned.", kind: "slideLeft"  as const },
+  { id: "evade.intro.body2", accent: "rgba(167,139,250,0.95)", label: "02 · FRAUD SCORE", body: "During the checkout process, you are assigned a fraud score, and if it reaches a certain threshold, your current and future orders may be cancelled.", kind: "slideRight" as const },
+];
+
 export default function EvadeIntroEditorial() {
   return (
     <section className="relative z-10 pt-16 pb-8 sm:pt-24 sm:pb-12">
@@ -21,11 +26,8 @@ export default function EvadeIntroEditorial() {
             />
           </div>
           <div className="relative flex flex-col gap-8">
-            {([
-              { id: "evade.intro.body1", accent: "rgba(34,211,238,0.95)", label: "01 · DEEP DIVE", body: "Dive into a comprehensive overview of each store's anti-fraud system and their ability to detect suspicious user behaviour. Stores invest hundreds of thousands each year to fight against refunders and are equipped with advanced machine learning algorithms to identify potential fraud — even if you are not banned." },
-              { id: "evade.intro.body2", accent: "rgba(167,139,250,0.95)", label: "02 · FRAUD SCORE", body: "During the checkout process, you are assigned a fraud score, and if it reaches a certain threshold, your current and future orders may be cancelled." },
-            ] as const).map((blk) => (
-              <SafeReveal key={blk.id} className="relative pl-7" y={20}>
+            {BODIES.map((blk, i) => (
+              <SafeReveal key={blk.id} className="relative pl-7" kind={blk.kind} delay={0.1 + i * 0.12}>
                 <span aria-hidden className="absolute left-0 top-2 bottom-2 w-[2px] rounded-full"
                   style={{ background: `linear-gradient(180deg, ${blk.accent}, transparent)`, boxShadow: `0 0 18px ${blk.accent}` }} />
                 <div className="mb-3 text-xs font-bold uppercase tracking-[0.32em]" style={{ color: blk.accent, lineHeight: 1.4 }}>{blk.label}</div>
@@ -37,8 +39,7 @@ export default function EvadeIntroEditorial() {
           </div>
         </div>
 
-        {/* Vault image — metallic frame, NO text overlays */}
-        <SafeReveal className="relative mt-14 sm:mt-16" delay={0.1}>
+        <SafeReveal className="relative mt-14 sm:mt-16" kind="scale" delay={0.15} duration={1.1}>
           <div aria-hidden className="pointer-events-none absolute -inset-10 rounded-[3rem] opacity-60"
             style={{ background: "radial-gradient(ellipse 70% 50% at 50% 50%, rgba(34,211,238,0.16), transparent 70%), radial-gradient(ellipse 60% 40% at 50% 100%, rgba(245,185,69,0.10), transparent 70%)", filter: "blur(40px)" }} />
           <div className="relative rounded-[2.25rem] p-[1.5px]"
