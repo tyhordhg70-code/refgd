@@ -98,11 +98,11 @@
 
           {/* Solution cards — varied per-card entrance, repeat on scroll */}
           <div className="relative mt-10 grid gap-6 lg:grid-cols-3 lg:gap-7" style={{ perspective: 1200 }}>
+            {/* v3.1 — Was a motion.div with opacity:0 + 3D rotate
+                whileInView. Lenis broke the viewport observer on some
+                scroll paths and the cards stayed invisible, presenting as
+                a huge gap before pricing. Static render is reliable. */}
             {SOLUTIONS.map((s, i) => (
-              {/* v3.1 — Was a motion.div with opacity:0 + 3D rotate
-                  whileInView. Lenis broke the viewport observer on some
-                  scroll paths and the cards stayed invisible, presenting as
-                  a huge gap before pricing. Static render is reliable. */}
               <div key={s.id} className="group relative">
                 <div
                   aria-hidden
