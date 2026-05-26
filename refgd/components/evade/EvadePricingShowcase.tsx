@@ -130,7 +130,7 @@
                         so it reads as resting on a surface instead of
                         floating in void. */}
                     <div
-                      className="relative mx-auto mb-6 flex h-48 w-full items-end justify-center"
+                      className="relative mx-auto mb-6 flex h-48 w-full items-end justify-center overflow-hidden"
                     >
                       {/* Plinth */}
                       <div
