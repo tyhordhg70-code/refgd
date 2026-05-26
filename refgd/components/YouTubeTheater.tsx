@@ -66,7 +66,23 @@ export default function YouTubeTheater({
   // for the rippled "unfold" reveal; once true we strip the filter so
   // the iframe plays back perfectly flat (no permanent distortion).
   const [entranceDone, setEntranceDone] = useState(false);
+    // v6.14.1 — drives the animate prop; becomes true via the component's
+    // own IO (activated) or a 2.5 s safety timer so the video block is
+    // NEVER permanently invisible when framer's internal IO is blocked by
+    // Lenis smooth-scroll.
+    const [entrancePlayed, setEntrancePlayed] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+
+    // Safety timer — entrance fires even if IO is blocked (Lenis, hidden tab, etc.)
+    useEffect(() => {
+      const t = window.setTimeout(() => setEntrancePlayed(true), 2500);
+      return () => window.clearTimeout(t);
+    }, []);
+
+    // IO-driven path — fires as soon as the player reaches 45% visibility.
+    useEffect(() => {
+      if (activated) setEntrancePlayed(true);
+    }, [activated]);
 
   // ── Visibility gate ───────────────────────────────────────────
   useEffect(() => {
@@ -346,23 +362,17 @@ export default function YouTubeTheater({
           clipPath:
             "polygon(18% 22%, 82% 8%, 96% 78%, 12% 92%, 2% 50%)",
         }}
-        whileInView={{
-          opacity: 1,
-          scale: 1,
-          rotateX: 0,
-          rotateZ: 0,
-          // v6.7 — DROPPED the trailing `url(#refgd-yt-mesh)` from the
-          // animate filter. Chromium was treating the SVG filter ref
-          // as the final filter state mid-animation and leaving the
-          // iframe permanently rippled at the end of the entrance.
-          // The `onAnimationComplete` callback already wipes filter
-          // to "none"; here we ramp directly to "blur(0px)" with no
-          // SVG ref so the displacement is GUARANTEED to release.
-          filter: "blur(0px)",
-          clipPath:
-            "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%)",
-        }}
-        viewport={{ once: true, amount: 0.2 }}
+          // v6.14.1 — replaced framer whileInView (Lenis breaks its internal
+          // IO) with a state-controlled animate. entrancePlayed becomes true
+          // via the component's own IO (activated) or the 2.5 s safety timer.
+          animate={entrancePlayed ? {
+            opacity: 1,
+            scale: 1,
+            rotateX: 0,
+            rotateZ: 0,
+            filter: "blur(0px)",
+            clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%)",
+          } : undefined}
         transition={{
           duration: 1.4,
           ease: [0.16, 1, 0.3, 1],
