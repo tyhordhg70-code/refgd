@@ -18,7 +18,7 @@ import { useEditContext } from "@/lib/edit-context";
  *   • SSR + initial: words at rest (transform:none, no blur) inside
  *     kt-mask (overflow:hidden). Title fully visible immediately.
  *   • Above-fold titles: stay at rest, no prime, no flash.
- *   • Below-fold: words primed to translateY(60%) + blur(6px), IO
+ *   • Below-fold: words primed to translateY(120%) + blur(6px), IO
  *     observes root. On entry: forced reflow → transition → words
  *     slide up + sharpen in sequence. After animation: all inline
  *     styles cleared — words permanently at natural rest.
@@ -73,7 +73,7 @@ export default function KineticText({
     if (!words.length) return;
 
     words.forEach((w) => {
-      w.style.transform = "translateY(60%)";
+      w.style.transform = "translateY(120%)";
       w.style.filter = "blur(6px)";
       w.style.willChange = "transform, filter";
     });
