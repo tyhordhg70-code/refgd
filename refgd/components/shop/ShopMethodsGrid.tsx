@@ -63,7 +63,7 @@
                   key={c.slug}
                   initial={reduced ? {} : { opacity: 0, y: 70, rotateY: initialRotateY, rotateX: initialRotateX, scale: 0.85 }}
                   whileInView={reduced ? undefined : { opacity: 1, y: 0, rotateY: 0, rotateX: 0, scale: 1 }}
-                  viewport={{ once: true, amount: 0.12, margin: "0px 0px -10% 0px" }}
+                  viewport={{ once: false, amount: 0.12, margin: "0px 0px -10% 0px" }}
                   transition={{ duration: 1.0, delay: 0.1 + i * 0.12, ease: [0.22, 1, 0.36, 1] }}
                   className="group relative"
                   style={{ transformStyle: "preserve-3d" }}
@@ -80,7 +80,7 @@
                     >
                       <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
 
-                      <div className="relative h-48 w-full overflow-hidden sm:h-56">
+                      <div className="relative h-56 w-full overflow-hidden">
                         <EditableImage
                           id={`shop.cat.${c.slug}.image`}
                           defaultSrc={c.image}

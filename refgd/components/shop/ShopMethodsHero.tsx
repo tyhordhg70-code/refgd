@@ -24,7 +24,7 @@
           <motion.div
             initial={reduced ? {} : { clipPath: "inset(100% 0 0 0 round 2rem)", opacity: 0 }}
             whileInView={reduced ? undefined : { clipPath: "inset(0% 0 0 0 round 2rem)", opacity: 1 }}
-            viewport={{ once: true, amount: 0.2 }}
+            viewport={{ once: false, amount: 0.2 }}
             transition={{ duration: 0.95, ease: [0.76, 0, 0.24, 1] }}
             className="relative overflow-hidden rounded-[2rem] border border-violet-400/25"
             style={{
@@ -54,7 +54,7 @@
           <motion.div
             initial={reduced ? {} : { opacity: 0, y: 40, scale: 0.96 }}
             whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
-            viewport={{ once: true, amount: 0.3 }}
+            viewport={{ once: false, amount: 0.3 }}
             transition={{ type: "spring", stiffness: 80, damping: 16, delay: 0.45 }}
             className="relative z-10 mx-auto -mt-16 max-w-4xl rounded-[1.75rem] border border-white/10 bg-[rgba(10,8,22,0.78)] p-6 text-center backdrop-blur-md sm:-mt-28 sm:p-12"
             style={{
