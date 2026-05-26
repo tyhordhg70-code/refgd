@@ -67,7 +67,7 @@
 
     return (
       <section className="relative z-10 pb-16 overflow-x-clip">
-        <div className="container-wide relative" style={{ perspective: 1200 }}>
+        <div className="container-wide relative" >
           <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
             {c.products.map((p, i) => {
               const isOpen = openId === p.id;
@@ -82,7 +82,7 @@
                   key={p.id}
                   initial={reduced ? {} : { opacity: 0, y: 50, rotateX: 14, scale: 0.94 }}
                   whileInView={reduced ? undefined : { opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-                  viewport={{ once: true, amount: 0.15 }}
+                  viewport={{ once: false, amount: 0.15 }}
                   transition={{ duration: 0.85, delay: 0.08 + i * 0.06, ease: [0.22, 1, 0.36, 1] }}
                   className="relative overflow-hidden rounded-[1.5rem] border border-white/15"
                   style={{
@@ -98,14 +98,14 @@
                   <div className="relative p-4 sm:p-7">
                     <div className="flex flex-wrap items-start gap-5">
                       {p.image && (
-                        <div className="relative h-20 w-20 sm:h-24 sm:w-24 shrink-0 overflow-hidden rounded-2xl border border-white/15"
+                        <div className="relative h-20 w-20 sm:h-28 sm:w-24 shrink-0 overflow-hidden rounded-2xl border border-white/15 bg-black/20"
                           style={{ boxShadow: `0 0 30px -10px rgba(${c.rgb},0.55)` }}>
                           <EditableImage
                             id={`shop.prod.${p.id}.image`}
                             defaultSrc={p.image}
                             alt={p.title}
                             wrapperClassName="block h-full w-full"
-                            className="block h-full w-full object-cover"
+                            className="block h-full w-full object-contain"
                           />
                         </div>
                       )}
