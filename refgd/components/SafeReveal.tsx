@@ -1,6 +1,6 @@
 "use client";
-import { motion, useReducedMotion } from "framer-motion";
-import { type ReactNode, type CSSProperties } from "react";
+import { type ReactNode, type CSSProperties, useEffect, useState } from "react";
+import { useEntranceReady } from "@/lib/loading-screen-gate";
 
 export type RevealKind =
   | "lift"
@@ -13,31 +13,26 @@ export type RevealKind =
   | "wipe";
 
 /**
- * SafeReveal v3 — bulletproof scroll-in. Hardened rules:
+ * SafeReveal v5 — CSS-only entrance, no framer-motion, no IntersectionObserver.
  *
- *   1. Opacity ALWAYS 1, in both initial and rest state, in SSR HTML.
- *      Content can never be invisible if framer-motion fails to hydrate
- *      or IntersectionObserver fails to fire (e.g., Lenis smooth-scroll
- *      interfering with viewport detection).
- *
- *   2. NO horizontal translate, NO rotate, NO scale. Initial state is
- *      a pure vertical translate (y:38 to y:60 depending on emphasis).
- *      This eliminates "cards cut off before animation begins" — a
- *      card translated horizontally past its grid column overflows the
- *      viewport edge until animation fires.
- *
- *   3. once:true so the animation never re-triggers on scroll-back.
- *      Even if Lenis breaks the IntersectionObserver mid-scroll, an
- *      already-shown element stays at rest (y:0).
- *
- *   4. amount:0.01 + margin:"0px 0px 5% 0px" — fires the moment ANY
- *      pixel of the element enters viewport. Lenis-resistant.
- *
- * The `kind` prop is preserved for backward compat with existing
- * callsites, but all kinds collapse to a vertical lift with subtle
- * variation in y-offset and duration. This is intentional: rich
- * variety is achieved through delay staggering across siblings, not
- * through transforms that risk visual clipping.
+ * Why this is the bulletproof rewrite (path C):
+ *   • v3 used framer-motion `whileInView` (IntersectionObserver). Under
+ *     Lenis smooth-scroll the observer mis-fires because Lenis virtualizes
+ *     scroll via a parent transform; cards could trigger while invisible
+ *     and `once:true` then prevented replay, or never trigger on rescroll.
+ *   • v5 ELIMINATES the dependency chain. The entrance is a single CSS
+ *     `@keyframes` animation that runs once on mount, gated by the
+ *     existing `useEntranceReady()` hook so it doesn't play behind the
+ *     LoadingScreen splash. No scroll trigger = no missed fire.
+ *   • SSR renders the element at its REST state (opacity:1, transform:none).
+ *     If JS fails entirely, content is fully visible — no "vanish".
+ *   • On client, after `useEntranceReady()` flips true, we attach
+ *     a class with `animation-fill-mode: backwards` so the animation
+ *     starts from its `from` keyframe for the duration of the animation
+ *     only, then settles back to rest.
+ *   • Three keyframes cover all 8 kinds — fans/scale/wipe collapse to
+ *     the vertical lift (matching v3's "no horizontal/rotate/scale"
+ *     rule that prevents card edge-clipping).
  */
 export default function SafeReveal({
   children,
@@ -45,7 +40,6 @@ export default function SafeReveal({
   style,
   delay = 0,
   kind = "lift",
-  amount = 0.01,
   duration = 0.95,
   as: Tag = "div",
 }: {
@@ -54,43 +48,43 @@ export default function SafeReveal({
   style?: CSSProperties;
   delay?: number;
   kind?: RevealKind;
-  amount?: number;
+  amount?: number; // accepted for backward compat, ignored
   duration?: number;
   as?: "div" | "section" | "article" | "li";
 }) {
-  const reduced = useReducedMotion();
-  if (reduced) {
-    const Static = Tag as any;
-    return (
-      <Static className={className} style={style}>
-        {children}
-      </Static>
-    );
-  }
+  const ready = useEntranceReady();
+  const [armed, setArmed] = useState(false);
 
-  const yByKind: Record<RevealKind, number> = {
-    lift: 38,
-    slideLeft: 32,
-    slideRight: 32,
-    fan: 52,
-    fanLeft: 52,
-    fanRight: 52,
-    scale: 28,
-    wipe: 44,
-  };
+  useEffect(() => {
+    if (!ready) return;
+    // Defer one frame so the class flip triggers a fresh animation cycle.
+    const id = requestAnimationFrame(() => setArmed(true));
+    return () => cancelAnimationFrame(id);
+  }, [ready]);
 
-  const M = (motion as any)[Tag];
+  const kindClass =
+    kind === "slideLeft"
+      ? "sr5-slide-left"
+      : kind === "slideRight"
+      ? "sr5-slide-right"
+      : "sr5-lift";
+
+  const animClass = armed ? `sr5-anim ${kindClass}` : "";
+  const animStyle: CSSProperties = armed
+    ? {
+        animationDelay: `${delay}s`,
+        animationDuration: `${duration}s`,
+      }
+    : {};
+
+  const Comp = Tag as any;
   return (
-    <M
-      className={className}
-      style={style}
-      initial={{ opacity: 1, y: yByKind[kind] }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount, margin: "0px 0px 5% 0px" }}
-      transition={{ duration, delay, ease: [0.22, 1, 0.36, 1] }}
+    <Comp
+      className={`${className} ${animClass}`.trim()}
+      style={{ ...style, ...animStyle }}
       suppressHydrationWarning
     >
       {children}
-    </M>
+    </Comp>
   );
 }

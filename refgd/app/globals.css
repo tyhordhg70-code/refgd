@@ -2282,4 +2282,36 @@ select option:hover {
     @media (prefers-reduced-motion: reduce) {
       .safe-reveal-up, .safe-reveal-scale-x { animation: none !important; }
     }
-  
+
+  /* === SafeReveal v5 — CSS-only entrance (path C bulletproof rewrite) ===
+     Single source of truth for entrance animations. Replaces framer-motion +
+     IntersectionObserver dependency chain that was failing under Lenis
+     smooth-scroll on the evade-cancelations page. Three keyframes cover the
+     8 RevealKind values; all "fan*/scale/wipe" collapse to the vertical lift
+     because horizontal/rotate transforms caused card edge-clipping. The
+     SafeReveal component arms `.sr5-anim` only after `useEntranceReady()`
+     returns true, so animations never run behind the LoadingScreen splash. */
+  @keyframes sr5-lift {
+    from { opacity: 0; transform: translateY(38px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes sr5-slide-left {
+    from { opacity: 0; transform: translateX(-32px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes sr5-slide-right {
+    from { opacity: 0; transform: translateX(32px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .sr5-anim {
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    animation-fill-mode: backwards;
+    will-change: transform, opacity;
+  }
+  .sr5-lift        { animation-name: sr5-lift; }
+  .sr5-slide-left  { animation-name: sr5-slide-left; }
+  .sr5-slide-right { animation-name: sr5-slide-right; }
+  @media (prefers-reduced-motion: reduce) {
+    .sr5-anim { animation: none !important; }
+  }
+
