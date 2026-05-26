@@ -17,30 +17,28 @@ export type RevealKind =
   | "wipe";
 
 /**
- * SafeReveal v7 — bulletproof CSS-transition entrance.
+ * SafeReveal v8 — CSS-transition entrance with forced-reflow fix.
  *
- * Why v7:
- *   v6 used WAAPI with `fill: backwards`, which makes elements
- *   INVISIBLE during the animation delay. Cards with delay 0.6s
- *   were invisible for 600 ms on scroll-into-view — the "vanish
- *   on rescroll" symptom the user reported.
+ * Root cause of "all animations gone" in v7:
+ *   The CSS transition was being set and the inline styles cleared
+ *   inside the same microtask/rAF queue flush, so the browser
+ *   batched them together and showed the final state instantly —
+ *   no transition ever fired.
  *
- * v7 design (every failure mode keeps content visible):
- *   1. SSR + initial client paint: element at REST (opacity:1,
- *      transform:none). If JS never loads, content is fully visible.
- *   2. At mount, JS measures the element's bounding rect:
- *        • Already in viewport (above-fold): leave at REST. No
- *          animation, no flash, no delay-window invisibility.
- *          Page-load content is rock-solid from frame 1.
- *        • Below the fold: prime to invisible state via inline
- *          styles, then attach native IntersectionObserver.
- *          On entry: apply CSS transition + clear inline styles,
- *          element animates from invisible to rest. After the
- *          animation, all inline styles are cleared so element
- *          stays at natural rest (no chance of getting stuck).
- *   3. A 6 s safety timer force-reveals the element even if IO
- *      never fires (Lenis edge case, observer mis-attachment, etc).
- *   4. Reduced-motion: skip everything; element stays at rest.
+ * v8 fix: `void el.getBoundingClientRect()` between setting the
+ *   transition and clearing the primed styles forces the browser to
+ *   commit the current layout (opacity:0 / transform:offset) BEFORE
+ *   the style change. The browser then sees a genuine style delta and
+ *   runs the CSS transition. One extra line — no rAF, no WAAPI.
+ *
+ * Other guarantees preserved from v7:
+ *   • SSR + initial paint: element at REST (visible). JS-free fallback.
+ *   • Above-fold elements skipped: rect check at mount, no prime,
+ *     no flash for page-load content.
+ *   • 6 s safety timer force-reveals in case IO never fires.
+ *   • Reduced-motion: no-op — element stays at rest.
+ *   • After animation: all inline styles cleared so element stays at
+ *     its natural CSS rest state forever.
  */
 export default function SafeReveal({
   children,
@@ -65,16 +63,15 @@ export default function SafeReveal({
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof window === "undefined") return;
+
     const reduced =
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) return;
 
-    // Above-fold check: leave at rest forever — no animation, no flash.
+    // Above-fold: already visible at mount — leave at rest, no animation.
     const rect = el.getBoundingClientRect();
-    const inViewport =
-      rect.top < window.innerHeight && rect.bottom > 0;
-    if (inViewport) return;
+    if (rect.top < window.innerHeight && rect.bottom > 0) return;
 
     const fromTransform =
       kind === "slideLeft" || kind === "fanLeft"
@@ -83,6 +80,7 @@ export default function SafeReveal({
         ? "translateX(32px)"
         : "translateY(38px)";
 
+    // Prime: set initial invisible/offset state
     el.style.opacity = "0";
     el.style.transform = fromTransform;
     el.style.willChange = "opacity, transform";
@@ -95,16 +93,26 @@ export default function SafeReveal({
       el.style.willChange = "";
     };
 
-    let cleared = false;
+    let triggered = false;
     const trigger = () => {
-      if (cleared) return;
-      cleared = true;
+      if (triggered) return;
+      triggered = true;
+
       el.style.transition = `opacity ${duration}s cubic-bezier(0.22,1,0.36,1), transform ${duration}s cubic-bezier(0.22,1,0.36,1)`;
       if (delay > 0) el.style.transitionDelay = `${delay}s`;
-      requestAnimationFrame(() => {
-        el.style.opacity = "";
-        el.style.transform = "";
-      });
+
+      // *** THE FIX ***
+      // Force the browser to commit the current primed layout
+      // (opacity:0 + transform:offset) BEFORE we clear the styles.
+      // Without this, the browser batches the transition + clear into
+      // one paint and the transition never fires ("animations gone").
+      void el.getBoundingClientRect();
+
+      // Clear inline overrides — browser now sees a genuine style delta
+      // and runs the CSS transition from the committed primed state.
+      el.style.opacity = "";
+      el.style.transform = "";
+
       window.setTimeout(clearAll, (delay + duration) * 1000 + 200);
     };
 
@@ -140,7 +148,7 @@ export default function SafeReveal({
 
   const Comp = Tag as any;
   return (
-    <Comp ref={ref as React.RefObject<HTMLElement>} className={className} style={style}>
+    <Comp ref={ref} className={className} style={style}>
       {children}
     </Comp>
   );
