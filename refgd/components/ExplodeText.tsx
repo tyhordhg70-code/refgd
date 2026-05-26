@@ -120,7 +120,7 @@ export default function ExplodeText({
       }}
       initial="hidden"
       whileInView="show"
-      viewport={{ once: true, amount: 0.05, margin: "0px 0px -8% 0px" }}
+      viewport={{ once: false, amount: 0.05, margin: "0px 0px -8% 0px" }}
       suppressHydrationWarning
       data-testid="explode-text"
     >
