@@ -6,6 +6,7 @@
   import EditableImage from "@/components/EditableImage";
   import ChapterPill from "@/components/ChapterPill";
   import KineticText from "@/components/KineticText";
+  import SafeReveal from "@/components/SafeReveal";
 
   const PRICING = [
     {
@@ -90,9 +91,10 @@
 
           <div className="mt-12 grid gap-7 md:grid-cols-3">
             {PRICING.map((p, i) => (
-              <div
+              <SafeReveal
                 key={i}
                 className="group relative flex flex-col"
+                delay={0.1 + i * 0.12}
               >
                 {/* Outer editorial frame — layered panel + ring */}
                 <div
@@ -130,7 +132,7 @@
                         so it reads as resting on a surface instead of
                         floating in void. */}
                     <div
-                      className="relative mx-auto mb-6 flex h-48 w-full items-end justify-center overflow-hidden"
+                      className="relative mx-auto mb-6 flex h-56 w-full items-center justify-center overflow-hidden"
                     >
                       {/* Plinth */}
                       <div
@@ -153,8 +155,8 @@
                         id={`evade.pricing.${i}.img`}
                         defaultSrc={p.img}
                         alt={p.title}
-                        wrapperClassName="relative z-10 block h-full"
-                        className="relative h-full w-auto max-w-full object-contain drop-shadow-[0_22px_44px_rgba(0,0,0,0.65)]"
+                        wrapperClassName="relative z-10 block max-h-full"
+                        className="relative block h-auto max-h-56 w-auto max-w-full object-contain drop-shadow-[0_22px_44px_rgba(0,0,0,0.65)]"
                       />
                     </div>
 
@@ -216,7 +218,7 @@
                     </div>
                   </div>
                 </div>
-              </div>
+              </SafeReveal>
             ))}
           </div>
         </div>

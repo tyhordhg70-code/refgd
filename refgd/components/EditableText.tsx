@@ -58,7 +58,13 @@ function EditableTextInner({
   const raw = getValue(id, defaultValue);
     // If the DB stored an empty string (admin cleared the field), fall back
     // to the component's own defaultValue so content is never blank on screen.
-    const value = raw !== "" ? raw : defaultValue;
+    // Robust blank check: treat null, undefined, and whitespace-only
+      // values as "no value" and fall back to defaultValue. Without this
+      // any DB value of null or "   " renders as a blank card on screen.
+      const isBlank = (v: unknown): boolean =>
+        v == null || (typeof v === "string" && v.trim() === "");
+      const value: string =
+        !isBlank(raw) && typeof raw === "string" ? raw : defaultValue;
   const editing = isAdmin && editMode;
   const ref = useRef<HTMLElement | null>(null);
 
@@ -74,15 +80,19 @@ function EditableTextInner({
     if (document.activeElement === el) return;
     if (multiline) {
       // Convert "\n" → <br>. Escape HTML to keep it safe.
-      const escaped = value
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/\n/g, "<br>");
-      if (el.innerHTML !== escaped) el.innerHTML = escaped;
-    } else {
-      if (el.textContent !== value) el.textContent = value;
-    }
+      // Defensive: never let a non-string value reach the DOM
+        // or we'd wipe whatever React rendered.
+        const safeValue: string = typeof value === "string" ? value : "";
+        const escaped = safeValue
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\n/g, "<br>");
+        if (el.innerHTML !== escaped) el.innerHTML = escaped;
+      } else {
+        const safeValue: string = typeof value === "string" ? value : "";
+        if (el.textContent !== safeValue) el.textContent = safeValue;
+      }
   }, [value, multiline]);
 
   // Suppress hydration warning on first paint: server renders the saved

@@ -60,7 +60,11 @@
     }
 
     const rawValue = editId ? ctx.getValue(editId, text) : text;
-    const value = rawValue !== "" ? rawValue : text;
+    // Robust blank check: null/undefined/whitespace-only → fall back.
+      const isBlank = (v: unknown): boolean =>
+        v == null || (typeof v === "string" && v.trim() === "");
+      const value: string =
+        !isBlank(rawValue) && typeof rawValue === "string" ? rawValue : text;
     const words = value.split(" ");
 
     // Phase 1 (SSR + first paint) and reduced-motion: plain visible text.

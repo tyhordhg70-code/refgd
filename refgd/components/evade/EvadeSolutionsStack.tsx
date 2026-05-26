@@ -5,6 +5,7 @@
   import ChapterPill from "@/components/ChapterPill";
   import KineticText from "@/components/KineticText";
   import ParallaxIllustration from "@/components/ParallaxIllustration";
+  import SafeReveal from "@/components/SafeReveal";
 
   const SOLUTIONS = [
     { id: "evade.solution.0", body: "Avoid account bans and cancellations by learning how to properly and efficiently place large orders without account aging.", tint: "amber",  rgb: "245,185,69",  illo: "spark"      as const, fromX: -60, fromY: 30, rotate: -3 },
@@ -43,8 +44,7 @@
               made viewport detection unreliable; on first paint the panel
               sometimes stayed clipped to 0%, leaving a tall empty gap between
               the vault chapter and the cards. Static panel removes the bug. */}
-          <div
-            className="safe-reveal-up relative rounded-[2rem] border border-violet-400/25 px-6 py-10 sm:p-12 lg:p-14"
+          <SafeReveal className="relative rounded-[2rem] border border-violet-400/25 px-6 py-10 sm:p-12 lg:p-14"
             style={{
               background:
                 "linear-gradient(160deg, rgba(167,139,250,0.13), rgba(34,211,238,0.08) 50%, rgba(10,8,22,0.92))",
@@ -94,7 +94,7 @@
                     </div>
                   </div>
             </div>
-          </div>
+          </SafeReveal>
 
           {/* Solution cards — varied per-card entrance, repeat on scroll */}
           <div className="relative mt-10 grid gap-6 lg:grid-cols-3 lg:gap-7" style={{ perspective: 1200 }}>
@@ -103,7 +103,7 @@
                 scroll paths and the cards stayed invisible, presenting as
                 a huge gap before pricing. Static render is reliable. */}
             {SOLUTIONS.map((s, i) => (
-              <div key={s.id} className={`safe-reveal-up sr-d${i+1} group relative`}>
+              <SafeReveal key={s.id} className="group relative" delay={0.1 + i * 0.12}>
                 <div
                   aria-hidden
                   className="absolute inset-0 rounded-[1.75rem]"
@@ -144,7 +144,7 @@
                     style={{ textShadow: "0 2px 12px rgba(0,0,0,0.5)" }}
                   />
                 </div>
-              </div>
+              </SafeReveal>
             ))}
           </div>
         </div>

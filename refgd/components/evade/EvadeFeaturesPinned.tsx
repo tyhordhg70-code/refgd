@@ -6,6 +6,7 @@
   import KineticText from "@/components/KineticText";
   import ParallaxIllustration from "@/components/ParallaxIllustration";
   import { useEditContext } from "@/lib/edit-context";
+  import SafeReveal from "@/components/SafeReveal";
 
   const FEATURES = [
     { title: "Seamless transition",            body: "It doesn't matter what happened to your previous account; be it suspended, blocked, banned, blacklisted, or anything else, you WILL learn how to crank out new accounts without ever getting detected or linked again.", tint: "cyan" as const,    rgb: "34,211,238",  illo: "encryption" as const },
@@ -230,8 +231,7 @@
   function FeatureCard({ f, i }: { f: typeof FEATURES[number]; i: number }) {
     const intro = CARD_INTROS[i % CARD_INTROS.length];
     return (
-        <div
-          className={`safe-reveal-up sr-d${(i % 4) + 1} relative overflow-hidden rounded-[1.75rem] p-8`}
+        <SafeReveal className="relative overflow-hidden rounded-[1.75rem] p-8" delay={0.1 + (i % 4) * 0.12}
         style={{
           background: `linear-gradient(160deg, rgba(${f.rgb},0.18), rgba(10,8,22,0.85))`,
           border: `1px solid rgba(${f.rgb},0.35)`,
@@ -262,7 +262,7 @@
           multiline
           className="mt-4 text-base leading-relaxed text-white/95"
         />
-    </div>
+    </SafeReveal>
     );
   }
   
