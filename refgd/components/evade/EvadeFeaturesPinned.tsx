@@ -65,8 +65,8 @@ export default function EvadeFeaturesPinned() {
                 boxShadow: `0 40px 90px -20px rgba(0,0,0,0.85), 0 0 50px -20px rgba(${f.rgb},0.4)`,
               }}
             >
-              <div className="pointer-events-none absolute right-2 top-2 h-24 w-24 opacity-25 mix-blend-screen" aria-hidden="true">
-                <ParallaxIllustration kind={f.illo} accent={f.tint} size={130} />
+              <div className="pointer-events-none absolute right-3 top-3 h-32 w-32 opacity-25" aria-hidden="true">
+                <ParallaxIllustration kind={f.illo} accent={f.tint} size={120} />
               </div>
               <div
                 aria-hidden

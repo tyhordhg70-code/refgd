@@ -1,37 +1,39 @@
 "use client";
-import {
-  useEffect,
-  useRef,
-  type CSSProperties,
-} from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
- * KineticText v3 — Web Animations API + native IntersectionObserver.
+ * KineticText v4 — bulletproof CSS-transition word reveal.
  *
- * Why v3 exists:
- *   v2 used framer-motion variants with `hidden: { y: "60%" }` inside
- *   `<span overflow:hidden>` masks. When framer's variant system
- *   failed to transition `hidden → show` (race on hydration, Lenis
- *   smooth-scroll interfering with whileInView, force-dynamic SSR
- *   hydration mismatch), words stayed at y:60% — completely masked
- *   by the parent overflow:hidden = INVISIBLE TITLE. The "Evade like
- *   a PRO" / "Our comprehensive solutions" / "What you'll master"
- *   vanishing-header bug.
+ * Why v4:
+ *   v3 used WAAPI with `fill: backwards`. With `fill:backwards`,
+ *   words with a non-zero delay are INVISIBLE during the delay
+ *   window — even after the animation should have started. For
+ *   "Our comprehensive solutions." last word delay ~0.18s; for
+ *   longer titles, words were briefly invisible.
+ *   Also: animations fired on first observe — for above-fold
+ *   titles that immediately become IO-intersecting at mount,
+ *   the word would briefly jump to its `from` state (y:60%
+ *   masked by parent overflow:hidden = MASKED INVISIBLE) before
+ *   animating back. That's the "title vanishes on page load".
  *
- * v3 design:
- *   • SSR + initial client render: words are at REST (y:0, no blur,
- *     opacity:1). Title is ALWAYS fully visible from first paint.
- *     If JS fails to hydrate, title is still 100% readable.
- *   • Entrance animation is played via WAAPI (`element.animate(...)`),
- *     which is transient. When the animation completes, words return
- *     to their natural rest state. Words can NEVER end up stuck
- *     masked-invisible.
- *   • Scroll trigger uses native IntersectionObserver (not framer's
- *     whileInView wrapper). Native IO is Lenis-safe.
- *   • No two-phase render — single render tree means no DOM swap on
- *     hydration and no class-flip race.
+ * v4 design:
+ *   1. SSR + initial client paint: every word is at REST
+ *      (transform:none, no blur). Inside the kt-mask parent
+ *      (overflow:hidden) they're at y:0 = fully visible.
+ *      If JS never loads, the title is fully readable.
+ *   2. At mount: measure root bounding rect.
+ *        • Above-fold: leave words at rest. No mask reveal, no
+ *          per-word stagger. Title is solid from frame 1.
+ *        • Below-fold: prime each word inline to y:60%/blur(6px),
+ *          attach native IO. On entry: apply transition + clear
+ *          inline styles, words slide up + sharpen in sequence.
+ *          After full animation, all inline styles cleared so the
+ *          words sit at natural rest (can never stay stuck masked).
+ *   3. 6 s safety timer force-clears all primed inline styles if
+ *      IO never fires — title never stays masked forever.
+ *   4. Reduced-motion: skip entirely.
  */
 export default function KineticText({
   text,
@@ -55,7 +57,6 @@ export default function KineticText({
   const editing = !!editId && ctx.isAdmin && ctx.editMode;
 
   const rootRef = useRef<HTMLElement | null>(null);
-  const playedRef = useRef(false);
 
   const rawValue = editId ? ctx.getValue(editId, text) : text;
   const value: string =
@@ -65,47 +66,73 @@ export default function KineticText({
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || playedRef.current) return;
-    if (typeof window === "undefined") return;
+    if (!root || typeof window === "undefined") return;
     const reduced =
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) return;
 
-    const play = () => {
-      if (playedRef.current) return;
-      playedRef.current = true;
-      const words = root.querySelectorAll<HTMLSpanElement>(".kt-word");
-      words.forEach((wordEl, i) => {
-        if (typeof wordEl.animate !== "function") return;
-        try {
-          wordEl.animate(
-            [
-              { transform: "translateY(60%)", filter: "blur(6px)" },
-              { transform: "translateY(0)", filter: "blur(0)" },
-            ],
-            {
-              duration: 850,
-              delay: delay * 1000 + i * stagger * 1000,
-              easing: "cubic-bezier(0.25, 0.4, 0.25, 1)",
-              fill: "backwards",
-            },
-          );
-        } catch {
-          /* word stays at rest — still visible */
-        }
+    // Above-fold: leave at rest forever — no per-word animation.
+    const rect = root.getBoundingClientRect();
+    const inViewport =
+      rect.top < window.innerHeight && rect.bottom > 0;
+    if (inViewport) return;
+
+    const words = Array.from(
+      root.querySelectorAll<HTMLSpanElement>(".kt-word"),
+    );
+    if (!words.length) return;
+
+    // Prime: hide masked + blurred
+    words.forEach((w) => {
+      w.style.transform = "translateY(60%)";
+      w.style.filter = "blur(6px)";
+      w.style.willChange = "transform, filter";
+    });
+
+    const clearAll = () => {
+      words.forEach((w) => {
+        w.style.transition = "";
+        w.style.transitionDelay = "";
+        w.style.transform = "";
+        w.style.filter = "";
+        w.style.willChange = "";
       });
     };
 
+    let triggered = false;
+    const trigger = () => {
+      if (triggered) return;
+      triggered = true;
+      words.forEach((w, i) => {
+        w.style.transition = `transform 0.85s cubic-bezier(0.25,0.4,0.25,1), filter 0.85s cubic-bezier(0.25,0.4,0.25,1)`;
+        const d = delay + i * stagger;
+        if (d > 0) w.style.transitionDelay = `${d}s`;
+      });
+      requestAnimationFrame(() => {
+        words.forEach((w) => {
+          w.style.transform = "";
+          w.style.filter = "";
+        });
+      });
+      const totalMs =
+        (delay + (words.length - 1) * stagger + 0.85) * 1000 + 250;
+      window.setTimeout(clearAll, totalMs);
+    };
+
+    const safety = window.setTimeout(trigger, 6000);
+
     if (typeof IntersectionObserver === "undefined") {
-      play();
+      trigger();
+      window.clearTimeout(safety);
       return;
     }
     const io = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            play();
+            trigger();
+            window.clearTimeout(safety);
             io.disconnect();
             break;
           }
@@ -114,7 +141,12 @@ export default function KineticText({
       { threshold: 0.1 },
     );
     io.observe(root);
-    return () => io.disconnect();
+
+    return () => {
+      io.disconnect();
+      window.clearTimeout(safety);
+      clearAll();
+    };
   }, [value, delay, stagger]);
 
   if (editing) {

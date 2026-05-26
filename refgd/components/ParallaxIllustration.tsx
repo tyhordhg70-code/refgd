@@ -1,23 +1,19 @@
 "use client";
-import { useEffect, useRef } from "react";
 
 /**
- * ParallaxIllustration v2 — WAAPI + native IntersectionObserver.
+ * ParallaxIllustration v3 — STATIC always-visible illustration.
  *
- * Why v2:
- *   v1 used framer-motion `whileInView` with `viewport: { once: true }`.
- *   Under Lenis smooth-scroll the viewport observer mis-fires; with
- *   `initial: { opacity: 0 }` and once-only triggering, illustrations
- *   could stay at opacity:0 forever → "image vanish and cut off" symptom
- *   in EvadeSolutionsStack and EvadeFeaturesPinned cards.
+ * v2 used WAAPI + IO for a fade entrance. Combined with parent
+ * `mix-blend-mode: screen` and `overflow:hidden` on solution
+ * cards, the brief transition window made the SVG appear to
+ * vanish or render as a transparent gap in some WebKit builds.
  *
- * v2 rules:
- *   • SSR + initial client render: opacity:1 (illustration always
- *     visible from first paint). If JS fails, image is fully shown.
- *   • Entrance is WAAPI fade+lift, transient — element returns to
- *     natural opacity:1 state when animation ends. Cannot end stuck
- *     at opacity:0.
- *   • IntersectionObserver via native API (Lenis-safe).
+ * v3 removes all animation. The illustration renders at opacity:1
+ * always. SSR, hydration, scroll-in, scroll-out, rescroll — every
+ * state shows the SVG. Cannot vanish.
+ *
+ * Containing components are responsible for any entrance reveal
+ * (SafeReveal already wraps their card containers).
  */
 
 export type IllustrationKind =
@@ -49,63 +45,10 @@ export default function ParallaxIllustration({
   className?: string;
   size?: number;
 }) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const playedRef = useRef(false);
   const c = ACCENTS[accent] ?? ACCENTS.amber;
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || playedRef.current) return;
-    if (typeof window === "undefined") return;
-    const reduced =
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) return;
-    if (typeof el.animate !== "function") return;
-
-    const play = () => {
-      if (playedRef.current) return;
-      playedRef.current = true;
-      try {
-        el.animate(
-          [
-            { opacity: 0, transform: "translateY(18px)" },
-            { opacity: 1, transform: "translateY(0)" },
-          ],
-          {
-            duration: 850,
-            easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-            fill: "backwards",
-          },
-        );
-      } catch {
-        /* image stays visible at rest */
-      }
-    };
-
-    if (typeof IntersectionObserver === "undefined") {
-      play();
-      return;
-    }
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            play();
-            io.disconnect();
-            break;
-          }
-        }
-      },
-      { threshold: 0.05, rootMargin: "-10% 0px -10% 0px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
 
   return (
     <div
-      ref={ref}
       style={{ position: "relative" }}
       className={`pointer-events-none ${className}`}
     >
