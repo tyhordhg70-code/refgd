@@ -84,7 +84,7 @@ export default function EvadeSolutionsStack() {
           </div>
         </div>
 
-        <div className="relative mt-10 grid gap-6 lg:grid-cols-3 lg:gap-7" style={{ perspective: 1200 }}>
+        <div className="relative mt-10 grid gap-6 lg:grid-cols-3 lg:gap-7" >
           {SOLUTIONS.map((s, i) => (
             <SafeReveal
               key={s.id}
@@ -121,7 +121,7 @@ export default function EvadeSolutionsStack() {
                   <span aria-hidden className="h-px flex-1"
                     style={{ background: `linear-gradient(90deg, rgba(${s.rgb},0.7), transparent)` }} />
                 </div>
-                <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 opacity-25 mix-blend-screen" aria-hidden="true">
+                <div className="pointer-events-none absolute right-2 top-2 h-20 w-20 opacity-20" aria-hidden="true">
                   <ParallaxIllustration kind={s.illo} accent={s.tint as any} size={110} />
                 </div>
                 <EditableText

@@ -126,7 +126,7 @@
               radial-gradient(ellipse 70% 55% at 78% 82%, rgba(34,211,238,0.24), transparent 60%),
               radial-gradient(ellipse 55% 50% at 50% 50%, rgba(255,200,80,0.16), transparent 70%);
             animation: evImmNebDrift 30s ease-in-out infinite;
-            will-change: transform;
+            
           }
           @keyframes evImmNebDrift {
             0%, 100% { transform: scale(1.08) translate3d(0,0,0); }
@@ -140,7 +140,7 @@
 
           /* ── Layer 1: aurora ribbons ────────────────────────────────── */
           .ev-imm-aurora-1, .ev-imm-aurora-2 {
-            mix-blend-mode: screen;
+            /* mix-blend-mode removed: WebKit stacking ctx bug */
           }
           .ev-imm-aurora-1 {
             background: linear-gradient(115deg,
@@ -215,7 +215,7 @@
             animation-name: evImmShardFloat;
             animation-iteration-count: infinite;
             animation-timing-function: ease-in-out;
-            will-change: transform, opacity;
+            
           }
           .ev-imm-shard-cyan {
             background: linear-gradient(135deg, rgba(34,211,238,0.55), rgba(34,211,238,0.08));
@@ -265,7 +265,7 @@
             animation-name: evImmDust;
             animation-iteration-count: infinite;
             animation-timing-function: ease-in-out;
-            will-change: opacity, transform;
+            
           }
           @keyframes evImmDust {
             0%, 100% { opacity: 0.10; transform: scale(0.5); }

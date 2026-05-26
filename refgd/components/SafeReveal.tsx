@@ -75,10 +75,10 @@ export default function SafeReveal({
 
     const fromTransform =
       kind === "slideLeft" || kind === "fanLeft"
-        ? "translateX(-32px)"
+        ? "translateX(-20px)"
         : kind === "slideRight" || kind === "fanRight"
-        ? "translateX(32px)"
-        : "translateY(38px)";
+        ? "translateX(20px)"
+        : "translateY(20px)";
 
     // Prime: set initial invisible/offset state
     el.style.opacity = "0";

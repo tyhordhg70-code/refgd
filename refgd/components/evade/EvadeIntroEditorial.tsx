@@ -39,7 +39,7 @@ export default function EvadeIntroEditorial() {
           </div>
         </div>
 
-        <SafeReveal className="relative mt-14 sm:mt-16" kind="scale" delay={0.15} duration={1.1}>
+        <SafeReveal className="relative mt-14 sm:mt-16" kind="lift" delay={0.15} duration={1.1}>
           <div aria-hidden className="pointer-events-none absolute -inset-10 rounded-[3rem] opacity-60"
             style={{ background: "radial-gradient(ellipse 70% 50% at 50% 50%, rgba(34,211,238,0.16), transparent 70%), radial-gradient(ellipse 60% 40% at 50% 100%, rgba(245,185,69,0.10), transparent 70%)", filter: "blur(40px)" }} />
           <div className="relative rounded-[2.25rem] p-[1.5px]"

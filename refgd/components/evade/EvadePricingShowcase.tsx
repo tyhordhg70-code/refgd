@@ -56,7 +56,7 @@ export default function EvadePricingShowcase() {
           />
         </div>
 
-        <div className="mt-12 grid gap-7 md:grid-cols-3" style={{ perspective: 1400 }}>
+        <div className="mt-12 grid gap-7 md:grid-cols-3" >
           {PRICING.map((p, i) => (
             <SafeReveal
               key={i}
