@@ -13,16 +13,31 @@ export type RevealKind =
   | "wipe";
 
 /**
- * SafeReveal v2 — rich scroll-in animations that NEVER bake opacity:0
- * into SSR HTML. Opacity is always 1, so even if framer-motion never
- * hydrates the content remains readable. Reveal effect comes from
- * transform (translate / rotate / scale) and optional clip-path —
- * all visible at rest.
+ * SafeReveal v3 — bulletproof scroll-in. Hardened rules:
  *
- * Uses `once: true` so animations fire exactly once when scrolled
- * into view and never re-trigger on scroll-back. This eliminates the
- * "card vanishes / cuts in half" mid-animation flash that prior
- * `once: false` configurations caused on Lenis-driven scroll.
+ *   1. Opacity ALWAYS 1, in both initial and rest state, in SSR HTML.
+ *      Content can never be invisible if framer-motion fails to hydrate
+ *      or IntersectionObserver fails to fire (e.g., Lenis smooth-scroll
+ *      interfering with viewport detection).
+ *
+ *   2. NO horizontal translate, NO rotate, NO scale. Initial state is
+ *      a pure vertical translate (y:38 to y:60 depending on emphasis).
+ *      This eliminates "cards cut off before animation begins" — a
+ *      card translated horizontally past its grid column overflows the
+ *      viewport edge until animation fires.
+ *
+ *   3. once:true so the animation never re-triggers on scroll-back.
+ *      Even if Lenis breaks the IntersectionObserver mid-scroll, an
+ *      already-shown element stays at rest (y:0).
+ *
+ *   4. amount:0.01 + margin:"0px 0px 5% 0px" — fires the moment ANY
+ *      pixel of the element enters viewport. Lenis-resistant.
+ *
+ * The `kind` prop is preserved for backward compat with existing
+ * callsites, but all kinds collapse to a vertical lift with subtle
+ * variation in y-offset and duration. This is intentional: rich
+ * variety is achieved through delay staggering across siblings, not
+ * through transforms that risk visual clipping.
  */
 export default function SafeReveal({
   children,
@@ -30,8 +45,8 @@ export default function SafeReveal({
   style,
   delay = 0,
   kind = "lift",
-  amount = 0.15,
-  duration = 0.9,
+  amount = 0.01,
+  duration = 0.95,
   as: Tag = "div",
 }: {
   children: ReactNode;
@@ -53,25 +68,15 @@ export default function SafeReveal({
     );
   }
 
-  const initialByKind: Record<RevealKind, Record<string, unknown>> = {
-    lift:       { opacity: 1, y: 36 },
-    slideLeft:  { opacity: 1, x: -56, y: 16 },
-    slideRight: { opacity: 1, x:  56, y: 16 },
-    fan:        { opacity: 1, y: 60, rotate: -3, scale: 0.93 },
-    fanLeft:    { opacity: 1, x: -50, y: 40, rotate: -4, scale: 0.92 },
-    fanRight:   { opacity: 1, x:  50, y: 40, rotate:  4, scale: 0.92 },
-    scale:      { opacity: 1, scale: 0.85, y: 20 },
-    wipe:       { opacity: 1, clipPath: "inset(0 100% 0 0)" },
-  };
-  const restByKind: Record<RevealKind, Record<string, unknown>> = {
-    lift:       { opacity: 1, y: 0 },
-    slideLeft:  { opacity: 1, x: 0, y: 0 },
-    slideRight: { opacity: 1, x: 0, y: 0 },
-    fan:        { opacity: 1, y: 0, rotate: 0, scale: 1 },
-    fanLeft:    { opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 },
-    fanRight:   { opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 },
-    scale:      { opacity: 1, scale: 1, y: 0 },
-    wipe:       { opacity: 1, clipPath: "inset(0 0% 0 0)" },
+  const yByKind: Record<RevealKind, number> = {
+    lift: 38,
+    slideLeft: 32,
+    slideRight: 32,
+    fan: 52,
+    fanLeft: 52,
+    fanRight: 52,
+    scale: 28,
+    wipe: 44,
   };
 
   const M = (motion as any)[Tag];
@@ -79,9 +84,9 @@ export default function SafeReveal({
     <M
       className={className}
       style={style}
-      initial={initialByKind[kind]}
-      whileInView={restByKind[kind]}
-      viewport={{ once: true, amount, margin: "0px 0px -8% 0px" }}
+      initial={{ opacity: 1, y: yByKind[kind] }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount, margin: "0px 0px 5% 0px" }}
       transition={{ duration, delay, ease: [0.22, 1, 0.36, 1] }}
       suppressHydrationWarning
     >
