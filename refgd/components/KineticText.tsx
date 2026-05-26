@@ -1,21 +1,37 @@
 "use client";
-import { motion, useReducedMotion } from "framer-motion";
-import { useEffect, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useRef,
+  type CSSProperties,
+} from "react";
 import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
- * Word-by-word kinetic reveal. Each word slides up from behind a mask
- * and un-blurs. Crucially: opacity stays 1 throughout — the visible
- * reveal comes from the parent's `overflow: hidden` mask that hides
- * each word's y:60% start position, NOT from opacity. This eliminates
- * the "headline vanishes on hydration" failure mode where animations
- * stall mid-flight and leave words at opacity:0 forever.
+ * KineticText v3 — Web Animations API + native IntersectionObserver.
  *
- * Two-phase render:
- *   Phase 1 (SSR + first paint): plain static text — always visible.
- *   Phase 2 (after first rAF): swaps to motion container with
- *     key="play" so the kinetic entrance plays from masked-down→0.
+ * Why v3 exists:
+ *   v2 used framer-motion variants with `hidden: { y: "60%" }` inside
+ *   `<span overflow:hidden>` masks. When framer's variant system
+ *   failed to transition `hidden → show` (race on hydration, Lenis
+ *   smooth-scroll interfering with whileInView, force-dynamic SSR
+ *   hydration mismatch), words stayed at y:60% — completely masked
+ *   by the parent overflow:hidden = INVISIBLE TITLE. The "Evade like
+ *   a PRO" / "Our comprehensive solutions" / "What you'll master"
+ *   vanishing-header bug.
+ *
+ * v3 design:
+ *   • SSR + initial client render: words are at REST (y:0, no blur,
+ *     opacity:1). Title is ALWAYS fully visible from first paint.
+ *     If JS fails to hydrate, title is still 100% readable.
+ *   • Entrance animation is played via WAAPI (`element.animate(...)`),
+ *     which is transient. When the animation completes, words return
+ *     to their natural rest state. Words can NEVER end up stuck
+ *     masked-invisible.
+ *   • Scroll trigger uses native IntersectionObserver (not framer's
+ *     whileInView wrapper). Native IO is Lenis-safe.
+ *   • No two-phase render — single render tree means no DOM swap on
+ *     hydration and no class-flip race.
  */
 export default function KineticText({
   text,
@@ -25,7 +41,6 @@ export default function KineticText({
   as: Tag = "h1",
   style,
   editId,
-  mountTrigger,
 }: {
   text: string;
   className?: string;
@@ -36,15 +51,71 @@ export default function KineticText({
   editId?: string;
   mountTrigger?: boolean;
 }) {
-  const reduced = useReducedMotion();
   const ctx = useEditContext();
   const editing = !!editId && ctx.isAdmin && ctx.editMode;
 
-  const [phase, setPhase] = useState<"static" | "play">("static");
+  const rootRef = useRef<HTMLElement | null>(null);
+  const playedRef = useRef(false);
+
+  const rawValue = editId ? ctx.getValue(editId, text) : text;
+  const value: string =
+    typeof rawValue === "string" && rawValue.trim().length > 0
+      ? rawValue
+      : text;
+
   useEffect(() => {
-    const raf = requestAnimationFrame(() => setPhase("play"));
-    return () => cancelAnimationFrame(raf);
-  }, []);
+    const root = rootRef.current;
+    if (!root || playedRef.current) return;
+    if (typeof window === "undefined") return;
+    const reduced =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) return;
+
+    const play = () => {
+      if (playedRef.current) return;
+      playedRef.current = true;
+      const words = root.querySelectorAll<HTMLSpanElement>(".kt-word");
+      words.forEach((wordEl, i) => {
+        if (typeof wordEl.animate !== "function") return;
+        try {
+          wordEl.animate(
+            [
+              { transform: "translateY(60%)", filter: "blur(6px)" },
+              { transform: "translateY(0)", filter: "blur(0)" },
+            ],
+            {
+              duration: 850,
+              delay: delay * 1000 + i * stagger * 1000,
+              easing: "cubic-bezier(0.25, 0.4, 0.25, 1)",
+              fill: "backwards",
+            },
+          );
+        } catch {
+          /* word stays at rest — still visible */
+        }
+      });
+    };
+
+    if (typeof IntersectionObserver === "undefined") {
+      play();
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            play();
+            io.disconnect();
+            break;
+          }
+        }
+      },
+      { threshold: 0.1 },
+    );
+    io.observe(root);
+    return () => io.disconnect();
+  }, [value, delay, stagger]);
 
   if (editing) {
     return (
@@ -57,40 +128,21 @@ export default function KineticText({
     );
   }
 
-  const rawValue = editId ? ctx.getValue(editId, text) : text;
-  const isBlank = (v: unknown): boolean =>
-    v == null || (typeof v === "string" && v.trim() === "");
-  const value: string =
-    !isBlank(rawValue) && typeof rawValue === "string" ? rawValue : text;
   const words = value.split(" ");
+  const Tg = Tag as any;
 
-  if (phase === "static" || reduced) {
-    const Plain = Tag as any;
-    return (
-      <Plain className={className} style={style} aria-label={value}>
-        {value}
-      </Plain>
-    );
-  }
-
-  const M = (motion as any)[Tag as keyof typeof motion];
-  const useMountMode = mountTrigger !== undefined;
   return (
-    <M
-      key="play"
+    <Tg
+      ref={rootRef}
       className={className}
       style={style}
-      initial="hidden"
-      {...(useMountMode
-        ? { animate: mountTrigger ? "show" : "hidden" }
-        : { animate: "show" })}
-      transition={{ staggerChildren: stagger, delayChildren: delay }}
       aria-label={value}
+      suppressHydrationWarning
     >
-      {words.map((w, i) => (
+      {words.map((w: string, i: number) => (
         <span
           key={i}
-          className="inline-block overflow-hidden align-bottom"
+          className="kt-mask inline-block overflow-hidden align-bottom"
           style={{
             paddingBottom: "0.18em",
             paddingTop: "0.06em",
@@ -101,24 +153,12 @@ export default function KineticText({
           }}
           aria-hidden="true"
         >
-          <motion.span
-            className="inline-block"
-            variants={{
-              hidden: { y: "60%", opacity: 1, filter: "blur(6px)" },
-              show: {
-                y: "0%",
-                opacity: 1,
-                filter: "blur(0px)",
-                transition: { duration: 0.85, ease: [0.25, 0.4, 0.25, 1] },
-              },
-            }}
-            suppressHydrationWarning
-          >
+          <span className="kt-word inline-block">
             {w}
             {i < words.length - 1 ? "\u00A0" : ""}
-          </motion.span>
+          </span>
         </span>
       ))}
-    </M>
+    </Tg>
   );
 }
