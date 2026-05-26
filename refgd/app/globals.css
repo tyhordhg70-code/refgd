@@ -2287,7 +2287,7 @@ select option:hover {
      Single source of truth for entrance animations. Replaces framer-motion +
      IntersectionObserver dependency chain that was failing under Lenis
      smooth-scroll on the evade-cancelations page. Three keyframes cover the
-     8 RevealKind values; all "fan*/scale/wipe" collapse to the vertical lift
+     8 RevealKind values; all fan, scale and wipe variants collapse to the vertical lift
      because horizontal/rotate transforms caused card edge-clipping. The
      SafeReveal component arms `.sr5-anim` only after `useEntranceReady()`
      returns true, so animations never run behind the LoadingScreen splash. */
