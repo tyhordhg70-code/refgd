@@ -146,7 +146,7 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
 
   const getValue = useCallback(
     (id: string, fallback?: string) => {
-      if (Object.prototype.hasOwnProperty.call(display, id)) return display[id];
+      if (Object.prototype.hasOwnProperty.call(display, id) && display[id] !== "") return display[id];
       return fallback ?? "";
     },
     [display],
