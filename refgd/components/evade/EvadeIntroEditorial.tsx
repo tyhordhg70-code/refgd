@@ -39,7 +39,23 @@ export default function EvadeIntroEditorial() {
           </div>
         </div>
 
-        <SafeReveal className="relative mt-14 sm:mt-16" kind="lift" delay={0.15} duration={1.1}>
+        <SafeReveal className="relative mt-12 sm:mt-14" kind="lift" delay={0.12} duration={1.0}>
+            <div className="flex justify-center">
+              <div className="relative w-full max-w-[340px] sm:max-w-[460px]">
+                <span aria-hidden className="pointer-events-none absolute inset-x-6 -bottom-4 h-10 rounded-[100%]"
+                  style={{ background: "radial-gradient(ellipse 60% 100% at 50% 0%, rgba(167,139,250,0.45), transparent 70%)", filter: "blur(18px)" }} />
+                <EditableImage
+                  id="evade.art.solLocks"
+                  defaultSrc="/uploads/sol-locks.webp"
+                  alt="Security solutions — checklist, shields, locks."
+                  wrapperClassName="relative z-10 block w-full"
+                  className="block h-auto w-full drop-shadow-[0_30px_60px_rgba(0,0,0,0.7)]"
+                />
+              </div>
+            </div>
+          </SafeReveal>
+
+                  <SafeReveal className="relative mt-14 sm:mt-16" kind="lift" delay={0.15} duration={1.1}>
           <div aria-hidden className="pointer-events-none absolute -inset-10 rounded-[3rem] opacity-60"
             style={{ background: "radial-gradient(ellipse 70% 50% at 50% 50%, rgba(34,211,238,0.16), transparent 70%), radial-gradient(ellipse 60% 40% at 50% 100%, rgba(245,185,69,0.10), transparent 70%)", filter: "blur(40px)" }} />
           <div className="relative rounded-[2.25rem] p-[1.5px]"

@@ -48,40 +48,43 @@
 
     return (
       <>
-        {/* Layer 0 — Deep animated nebula backdrop. Sits behind everything
-            so the GalaxyBackground starfield still reads through subtle
-            gaps in the gradient. */}
+        {/* ── Isolated compositing wrapper — scopes mix-blend-mode children
+            so they blend only within this layer, preventing the Safari/
+            WebKit page-wide compositing-context bug (RC10). */}
         <div
           aria-hidden="true"
-          className="ev-imm-nebula pointer-events-none fixed -z-[8]"
-          style={{ top: "-200px", bottom: "-200px", left: "-200px", right: "-200px" }}
-        />
-
-        {/* Layer 1 — Two diagonal aurora ribbons sweeping in opposite
-            directions for continuous colour motion. */}
-        <div aria-hidden="true" className="ev-imm-aurora-1 pointer-events-none fixed inset-0 -z-[7]" />
-        <div aria-hidden="true" className="ev-imm-aurora-2 pointer-events-none fixed inset-0 -z-[7]" />
-
-        {/* Layer 2 — CSS 3D wireframe floor (recedes into the distance). */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none fixed inset-x-0 bottom-0 -z-[6] hidden lg:block"
-          style={{ height: "70vh", perspective: "1000px", perspectiveOrigin: "50% 100%" }}
+          className="pointer-events-none fixed inset-0"
+          style={{ zIndex: -4, isolation: "isolate" }}
         >
-          <div className="ev-imm-floor" />
-        </div>
 
-        {/* Layer 3 — CSS 3D wireframe ceiling (recedes upward into the distance). */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none fixed inset-x-0 top-0 -z-[6] hidden lg:block"
-          style={{ height: "70vh", perspective: "1000px", perspectiveOrigin: "50% 0%" }}
-        >
-          <div className="ev-imm-ceiling" />
-        </div>
+          {/* Layer 0 — Deep animated nebula backdrop */}
+          <div
+            className="ev-imm-nebula"
+            style={{ position: "absolute", top: "-200px", bottom: "-200px", left: "-200px", right: "-200px" }}
+          />
 
-        {/* Layer 4 — 12 floating glowing 3D shards. */}
-        <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-[5] overflow-hidden hidden lg:block">
+          {/* Layer 1 — Two diagonal aurora ribbons */}
+          <div className="ev-imm-aurora-1" style={{ position: "absolute", inset: 0 }} />
+          <div className="ev-imm-aurora-2" style={{ position: "absolute", inset: 0 }} />
+
+          {/* Layer 2 — CSS 3D wireframe floor */}
+          <div
+            className="hidden lg:block"
+            style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "70vh", perspective: "1000px", perspectiveOrigin: "50% 100%" }}
+          >
+            <div className="ev-imm-floor" />
+          </div>
+
+          {/* Layer 3 — CSS 3D wireframe ceiling */}
+          <div
+            className="hidden lg:block"
+            style={{ position: "absolute", left: 0, right: 0, top: 0, height: "70vh", perspective: "1000px", perspectiveOrigin: "50% 0%" }}
+          >
+            <div className="ev-imm-ceiling" />
+          </div>
+
+          {/* Layer 4 — 12 floating glowing 3D shards */}
+          <div className="hidden lg:block" style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
           {shards.map((s) => (
             <div
               key={s.id}
@@ -98,8 +101,8 @@
           ))}
         </div>
 
-        {/* Layer 5 — Twinkling cosmic dust. */}
-        <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-[4] overflow-hidden hidden lg:block">
+          {/* Layer 5 — Twinkling cosmic dust */}
+          <div className="hidden lg:block" style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
           {dust.map((d) => (
             <span
               key={d.id}
@@ -114,6 +117,7 @@
               }}
             />
           ))}
+        </div>
         </div>
 
         <style>{`
@@ -140,7 +144,7 @@
 
           /* ── Layer 1: aurora ribbons ────────────────────────────────── */
           .ev-imm-aurora-1, .ev-imm-aurora-2 {
-            /* mix-blend-mode removed: WebKit stacking ctx bug */
+            mix-blend-mode: screen;
           }
           .ev-imm-aurora-1 {
             background: linear-gradient(115deg,
@@ -211,7 +215,7 @@
             position: absolute;
             border-radius: 8px;
             opacity: 0.42;
-            /* mix-blend-mode:screen removed — RC10 WebKit stacking ctx */
+            mix-blend-mode: screen;
             animation-name: evImmShardFloat;
             animation-iteration-count: infinite;
             animation-timing-function: ease-in-out;

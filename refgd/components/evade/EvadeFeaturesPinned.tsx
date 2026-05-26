@@ -6,10 +6,10 @@ import ParallaxIllustration from "@/components/ParallaxIllustration";
 import SafeReveal from "@/components/SafeReveal";
 
 const FEATURES = [
-  { title: "Seamless transition",              body: "It doesn't matter what happened to your previous account; be it suspended, blocked, banned, blacklisted, or anything else, you WILL learn how to crank out new accounts without ever getting detected or linked again.", tint: "cyan"    as const, rgb: "34,211,238",  illo: "encryption" as const },
-  { title: "Precise, step-by-step procedures", body: "While creating numerous accounts may seem easy by simply using new information, the real value lies in maintaining their longevity without encountering bans or cancelations due to algorithm detections.",       tint: "violet"  as const, rgb: "167,139,250", illo: "shield"     as const },
-  { title: "Range of features",                body: "Lifetime updates, anonymity techniques, account management strategies, anonymous credit cards, multi-account safety, automatic customers for selling items, and account-linking prevention.",                       tint: "amber"   as const, rgb: "245,185,69",  illo: "globe"      as const },
-  { title: "No filler, no BS",                 body: "After investing significant time and resources we offer only the most precise and actionable methods, with a lifetime support guarantee.",                                                                          tint: "fuchsia" as const, rgb: "232,121,249", illo: "spark"      as const },
+  { title: "Seamless transition",              body: "It doesn't matter what happened to your previous account; be it suspended, blocked, banned, blacklisted, or anything else, you WILL learn how to crank out new accounts without ever getting detected or linked again.", tint: "cyan"    as const, rgb: "34,211,238",  illo: "chess"      as const },
+  { title: "Precise, step-by-step procedures", body: "While creating numerous accounts may seem easy by simply using new information, the real value lies in maintaining their longevity without encountering bans or cancelations due to algorithm detections.",       tint: "violet"  as const, rgb: "167,139,250", illo: "store"      as const },
+  { title: "Range of features",                body: "Lifetime updates, anonymity techniques, account management strategies, anonymous credit cards, multi-account safety, automatic customers for selling items, and account-linking prevention.",                       tint: "amber"   as const, rgb: "245,185,69",  illo: "shield"     as const },
+  { title: "No filler, no BS",                 body: "After investing significant time and resources we offer only the most precise and actionable methods, with a lifetime support guarantee.",                                                                          tint: "fuchsia" as const, rgb: "232,121,249", illo: "chess"      as const },
 ];
 
 /**

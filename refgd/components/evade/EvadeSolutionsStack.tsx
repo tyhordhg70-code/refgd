@@ -1,6 +1,5 @@
 "use client";
 import EditableText from "@/components/EditableText";
-import EditableImage from "@/components/EditableImage";
 import ChapterPill from "@/components/ChapterPill";
 import KineticText from "@/components/KineticText";
 import ParallaxIllustration from "@/components/ParallaxIllustration";
@@ -46,8 +45,7 @@ export default function EvadeSolutionsStack() {
           <span aria-hidden className="pointer-events-none absolute -right-24 -bottom-24 h-72 w-72 rounded-full"
             style={{ background: "radial-gradient(circle at 50% 50%, rgba(34,211,238,0.22), transparent 70%)", filter: "blur(20px)" }} />
 
-          <div className="relative grid items-center gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-14">
-            <div>
+          <div className="relative">
               <ChapterPill
                 editId="evade.ch2.eyebrow"
                 defaultValue="chapter 02 / solutions"
@@ -58,29 +56,14 @@ export default function EvadeSolutionsStack() {
                 as="h2"
                 text="Our comprehensive solutions."
                 editId="evade.ch2.title"
-                className="editorial-display mt-8 max-w-xl text-balance uppercase text-white text-[clamp(2rem,5vw,3.8rem)]"
+                className="editorial-display mt-8 max-w-2xl text-balance uppercase text-white text-[clamp(2rem,5vw,3.8rem)]"
                 style={{
                   textShadow: "0 6px 36px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.95)",
                   letterSpacing: "-0.025em",
                   lineHeight: 1.15,
                 }}
               />
-            </div>
-            <div className="relative mx-auto block w-full max-w-[300px] sm:max-w-[380px]">
-              <span aria-hidden className="pointer-events-none absolute inset-x-6 -bottom-2 h-8 rounded-[100%]"
-                style={{ background: "radial-gradient(ellipse 60% 100% at 50% 0%, rgba(167,139,250,0.55), transparent 70%)", filter: "blur(14px)" }} />
-              <div style={{ width: "100%" }}>
-                <EditableImage
-                  id="evade.art.solLocks"
-                  defaultSrc="/uploads/sol-locks.webp"
-                  alt="Comprehensive security solutions — checklist, shields, locks."
-                  wrapperClassName="relative z-10 block w-full"
-                  className="block h-auto w-full drop-shadow-[0_30px_60px_rgba(0,0,0,0.7)]"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+            </div>       </div>
 
         <div className="relative mt-10 grid gap-6 lg:grid-cols-3 lg:gap-7" >
           {SOLUTIONS.map((s, i) => (
