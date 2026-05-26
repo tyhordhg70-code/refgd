@@ -58,7 +58,10 @@ export default function KineticText({
     );
   }
 
-  const value = editId ? ctx.getValue(editId, text) : text;
+  const rawValue = editId ? ctx.getValue(editId, text) : text;
+    // If the DB has an empty string for this editId, fall back to the
+    // component's own text prop so headings are never blank.
+    const value = rawValue !== "" ? rawValue : text;
   const words = value.split(" ");
 
   // v6.14 — always render statically. The word-by-word entry animation

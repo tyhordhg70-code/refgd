@@ -55,7 +55,10 @@ function EditableTextInner({
   "data-testid": testId,
 }: Props) {
   const { isAdmin, editMode, getValue, setValue } = useEditContext();
-  const value = getValue(id, defaultValue);
+  const raw = getValue(id, defaultValue);
+    // If the DB stored an empty string (admin cleared the field), fall back
+    // to the component's own defaultValue so content is never blank on screen.
+    const value = raw !== "" ? raw : defaultValue;
   const editing = isAdmin && editMode;
   const ref = useRef<HTMLElement | null>(null);
 
