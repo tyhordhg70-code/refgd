@@ -44,7 +44,7 @@
               sometimes stayed clipped to 0%, leaving a tall empty gap between
               the vault chapter and the cards. Static panel removes the bug. */}
           <div
-            className="relative rounded-[2rem] border border-violet-400/25 px-6 py-10 sm:p-12 lg:p-14"
+            className="safe-reveal-up relative rounded-[2rem] border border-violet-400/25 px-6 py-10 sm:p-12 lg:p-14"
             style={{
               background:
                 "linear-gradient(160deg, rgba(167,139,250,0.13), rgba(34,211,238,0.08) 50%, rgba(10,8,22,0.92))",
@@ -103,7 +103,7 @@
                 scroll paths and the cards stayed invisible, presenting as
                 a huge gap before pricing. Static render is reliable. */}
             {SOLUTIONS.map((s, i) => (
-              <div key={s.id} className="group relative">
+              <div key={s.id} className={`safe-reveal-up sr-d${i+1} group relative`}>
                 <div
                   aria-hidden
                   className="absolute inset-0 rounded-[1.75rem]"

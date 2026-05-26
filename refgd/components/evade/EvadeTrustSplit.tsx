@@ -20,7 +20,7 @@ export default function EvadeTrustSplit() {
     <section className="relative z-10 py-20">
       <div className="container-wide relative">
         <div
-          className="relative overflow-hidden rounded-[2rem] border border-amber-400/30 p-6 sm:p-10 lg:p-14"
+          className="safe-reveal-up relative overflow-hidden rounded-[2rem] border border-amber-400/30 p-6 sm:p-10 lg:p-14"
           style={{ background: "linear-gradient(165deg, rgba(245,185,69,0.14), rgba(167,139,250,0.10) 45%, rgba(10,8,22,0.95))", boxShadow: "0 70px 160px -30px rgba(0,0,0,0.92), 0 0 120px -25px rgba(245,185,69,0.45), inset 0 1px 0 rgba(255,255,255,0.09)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
         >
           <span aria-hidden className="pointer-events-none absolute -left-20 -top-20 h-72 w-72 rounded-full"
@@ -48,7 +48,7 @@ export default function EvadeTrustSplit() {
           {/* 3 trust story cards — plain static divs, no animations */}
           <div className="relative mt-10 grid gap-5 lg:grid-cols-3 lg:gap-6">
             {TRUST.map((t, i) => (
-              <div key={t.id} className="relative">
+              <div key={t.id} className={`safe-reveal-up sr-d${i+1} relative`}>
                 <div className="relative h-full rounded-2xl p-6 pt-7"
                   style={{ background: `linear-gradient(180deg, rgba(${t.rgb},0.10), rgba(10,8,22,0.55))`, border: `1px solid rgba(${t.rgb},0.35)`, boxShadow: `0 24px 60px -20px rgba(0,0,0,0.7), 0 0 40px -20px rgba(${t.rgb},0.45)` }}>
                   <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] rounded-t-2xl"

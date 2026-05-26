@@ -2253,4 +2253,32 @@ select option:hover {
         drop-shadow(0 0 9px rgba(167,139,250,0.55));
     }
   }
+
+  /* === Safe-reveal animations (v6.13.63) ===
+     SSR renders content at its FINAL visible state (opacity:1, no transform).
+     On mount, a CSS animation plays from an offset state to the final state.
+     If JS never runs / Lenis breaks observers / hydration is slow, content
+     is ALWAYS visible — the animation is purely additive. The forbidden
+     anti-pattern (initial opacity:0 baked into SSR) cannot recur with this. */
+  @keyframes safe-reveal-up {
+    from { opacity: 0; transform: translate3d(0, 24px, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+  @keyframes safe-reveal-scale-x {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+  .safe-reveal-up {
+    animation: safe-reveal-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .safe-reveal-scale-x {
+    animation: safe-reveal-scale-x 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
+  }
+  .safe-reveal-up.sr-d1 { animation-delay: 0.10s; }
+  .safe-reveal-up.sr-d2 { animation-delay: 0.22s; }
+  .safe-reveal-up.sr-d3 { animation-delay: 0.34s; }
+  .safe-reveal-up.sr-d4 { animation-delay: 0.46s; }
+  @media (prefers-reduced-motion: reduce) {
+    .safe-reveal-up, .safe-reveal-scale-x { animation: none !important; }
+  }
   

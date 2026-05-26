@@ -193,14 +193,21 @@ function EditableImageInner({
   const compoundStyle: CSSProperties = {
     ...wrapperStyle,
     ...(wrapperTransform ? { transform: wrapperTransform } : {}),
-    ...(mb !== 0 ? { marginBottom: `${mb}px` } : {}),
+    // v6.13.63 — Admin-only margin offset. Same fix as wrapperTransform:
+    // non-admins always see the un-margined image so admin-stored mb cannot
+    // push pricing tier images down into the next section's text.
+    ...((isAdmin && editMode) && mb !== 0 ? { marginBottom: `${mb}px` } : {}),
     ...(group ? { order: group.indexOf(id) } : {}),
   };
 
+  // v6.13.63 — Admin-only scale. Admin-stored scale was applied to ALL
+  // visitors, so a scaled-up pricing tier image would overlap its title
+  // for everyone, not just admins. Non-admins now always see scale 1.
+  const visitorScale = (isAdmin && editMode) ? scale : 1;
   const imgScaleStyle: CSSProperties =
-    scale !== 1
+    visitorScale !== 1
       ? {
-          transform: `scale(${scale})`,
+          transform: `scale(${visitorScale})`,
           transformOrigin: "center top",
           // Reserve vertical room for the scaled image so the next
           // section actually moves down/up — transforms don't reflow,

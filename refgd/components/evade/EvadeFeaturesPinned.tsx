@@ -230,12 +230,8 @@
   function FeatureCard({ f, i }: { f: typeof FEATURES[number]; i: number }) {
     const intro = CARD_INTROS[i % CARD_INTROS.length];
     return (
-      <motion.div
-        initial={{ opacity: 1, x: intro.x, y: intro.y * 1.5, rotate: intro.rotate }}
-          whileInView={{ opacity: 1, x: 0, y: 0, rotate: 0 }}
-          viewport={{ once: true, amount: 0.15, margin: "0px 0px -10% 0px" }}
-          transition={{ duration: 1.15, delay: i * 0.12, ease: [0.22, 1, 0.36, 1] }}
-        className="relative overflow-hidden rounded-[1.75rem] p-8"
+        <div
+          className={`safe-reveal-up sr-d${(i % 4) + 1} relative overflow-hidden rounded-[1.75rem] p-8`}
         style={{
           background: `linear-gradient(160deg, rgba(${f.rgb},0.18), rgba(10,8,22,0.85))`,
           border: `1px solid rgba(${f.rgb},0.35)`,
@@ -266,7 +262,7 @@
           multiline
           className="mt-4 text-base leading-relaxed text-white/95"
         />
-    </motion.div>
+    </div>
     );
   }
   
