@@ -4,7 +4,6 @@
   // flicker out + back on scroll-up + rescroll. Cards now render static.
   import EditableText from "@/components/EditableText";
   import EditableImage from "@/components/EditableImage";
-  import MagneticButton from "@/components/MagneticButton";
   import ChapterPill from "@/components/ChapterPill";
   import KineticText from "@/components/KineticText";
 
@@ -192,13 +191,28 @@
                       className="relative mt-4 flex-1 text-base leading-relaxed text-white/95"
                     />
 
+                    {/* v6.13.62 — Replaced MagneticButton with a plain styled
+                        <a>. MagneticButton's client-only spring math caused one
+                        of the three tiers (intermittently) to render nothing on
+                        first paint, leaving only 2 of 3 Shop Methods CTAs
+                        visible. A plain anchor is SSR-deterministic — all 3
+                        will always be present in the HTML. */}
                     <div className="relative mt-7">
-                      <MagneticButton href={p.url} external variant="primary" className="w-full">
-                          Shop Methods
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                            <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
-                          </svg>
-                        </MagneticButton>
+                      <a
+                        href={p.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group/cta relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full px-6 py-3.5 text-sm font-bold uppercase tracking-[0.18em] text-ink-950 transition-transform duration-200 hover:scale-[1.02] active:scale-95"
+                        style={{
+                          background: `linear-gradient(135deg, rgba(${p.rgb},1) 0%, rgba(${p.rgb},0.85) 100%)`,
+                          boxShadow: `0 18px 40px -12px rgba(${p.rgb},0.65), 0 0 30px -8px rgba(${p.rgb},0.5), inset 0 1px 0 rgba(255,255,255,0.35)`,
+                        }}
+                      >
+                        <span className="relative">Shop Methods</span>
+                        <svg className="relative transition-transform duration-200 group-hover/cta:translate-x-1" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                          <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
+                        </svg>
+                      </a>
                     </div>
                   </div>
                 </div>

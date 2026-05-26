@@ -1,5 +1,4 @@
 "use client";
-  import { motion, useReducedMotion } from "framer-motion";
   import { useEffect, useState } from "react";
   import EditableText from "@/components/EditableText";
   import EditableImage from "@/components/EditableImage";
@@ -26,7 +25,6 @@
    *  • lineHeight 1.15 on all headings.
    */
   export default function EvadeSolutionsStack() {
-    const reduced = useReducedMotion();
     const [isDesktop, setIsDesktop] = useState(false);
     useEffect(() => {
       const mq = window.matchMedia("(min-width: 1024px)");
@@ -41,11 +39,11 @@
         <div className="container-wide relative">
           {/* Integrated editorial header — chapter pill, title AND sol-locks
               artwork share one frame so the image stops "floating". */}
-          <motion.div
-            initial={reduced ? {} : { clipPath: "inset(100% 0 0 0 round 2rem)" }}
-            whileInView={reduced ? undefined : { clipPath: "inset(0% 0 0 0 round 2rem)", opacity: 1 }}
-            viewport={{ once: true, amount: 0.15 }}
-            transition={{ duration: 0.85, ease: [0.76, 0, 0.24, 1] }}
+          {/* v3.1 — Was a motion.div with clipPath wipe. Lenis smooth-scroll
+              made viewport detection unreliable; on first paint the panel
+              sometimes stayed clipped to 0%, leaving a tall empty gap between
+              the vault chapter and the cards. Static panel removes the bug. */}
+          <div
             className="relative rounded-[2rem] border border-violet-400/25 px-6 py-10 sm:p-12 lg:p-14"
             style={{
               background:
@@ -96,24 +94,16 @@
                     </div>
                   </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Solution cards — varied per-card entrance, repeat on scroll */}
           <div className="relative mt-10 grid gap-6 lg:grid-cols-3 lg:gap-7" style={{ perspective: 1200 }}>
             {SOLUTIONS.map((s, i) => (
-              <motion.div
-                key={s.id}
-                initial={reduced ? false : {
-                    opacity: 0, y: 55,
-                    rotateX: i === 1 ? 22 : 0,
-                    rotateY: i === 0 ? -28 : i === 2 ? 28 : 0,
-                    scale: 0.88,
-                  }}
-                whileInView={reduced ? undefined : { opacity: 1, y: 0, rotateX: 0, rotateY: 0, scale: 1 }}
-                viewport={{ once: true, amount: 0.15, margin: "0px 0px -10% 0px" }}
-                transition={{ duration: 1.0, delay: 0.12 + i * 0.16, ease: [0.22, 1, 0.36, 1] }}
-                className="group relative"
-              >
+              {/* v3.1 — Was a motion.div with opacity:0 + 3D rotate
+                  whileInView. Lenis broke the viewport observer on some
+                  scroll paths and the cards stayed invisible, presenting as
+                  a huge gap before pricing. Static render is reliable. */}
+              <div key={s.id} className="group relative">
                 <div
                   aria-hidden
                   className="absolute inset-0 rounded-[1.75rem]"
@@ -154,7 +144,7 @@
                     style={{ textShadow: "0 2px 12px rgba(0,0,0,0.5)" }}
                   />
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>

@@ -185,7 +185,11 @@ function EditableImageInner({
      with any caller-supplied transform, so admins can drag the whole
      image to a new spot via the MoveHandle rendered below. */
   const move = useMoveOffsetEditable(id);
-  const wrapperTransform = move.transform;
+  // v6.13.62 — Admin-only drag offset. Previously the persisted dx/dy
+  // were applied for ALL visitors, which caused tier-1 pricing image
+  // to drift over the title text after an admin had ever nudged it.
+  // Non-admins now always see the un-translated image.
+  const wrapperTransform = (isAdmin && editMode) ? move.transform : undefined;
   const compoundStyle: CSSProperties = {
     ...wrapperStyle,
     ...(wrapperTransform ? { transform: wrapperTransform } : {}),
