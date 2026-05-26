@@ -211,7 +211,7 @@
             position: absolute;
             border-radius: 8px;
             opacity: 0.42;
-            mix-blend-mode: screen;
+            /* mix-blend-mode:screen removed — RC10 WebKit stacking ctx */
             animation-name: evImmShardFloat;
             animation-iteration-count: infinite;
             animation-timing-function: ease-in-out;
