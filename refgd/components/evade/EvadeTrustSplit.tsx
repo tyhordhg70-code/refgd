@@ -69,8 +69,8 @@ export default function EvadeTrustSplit() {
               </SafeReveal>
             ))}
           </div>
-        </div>
-      </SafeReveal>
+        </SafeReveal>
+      </div>
     </section>
   );
 }

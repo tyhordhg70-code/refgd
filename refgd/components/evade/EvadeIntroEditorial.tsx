@@ -57,8 +57,8 @@ export default function EvadeIntroEditorial() {
               </div>
             </div>
           </div>
-        </div>
-      </SafeReveal>
+        </SafeReveal>
+      </div>
     </section>
   );
 }
