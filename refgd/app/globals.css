@@ -2261,7 +2261,7 @@ select option:hover {
      is ALWAYS visible — the animation is purely additive. The forbidden
      anti-pattern (initial opacity:0 baked into SSR) cannot recur with this. */
   @keyframes safe-reveal-up {
-    from { opacity: 0; transform: translate3d(0, 24px, 0); }
+    from { opacity: 1; transform: translate3d(0, 24px, 0); }
     to   { opacity: 1; transform: translate3d(0, 0, 0); }
   }
   @keyframes safe-reveal-scale-x {

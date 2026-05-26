@@ -92,11 +92,11 @@
             {PRICING.map((p, i) => (
               <div
                 key={i}
-                className="group relative"
+                className="group relative flex flex-col"
               >
                 {/* Outer editorial frame — layered panel + ring */}
                 <div
-                  className="relative h-full overflow-hidden rounded-[2rem] border border-white/15"
+                  className="relative flex-1 overflow-hidden rounded-[2rem] border border-white/15"
                   style={{
                     background: `linear-gradient(165deg, rgba(${p.rgb},0.22), rgba(10,8,22,0.93) 60%)`,
                     boxShadow: `0 50px 120px -25px rgba(0,0,0,0.9), 0 0 90px -25px rgba(${p.rgb},0.55), inset 0 1px 0 rgba(255,255,255,0.08)`,
@@ -124,7 +124,7 @@
                     {String(i + 1).padStart(2, "0")}
                   </span>
 
-                  <div className="relative flex h-full flex-col p-8">
+                  <div className="relative flex flex-col flex-1 p-8">
                     {/* Image plinth — image sits ON a darker rounded
                         plinth with an elliptical shadow underneath,
                         so it reads as resting on a surface instead of
