@@ -701,7 +701,7 @@ html { scroll-behavior: smooth; }
  * Gradient is inside overflow:hidden so it’s always clipped to the card.
  */
 @keyframes piGlowPulse {
-  0%, 100% { opacity: 0;   }
+  0%, 100% { opacity: 0.28; }
   50%       { opacity: 1;   }
 }
 .pi-glow-gold    { background: radial-gradient(ellipse at 50% 115%, rgba(245,185,69,0.55)  0%, transparent 68%); animation: piGlowPulse 5.0s ease-in-out infinite; }

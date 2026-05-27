@@ -217,18 +217,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           className="sticky top-0 grid w-full place-items-center overflow-hidden"
           style={{ height: "100svh", perspective: "1400px", contain: "layout paint" }}
         >
-          {/* ── Mobile canvas particles — CSS md:hidden gate (no JS breakpoint check) ──
-               md:hidden is a core Tailwind utility, always compiled.
-               No isMobile useState, no useReducedMotion dependency.
-               InteractiveParticles internally respects prefers-reduced-motion. */}
-          <div
-            aria-hidden="true"
-            className="md:hidden"
-            style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }}
-          >
-            <InteractiveParticles count={55} influence={0} />
-          </div>
-
           {/* Stage — scroll transforms applied via direct style mutation, NOT motion values */}
           <div
             ref={stageRef}
@@ -389,6 +377,19 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
               </span>
               <span className="block h-14 w-[2px] animate-pulseGlow rounded-full bg-gradient-to-b from-amber-200 via-white/80 to-transparent" style={{ boxShadow: "0 0 14px rgba(255,237,180,0.7)" }} />
             </div>
+          </div>
+
+          {/* ── Mobile canvas particles — placed AFTER stageRef ──────────────────────────
+               stageRef has willChange:transform+opacity → GPU compositing layer.
+               Siblings must be AFTER it in DOM (later paint order) AND carry their
+               own willChange to join the same compositing pass; otherwise the GPU
+               layer for stageRef paints on top regardless of z-index. */}
+          <div
+            aria-hidden="true"
+            className="md:hidden"
+            style={{ position: "absolute", inset: 0, zIndex: 10, pointerEvents: "none", willChange: "transform" }}
+          >
+            <InteractiveParticles count={70} influence={0} />
           </div>
 
           {/* ── Mid-flight effects ── */}

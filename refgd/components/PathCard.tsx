@@ -261,7 +261,6 @@ export default function PathCard({
           */}
           <div className={`relative h-full w-full overflow-hidden ${radius}`}>
             <div className={`absolute inset-0 bg-gradient-to-br ${BG_TINT[accent]}`} style={{ opacity: BG_OPACITY[accent] }} />
-            <div aria-hidden="true" className={`pointer-events-none absolute inset-0 ${INNER_GLOW[accent]}`} style={{ mixBlendMode: "screen" }} />
             <PathIllustration
               kind={illustration}
               accent={accent}
@@ -276,6 +275,7 @@ export default function PathCard({
                   "linear-gradient(180deg, transparent 30%, rgba(5,6,10,0.55) 70%, rgba(5,6,10,0.92) 100%)",
               }}
             />
+            <div aria-hidden="true" className={`pointer-events-none absolute inset-0 ${INNER_GLOW[accent]}`} style={{ mixBlendMode: "lighten" }} />
             <div className="absolute left-5 top-5">
               <span
                 data-testid={`path-card-${index + 1}-number`}
@@ -362,7 +362,6 @@ export default function PathCard({
                   scene-specific shapes, gradients and floating accents. No
                   raster image (so no visible photo borders / pixel edges). */}
               <div className={`absolute inset-0 bg-gradient-to-br ${BG_TINT[accent]}`} style={{ opacity: BG_OPACITY[accent] }} />
-              <div aria-hidden="true" className={`pointer-events-none absolute inset-0 ${INNER_GLOW[accent]}`} style={{ mixBlendMode: "screen" }} />
               <PathIllustration kind={illustration} accent={accent} animated={animated} />
               <div
                 aria-hidden="true"
@@ -372,6 +371,7 @@ export default function PathCard({
                     "linear-gradient(180deg, transparent 30%, rgba(5,6,10,0.55) 70%, rgba(5,6,10,0.92) 100%)",
                 }}
               />
+              <div aria-hidden="true" className={`pointer-events-none absolute inset-0 ${INNER_GLOW[accent]}`} style={{ mixBlendMode: "lighten" }} />
               {/* Inner shimmer on hover — toned WAY down (was via-white/25
                   which produced an obvious white strip across the card
                   even at low scroll velocities). 8% white + a slower
