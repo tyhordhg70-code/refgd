@@ -222,7 +222,7 @@ export default function PixelRainCosmic({
     // for its top to reach the viewport top. This removes the
     // "scroll a bit before rain starts" delay the user reported and
     // makes the transition feel continuous with the section above.
-    // v6.7 — Auto-scroll trigger threshold lowered from 0.92 → 0.55.
+    // v6.7 — Auto-scroll trigger threshold lowered from 0.55 → 0.15.
     // The rain reaches comfortable density well before "full" and
     // the previous 0.92 threshold meant the user had to scroll
     // through ~92% of a 280svh runway before the auto-advance
@@ -234,7 +234,7 @@ export default function PixelRainCosmic({
     let autoScrolled = false;
     function maybeAutoScroll() {
       if (autoScrolled) return;
-      if (progressRef.current < 0.55) return;
+      if (progressRef.current < 0.15) return;
       autoScrolled = true;
       const r = W.getBoundingClientRect();
       const targetY = window.scrollY + r.bottom + 1;

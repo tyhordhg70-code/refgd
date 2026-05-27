@@ -90,9 +90,9 @@ export default function EvadePricingShowcase() {
                   {String(i + 1).padStart(2, "0")}
                 </span>
 
-                <div className="relative flex flex-col flex-1 p-8">
+                <div className="relative flex flex-col flex-1 p-7">
                   <div
-                    className={`relative mx-auto mb-6 flex w-full items-center justify-center ${i === 0 ? "h-72" : "h-56"}`}
+                    className={`relative mx-auto mb-5 flex w-full items-center justify-center h-44`}
                   >
                     <div
                       aria-hidden
@@ -114,7 +114,7 @@ export default function EvadePricingShowcase() {
                       defaultSrc={p.img}
                       alt={p.title}
                       wrapperClassName="relative z-10 block max-h-full"
-                      className={`relative block h-auto w-auto max-w-full object-contain drop-shadow-[0_22px_44px_rgba(0,0,0,0.65)] ${i === 0 ? "max-h-72" : "max-h-56"}`}
+                      className={`relative block h-auto w-auto max-w-full object-contain drop-shadow-[0_22px_44px_rgba(0,0,0,0.65)] max-h-44`}
                     />
                   </div>
 
