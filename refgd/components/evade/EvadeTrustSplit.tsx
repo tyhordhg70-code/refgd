@@ -37,7 +37,7 @@ export default function EvadeTrustSplit() {
                 className="editorial-display mt-5 max-w-xl text-balance uppercase text-white text-[clamp(2rem,5vw,3.6rem)]"
                 style={{ textShadow: "0 6px 36px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.95)", letterSpacing: "-0.025em", lineHeight: 1.28 }} />
             </SafeReveal>
-            <SafeReveal kind="slideRight" delay={0.15} className="relative w-full max-w-[280px] justify-self-center lg:max-w-[320px] lg:justify-self-end">
+            <SafeReveal kind="swingInR" delay={0.15} className="relative w-full max-w-[280px] justify-self-center lg:max-w-[320px] lg:justify-self-end">
               <EditableImage id="evade.divider.trustReviews" defaultSrc="/uploads/trust-reviews.webp"
                 alt="Star reviews — clients trust RefundGod."
                 wrapperClassName="relative block w-full"
@@ -47,7 +47,7 @@ export default function EvadeTrustSplit() {
 
           <div className="relative mt-10 grid gap-5 lg:grid-cols-3 lg:gap-6">
             {TRUST.map((t, i) => (
-              <SafeReveal key={t.id} className="relative" kind="fan" delay={0.12 + i * 0.14}>
+              <SafeReveal key={t.id} className="relative" kind="twist" delay={0.12 + i * 0.14}>
                 <div className="relative h-full rounded-2xl p-6 pt-7"
                   style={{ background: `linear-gradient(180deg, rgba(${t.rgb},0.10), rgba(10,8,22,0.55))`, border: `1px solid rgba(${t.rgb},0.35)`, boxShadow: `0 24px 60px -20px rgba(0,0,0,0.7), 0 0 40px -20px rgba(${t.rgb},0.45)` }}>
                   <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] rounded-t-2xl"

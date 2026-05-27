@@ -70,8 +70,6 @@ export default function EvadePricingShowcase() {
                 style={{
                   background: `linear-gradient(165deg, rgba(${p.rgb},0.22), rgba(10,8,22,0.93) 60%)`,
                   boxShadow: `0 50px 120px -25px rgba(0,0,0,0.9), 0 0 90px -25px rgba(${p.rgb},0.55), inset 0 1px 0 rgba(255,255,255,0.08)`,
-                  backdropFilter: "blur(14px)",
-                  WebkitBackdropFilter: "blur(14px)",
                 }}
               >
                 <span

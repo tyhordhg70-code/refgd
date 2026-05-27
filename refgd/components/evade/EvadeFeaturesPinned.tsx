@@ -57,6 +57,7 @@ export default function EvadeFeaturesPinned() {
           {FEATURES.map((f, i) => (
             <SafeReveal
               key={i}
+              kind="tiltDown"
               className="relative overflow-hidden rounded-[1.75rem] p-8"
               delay={0.08 + (i % 2) * 0.12}
               style={{
