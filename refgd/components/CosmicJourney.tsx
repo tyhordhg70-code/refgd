@@ -218,16 +218,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           style={{ height: "100svh", perspective: "1400px", contain: "layout paint" }}
         >
           {/* ── Mobile canvas particles — sibling to stageRef, NOT inside preserve-3d ──
-               Outside the 3D context the canvas composites in normal 2D order,
-               unaffected by stageRef's scroll-driven opacity/transform mutations.
-               z-index:2 places it above the nebula/planet layer (z-index:1 default)
-               but below the headline (which sits in stageRef above z-index:10). */}
+               Inline-style wrapper (not Tailwind z-[2]) avoids depending on
+               arbitrary-value compilation in Render's cached CSS bundle. */}
           {isMobile && !reduced && (
-            <InteractiveParticles
-              count={55}
-              influence={0}
-              className="pointer-events-none absolute inset-0 z-[2]"
-            />
+            <div
+              aria-hidden="true"
+              style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }}
+            >
+              <InteractiveParticles count={55} influence={0} />
+            </div>
           )}
 
           {/* Stage — scroll transforms applied via direct style mutation, NOT motion values */}

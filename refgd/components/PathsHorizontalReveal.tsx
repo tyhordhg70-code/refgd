@@ -572,8 +572,10 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
                 // faces are hidden via backfaceVisibility; side faces are
                 // clipped by the outer container's clipPath; so no dark
                 // plane can ever bleed through.
-                background:
-                  `radial-gradient(ellipse at center, rgba(${rgb},0.35) 0%, rgba(${rgb},0.12) 55%, transparent 100%)`,
+                // No face-wrapper background — PathCard renders its own
+                // solid dark bg + pulse-glow; any wrapper gradient here creates
+                // a visible backdrop on cyan/violet (which resolve in ACCENT_RGB)
+                // while gold/orange/fuchsia silently get undefined → invalid CSS.
                 borderRadius: 22,
                 overflow: "visible",
                 // v6.13.58 — Bumped from 4 → 24 px so the floatBreathe
