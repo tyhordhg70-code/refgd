@@ -29,10 +29,11 @@ import KineticText from "./KineticText";
 function MobileStars() {
   const cvs = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
-    const el = cvs.current;
-    if (!el) return;
-    const ctx = el.getContext("2d");
-    if (!ctx) return;
+    if (!cvs.current) return;
+    const el: HTMLCanvasElement = cvs.current;
+    const ctx2d = el.getContext("2d");
+    if (!ctx2d) return;
+    const ctx: CanvasRenderingContext2D = ctx2d;
     let raf = 0;
     let alive = true;
     const COLORS = ["#ffe28a","#a78bfa","#67e8f9","#f472b6","#ffffff"];
