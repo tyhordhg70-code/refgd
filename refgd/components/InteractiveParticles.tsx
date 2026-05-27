@@ -118,16 +118,20 @@ export default function InteractiveParticles({
       mouse.y = -9999;
     };
 
-    const ro = new ResizeObserver(() => { resize(); init(); });
+    // ResizeObserver drives resize AND draw-loop restart.
+    // Canvas often starts at 0×0 during SSR hydration; RO fires once
+    // real layout dimensions are available — cancel any stale rAF and
+    // kick off a fresh draw cycle. No IntersectionObserver needed here:
+    // the sticky CosmicJourney section is always in-viewport on mobile.
+    const ro = new ResizeObserver(() => {
+      resize();
+      init();
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(draw);
+    });
     ro.observe(cnv);
 
-    const io = new IntersectionObserver((entries) => {
-      const visible = entries.some((e) => e.isIntersecting);
-      if (visible && !running) { running = true; raf = requestAnimationFrame(draw); }
-      if (!visible && running) { running = false; cancelAnimationFrame(raf); }
-    });
-    io.observe(cnv);
-
+    // Bootstrap for when the canvas already has dimensions on mount.
     resize();
     init();
     window.addEventListener("mousemove", onMove);
@@ -138,7 +142,6 @@ export default function InteractiveParticles({
       running = false;
       cancelAnimationFrame(raf);
       ro.disconnect();
-      io.disconnect();
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseleave", onLeave);
     };

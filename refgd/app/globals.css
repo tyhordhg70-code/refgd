@@ -693,36 +693,22 @@ html { scroll-behavior: smooth; }
 }
 
 /* ─── Path-card inset pulsating glow ──────────────────────────────
- * Inset box-shadow stays inside card bounds and is clipped by the
- * card's border-radius. It cannot bleed onto adjacent prism faces
- * during a swipe rotation — safe for both desktop and mobile prism.
+/* ─── Path-card pulsating glow (radial gradient + opacity) ──────────────────
+ * Each class paints a bottom-centred radial gradient in the card’s
+ * accent colour. Opacity pulses via a single shared keyframe.
+ * mix-blend-mode:screen (set inline in PathCard) makes the glow
+ * additive on the near-black card base — clearly visible, not washed out.
+ * Gradient is inside overflow:hidden so it’s always clipped to the card.
  */
-.pi-glow-gold    { animation: piGlowGold    5.0s ease-in-out infinite; }
-.pi-glow-cyan    { animation: piGlowCyan    5.2s ease-in-out infinite; }
-.pi-glow-violet  { animation: piGlowViolet  5.4s ease-in-out infinite; }
-.pi-glow-orange  { animation: piGlowOrange  5.0s ease-in-out infinite; }
-.pi-glow-fuchsia { animation: piGlowFuchsia 4.8s ease-in-out infinite; }
-
-@keyframes piGlowGold {
-  0%, 100% { box-shadow: inset 0 0 0px rgba(245,185,69,0),   inset 0 -30px 50px -10px rgba(245,185,69,0); }
-  50%       { box-shadow: inset 0 0 38px rgba(245,185,69,0.22), inset 0 -30px 50px -10px rgba(245,185,69,0.13); }
+@keyframes piGlowPulse {
+  0%, 100% { opacity: 0;   }
+  50%       { opacity: 1;   }
 }
-@keyframes piGlowCyan {
-  0%, 100% { box-shadow: inset 0 0 0px rgba(34,211,238,0),    inset 0 -30px 50px -10px rgba(34,211,238,0); }
-  50%       { box-shadow: inset 0 0 38px rgba(34,211,238,0.24), inset 0 -30px 50px -10px rgba(34,211,238,0.15); }
-}
-@keyframes piGlowViolet {
-  0%, 100% { box-shadow: inset 0 0 0px rgba(167,139,250,0),   inset 0 -30px 50px -10px rgba(167,139,250,0); }
-  50%       { box-shadow: inset 0 0 38px rgba(167,139,250,0.24), inset 0 -30px 50px -10px rgba(167,139,250,0.15); }
-}
-@keyframes piGlowOrange {
-  0%, 100% { box-shadow: inset 0 0 0px rgba(249,115,22,0),   inset 0 -30px 50px -10px rgba(249,115,22,0); }
-  50%       { box-shadow: inset 0 0 38px rgba(249,115,22,0.22), inset 0 -30px 50px -10px rgba(249,115,22,0.13); }
-}
-@keyframes piGlowFuchsia {
-  0%, 100% { box-shadow: inset 0 0 0px rgba(236,72,153,0),   inset 0 -30px 50px -10px rgba(236,72,153,0); }
-  50%       { box-shadow: inset 0 0 38px rgba(236,72,153,0.24), inset 0 -30px 50px -10px rgba(236,72,153,0.15); }
-}
+.pi-glow-gold    { background: radial-gradient(ellipse at 50% 115%, rgba(245,185,69,0.55)  0%, transparent 68%); animation: piGlowPulse 5.0s ease-in-out infinite; }
+.pi-glow-cyan    { background: radial-gradient(ellipse at 50% 115%, rgba(34,211,238,0.60)  0%, transparent 68%); animation: piGlowPulse 5.2s ease-in-out infinite; }
+.pi-glow-violet  { background: radial-gradient(ellipse at 50% 115%, rgba(167,139,250,0.60) 0%, transparent 68%); animation: piGlowPulse 5.4s ease-in-out infinite; }
+.pi-glow-orange  { background: radial-gradient(ellipse at 50% 115%, rgba(249,115,22,0.55)  0%, transparent 68%); animation: piGlowPulse 5.0s ease-in-out infinite; }
+.pi-glow-fuchsia { background: radial-gradient(ellipse at 50% 115%, rgba(236,72,153,0.60)  0%, transparent 68%); animation: piGlowPulse 4.8s ease-in-out infinite; }
 
 /* ─── Chess piece float ────────────────────────────────────────── */
 .chess-float {
