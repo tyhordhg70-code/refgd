@@ -1,36 +1,34 @@
 "use client";
 import { useReducedMotion } from "framer-motion";
-import { useEffect, useState } from "react";
 
 /**
- * Animated illustration for the Telegram CTA box.
+ * AnimatedTelegramBox v2 — cinematic 3D fly-in.
  *
- * Every animation is a pure CSS @keyframe — transform or opacity only —
- * so the browser compositor handles them without touching the JS thread.
- * Previously 8 framer-motion infinite loops ran JS rAF callbacks every
- * 16 ms, competing with scroll on the main thread. Zero JS rAF now.
+ * Previous version: twinkling stars, chat bubbles drifting across,
+ * paper planes, counter-rotating orbital rings. User feedback: the
+ * distorted animation looked glitchy and low-quality.
  *
- * Two visual variants:
- *   Desktop: 36 twinkling stars, drifting chat bubbles, paper-plane
- *   glyphs, two counter-rotating orbital rings, pulsating planet.
- *   Mobile: scaled-down version of same — ring is static (no rotation).
+ * New design: the Telegram paper-plane logo flies into view from
+ * deep perspective — a single dramatic entrance followed by a gentle
+ * levitation. Speed-lines radiate from the centre on arrival then
+ * fade, giving a "warp-jump" cinematic feel. Pure CSS @keyframes
+ * (transform + opacity only) so every animation lives on the
+ * GPU compositor and never touches the JS thread.
+ *
+ * Animation timeline:
+ *   0 s      → 1.1 s  tg3-flyin: logo travels from z-600 + rotateX/Y
+ *                      to final position, easing out like a fighter
+ *                      jet killing thrust at the last moment.
+ *   0 s      → 0.9 s  tg3-speedlines: 16 radial streaks bloom from
+ *                      the centre and fade — hyperspace-exit effect.
+ *   0 s      → ∞      tg3-star: background depth stars twinkle softly.
+ *   1.1 s    → ∞      tg3-float: logo levitates ±10 px, slow rotateY
+ *                      oscillation ±4°. Stagger on glow ring.
+ *   0.8 s    → ∞      tg3-glow-pulse: violet-cyan halo behind logo
+ *                      breathes slowly.
  */
 export default function AnimatedTelegramBox() {
   const reduced = useReducedMotion();
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(max-width: 768px)");
-    const sync = () => setIsMobile(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-
-  const STARS    = isMobile ? 6 : 36;
-  const BUBBLES  = isMobile ? 0 : 4;
-  const PLANES   = isMobile ? 0 : 9;
 
   return (
     <div
@@ -39,167 +37,201 @@ export default function AnimatedTelegramBox() {
       className="absolute inset-0 overflow-hidden"
       style={{
         background:
-          "radial-gradient(ellipse at 25% 50%, rgba(167,139,250,0.32), transparent 55%)," +
-          "radial-gradient(ellipse at 78% 60%, rgba(34,211,238,0.36), transparent 55%)," +
-          "radial-gradient(ellipse at 50% 110%, rgba(245,185,69,0.18), transparent 55%)," +
-          "linear-gradient(135deg, #08080f 0%, #1a1228 60%, #08080f 100%)",
+          "radial-gradient(ellipse at 50% 40%, rgba(99,77,180,0.42), transparent 60%)," +
+          "radial-gradient(ellipse at 75% 65%, rgba(34,211,238,0.22), transparent 55%)," +
+          "linear-gradient(160deg, #07071a 0%, #12102a 50%, #07071a 100%)",
       }}
     >
       <style>{`
-        /* All keyframes are transform/opacity only — compositor thread */
-        @keyframes tg-star    { 0%,100%{opacity:0.22} 50%{opacity:0.92} }
-        @keyframes tg-bubble  {
-          0%   { transform:translateX(-8%); opacity:0 }
-          8%   { opacity:0.85 }
-          92%  { opacity:0.85 }
-          100% { transform:translateX(1450%); opacity:0 }
+        /* ── All keyframes: transform / opacity only (compositor-safe) ── */
+
+        @keyframes tg3-star {
+          0%,100% { opacity: 0.18 }
+          50%      { opacity: 0.75 }
         }
-        @keyframes tg-plane   {
-          0%   { transform:translateY(0%) translateX(0%) rotate(0deg); opacity:0 }
-          8%   { opacity:0.95 }
-          50%  { transform:translateY(-360%) translateX(9%) rotate(8deg); opacity:0.7 }
-          92%  { opacity:0 }
-          100% { transform:translateY(-720%) translateX(0%) rotate(-4deg); opacity:0 }
+
+        @keyframes tg3-speedline {
+          0%   { transform: scaleX(0); opacity: 0 }
+          18%  { transform: scaleX(1); opacity: 0.60 }
+          55%  { transform: scaleX(1); opacity: 0.35 }
+          100% { transform: scaleX(1); opacity: 0 }
         }
-        @keyframes tg-ring-cw  { to { transform:translateY(-50%) rotate(360deg) } }
-        @keyframes tg-ring-ccw { to { transform:translateY(-50%) rotate(-360deg) } }
-        @keyframes tg-planet   {
-          0%,100% { transform:translateY(-50%) scale(1);   opacity:0.85 }
-          50%     { transform:translateY(-50%) scale(1.07); opacity:1 }
+
+        @keyframes tg3-flyin {
+          0% {
+            transform: perspective(900px) translateZ(-700px)
+                       rotateX(52deg) rotateY(-38deg) scale(0.12);
+            opacity: 0;
+          }
+          18% { opacity: 1 }
+          78% {
+            transform: perspective(900px) translateZ(-18px)
+                       rotateX(4deg) rotateY(3deg) scale(1.06);
+            opacity: 1;
+          }
+          100% {
+            transform: perspective(900px) translateZ(0px)
+                       rotateX(0deg) rotateY(0deg) scale(1);
+            opacity: 1;
+          }
         }
-        @keyframes tg-sweep    {
-          0%   { transform:rotate(0deg) }
-          100% { transform:rotate(360deg) }
+
+        @keyframes tg3-float {
+          0%,100% { transform: translateY(0px)   rotateY(0deg) }
+          40%     { transform: translateY(-11px)  rotateY(4deg) }
+          70%     { transform: translateY(-6px)   rotateY(-3deg) }
+        }
+
+        @keyframes tg3-glow-pulse {
+          0%,100% { opacity: 0.50; transform: scale(1)    }
+          50%     { opacity: 0.85; transform: scale(1.08) }
+        }
+
+        @keyframes tg3-ring-expand {
+          0%   { transform: translate(-50%,-50%) scale(0.4); opacity: 0.7 }
+          100% { transform: translate(-50%,-50%) scale(1.8); opacity: 0   }
         }
       `}</style>
 
-      {/* ── Stars ── */}
-      {Array.from({ length: STARS }).map((_, i) => {
-        const left = (i * 37) % 100;
-        const top  = (i * 53) % 100;
-        const size = 1 + (i % 3);
-        const dur  = (3.5 + (i % 5) * 0.9).toFixed(1);
-        const del  = ((i % 7) * 0.4).toFixed(1);
+      {/* ── Depth stars (24) — very subtle, just fill the space ── */}
+      {Array.from({ length: 24 }).map((_, i) => {
+        const left = (i * 41 + 7) % 100;
+        const top  = (i * 63 + 11) % 100;
+        const size = 1 + (i % 3) * 0.5;
+        const dur  = (3 + (i % 5) * 0.9).toFixed(1);
+        const del  = ((i % 9) * 0.35).toFixed(1);
         return (
           <span
-            key={`star-${i}`}
+            key={i}
             className="absolute rounded-full bg-white"
             style={{
-              left: `${left}%`,
-              top:  `${top}%`,
-              width:  size,
-              height: size,
-              boxShadow: `0 0 ${size * 4}px rgba(255,255,255,0.65)`,
-              opacity: reduced ? 0.65 : undefined,
-              animation: reduced ? undefined : `tg-star ${dur}s ${del}s ease-in-out infinite`,
+              left: `${left}%`, top: `${top}%`,
+              width: size, height: size,
+              boxShadow: `0 0 ${size * 3}px rgba(255,255,255,0.55)`,
+              opacity: reduced ? 0.4 : undefined,
+              animation: reduced ? undefined : `tg3-star ${dur}s ${del}s ease-in-out infinite`,
             }}
           />
         );
       })}
 
-      {/* ── Chat bubbles (desktop) ── */}
-      {!reduced && BUBBLES > 0 && Array.from({ length: BUBBLES }).map((_, i) => {
-        const top = 22 + i * 30;
-        const dur = 12 + i * 2;
-        const del = i * 3;
+      {/* ── Speed-lines — 16 radial streaks from centre ── */}
+      {!reduced && Array.from({ length: 16 }).map((_, i) => {
+        const angle = (i / 16) * 360;
+        const len   = 38 + (i % 3) * 14;
+        const del   = (i % 4) * 0.04;
         return (
-          <svg
-            key={`bub-${i}`}
-            width="34" height="28" viewBox="0 0 34 28"
-            className="absolute opacity-70"
+          <div
+            key={i}
             style={{
-              top: `${top}%`,
-              left: "-8%",
-              animation: `tg-bubble ${dur}s ${del}s linear infinite`,
+              position: "absolute",
+              left: "50%", top: "42%",
+              width: `${len}%`, height: 1.5,
+              transformOrigin: "0% 50%",
+              transform: `rotate(${angle}deg)`,
             }}
           >
-            <path
-              d="M3 4 a3 3 0 0 1 3 -3 h22 a3 3 0 0 1 3 3 v12 a3 3 0 0 1 -3 3 h-13 l-7 6 v-6 h-2 a3 3 0 0 1 -3 -3 z"
-              fill="rgba(34,211,238,0.18)" stroke="#7be7ff" strokeWidth="1.2"
-            />
-            <circle cx="13" cy="11" r="1.4" fill="#7be7ff" />
-            <circle cx="17" cy="11" r="1.4" fill="#7be7ff" />
-            <circle cx="21" cy="11" r="1.4" fill="#7be7ff" />
-          </svg>
+            <div style={{
+              width: "100%", height: "100%",
+              background: "linear-gradient(90deg, rgba(130,100,255,0.70), rgba(34,211,238,0.45), transparent)",
+              animation: `tg3-speedline 0.85s ${del}s cubic-bezier(0.22,1,0.36,1) forwards`,
+              transformOrigin: "left center",
+            }} />
+          </div>
         );
       })}
 
-      {/* ── Paper planes (desktop) ── */}
-      {!reduced && PLANES > 0 && (
-        <div className="absolute inset-0">
-          {Array.from({ length: PLANES }).map((_, i) => {
-            const left = 6 + i * (88 / Math.max(1, PLANES - 1));
-            const dur  = (9 + (i % 4) * 2.2).toFixed(1);
-            const del  = (i * 1.3).toFixed(1);
-            return (
-              <svg
-                key={`pp-${i}`}
-                width="22" height="22" viewBox="0 0 24 24"
-                className="absolute"
-                style={{
-                  left: `${left}%`,
-                  bottom: "-14%",
-                  filter: "drop-shadow(0 0 5px rgba(123,231,255,0.50))",
-                  animation: `tg-plane ${dur}s ${del}s ease-out infinite`,
-                }}
-              >
-                <path d="M22 2 11 13" stroke="#7be7ff" strokeWidth="1.8" strokeLinecap="round" />
-                <path d="M22 2 15 22 11 13 2 9z" stroke="#b196ff" strokeWidth="1.8" strokeLinejoin="round" fill="rgba(123,231,255,0.10)" />
-              </svg>
-            );
-          })}
-        </div>
+      {/* ── Expanding ring on arrival ── */}
+      {!reduced && (
+        <>
+          <div style={{
+            position: "absolute", left: "50%", top: "42%",
+            width: 220, height: 220, borderRadius: "50%",
+            border: "1.5px solid rgba(130,100,255,0.55)",
+            animation: "tg3-ring-expand 0.95s 0.55s cubic-bezier(0.22,1,0.36,1) forwards",
+            transform: "translate(-50%,-50%) scale(0.4)",
+            opacity: 0,
+            pointerEvents: "none",
+          }} />
+          <div style={{
+            position: "absolute", left: "50%", top: "42%",
+            width: 150, height: 150, borderRadius: "50%",
+            border: "1px solid rgba(34,211,238,0.45)",
+            animation: "tg3-ring-expand 0.95s 0.70s cubic-bezier(0.22,1,0.36,1) forwards",
+            transform: "translate(-50%,-50%) scale(0.4)",
+            opacity: 0,
+            pointerEvents: "none",
+          }} />
+        </>
       )}
 
-      {/* ── Orbital rings ── desktop = CSS rotate, mobile = static ── */}
-      <div
-        className="absolute right-[6%] top-[68%] h-[80%] w-[80%] rounded-full border border-white/10 sm:right-[10%] sm:top-1/2 sm:h-[100%] sm:w-[100%]"
-        style={{
-          aspectRatio: "1/1",
-          maxHeight: "560px",
-          maxWidth: "560px",
-          transformOrigin: "50% 50%",
-          transform: "translateY(-50%)",
-          animation: (!reduced && !isMobile) ? "tg-ring-cw 60s linear infinite" : undefined,
-        }}
-      >
-        <span className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300 shadow-[0_0_30px_#67e8f9]" />
-        <span className="absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 translate-x-1/2 rounded-full bg-violet-300 shadow-[0_0_22px_#a78bfa]" />
-        <span className="absolute bottom-0 left-1/2 h-2.5 w-2.5 -translate-x-1/2 translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_24px_#ffd06b]" />
-        <span className="absolute left-0 top-1/2 h-2 w-2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-fuchsia-300 shadow-[0_0_22px_#f0abfc]" />
+      {/* ── Logo glow halo (behind the logo) ── */}
+      <div style={{
+        position: "absolute", left: "50%", top: "42%",
+        width: 180, height: 180,
+        transform: "translate(-50%,-50%)",
+        borderRadius: "50%",
+        background: "radial-gradient(circle at 50% 50%, rgba(99,77,220,0.70), rgba(34,211,238,0.35) 55%, transparent 80%)",
+        filter: "blur(28px)",
+        animation: reduced ? undefined : `tg3-glow-pulse 3.5s 0.8s ease-in-out infinite`,
+        opacity: reduced ? 0.6 : 0.5,
+      }} />
+
+      {/* ── Telegram logo — 3D fly-in ── */}
+      <div style={{
+        position: "absolute", left: "50%", top: "42%",
+        transform: "translate(-50%,-50%)",
+        animation: reduced ? undefined
+          : `tg3-flyin 1.1s cubic-bezier(0.16,1,0.3,1) forwards,
+             tg3-float 5.5s 1.1s ease-in-out infinite`,
+        opacity: reduced ? 1 : 0,
+        filter: "drop-shadow(0 0 28px rgba(99,77,255,0.65)) drop-shadow(0 0 60px rgba(34,211,238,0.40))",
+      }}>
+        <svg width="100" height="100" viewBox="0 0 240 240" fill="none">
+          {/* Circular background */}
+          <circle cx="120" cy="120" r="116"
+            fill="url(#tg-grad)"
+            stroke="rgba(255,255,255,0.12)" strokeWidth="2"
+          />
+          {/* Telegram paper-plane mark */}
+          <path
+            d="M175 75 L85 115 L80 150 L100 135 L130 155 L175 75Z"
+            fill="rgba(255,255,255,0.18)"
+          />
+          <path
+            d="M175 75 L65 112 L80 150 L100 135"
+            stroke="white" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"
+            fill="none"
+          />
+          <path
+            d="M80 150 L100 135 L130 155 Z"
+            fill="white" opacity="0.95"
+          />
+          <path
+            d="M100 135 L175 75"
+            stroke="white" strokeWidth="4.5" strokeLinecap="round"
+            fill="none"
+          />
+          <path
+            d="M65 112 L175 75 L130 155 L80 150 Z"
+            fill="white" opacity="0.90"
+          />
+          {/* Shine highlight */}
+          <ellipse cx="95" cy="95" rx="28" ry="16" fill="rgba(255,255,255,0.22)"
+            transform="rotate(-30 95 95)"
+          />
+          <defs>
+            <radialGradient id="tg-grad" cx="38%" cy="30%" r="75%">
+              <stop offset="0%" stopColor="#7b5fe0" />
+              <stop offset="55%" stopColor="#5b3fc0" />
+              <stop offset="100%" stopColor="#2a1f7a" />
+            </radialGradient>
+          </defs>
+        </svg>
       </div>
 
-      <div
-        className="absolute right-[12%] top-[68%] h-[52%] w-[52%] rounded-full border border-white/10 sm:right-[16%] sm:top-1/2 sm:h-[64%] sm:w-[64%]"
-        style={{
-          aspectRatio: "1/1",
-          maxHeight: "360px",
-          maxWidth: "360px",
-          transformOrigin: "50% 50%",
-          transform: "translateY(-50%)",
-          animation: (!reduced && !isMobile) ? "tg-ring-ccw 38s linear infinite" : undefined,
-        }}
-      >
-        <span className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-200 shadow-[0_0_18px_#ffe28a]" />
-        <span className="absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 translate-x-1/2 rounded-full bg-cyan-200 shadow-[0_0_18px_#7be7ff]" />
-      </div>
-
-      {/* ── Planet ── */}
-      <div
-        className="absolute right-[12%] top-[68%] h-32 w-32 rounded-full sm:right-[16%] sm:top-1/2 sm:h-44 sm:w-44 md:h-56 md:w-56"
-        style={{
-          background:
-            "radial-gradient(circle at 30% 28%, rgba(255,255,255,0.95), rgba(167,139,250,0.62) 40%, rgba(34,211,238,0.40) 75%, transparent 100%)",
-          boxShadow:
-            "0 0 50px 14px rgba(167,139,250,0.32), inset 0 0 25px rgba(255,255,255,0.4)",
-          animation: reduced ? undefined : "tg-planet 5s ease-in-out infinite",
-          transform: "translateY(-50%)",
-          transformOrigin: "50% 50%",
-        }}
-      />
-
-      {/* Vertical fade so the headline reads above the planet/ring */}
-      <div className="absolute inset-0 bg-gradient-to-b from-ink-950/95 via-ink-950/60 to-transparent" />
+      {/* Vertical fade so text above reads cleanly */}
+      <div className="absolute inset-0 bg-gradient-to-b from-ink-950/90 via-ink-950/40 to-transparent pointer-events-none" />
     </div>
   );
 }

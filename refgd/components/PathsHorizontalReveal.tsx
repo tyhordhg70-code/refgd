@@ -95,7 +95,6 @@ function DesktopGrid({
       className="relative mx-auto w-full py-2"
       style={{ perspective: "1600px" }}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-40 -translate-y-1/2 rounded-full bg-amber-300/10 blur-3xl" />
 
       <motion.div
         className="relative px-2 sm:px-4"
