@@ -234,34 +234,28 @@ export default function PixelRainCosmic({
     let autoScrolled = false;
     function maybeAutoScroll() {
       if (autoScrolled) return;
-      if (progressRef.current < 0.15) return;
+      // v6.13.51 — Threshold lowered from 0.15 → 0.05 now that we have a
+      // Lenis-aware scrollTo. Fires almost the instant the rain enters
+      // viewport, so the user gets carried straight to the evade content.
+      if (progressRef.current < 0.05) return;
       autoScrolled = true;
       const r = W.getBoundingClientRect();
       const targetY = window.scrollY + r.bottom + 1;
-      // honour reduced-motion: use jump rather than smooth scroll
-      const reduceMo = window.matchMedia(
-        "(prefers-reduced-motion: reduce)",
-      ).matches;
-      // v6.13.35 — User report: "rain autoscroll doesn't work on
-      // desktop". Cause: on hover-capable / fine-pointer devices
-      // (mouse wheels + trackpad), `behavior: "smooth"` scrollTo
-      // gets cancelled the instant the user touches the wheel
-      // again — and since the wheel scroll that crossed the 0.55
-      // progress threshold is what TRIGGERED maybeAutoScroll in
-      // the first place, the very next wheel tick (always within
-      // a few ms) cancels the smooth scroll mid-flight, leaving
-      // the page barely advanced. Touch devices don't have this
-      // problem because flicks come as discrete touch events
-      // rather than continuous wheel input. Fix: use instant
-      // ("auto") behaviour on fine-pointer devices so the jump
-      // completes before any further wheel tick can interrupt it.
-      const finePointer = window.matchMedia(
-        "(hover: hover) and (pointer: fine)",
-      ).matches;
-      window.scrollTo({
-        top: targetY,
-        behavior: reduceMo || finePointer ? "auto" : "smooth",
-      });
+
+      // ── ROOT CAUSE FIX ──
+      // Lenis (mounted in SmoothScroll) owns window.scrollY on desktop
+      // and reverts any native window.scrollTo() on its next rAF tick,
+      // which is why the previous auto-scroll appeared to do nothing.
+      // Use the Lenis instance's own scrollTo() with immediate+force+lock
+      // so Lenis sets its internal target itself instead of fighting us.
+      const lenis = (window as any).__lenis;
+      if (lenis && typeof lenis.scrollTo === "function") {
+        lenis.scrollTo(targetY, { immediate: true, force: true, lock: true });
+        return;
+      }
+
+      // Fallback for mobile / reduced-motion (Lenis not mounted there).
+      window.scrollTo({ top: targetY, behavior: "auto" });
     }
 
     function onScroll() {
