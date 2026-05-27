@@ -168,7 +168,7 @@ export default function StoreCard({
                 {store.region}
               </span>
             </div>
-            <p className="text-xs text-white/40">{store.category}</p>
+            <p className="text-xs text-white/65 font-medium">{store.category}</p>
             {store.tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {store.tags.map((t) => {

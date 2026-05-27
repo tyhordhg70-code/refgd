@@ -136,14 +136,14 @@ export default function LedJoySection() {
                     scrollY: Math.round(window.scrollY),
                   }));
                 }
-                if (e.isIntersecting && e.intersectionRatio >= 0.05) {
+                if (e.isIntersecting && e.intersectionRatio >= 0.30) {
                   fire();
                   io?.disconnect();
                   break;
                 }
               }
             },
-            { threshold: [0, 0.05, 0.1, 0.2, 0.3, 0.5, 1], rootMargin: "0px 0px -10% 0px" },
+            { threshold: [0.15, 0.25, 0.30, 0.40, 0.50], rootMargin: "0px 0px 0px 0px" },
           );
           io.observe(el);
         }
@@ -153,7 +153,7 @@ export default function LedJoySection() {
         const onScroll = () => {
           if (done) return;
           const r = el.getBoundingClientRect();
-          if (r.top < window.innerHeight * 0.85 && r.bottom > 0) {
+          if (r.top < window.innerHeight * 0.50 && r.bottom > 0) {
             fire();
           }
         };
