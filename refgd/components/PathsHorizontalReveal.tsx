@@ -573,7 +573,7 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
                 // clipped by the outer container's clipPath; so no dark
                 // plane can ever bleed through.
                 background:
-                  `radial-gradient(ellipse at center, rgba(${rgb},0.38) 0%, rgba(${rgb},0.18) 55%, rgba(8,8,16,0.98) 100%)`,
+                  `radial-gradient(ellipse at center, rgba(${rgb},0.35) 0%, rgba(${rgb},0.12) 55%, transparent 100%)`,
                 borderRadius: 22,
                 overflow: "visible",
                 // v6.13.58 — Bumped from 4 → 24 px so the floatBreathe

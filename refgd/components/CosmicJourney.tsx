@@ -217,6 +217,19 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           className="sticky top-0 grid w-full place-items-center overflow-hidden"
           style={{ height: "100svh", perspective: "1400px", contain: "layout paint" }}
         >
+          {/* ── Mobile canvas particles — sibling to stageRef, NOT inside preserve-3d ──
+               Outside the 3D context the canvas composites in normal 2D order,
+               unaffected by stageRef's scroll-driven opacity/transform mutations.
+               z-index:2 places it above the nebula/planet layer (z-index:1 default)
+               but below the headline (which sits in stageRef above z-index:10). */}
+          {isMobile && !reduced && (
+            <InteractiveParticles
+              count={55}
+              influence={0}
+              className="pointer-events-none absolute inset-0 z-[2]"
+            />
+          )}
+
           {/* Stage — scroll transforms applied via direct style mutation, NOT motion values */}
           <div
             ref={stageRef}
@@ -251,20 +264,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
               }}
             />
 
-
-            {/* ── 1b. Mobile CSS floating sparkles — zero JS per-frame cost ──
-                14 tiny dots animate with pure CSS opacity+translateY keyframes.
-                Gated on isMobile && !reduced so desktop and
-                prefers-reduced-motion users are unaffected.
-                Provides the ambient particle richness of the desktop
-                warp streaks at a fraction of the GPU cost. */}
-            {isMobile && !reduced && (
-              <InteractiveParticles
-                count={55}
-                influence={0}
-                className="pointer-events-none absolute inset-0"
-              />
-            )}
 
             {/* ── 2. Mount warp streaks ── */}
             {!reduced && (
