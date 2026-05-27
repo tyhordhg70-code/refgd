@@ -226,16 +226,11 @@ export default function PathCard({
           data-testid={`path-card-${index + 1}-link`}
           className={`relative block h-full overflow-hidden ${radius} glass-strong`}
           style={{
-            // FULLY OPAQUE — the mobile prism stacks 5 cards in 3D
-            // space; any transparency in the active card lets the
-            // back faces of the prism bleed through. The user
-            // reported this as "I can see swiped cards behind".
-            // Solid colours + solid SVG illustration on top = no
-            // bleed-through, ever.
-            background:
-              "linear-gradient(180deg, rgb(18,16,30), rgb(8,8,16))",
-            boxShadow:
-              "0 0 0 1px rgba(255,255,255,0.07) inset",
+            // FULLY OPAQUE — solid gradient prevents prism bleed-through.
+            background: "linear-gradient(180deg, rgb(18,16,30), rgb(8,8,16))",
+            // Override glass-strong's white border — the accent outer glow
+            // defines the card edge; a white ring on top looks like a hard edge.
+            border: "none",
           }}
           // v6.13.17 — Restored accent-coloured pulse glow on the
           // mobile carousel branch too. Body stays solid (no
@@ -349,8 +344,9 @@ export default function PathCard({
             data-testid={`path-card-${index + 1}-link`}
             className={`relative block h-full overflow-hidden ${radius} glass-strong transition-all duration-500 ${ACCENT_GLOW[accent]}`}
             style={{
-              background:
-                "linear-gradient(180deg, rgb(18,16,30), rgb(8,8,16))",
+              background: "linear-gradient(180deg, rgb(18,16,30), rgb(8,8,16))",
+              // Override glass-strong's 1px white border ring
+              border: "none",
             }}
           >
             {/* Animated gradient ring */}
