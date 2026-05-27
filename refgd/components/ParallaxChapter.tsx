@@ -69,8 +69,8 @@ export default function ParallaxChapter({
   const bgAnimate = { opacity: 1, y: "0%", scale: 1 };
 
   // Foreground: subtle 6% lift on enter, no continuous scroll motion.
-  const fgInitial = disable ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 };
-  const fgAnimate = { opacity: 1, y: 0 };
+  const fgInitial = disable ? { y: 0 } : { y: 14 };
+  const fgAnimate = { y: 0 };
 
   // v6.1 (2026-05): scroll-triggered entrance with `once: true` so
   // chapter contents animate in lusion-style as the user scrolls

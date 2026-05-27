@@ -241,7 +241,7 @@ export default function ServiceSection(
            sliced. Forcing 100svh on mobile gives the headline +
            cashback scene their own dedicated screen, matching
            desktop's 92svh treatment. */
-        className={`relative isolate flex w-full flex-col items-center justify-center overflow-hidden ${heroBg} min-h-[100svh] pt-8 pb-16 md:flex-row md:items-center md:py-0 md:min-h-[92svh]`}
+        className={`relative isolate flex w-full flex-col items-center justify-center overflow-hidden ${heroBg} min-h-[100svh] pt-8 pb-4 md:flex-row md:items-center md:py-0 md:min-h-[92svh]`}
         data-cursor="big"
         /* v6.13.34 — Anchor for SkipToStoreListButton's
            IntersectionObserver. The button fades in while this
@@ -343,7 +343,7 @@ export default function ServiceSection(
       {showRest && (
       <>
       {/* Act 2 — Editorial sub-statement + 3D money-time scene */}
-      <section className="relative py-32">
+      <section className="relative pt-6 pb-24 md:py-32">
         <div className="container-wide relative grid items-center gap-12 sm:grid-cols-12">
           <div className="sm:col-span-7 sm:col-start-2">
             <EditableText

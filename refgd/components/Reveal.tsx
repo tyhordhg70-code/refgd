@@ -6,7 +6,7 @@
    *
    * v6.14.2 — Removed opacity from initial/whileInView states.
    * Content is always visible (no opacity:0 flash if framer-motion
-   * is slow to hydrate). Only transform (y + rotateX) animates.
+   * is slow to hydrate). Only transform (y) animates — rotateX removed.
    * The lift-into-place effect is fully preserved.
    */
   export function Reveal({
@@ -16,11 +16,10 @@
   }: { children: React.ReactNode; delay?: number; className?: string }) {
     return (
       <motion.div
-        initial={{ y: 50, rotateX: 6 }}
-        whileInView={{ y: 0, rotateX: 0 }}
-        viewport={{ once: false, amount: 0.1 }}
-        transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
-        style={{ perspective: 1200 }}
+        initial={{ y: 36 }}
+        whileInView={{ y: 0 }}
+        viewport={{ once: true, amount: 0.08 }}
+        transition={{ duration: 0.52, delay, ease: [0.22, 1, 0.36, 1] }}
         suppressHydrationWarning
         className={className}
       >
@@ -40,7 +39,7 @@
       <motion.div
         initial={reduced ? {} : { y: amount * 0.6 }}
         whileInView={{ y: 0 }}
-        viewport={{ once: false, amount: 0.1 }}
+        viewport={{ once: true, amount: 0.1 }}
         transition={{ duration: reduced ? 0 : 0.9, ease: [0.22, 1, 0.36, 1] }}
         style={{ position: "relative" }}
         suppressHydrationWarning

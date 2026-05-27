@@ -160,16 +160,10 @@ export default function LedJoySection() {
         window.addEventListener("scroll", onScroll, { passive: true });
         onScroll(); // initial check in case section is already in view on mount
 
-        // 3) First user-interaction fallback — pure safety net.
-        const onInteract = () => {
-          fire();
-        };
-        window.addEventListener("touchstart", onInteract, { once: true, passive: true });
 
         return () => {
           io?.disconnect();
           window.removeEventListener("scroll", onScroll);
-          window.removeEventListener("touchstart", onInteract);
         };
       }, []);
   const play = played;
