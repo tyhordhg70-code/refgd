@@ -720,11 +720,11 @@ html { scroll-behavior: smooth; }
 .pc-outer-glow-violet  { animation: pcOuterViolet  5.4s ease-in-out infinite; }
 .pc-outer-glow-orange  { animation: pcOuterOrange  5.0s ease-in-out infinite; }
 .pc-outer-glow-fuchsia { animation: pcOuterFuchsia 4.8s ease-in-out infinite; }
-@keyframes pcOuterGold    { 0%,100%{box-shadow:0 0 14px 2px rgba(245,185,69,0.18),0 0 32px 4px rgba(245,185,69,0.08)} 50%{box-shadow:0 0 28px 6px rgba(245,185,69,0.55),0 0 56px 8px rgba(245,185,69,0.22)} }
-@keyframes pcOuterCyan    { 0%,100%{box-shadow:0 0 14px 2px rgba(34,211,238,0.18),0 0 32px 4px rgba(34,211,238,0.08)} 50%{box-shadow:0 0 28px 6px rgba(34,211,238,0.55),0 0 56px 8px rgba(34,211,238,0.22)} }
-@keyframes pcOuterViolet  { 0%,100%{box-shadow:0 0 14px 2px rgba(167,139,250,0.18),0 0 32px 4px rgba(167,139,250,0.08)} 50%{box-shadow:0 0 28px 6px rgba(167,139,250,0.55),0 0 56px 8px rgba(167,139,250,0.22)} }
-@keyframes pcOuterOrange  { 0%,100%{box-shadow:0 0 14px 2px rgba(249,115,22,0.18),0 0 32px 4px rgba(249,115,22,0.08)} 50%{box-shadow:0 0 28px 6px rgba(249,115,22,0.55),0 0 56px 8px rgba(249,115,22,0.22)} }
-@keyframes pcOuterFuchsia { 0%,100%{box-shadow:0 0 14px 2px rgba(236,72,153,0.18),0 0 32px 4px rgba(236,72,153,0.08)} 50%{box-shadow:0 0 28px 6px rgba(236,72,153,0.55),0 0 56px 8px rgba(236,72,153,0.22)} }
+@keyframes pcOuterGold    { 0%,100%{box-shadow:0 0 18px rgba(245,185,69,0.18)} 50%{box-shadow:0 0 48px rgba(245,185,69,0.60)} }
+@keyframes pcOuterCyan    { 0%,100%{box-shadow:0 0 18px rgba(34,211,238,0.18)} 50%{box-shadow:0 0 48px rgba(34,211,238,0.60)} }
+@keyframes pcOuterViolet  { 0%,100%{box-shadow:0 0 18px rgba(167,139,250,0.18)} 50%{box-shadow:0 0 48px rgba(167,139,250,0.60)} }
+@keyframes pcOuterOrange  { 0%,100%{box-shadow:0 0 18px rgba(249,115,22,0.18)} 50%{box-shadow:0 0 48px rgba(249,115,22,0.60)} }
+@keyframes pcOuterFuchsia { 0%,100%{box-shadow:0 0 18px rgba(236,72,153,0.18)} 50%{box-shadow:0 0 48px rgba(236,72,153,0.60)} }
 /* ─── Chess piece float ────────────────────────────────────────── */
 .chess-float {
   animation: chessFloat 6s ease-in-out infinite;
