@@ -108,7 +108,7 @@
         </ReorderableSection>
 
         <ReorderableSection sectionId="pixel-rain">
-          <PixelRainCosmic accent="#7dd3fc" scrollLength={0.1} />
+          <PixelRainCosmic accent="#7dd3fc" />
         </ReorderableSection>
 
         {/* CHAPTER 01 — editorial layout (oversized 01, vault art, excerpts) */}
