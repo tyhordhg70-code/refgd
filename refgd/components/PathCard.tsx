@@ -219,10 +219,12 @@ export default function PathCard({
           willChange: "transform",
         }}
       >
+        {/* Outer glow — sibling div with STATIC box-shadow; only opacity animates (GPU composited, no repaint flicker) */}
+        <div aria-hidden="true" className={`absolute inset-0 ${radius} pointer-events-none ${OUTER_GLOW[accent]}`} />
         <Tag
           {...linkProps}
           data-testid={`path-card-${index + 1}-link`}
-          className={`relative block h-full overflow-hidden ${radius} glass-strong ${ACCENT_PULSE[accent]} ${OUTER_GLOW[accent]}`}
+          className={`relative block h-full overflow-hidden ${radius} glass-strong`}
           style={{
             // FULLY OPAQUE — the mobile prism stacks 5 cards in 3D
             // space; any transparency in the active card lets the
@@ -340,18 +342,12 @@ export default function PathCard({
        */}
       <div style={{ animation: floatDisabled ? "none" : `floatSlow ${floatDuration} ease-in-out ${floatDelay} infinite` }} className="h-full">
         <Tilt3D intensity={0.85} className="h-full">
+          {/* Outer glow — sibling div with STATIC box-shadow; only opacity animates (GPU composited, no repaint flicker) */}
+          <div aria-hidden="true" className={`absolute inset-0 ${radius} pointer-events-none ${OUTER_GLOW[accent]}`} />
           <Tag
             {...linkProps}
             data-testid={`path-card-${index + 1}-link`}
-            // v6.13.17 — REVERSED v6.13.15. User clarified that the
-            // black-outline cards looked dead; they want the
-            // accent-coloured glow back. Re-enabled the continuous
-            // ACCENT_PULSE halo + the ACCENT_GLOW hover drop-shadow.
-            // Kept the solid dark gradient base from v6.13.15 so the
-            // card body itself still reads as opaque (no
-            // GalaxyBackground bleed-through), but the surrounding
-            // halo is now back in each card's accent colour.
-            className={`relative block h-full overflow-hidden ${radius} glass-strong transition-all duration-500 ${ACCENT_PULSE[accent]} ${OUTER_GLOW[accent]} ${ACCENT_GLOW[accent]}`}
+            className={`relative block h-full overflow-hidden ${radius} glass-strong transition-all duration-500 ${ACCENT_GLOW[accent]}`}
             style={{
               background:
                 "linear-gradient(180deg, rgb(18,16,30), rgb(8,8,16))",

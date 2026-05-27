@@ -715,16 +715,15 @@ html { scroll-behavior: smooth; }
  * Compact symmetric outer glow — no 1px ring so safe on OLED phones.
  * Starts at low visible alpha (not 0) so the glow is always apparent.
  */
-.pc-outer-glow-gold    { animation: pcOuterGold    5.0s ease-in-out infinite; }
-.pc-outer-glow-cyan    { animation: pcOuterCyan    5.2s ease-in-out infinite; }
-.pc-outer-glow-violet  { animation: pcOuterViolet  5.4s ease-in-out infinite; }
-.pc-outer-glow-orange  { animation: pcOuterOrange  5.0s ease-in-out infinite; }
-.pc-outer-glow-fuchsia { animation: pcOuterFuchsia 4.8s ease-in-out infinite; }
-@keyframes pcOuterGold    { 0%,100%{box-shadow:0 0 18px rgba(245,185,69,0.18)} 50%{box-shadow:0 0 48px rgba(245,185,69,0.60)} }
-@keyframes pcOuterCyan    { 0%,100%{box-shadow:0 0 18px rgba(34,211,238,0.18)} 50%{box-shadow:0 0 48px rgba(34,211,238,0.60)} }
-@keyframes pcOuterViolet  { 0%,100%{box-shadow:0 0 18px rgba(167,139,250,0.18)} 50%{box-shadow:0 0 48px rgba(167,139,250,0.60)} }
-@keyframes pcOuterOrange  { 0%,100%{box-shadow:0 0 18px rgba(249,115,22,0.18)} 50%{box-shadow:0 0 48px rgba(249,115,22,0.60)} }
-@keyframes pcOuterFuchsia { 0%,100%{box-shadow:0 0 18px rgba(236,72,153,0.18)} 50%{box-shadow:0 0 48px rgba(236,72,153,0.60)} }
+.pc-outer-glow-gold    { box-shadow:0 0 40px rgba(245,185,69,1.0); animation:pcGlowFade 5.0s ease-in-out infinite; }
+.pc-outer-glow-cyan    { box-shadow:0 0 40px rgba(34,211,238,1.0);  animation:pcGlowFade 5.2s ease-in-out infinite; }
+.pc-outer-glow-violet  { box-shadow:0 0 40px rgba(167,139,250,1.0); animation:pcGlowFade 5.4s ease-in-out infinite; }
+.pc-outer-glow-orange  { box-shadow:0 0 40px rgba(249,115,22,1.0);  animation:pcGlowFade 5.0s ease-in-out infinite; }
+.pc-outer-glow-fuchsia { box-shadow:0 0 40px rgba(236,72,153,1.0);  animation:pcGlowFade 4.8s ease-in-out infinite; }
+@keyframes pcGlowFade {
+  0%, 100% { opacity: 0.20; }
+  50%       { opacity: 0.75; }
+}
 /* ─── Chess piece float ────────────────────────────────────────── */
 .chess-float {
   animation: chessFloat 6s ease-in-out infinite;
