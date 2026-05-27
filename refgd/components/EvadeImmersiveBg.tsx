@@ -62,11 +62,6 @@
             className="ev-imm-nebula"
             style={{ position: "absolute", top: "-200px", bottom: "-200px", left: "-200px", right: "-200px" }}
           />
-
-          {/* Layer 1 — Two diagonal aurora ribbons */}
-          <div className="ev-imm-aurora-1" style={{ position: "absolute", inset: 0 }} />
-          <div className="ev-imm-aurora-2" style={{ position: "absolute", inset: 0 }} />
-
           {/* Layer 2 — CSS 3D wireframe floor */}
           <div
             className="hidden lg:block"
@@ -141,38 +136,7 @@
             50%  { filter: hue-rotate(30deg) saturate(1.28); }
             100% { filter: hue-rotate(0deg) saturate(1.10); }
           }
-
-          /* ── Layer 1: aurora ribbons ────────────────────────────────── */
-          .ev-imm-aurora-1, .ev-imm-aurora-2 {
-            mix-blend-mode: screen;
-          }
-          .ev-imm-aurora-1 {
-            background: linear-gradient(115deg,
-              transparent 0%,
-              rgba(34,211,238,0.16) 28%,
-              rgba(124,58,237,0.24) 50%,
-              rgba(244,114,182,0.18) 72%,
-              transparent 100%);
-            background-size: 220% 100%;
-            animation: evImmAur1 14s linear infinite;
-                      }
-          .ev-imm-aurora-2 {
-            background: linear-gradient(245deg,
-              transparent 0%,
-              rgba(167,139,250,0.16) 28%,
-              rgba(34,211,238,0.20) 52%,
-              rgba(255,200,80,0.14) 76%,
-              transparent 100%);
-            background-size: 300% 100%;
-            animation: evImmAur2 22s linear infinite;
-                      }
-          @keyframes evImmAur1 {
-            0%   { background-position: -100% 0; }
-            100% { background-position:  200% 0; }
-          }
-          @keyframes evImmAur2 {
-            0%   { background-position:  200% 0; }
-            100% { background-position: -100% 0; }
+          100% { background-position: -100% 0; }
           }
 
           /* ── Layer 2: 3D wireframe floor ─────────────────────────────── */
@@ -283,7 +247,6 @@
            * and slow the shard / grid animations so the page stays calm. */
           @media (hover: none) and (max-width: 1366px) {
             .ev-imm-nebula { animation: evImmNebDrift 40s ease-in-out infinite !important; }
-            .ev-imm-aurora-2 { display: none; }
             .ev-imm-shard { animation-duration: 30s !important; }
             .ev-imm-floor { animation-duration: 15s !important; opacity: 0.45; }
             .ev-imm-ceiling { animation-duration: 18s !important; opacity: 0.35; }
@@ -296,7 +259,7 @@
           }
 
           @media (prefers-reduced-motion: reduce) {
-            .ev-imm-nebula, .ev-imm-aurora-1, .ev-imm-aurora-2,
+            .ev-imm-nebula,
             .ev-imm-floor, .ev-imm-ceiling, .ev-imm-shard, .ev-imm-dust {
               animation: none !important;
             }

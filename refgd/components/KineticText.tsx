@@ -4,7 +4,7 @@ import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
- * KineticText v10
+ * KineticText v11
  *
  * Same root-cause fix as SafeReveal v13: safety timer removed.
  *
@@ -132,7 +132,7 @@ export default function KineticText({
     return () => {
       active = false;
       cancelAnimationFrame(rafId);
-      if (!triggered) clearAll();
+      clearAll(); // always reset — never leave words in primed-invisible state
     };
   }, [value, delay, stagger]);
 

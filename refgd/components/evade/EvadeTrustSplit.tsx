@@ -37,7 +37,7 @@ export default function EvadeTrustSplit() {
                 className="editorial-display mt-5 max-w-xl text-balance uppercase text-white text-[clamp(2rem,5vw,3.6rem)]"
                 style={{ textShadow: "0 6px 36px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.95)", letterSpacing: "-0.025em", lineHeight: 1.28 }} />
             </SafeReveal>
-            <SafeReveal kind="swingInR" delay={0.15} className="relative w-full max-w-[280px] justify-self-center lg:max-w-[320px] lg:justify-self-end">
+            <SafeReveal kind="swingInR" delay={0.15} className="relative w-full max-w-[340px] justify-self-center lg:max-w-[400px] lg:justify-self-end">
               <EditableImage id="evade.divider.trustReviews" defaultSrc="/uploads/trust-reviews.webp"
                 alt="Star reviews — clients trust RefundGod."
                 wrapperClassName="relative block w-full"
