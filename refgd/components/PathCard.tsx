@@ -68,9 +68,21 @@ const ACCENT_CHIP: Record<PathCardProps["accent"], string> = {
 const BG_TINT: Record<PathCardProps["accent"], string> = {
   gold:    "from-amber-500/30 via-amber-700/15 to-ink-950/55",
   fuchsia: "from-fuchsia-500/32 via-fuchsia-700/15 to-ink-950/55",
-  cyan:    "from-cyan-500/14 via-cyan-700/8 to-ink-950/55",
-  violet:  "from-violet-500/13 via-violet-700/8 to-ink-950/55",
+  cyan:    "from-cyan-500/30 via-cyan-700/12 to-ink-950/55",
+  violet:  "from-violet-500/28 via-violet-700/12 to-ink-950/55",
   orange:  "from-orange-500/32 via-orange-700/15 to-ink-950/55",
+};
+
+/** Per-accent opacity multiplier applied inline on the BG_TINT div.
+ *  Cyan and violet are perceptually far brighter than gold/orange on
+ *  dark backgrounds — these inline overrides are build-cache safe
+ *  (inline style always beats Tailwind opacity modifiers). */
+const BG_OPACITY: Record<PathCardProps["accent"], number> = {
+  gold:    1,
+  fuchsia: 1,
+  cyan:    0.40,
+  violet:  0.38,
+  orange:  1,
 };
 
 export default function PathCard({
@@ -237,7 +249,7 @@ export default function PathCard({
             title fill the whole card face every time.
           */}
           <div className={`relative h-full w-full overflow-hidden ${radius}`}>
-            <div className={`absolute inset-0 bg-gradient-to-br ${BG_TINT[accent]}`} />
+            <div className={`absolute inset-0 bg-gradient-to-br ${BG_TINT[accent]}`} style={{ opacity: BG_OPACITY[accent] }} />
             <PathIllustration
               kind={illustration}
               accent={accent}
@@ -337,7 +349,7 @@ export default function PathCard({
               {/* Vector illustration backdrop — renders inline SVG with
                   scene-specific shapes, gradients and floating accents. No
                   raster image (so no visible photo borders / pixel edges). */}
-              <div className={`absolute inset-0 bg-gradient-to-br ${BG_TINT[accent]}`} />
+              <div className={`absolute inset-0 bg-gradient-to-br ${BG_TINT[accent]}`} style={{ opacity: BG_OPACITY[accent] }} />
               <PathIllustration kind={illustration} accent={accent} animated={animated} />
               <div
                 aria-hidden="true"

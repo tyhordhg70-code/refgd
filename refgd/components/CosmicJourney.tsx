@@ -260,20 +260,20 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             {isMobile && !reduced && (
               <div aria-hidden="true" className="pointer-events-none absolute inset-0">
                   {([
-                    { l:10, t:16, s:2.5, c:"#ffe28a", d:0.0, r:4.2 },
-                    { l:82, t:11, s:1.5, c:"#a78bfa", d:0.7, r:5.0 },
-                    { l:20, t:74, s:2.0, c:"#67e8f9", d:1.2, r:3.8 },
-                    { l:88, t:70, s:1.5, c:"#ffe28a", d:0.3, r:4.7 },
-                    { l: 6, t:47, s:1.0, c:"#f472b6", d:1.8, r:5.4 },
-                    { l:94, t:36, s:2.0, c:"#a78bfa", d:0.9, r:4.1 },
-                    { l:33, t:90, s:1.5, c:"#67e8f9", d:0.5, r:3.6 },
-                    { l:67, t:87, s:1.0, c:"#ffe28a", d:1.4, r:5.8 },
-                    { l:50, t: 7, s:2.0, c:"#ffffff", d:0.6, r:4.5 },
-                    { l:16, t:30, s:1.5, c:"#a78bfa", d:2.0, r:3.9 },
-                    { l:74, t:22, s:1.0, c:"#67e8f9", d:0.2, r:5.2 },
-                    { l:57, t:94, s:2.5, c:"#ffe28a", d:1.6, r:4.8 },
-                    { l:90, t:58, s:1.5, c:"#ffffff", d:0.8, r:3.7 },
-                    { l:26, t:55, s:1.0, c:"#f472b6", d:2.2, r:5.1 },
+                    { l:10, t:16, s:6,   c:"#ffe28a", d:0.0, r:4.2 },
+                    { l:82, t:11, s:4,   c:"#a78bfa", d:0.7, r:5.0 },
+                    { l:20, t:74, s:5,   c:"#67e8f9", d:1.2, r:3.8 },
+                    { l:88, t:70, s:4,   c:"#ffe28a", d:0.3, r:4.7 },
+                    { l: 6, t:47, s:3,   c:"#f472b6", d:1.8, r:5.4 },
+                    { l:94, t:36, s:5,   c:"#a78bfa", d:0.9, r:4.1 },
+                    { l:33, t:90, s:4,   c:"#67e8f9", d:0.5, r:3.6 },
+                    { l:67, t:87, s:3,   c:"#ffe28a", d:1.4, r:5.8 },
+                    { l:50, t: 7, s:5,   c:"#ffffff", d:0.6, r:4.5 },
+                    { l:16, t:30, s:4,   c:"#a78bfa", d:2.0, r:3.9 },
+                    { l:74, t:22, s:3,   c:"#67e8f9", d:0.2, r:5.2 },
+                    { l:57, t:94, s:6,   c:"#ffe28a", d:1.6, r:4.8 },
+                    { l:90, t:58, s:4,   c:"#ffffff", d:0.8, r:3.7 },
+                    { l:26, t:55, s:3,   c:"#f472b6", d:2.2, r:5.1 },
                   ] as { l:number;t:number;s:number;c:string;d:number;r:number }[]).map((p, i) => (
                     <span
                       key={i}
@@ -286,7 +286,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
                         height: p.s,
                         borderRadius: "50%",
                         background: p.c,
-                        boxShadow: `0 0 ${p.s * 4}px ${p.c}`,
+                        boxShadow: `0 0 ${p.s * 6}px ${p.c}`,
                         animation: `cjSparkle ${p.r}s ${p.d}s ease-in-out infinite alternate`,
                       }}
                     />
