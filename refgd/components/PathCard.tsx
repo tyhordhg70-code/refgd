@@ -49,6 +49,17 @@ const ACCENT_PULSE: Record<PathCardProps["accent"], string> = {
   orange:  "pulse-glow-orange",
 };
 
+/** Inset pulsating glow — stays INSIDE the card bounds (inset box-shadow
+ *  is clipped by border-radius + overflow-hidden). Cannot bleed onto
+ *  adjacent prism faces during swipe rotation. */
+const INNER_GLOW: Record<PathCardProps["accent"], string> = {
+  gold:    "pi-glow-gold",
+  fuchsia: "pi-glow-fuchsia",
+  cyan:    "pi-glow-cyan",
+  violet:  "pi-glow-violet",
+  orange:  "pi-glow-orange",
+};
+
 const ACCENT_RING: Record<PathCardProps["accent"], string> = {
   gold:    "from-amber-300/70 via-amber-400/15 to-transparent",
   fuchsia: "from-fuchsia-300/70 via-fuchsia-500/15 to-transparent",
@@ -250,6 +261,7 @@ export default function PathCard({
           */}
           <div className={`relative h-full w-full overflow-hidden ${radius}`}>
             <div className={`absolute inset-0 bg-gradient-to-br ${BG_TINT[accent]}`} style={{ opacity: BG_OPACITY[accent] }} />
+            <div aria-hidden="true" className={`pointer-events-none absolute inset-0 ${INNER_GLOW[accent]}`} />
             <PathIllustration
               kind={illustration}
               accent={accent}
@@ -350,6 +362,7 @@ export default function PathCard({
                   scene-specific shapes, gradients and floating accents. No
                   raster image (so no visible photo borders / pixel edges). */}
               <div className={`absolute inset-0 bg-gradient-to-br ${BG_TINT[accent]}`} style={{ opacity: BG_OPACITY[accent] }} />
+              <div aria-hidden="true" className={`pointer-events-none absolute inset-0 ${INNER_GLOW[accent]}`} />
               <PathIllustration kind={illustration} accent={accent} animated={animated} />
               <div
                 aria-hidden="true"

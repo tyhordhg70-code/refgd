@@ -217,17 +217,17 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           className="sticky top-0 grid w-full place-items-center overflow-hidden"
           style={{ height: "100svh", perspective: "1400px", contain: "layout paint" }}
         >
-          {/* ── Mobile canvas particles — sibling to stageRef, NOT inside preserve-3d ──
-               Inline-style wrapper (not Tailwind z-[2]) avoids depending on
-               arbitrary-value compilation in Render's cached CSS bundle. */}
-          {isMobile && !reduced && (
-            <div
-              aria-hidden="true"
-              style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }}
-            >
-              <InteractiveParticles count={55} influence={0} />
-            </div>
-          )}
+          {/* ── Mobile canvas particles — CSS md:hidden gate (no JS breakpoint check) ──
+               md:hidden is a core Tailwind utility, always compiled.
+               No isMobile useState, no useReducedMotion dependency.
+               InteractiveParticles internally respects prefers-reduced-motion. */}
+          <div
+            aria-hidden="true"
+            className="md:hidden"
+            style={{ position: "absolute", inset: 0, zIndex: 2, pointerEvents: "none" }}
+          >
+            <InteractiveParticles count={55} influence={0} />
+          </div>
 
           {/* Stage — scroll transforms applied via direct style mutation, NOT motion values */}
           <div
