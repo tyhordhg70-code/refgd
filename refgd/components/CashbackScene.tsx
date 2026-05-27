@@ -1,4 +1,5 @@
 "use client";
+import { useId } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 
 /**
@@ -32,6 +33,7 @@ export default function CashbackScene({
   className?: string;
 }) {
   const reduced = useReducedMotion();
+  const _uid = useId().replace(/:/g, "");
 
   return (
     <motion.div
@@ -97,21 +99,21 @@ export default function CashbackScene({
       <div className={`cs-card-wrap ${reduced ? "" : "cs-card-wrap--anim"}`}>
         <svg viewBox="0 0 280 180" width="68%" className="cs-card">
           <defs>
-            <linearGradient id="cs-card-face" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%"   stopColor="#1a1530" />
-              <stop offset="50%"  stopColor="#2d1f55" />
-              <stop offset="100%" stopColor="#0a0817" />
+            <linearGradient id={`${_uid}face`} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%"   stopColor="#1e1b8c" />
+              <stop offset="45%"  stopColor="#3b28cc" />
+              <stop offset="100%" stopColor="#0f0d52" />
             </linearGradient>
-            <linearGradient id="cs-card-edge" x1="0" y1="0" x2="1" y2="0">
+            <linearGradient id={`${_uid}edge`} x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%"   stopColor="#ffe28a" stopOpacity="0.95" />
               <stop offset="50%"  stopColor="#f5b945" stopOpacity="0.4" />
               <stop offset="100%" stopColor="#b196ff" stopOpacity="0.95" />
             </linearGradient>
-            <radialGradient id="cs-card-shine" cx="35%" cy="25%" r="55%">
+            <radialGradient id={`${_uid}shine`} cx="35%" cy="25%" r="55%">
               <stop offset="0%"  stopColor="#ffffff" stopOpacity="0.45" />
               <stop offset="60%" stopColor="#ffffff" stopOpacity="0" />
             </radialGradient>
-            <linearGradient id="cs-chip" x1="0" y1="0" x2="1" y2="1">
+            <linearGradient id={`${_uid}chip`} x1="0" y1="0" x2="1" y2="1">
               <stop offset="0%"   stopColor="#ffe28a" />
               <stop offset="100%" stopColor="#9a6914" />
             </linearGradient>
@@ -130,27 +132,27 @@ export default function CashbackScene({
               with built-in falloff, no filter pipeline, no
               clipping artifact. */}
           <defs>
-            <radialGradient id="cs-card-halo" cx="50%" cy="50%" r="50%">
+            <radialGradient id={`${_uid}halo`} cx="50%" cy="50%" r="50%">
               <stop offset="0%"  stopColor="#f5b945" stopOpacity="0.42" />
               <stop offset="55%" stopColor="#f5b945" stopOpacity="0.10" />
               <stop offset="100%" stopColor="#f5b945" stopOpacity="0" />
             </radialGradient>
           </defs>
           <ellipse cx="140" cy="100" rx="180" ry="118"
-            fill="url(#cs-card-halo)" />
+            fill={`url(#${_uid}halo)`} />
 
           {/* Card body */}
           <rect x="10" y="12" width="260" height="156" rx="18"
-            fill="url(#cs-card-face)" />
+            fill={`url(#${_uid}face)`} />
           {/* Card edge / accent rim */}
           <rect x="10" y="12" width="260" height="156" rx="18"
-            fill="none" stroke="url(#cs-card-edge)" strokeWidth="1.6" />
+            fill="none" stroke={`url(#${_uid}edge)`} strokeWidth="1.6" />
           {/* Glossy highlight */}
           <rect x="10" y="12" width="260" height="156" rx="18"
-            fill="url(#cs-card-shine)" />
+            fill={`url(#${_uid}shine)`} />
 
           {/* EMV chip */}
-          <rect x="34" y="58" width="44" height="34" rx="6" fill="url(#cs-chip)" />
+          <rect x="34" y="58" width="44" height="34" rx="6" fill={`url(#${_uid}chip)`} />
           <path d="M34 70 H78 M34 80 H78 M50 58 V92 M62 58 V92"
             stroke="rgba(0,0,0,0.4)" strokeWidth="0.8" fill="none" />
 
@@ -186,16 +188,16 @@ export default function CashbackScene({
       <div className={`cs-wallet ${reduced ? "" : "cs-wallet--anim"}`}>
         <svg viewBox="0 0 140 110" width="100%">
           <defs>
-            <linearGradient id="cs-wallet-grad" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={`${_uid}wg`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#5d2c0a" />
               <stop offset="100%" stopColor="#2a1304" />
             </linearGradient>
-            <linearGradient id="cs-wallet-flap" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={`${_uid}wf`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#7a3d12" />
               <stop offset="100%" stopColor="#3a1c08" />
             </linearGradient>
           </defs>
-          <rect x="6" y="36" width="128" height="68" rx="10" fill="url(#cs-wallet-grad)"
+          <rect x="6" y="36" width="128" height="68" rx="10" fill={`url(#${_uid}wg)`}
             stroke="#ffe28a" strokeWidth="1.4" />
           <path d="M10 44 H130 V52 H10 Z" fill="rgba(0,0,0,0.35)" />
           {/* Bills sticking out top */}
@@ -205,7 +207,7 @@ export default function CashbackScene({
             fontSize="16" fill="#0b3a23">$$$</text>
           {/* Wallet flap */}
           <path d="M6 36 Q70 14 134 36 L134 56 Q70 38 6 56 Z"
-            fill="url(#cs-wallet-flap)" stroke="#ffe28a" strokeWidth="1.2" />
+            fill={`url(#${_uid}wf)`} stroke="#ffe28a" strokeWidth="1.2" />
           {/* Buckle */}
           <circle cx="70" cy="46" r="4.5" fill="#ffe28a" stroke="#9a6914" strokeWidth="1" />
         </svg>

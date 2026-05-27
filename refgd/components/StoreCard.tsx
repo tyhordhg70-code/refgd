@@ -72,7 +72,6 @@ export default function StoreCard({
   // page load with hundreds of cards.
   return (
     <motion.article
-      layout
       suppressHydrationWarning
       data-cursor="hover"
       data-cursor-label={store.name}

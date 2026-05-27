@@ -588,12 +588,10 @@ export default function ServiceSection(
                 the card still has presence but no longer reads
                 as a flashing/over-saturated rim. */}
             <div
-              className="relative overflow-hidden rounded-[2.5rem] border border-amber-400/15 p-10 text-center sm:p-16"
+              className="relative rounded-[2.5rem] border border-amber-400/15 p-10 text-center sm:p-16"
               style={{
                 background:
                   "linear-gradient(160deg, rgba(40,22,4,0.88) 0%, rgba(20,12,4,0.92) 100%)",
-                backdropFilter: "blur(16px) saturate(140%)",
-                WebkitBackdropFilter: "blur(16px) saturate(140%)",
                 boxShadow:
                   "0 22px 60px -22px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)",
               }}

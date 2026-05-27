@@ -190,7 +190,7 @@ export default function LedJoySection() {
   // section is partially scrolled off-screen at mount time.
 
   const ahhLetters = "AHHHH".split("");
-  const tagline = "feel the joy of cashback".split(" ");
+  const taglineChars = "feel the joy of cashback".split("");
 
   return (
     <section
@@ -205,7 +205,7 @@ export default function LedJoySection() {
          pause it was designed as. Centred vertically + horizontally
          so the LED text sits in the middle of the viewport when
          the beat triggers. */
-      className="relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden py-12 sm:py-16"
+      className="relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden pt-2 pb-12 sm:pt-4 sm:pb-16"
     >
       {/* v6.13.68 — debug overlay (only renders when ?debug=1). */}
         {debug.enabled && (
@@ -274,20 +274,22 @@ export default function LedJoySection() {
         <style>{`
           @keyframes ledCashFall {
             0%   { transform: translate3d(0, 0%, 0) rotate(var(--rot, -8deg)); opacity: 0; }
-            12%  { opacity: 0.95; }
-            55%  { transform: translate3d(calc(var(--sway, 8px)), 75%, 0) rotate(calc(var(--rot, -8deg) * -1)); opacity: 0.9; }
-            100% { transform: translate3d(calc(var(--sway, 8px) * -1), 170%, 0) rotate(var(--rot, -8deg)); opacity: 0; }
+            7%   { opacity: 1; }
+            48%  { transform: translate3d(calc(var(--sway, 8px)), 82%, 0) rotate(calc(var(--rot, -8deg) * -1.7)); opacity: 0.95; }
+            100% { transform: translate3d(calc(var(--sway, 8px) * -1.4), 200%, 0) rotate(calc(var(--rot, -8deg) * 2.4)); opacity: 0; }
           }
         `}</style>
         {[
-          { left: "8%",  size: 36, delay: "0s",   dur: "5.4s", rot: "-9deg",  sway: "10px" },
-          { left: "20%", size: 28, delay: "1.1s", dur: "6.2s", rot: "6deg",   sway: "-12px" },
-          { left: "32%", size: 42, delay: "0.4s", dur: "5.0s", rot: "-5deg",  sway: "14px" },
-          { left: "46%", size: 24, delay: "2.0s", dur: "7.0s", rot: "11deg",  sway: "-9px" },
-          { left: "58%", size: 38, delay: "0.7s", dur: "5.6s", rot: "-12deg", sway: "11px" },
-          { left: "70%", size: 30, delay: "1.6s", dur: "6.4s", rot: "8deg",   sway: "-13px" },
-          { left: "82%", size: 34, delay: "0.2s", dur: "5.2s", rot: "-7deg",  sway: "12px" },
-          { left: "92%", size: 26, delay: "2.3s", dur: "6.8s", rot: "10deg",  sway: "-10px" },
+          { left: "4%",  size: 56, delay: "0s",   dur: "2.8s", rot: "-9deg",  sway: "22px" },
+          { left: "14%", size: 44, delay: "0.6s", dur: "3.4s", rot: "7deg",   sway: "-26px" },
+          { left: "25%", size: 64, delay: "0.3s", dur: "2.6s", rot: "-6deg",  sway: "24px" },
+          { left: "36%", size: 40, delay: "1.2s", dur: "3.8s", rot: "15deg",  sway: "-20px" },
+          { left: "47%", size: 60, delay: "0.5s", dur: "3.0s", rot: "-14deg", sway: "28px" },
+          { left: "58%", size: 48, delay: "1.0s", dur: "3.5s", rot: "11deg",  sway: "-24px" },
+          { left: "68%", size: 54, delay: "0.1s", dur: "2.7s", rot: "-8deg",  sway: "26px" },
+          { left: "78%", size: 42, delay: "1.6s", dur: "4.0s", rot: "13deg",  sway: "-22px" },
+          { left: "88%", size: 56, delay: "0.4s", dur: "3.2s", rot: "-16deg", sway: "20px" },
+          { left: "96%", size: 38, delay: "1.9s", dur: "3.6s", rot: "10deg",  sway: "-28px" },
         ].map((b, i) => (
           <span
             key={i}
@@ -381,7 +383,7 @@ export default function LedJoySection() {
         {/* feel the joy of cashback — word by word fast */}
         <p
           aria-hidden="true"
-          className="led-display mt-6 flex flex-wrap justify-center gap-x-3 gap-y-1 text-amber-200 sm:gap-x-5 sm:mt-10"
+          className="led-display mt-6 flex flex-wrap justify-center gap-x-0 gap-y-0 text-amber-200 sm:mt-10"
           style={{
             fontFamily:
               '"Courier New", "Roboto Mono", ui-monospace, monospace',
@@ -393,28 +395,28 @@ export default function LedJoySection() {
               "0 0 14px rgba(245,185,69,0.85), 0 0 32px rgba(245,140,40,0.5)",
           }}
         >
-          {tagline.map((word, i) => (
+          {taglineChars.map((ch, i) => (
             <motion.span
               key={i}
               /* v6.13.32 — same gate-removal as AHHH letters above. */
               /* v6.13.66 — drop reduce-motion ternary; always animate. */
-                initial={{ opacity: 0, x: 220 }}
+                initial={{ opacity: 0, x: 160 }}
                 animate={
                   play
                     ? { opacity: 1, x: 0 }
-                    : { opacity: 0, x: 220 }
+                    : { opacity: 0, x: 160 }
                 }
               transition={{
-                duration: 0.28,
+                duration: 0.19,
                 // Words start AFTER the AHHH letters finish. AHHH ends
                 // around 0.07*4 + 0.32 = 0.6s.
-                delay: play ? 0.7 + i * 0.12 : 0,
+                delay: play ? 0.62 + i * 0.036 : 0,
                 ease: [0.16, 1, 0.3, 1],
               }}
               className="inline-block"
               suppressHydrationWarning
             >
-              {word}
+              {ch === " " ? " " : ch}
             </motion.span>
           ))}
         </p>
