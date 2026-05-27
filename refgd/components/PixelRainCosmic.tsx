@@ -3,14 +3,15 @@
 import { useEffect, useRef } from "react";
 
 /**
- * PixelRainCosmic v7.1 — self-playing cinematic transition.
+ * PixelRainCosmic v7.2 — self-playing cinematic transition.
  *
  * Container: h-screen (no scroll runway). Progress is TIME-driven:
- * density ramps 0 → 1 over ~1.5 s once the section enters the viewport,
- * then rain falls at natural speed continuously. IntersectionObserver
- * pauses the rAF loop when fully off-screen (battery friendly).
+ * density ramps 0 → 1 over ~1.5 s once the section enters the viewport.
  * No scroll listener, no Lenis dependency, no dead-scroll zone.
  * scrollLength prop kept for call-site compatibility but is ignored.
+ *
+ * TS fix (v7.1 → v7.2): ctx also assigned to an explicit alias after
+ * its null-guard so all closures use the non-null typed reference.
  */
 
 type Props = {
@@ -28,23 +29,24 @@ export default function PixelRainCosmic({
   className = "",
   scrollLength: _ignored,
 }: Props) {
-  const wrapRef   = useRef<HTMLDivElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const timeRef   = useRef(0);
-  const rampRef   = useRef(0);
-  const rafRef    = useRef<number | null>(null);
+  const wrapRef    = useRef<HTMLDivElement | null>(null);
+  const canvasRef  = useRef<HTMLCanvasElement | null>(null);
+  const timeRef    = useRef(0);
+  const rampRef    = useRef(0);
+  const rafRef     = useRef<number | null>(null);
   const visibleRef = useRef(false);
 
   useEffect(() => {
-    // Null check first, then create explicitly-typed aliases used in
-    // all closures below — TypeScript narrowing doesn't always propagate
-    // into closures so we cast after the guard.
+    // Null-guard refs first, then create explicitly-typed aliases.
+    // TypeScript narrowing from `if (!x) return` does not always
+    // propagate into nested closures; explicit type annotations do.
     if (!wrapRef.current || !canvasRef.current) return;
-    const wrap: HTMLDivElement    = wrapRef.current;
-    const cnv: HTMLCanvasElement  = canvasRef.current;
+    const wrap: HTMLDivElement   = wrapRef.current;
+    const cnv: HTMLCanvasElement = canvasRef.current;
 
-    const ctx = cnv.getContext("2d", { alpha: true });
-    if (!ctx) return;
+    const rawCtx = cnv.getContext("2d", { alpha: true });
+    if (!rawCtx) return;
+    const ctx: CanvasRenderingContext2D = rawCtx; // non-null alias for closures
 
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -65,11 +67,11 @@ export default function PixelRainCosmic({
       columns = new Array(cols).fill(0).map(() => {
         const depth = Math.pow(Math.random(), 1.6);
         return {
-          speed:    0.35 + Math.random() * 0.95 + depth * 0.6,
+          speed:     0.35 + Math.random() * 0.95 + depth * 0.6,
           depth,
-          hueShift: (Math.random() - 0.5) * 50,
+          hueShift:  (Math.random() - 0.5) * 50,
           alphaPeak: 0.45 + 0.55 * depth,
-          flicker:  Math.random(),
+          flicker:   Math.random(),
           lastGlyph: GLYPHS[(Math.random() * GLYPHS.length) | 0],
         };
       });
@@ -118,7 +120,8 @@ export default function PixelRainCosmic({
           if (y < -cellH || y > h + cellH) continue;
 
           const t = 1 - k / trailBuf;
-          const a = c.alphaPeak * p * t *
+          const a =
+            c.alphaPeak * p * t *
             (0.6 + 0.4 * Math.sin((c.flicker + k) * 1.7 + tf * 0.02));
           const isHead = k === 0;
           const hue = (hsl.h + c.hueShift + 360) % 360;
@@ -146,7 +149,6 @@ export default function PixelRainCosmic({
       timeRef.current += 1;
       if (rampRef.current < RAMP_TICKS) rampRef.current += 1;
       const raw = rampRef.current / RAMP_TICKS;
-      // Ease-in-out
       const p = raw < 0.5 ? 2 * raw * raw : 1 - Math.pow(-2 * raw + 2, 2) / 2;
       draw(p);
       rafRef.current = requestAnimationFrame(loop);
