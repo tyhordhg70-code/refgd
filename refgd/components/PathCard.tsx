@@ -70,6 +70,17 @@ const OUTER_GLOW: Record<PathCardProps["accent"], string> = {
   orange:  "pc-outer-glow-orange",
 };
 
+/** Mobile card outer halo — box-shadow kept within the 24px face padding so
+ *  it never hits the section overflow:hidden boundary. Opacity-only animation
+ *  (pcGlowFade) keeps it GPU-composited with zero repaint cost. */
+const MOBILE_SHADOW: Record<PathCardProps["accent"], string> = {
+  gold:    "0 0 20px 2px rgba(245,185,69,0.60)",
+  fuchsia: "0 0 20px 2px rgba(236,72,153,0.60)",
+  cyan:    "0 0 20px 2px rgba(34,211,238,0.60)",
+  violet:  "0 0 20px 2px rgba(167,139,250,0.60)",
+  orange:  "0 0 20px 2px rgba(249,115,22,0.60)",
+};
+
 const ACCENT_RING: Record<PathCardProps["accent"], string> = {
   gold:    "from-amber-300/70 via-amber-400/15 to-transparent",
   fuchsia: "from-fuchsia-300/70 via-fuchsia-500/15 to-transparent",
@@ -219,7 +230,13 @@ export default function PathCard({
           willChange: "transform",
         }}
       >
-        {/* Mobile: outer glow removed — section overflow:hidden clips it; perimeter inner-glow (pi-glow-*) handles the effect */}
+        {/* Mobile outer halo: box-shadow (22 px reach) fits inside the 24 px face padding — never hits section overflow:hidden.
+             pcGlowFade animates opacity only → GPU composited, zero repaint. */}
+        <div
+          aria-hidden="true"
+          className={`absolute ${radius} pointer-events-none`}
+          style={{ inset: 0, boxShadow: MOBILE_SHADOW[accent], animation: "pcGlowFade 5.0s ease-in-out infinite" }}
+        />
         <Tag
           {...linkProps}
           data-testid={`path-card-${index + 1}-link`}
@@ -227,9 +244,13 @@ export default function PathCard({
           style={{
             // FULLY OPAQUE — solid gradient prevents prism bleed-through.
             background: "linear-gradient(180deg, rgb(18,16,30), rgb(8,8,16))",
-            // Override glass-strong's white border — the accent outer glow
-            // defines the card edge; a white ring on top looks like a hard edge.
+            // Override glass-strong's white border
             border: "none",
+            // Remove backdrop-filter compositing edge — glass-strong applies
+            // backdrop-filter but the opaque gradient covers it completely, so
+            // it only produces a faint ghost edge at the card boundary.
+            backdropFilter: "none",
+            WebkitBackdropFilter: "none",
           }}
           // v6.13.17 — Restored accent-coloured pulse glow on the
           // mobile carousel branch too. Body stays solid (no
