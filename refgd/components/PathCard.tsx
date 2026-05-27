@@ -60,6 +60,16 @@ const INNER_GLOW: Record<PathCardProps["accent"], string> = {
   orange:  "pi-glow-orange",
 };
 
+/** Outer halo glow — box-shadow outside the card, pulses accent colour.
+ *  Uses pc-outer-glow-* (no 1px ring) so safe on OLED phones. */
+const OUTER_GLOW: Record<PathCardProps["accent"], string> = {
+  gold:    "pc-outer-glow-gold",
+  fuchsia: "pc-outer-glow-fuchsia",
+  cyan:    "pc-outer-glow-cyan",
+  violet:  "pc-outer-glow-violet",
+  orange:  "pc-outer-glow-orange",
+};
+
 const ACCENT_RING: Record<PathCardProps["accent"], string> = {
   gold:    "from-amber-300/70 via-amber-400/15 to-transparent",
   fuchsia: "from-fuchsia-300/70 via-fuchsia-500/15 to-transparent",
@@ -212,7 +222,7 @@ export default function PathCard({
         <Tag
           {...linkProps}
           data-testid={`path-card-${index + 1}-link`}
-          className={`relative block h-full overflow-hidden ${radius} glass-strong ${ACCENT_PULSE[accent]}`}
+          className={`relative block h-full overflow-hidden ${radius} glass-strong ${ACCENT_PULSE[accent]} ${OUTER_GLOW[accent]}`}
           style={{
             // FULLY OPAQUE — the mobile prism stacks 5 cards in 3D
             // space; any transparency in the active card lets the
@@ -341,7 +351,7 @@ export default function PathCard({
             // card body itself still reads as opaque (no
             // GalaxyBackground bleed-through), but the surrounding
             // halo is now back in each card's accent colour.
-            className={`relative block h-full overflow-hidden ${radius} glass-strong transition-all duration-500 ${ACCENT_PULSE[accent]} ${ACCENT_GLOW[accent]}`}
+            className={`relative block h-full overflow-hidden ${radius} glass-strong transition-all duration-500 ${ACCENT_PULSE[accent]} ${OUTER_GLOW[accent]} ${ACCENT_GLOW[accent]}`}
             style={{
               background:
                 "linear-gradient(180deg, rgb(18,16,30), rgb(8,8,16))",

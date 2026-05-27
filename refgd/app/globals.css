@@ -710,6 +710,21 @@ html { scroll-behavior: smooth; }
 .pi-glow-orange  { background: radial-gradient(ellipse at 50% 115%, rgba(249,115,22,0.55)  0%, transparent 68%); animation: piGlowPulse 5.0s ease-in-out infinite; }
 .pi-glow-fuchsia { background: radial-gradient(ellipse at 50% 115%, rgba(236,72,153,0.60)  0%, transparent 68%); animation: piGlowPulse 4.8s ease-in-out infinite; }
 
+
+/* ─── Path-card outer pulsating glow ────────────────────────────────────
+ * Compact symmetric outer glow — no 1px ring so safe on OLED phones.
+ * Starts at low visible alpha (not 0) so the glow is always apparent.
+ */
+.pc-outer-glow-gold    { animation: pcOuterGold    5.0s ease-in-out infinite; }
+.pc-outer-glow-cyan    { animation: pcOuterCyan    5.2s ease-in-out infinite; }
+.pc-outer-glow-violet  { animation: pcOuterViolet  5.4s ease-in-out infinite; }
+.pc-outer-glow-orange  { animation: pcOuterOrange  5.0s ease-in-out infinite; }
+.pc-outer-glow-fuchsia { animation: pcOuterFuchsia 4.8s ease-in-out infinite; }
+@keyframes pcOuterGold    { 0%,100%{box-shadow:0 0 14px 2px rgba(245,185,69,0.18),0 0 32px 4px rgba(245,185,69,0.08)} 50%{box-shadow:0 0 28px 6px rgba(245,185,69,0.55),0 0 56px 8px rgba(245,185,69,0.22)} }
+@keyframes pcOuterCyan    { 0%,100%{box-shadow:0 0 14px 2px rgba(34,211,238,0.18),0 0 32px 4px rgba(34,211,238,0.08)} 50%{box-shadow:0 0 28px 6px rgba(34,211,238,0.55),0 0 56px 8px rgba(34,211,238,0.22)} }
+@keyframes pcOuterViolet  { 0%,100%{box-shadow:0 0 14px 2px rgba(167,139,250,0.18),0 0 32px 4px rgba(167,139,250,0.08)} 50%{box-shadow:0 0 28px 6px rgba(167,139,250,0.55),0 0 56px 8px rgba(167,139,250,0.22)} }
+@keyframes pcOuterOrange  { 0%,100%{box-shadow:0 0 14px 2px rgba(249,115,22,0.18),0 0 32px 4px rgba(249,115,22,0.08)} 50%{box-shadow:0 0 28px 6px rgba(249,115,22,0.55),0 0 56px 8px rgba(249,115,22,0.22)} }
+@keyframes pcOuterFuchsia { 0%,100%{box-shadow:0 0 14px 2px rgba(236,72,153,0.18),0 0 32px 4px rgba(236,72,153,0.08)} 50%{box-shadow:0 0 28px 6px rgba(236,72,153,0.55),0 0 56px 8px rgba(236,72,153,0.22)} }
 /* ─── Chess piece float ────────────────────────────────────────── */
 .chess-float {
   animation: chessFloat 6s ease-in-out infinite;
@@ -2231,8 +2246,8 @@ select option:hover {
     .pulse-glow-violet,
     .pulse-glow-orange,
     .pulse-glow-fuchsia {
-      animation: none !important;
-      box-shadow: none !important;
+      /* allow animation — ring artifact was from old high-alpha keyframes; new pc-outer-glow-* has no ring */
+      box-shadow: none; /* hide old pulse-glow ring; pc-outer-glow-* handles the card glow */
     }
   }
 

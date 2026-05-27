@@ -2,7 +2,6 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import KineticText from "./KineticText";
-import InteractiveParticles from "./InteractiveParticles";
 
 /**
  * CosmicJourney — cinematic scroll-linked welcome.
@@ -23,6 +22,73 @@ import InteractiveParticles from "./InteractiveParticles";
  *   slide-up) stay as framer-motion initial→animate — they don't loop
  *   or fire on scroll, so their cost is negligible.
  */
+/** Dead-simple floating-star canvas for the CosmicJourney section.
+ *  Uses offsetWidth/Height (never 0 for visible elements) and a 50ms
+ *  startup delay to skip all hydration/ResizeObserver race conditions.
+ *  No external dependencies, no IO, no RO. */
+function MobileStars() {
+  const cvs = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const el = cvs.current;
+    if (!el) return;
+    const ctx = el.getContext("2d");
+    if (!ctx) return;
+    let raf = 0;
+    let alive = true;
+    const COLORS = ["#ffe28a","#a78bfa","#67e8f9","#f472b6","#ffffff"];
+    type Star = { x:number;y:number;vx:number;vy:number;r:number;c:string;t:number };
+    let pts: Star[] = [];
+    function setup() {
+      const W = el.offsetWidth, H = el.offsetHeight;
+      if (!W || !H) return false;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      el.width  = Math.round(W * dpr);
+      el.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      pts = Array.from({ length: 65 }, () => ({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 0.28,
+        vy: (Math.random() - 0.5) * 0.28,
+        r: 1.5 + Math.random() * 2.5,
+        c: COLORS[Math.floor(Math.random() * COLORS.length)],
+        t: Math.random() * Math.PI * 2,
+      }));
+      return true;
+    }
+    function draw() {
+      if (!alive) return;
+      const W = el.offsetWidth, H = el.offsetHeight;
+      ctx.clearRect(0, 0, W, H);
+      for (const p of pts) {
+        p.x += p.vx; p.y += p.vy; p.t += 0.018;
+        if (p.x < -4) p.x = W + 4; else if (p.x > W + 4) p.x = -4;
+        if (p.y < -4) p.y = H + 4; else if (p.y > H + 4) p.y = -4;
+        const a = 0.45 + 0.45 * Math.sin(p.t);
+        ctx.shadowBlur  = 10 + p.r * 5;
+        ctx.shadowColor = p.c;
+        ctx.fillStyle   = p.c;
+        ctx.globalAlpha = a;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur  = 0;
+      raf = requestAnimationFrame(draw);
+    }
+    const timer = setTimeout(() => { if (setup()) draw(); }, 50);
+    return () => { alive = false; cancelAnimationFrame(raf); clearTimeout(timer); };
+  }, []);
+  return (
+    <canvas
+      ref={cvs}
+      aria-hidden="true"
+      style={{ position:"absolute", inset:0, width:"100%", height:"100%", display:"block" }}
+    />
+  );
+}
+
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
   const [isMobile, setIsMobile] = useState(false);
@@ -389,7 +455,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             className="md:hidden"
             style={{ position: "absolute", inset: 0, zIndex: 10, pointerEvents: "none", willChange: "transform" }}
           >
-            <InteractiveParticles count={70} influence={0} />
+            <MobileStars />
           </div>
 
           {/* ── Mid-flight effects ── */}
