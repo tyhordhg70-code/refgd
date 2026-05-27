@@ -258,14 +258,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
                 Provides the ambient particle richness of the desktop
                 warp streaks at a fraction of the GPU cost. */}
             {isMobile && !reduced && (
-              <>
-                <style dangerouslySetInnerHTML={{ __html: `
-                  @keyframes cjSparkle {
-                    0%   { opacity: 0.06; transform: translateY(0px)  scale(1);   }
-                    100% { opacity: 0.72; transform: translateY(-9px) scale(1.2); }
-                  }
-                ` }} />
-                <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+              <div aria-hidden="true" className="pointer-events-none absolute inset-0">
                   {([
                     { l:10, t:16, s:2.5, c:"#ffe28a", d:0.0, r:4.2 },
                     { l:82, t:11, s:1.5, c:"#a78bfa", d:0.7, r:5.0 },
@@ -298,8 +291,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
                       }}
                     />
                   ))}
-                </div>
-              </>
+              </div>
             )}
 
             {/* ── 2. Mount warp streaks ── */}

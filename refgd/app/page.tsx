@@ -220,14 +220,14 @@ export default async function HomePage() {
                             id="telegram.kicker"
                             defaultValue="— join the channel"
                             as="p"
-                            className="heading-display text-[10px] font-semibold uppercase tracking-[0.58em] text-amber-200 sm:text-xs"
+                            className="heading-display text-[10px] font-semibold uppercase text-amber-200 sm:text-xs" style={{ letterSpacing: "0.55em" }}
                           />
                           <EditableText
                             id="telegram.headline"
                             defaultValue={telegramHeadline}
                             as="h2"
                             multiline
-                            className="editorial-display mt-3 max-w-2xl text-balance text-white text-3xl uppercase tracking-[0.06em] sm:text-5xl md:text-6xl"
+                            className="editorial-display mt-3 max-w-2xl text-balance text-white text-3xl uppercase sm:text-5xl md:text-6xl" style={{ letterSpacing: "0.06em" }}
                           />
                         </div>
                         <HomeCTAButton defaultUrl={ctaUrl} defaultLabel={ctaLabel} />

@@ -686,6 +686,11 @@ html { scroll-behavior: smooth; }
   0%, 100% { transform: translate3d(0, 0, 0) rotate(0); }
   50%      { transform: translate3d(0, -10px, 0) rotate(0.4deg); }
 }
+/* ─── CosmicJourney mobile sparkle particles ────────────────────── */
+@keyframes cjSparkle {
+  0%   { opacity: 0.10; transform: translateY(0px)   scale(1);    }
+  100% { opacity: 0.80; transform: translateY(-10px) scale(1.25); }
+}
 
 /* ─── Chess piece float ────────────────────────────────────────── */
 .chess-float {

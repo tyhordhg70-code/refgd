@@ -68,8 +68,8 @@ const ACCENT_CHIP: Record<PathCardProps["accent"], string> = {
 const BG_TINT: Record<PathCardProps["accent"], string> = {
   gold:    "from-amber-500/30 via-amber-700/15 to-ink-950/55",
   fuchsia: "from-fuchsia-500/32 via-fuchsia-700/15 to-ink-950/55",
-  cyan:    "from-cyan-500/32 via-cyan-700/15 to-ink-950/55",
-  violet:  "from-violet-500/32 via-violet-700/15 to-ink-950/55",
+  cyan:    "from-cyan-500/14 via-cyan-700/8 to-ink-950/55",
+  violet:  "from-violet-500/13 via-violet-700/8 to-ink-950/55",
   orange:  "from-orange-500/32 via-orange-700/15 to-ink-950/55",
 };
 
