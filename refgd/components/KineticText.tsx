@@ -4,19 +4,18 @@ import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
- * KineticText v9 — rAF-poll scroll detection (Lenis-safe).
+ * KineticText v10
  *
- * Same root-cause fixes as SafeReveal v12:
- *  1. IntersectionObserver and window scroll listener both fail with Lenis.
- *     Replaced with rAF polling using getBoundingClientRect() which sees the
- *     post-transform (visual) position that Lenis shifts around.
- *  2. `if (!mounted) return` inside trigger's double-rAF killed the animation
- *     when the effect re-ran (admin-context dep change) between the two frames.
- *     Removed — a triggered animation always completes.
- *  3. clearAll() called at TOP of every effect run to wipe stale inline styles
- *     from any previous interrupted run (prevents stuck-at-opacity:0 ghosts).
- *  4. cleanup resets styles only when trigger has not yet fired.
- *  5. WeakSet entry written only after trigger fires, never speculatively.
+ * Same root-cause fix as SafeReveal v13: safety timer removed.
+ *
+ * The 3-second safety timer was firing while the LoadingScreen overlay
+ * was still blocking the page — triggering all heading animations
+ * invisibly behind the splash screen. When the screen lifted, all
+ * headings were already at their natural state and no animation played.
+ *
+ * With the timer gone the rAF poll (getBoundingClientRect, visual
+ * position) is the sole trigger. Headings animate exactly when they
+ * enter the visible viewport after the loading screen dismisses.
  */
 export default function KineticText({
   text,
@@ -50,7 +49,6 @@ export default function KineticText({
     const root = rootRef.current;
     if (!root || typeof window === "undefined") return;
 
-    // Persistent reveal guard.
     const ktRevealed: WeakSet<Element> =
       (window as any).__ktRevealed ??
       ((window as any).__ktRevealed = new WeakSet());
@@ -59,7 +57,6 @@ export default function KineticText({
     const words = Array.from(root.querySelectorAll<HTMLSpanElement>(".kt-word"));
     if (!words.length) return;
 
-    // Wipe stale inline styles from any previous interrupted run.
     const clearAll = () => {
       words.forEach((w) => {
         w.style.transition = "";
@@ -69,7 +66,7 @@ export default function KineticText({
         w.style.willChange = "";
       });
     };
-    clearAll();
+    clearAll(); // wipe any stale styles from previous interrupted run
 
     if (
       typeof window.matchMedia === "function" &&
@@ -79,7 +76,6 @@ export default function KineticText({
       return;
     }
 
-    // Already in view on mount — mark revealed, leave visible.
     const initialRect = root.getBoundingClientRect();
     if (initialRect.top < window.innerHeight && initialRect.bottom > 0) {
       ktRevealed.add(root);
@@ -107,8 +103,6 @@ export default function KineticText({
       });
 
       const totalMs = (delay + (words.length - 1) * stagger + 0.85) * 1000 + 250;
-
-      // No mounted guard — triggered animation always completes.
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           words.forEach((w) => {
@@ -120,9 +114,7 @@ export default function KineticText({
       });
     };
 
-    const safety = window.setTimeout(trigger, 3000);
-
-    // rAF poll — visual (post-Lenis-transform) position check every frame.
+    // rAF poll — no safety timer (see class doc above).
     let active = true;
     let rafId = 0;
 
@@ -131,7 +123,6 @@ export default function KineticText({
       const r = root.getBoundingClientRect();
       if (r.top < window.innerHeight * 0.92 && r.bottom > 0) {
         trigger();
-        window.clearTimeout(safety);
       } else {
         rafId = requestAnimationFrame(poll);
       }
@@ -141,7 +132,6 @@ export default function KineticText({
     return () => {
       active = false;
       cancelAnimationFrame(rafId);
-      window.clearTimeout(safety);
       if (!triggered) clearAll();
     };
   }, [value, delay, stagger]);
