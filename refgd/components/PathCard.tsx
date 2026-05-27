@@ -220,7 +220,7 @@ export default function PathCard({
         }}
       >
         {/* Outer glow — sibling div with STATIC box-shadow; only opacity animates (GPU composited, no repaint flicker) */}
-        <div aria-hidden="true" className={`absolute inset-0 ${radius} pointer-events-none ${OUTER_GLOW[accent]}`} />
+        <div aria-hidden="true" className={`absolute ${radius} pointer-events-none ${OUTER_GLOW[accent]}`} style={{ inset: '-12px' }} />
         <Tag
           {...linkProps}
           data-testid={`path-card-${index + 1}-link`}
@@ -343,7 +343,7 @@ export default function PathCard({
       <div style={{ animation: floatDisabled ? "none" : `floatSlow ${floatDuration} ease-in-out ${floatDelay} infinite` }} className="h-full">
         <Tilt3D intensity={0.85} className="h-full">
           {/* Outer glow — sibling div with STATIC box-shadow; only opacity animates (GPU composited, no repaint flicker) */}
-          <div aria-hidden="true" className={`absolute inset-0 ${radius} pointer-events-none ${OUTER_GLOW[accent]}`} />
+          <div aria-hidden="true" className={`absolute ${radius} pointer-events-none ${OUTER_GLOW[accent]}`} style={{ inset: '-12px' }} />
           <Tag
             {...linkProps}
             data-testid={`path-card-${index + 1}-link`}
