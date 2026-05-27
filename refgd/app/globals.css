@@ -622,23 +622,23 @@ html { scroll-behavior: smooth; }
 .pulse-glow-violet { animation: pulseGlowViolet 5s ease-in-out infinite; }
 @keyframes pulseGlowViolet {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(167,139,250,0.06),
-                0 24px 60px -32px rgba(167,139,250,0.14);
+    box-shadow: 0 0 0 1px rgba(167,139,250,0.04),
+                0 20px 44px -32px rgba(167,139,250,0.08);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(167,139,250,0.16),
-                0 26px 70px -28px rgba(167,139,250,0.32);
+    box-shadow: 0 0 0 1px rgba(167,139,250,0.10),
+                0 22px 52px -28px rgba(167,139,250,0.18);
   }
 }
 .pulse-glow-cyan { animation: pulseGlowCyan 5s ease-in-out infinite; }
 @keyframes pulseGlowCyan {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(34,211,238,0.06),
-                0 24px 60px -32px rgba(34,211,238,0.14);
+    box-shadow: 0 0 0 1px rgba(34,211,238,0.04),
+                0 20px 44px -32px rgba(34,211,238,0.08);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(34,211,238,0.16),
-                0 26px 70px -28px rgba(34,211,238,0.32);
+    box-shadow: 0 0 0 1px rgba(34,211,238,0.10),
+                0 22px 52px -28px rgba(34,211,238,0.18);
   }
 }
 .pulse-glow-gold { animation: pulseGlowGold 4.6s ease-in-out infinite; }
