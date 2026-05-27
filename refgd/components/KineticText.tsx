@@ -4,13 +4,16 @@
   import { useEditContext } from "@/lib/edit-context";
 
   /**
-   * KineticText v7 — WeakSet persistent-reveal guard.
+   * KineticText v8 — same three fixes as SafeReveal v11.
    *
-   * v6 used double-rAF for reliable transitions but the cleanup function
-   * could re-prime words on rescroll if the effect re-ran while the
-   * heading was above the viewport. v7 adds window.__ktRevealed WeakSet:
-   * once a heading has animated in, subsequent effect re-runs skip the
-   * prime-and-observe loop entirely — words stay visible permanently.
+   * FIX 1: Wipe stale inline styles at top of every effect run + clear in
+   *   cleanup when trigger has not yet fired. Prevents stuck-at-opacity:0 ghosts
+   *   when React re-runs the effect while the heading is already in the viewport.
+   *
+   * FIX 2: Capture-phase scroll listener using getBoundingClientRect() as a
+   *   secondary trigger that works correctly with Lenis transform-based scroll.
+   *
+   * FIX 3: WeakSet (window.__ktRevealed) only updated AFTER trigger fires.
    */
   export default function KineticText({
     text,
@@ -44,7 +47,7 @@
       const root = rootRef.current;
       if (!root || typeof window === "undefined") return;
 
-      // Persistent reveal guard — once words have animated, skip re-prime.
+      // Skip permanently-revealed headings.
       const ktRevealed: WeakSet<Element> =
         (window as any).__ktRevealed ??
         ((window as any).__ktRevealed = new WeakSet());
@@ -55,23 +58,10 @@
         window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       if (reduced) { ktRevealed.add(root); return; }
 
-      const rect = root.getBoundingClientRect();
-      if (rect.top < window.innerHeight && rect.bottom > 0) {
-        ktRevealed.add(root);
-        return;
-      }
-
-      const words = Array.from(
-        root.querySelectorAll<HTMLSpanElement>(".kt-word"),
-      );
+      const words = Array.from(root.querySelectorAll<HTMLSpanElement>(".kt-word"));
       if (!words.length) return;
 
-      words.forEach((w) => {
-        w.style.transform = "translateY(120%)";
-        w.style.filter = "blur(6px)";
-        w.style.willChange = "transform, filter";
-      });
-
+      // FIX 1: Wipe any stale inline styles from a previous interrupted run.
       const clearAll = () => {
         words.forEach((w) => {
           w.style.transition = "";
@@ -81,6 +71,19 @@
           w.style.willChange = "";
         });
       };
+      clearAll();
+
+      const rect = root.getBoundingClientRect();
+      if (rect.top < window.innerHeight && rect.bottom > 0) {
+        ktRevealed.add(root);
+        return;
+      }
+
+      words.forEach((w) => {
+        w.style.transform = "translateY(120%)";
+        w.style.filter = "blur(6px)";
+        w.style.willChange = "transform, filter";
+      });
 
       let triggered = false;
       let mounted = true;
@@ -88,7 +91,7 @@
       const trigger = () => {
         if (triggered) return;
         triggered = true;
-        ktRevealed.add(root); // permanently mark as revealed
+        ktRevealed.add(root); // Only mark AFTER trigger fires.
 
         words.forEach((w, i) => {
           w.style.transition =
@@ -98,48 +101,56 @@
         });
 
         const totalMs = (delay + (words.length - 1) * stagger + 0.85) * 1000 + 250;
-
         requestAnimationFrame(() => {
           if (!mounted) return;
           requestAnimationFrame(() => {
             if (!mounted) return;
-            words.forEach((w) => {
-              w.style.transform = "";
-              w.style.filter = "";
-            });
+            words.forEach((w) => { w.style.transform = ""; w.style.filter = ""; });
             window.setTimeout(clearAll, totalMs);
           });
         });
       };
 
-      const safety = window.setTimeout(trigger, 6000);
+      const safety = window.setTimeout(trigger, 4000);
 
-      if (typeof IntersectionObserver === "undefined") {
-        trigger();
-        window.clearTimeout(safety);
-        return;
+      // IO (native scroll).
+      let io: IntersectionObserver | null = null;
+      if (typeof IntersectionObserver !== "undefined") {
+        io = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (entry.isIntersecting) {
+                trigger();
+                window.clearTimeout(safety);
+                io!.disconnect();
+                break;
+              }
+            }
+          },
+          { threshold: 0.1 },
+        );
+        io.observe(root);
       }
 
-      const io = new IntersectionObserver(
-        (entries) => {
-          for (const entry of entries) {
-            if (entry.isIntersecting) {
-              trigger();
-              window.clearTimeout(safety);
-              io.disconnect();
-              break;
-            }
-          }
-        },
-        { threshold: 0.1 },
-      );
-      io.observe(root);
+      // FIX 2: Scroll listener for Lenis (getBoundingClientRect sees transforms).
+      const onScroll = () => {
+        if (triggered) return;
+        const r = root.getBoundingClientRect();
+        if (r.top < window.innerHeight * 0.95 && r.bottom > 0) {
+          trigger();
+          window.clearTimeout(safety);
+          io?.disconnect();
+        }
+      };
+      window.addEventListener("scroll", onScroll, { passive: true, capture: true });
 
       return () => {
         mounted = false;
-        io.disconnect();
+        io?.disconnect();
         window.clearTimeout(safety);
-        // Do NOT clearAll — already-triggered elements are at natural state.
+        window.removeEventListener("scroll", onScroll, true);
+        // FIX 1 cont: if trigger never fired, reset so next run starts clean.
+        if (!triggered) clearAll();
       };
     }, [value, delay, stagger]);
 

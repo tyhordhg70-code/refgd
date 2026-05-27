@@ -23,21 +23,29 @@
     | "twist";
 
   /**
-   * SafeReveal v10 — WeakSet persistent-reveal guard + double-rAF timing.
+   * SafeReveal v11
    *
-   * v9 fix (double-rAF) solved the transition-skipping bug on Safari but a
-   * second issue remained: if the useEffect cleanup fires while elements are
-   * in an in-between state (React Strict Mode double-invoke, hot-reload, or
-   * a parent re-render that causes dep-array change) the effect re-runs,
-   * sees the element is now ABOVE the fold (user already scrolled past) and
-   * re-primes it to opacity:0 + 3-D transform — making it vanish on rescroll.
+   * Three fixes over v10:
    *
-   * v10 fix: a page-level WeakSet (window.__safeRevealed) marks each element
-   * permanently once it has been revealed. Any subsequent effect run skips
-   * the prime-and-observe loop for marked elements — they stay visible forever.
+   * FIX 1 — stale-opacity ghost:
+   *   v10 removed clearAll() from cleanup. If the effect re-ran (admin-ctx dep
+   *   change, Strict-Mode double-invoke) while an element was already primed
+   *   (opacity:0) AND the element happened to be in the viewport at that moment,
+   *   the above-fold guard marked it "revealed" and returned — leaving it stuck at
+   *   opacity:0 forever. Fix: wipe any stale inline styles at the TOP of every
+   *   effect run, before the above-fold check. Also, cleanup now resets inline
+   *   styles when trigger has NOT yet fired so the next run starts clean.
    *
-   * 3-D transforms are also made larger (more dramatic) so the entrance is
-   * clearly visible as an animation rather than a subtle fade.
+   * FIX 2 — Lenis scroll interception:
+   *   Lenis sets overflow:hidden on the root and scrolls via CSS transform.
+   *   IntersectionObserver uses layout positions (pre-transform), so elements may
+   *   appear "always intersecting" or "never intersecting." A capture-phase scroll
+   *   listener that calls getBoundingClientRect() (post-transform, visual position)
+   *   is used as a secondary trigger that fires correctly with Lenis.
+   *
+   * FIX 3 — WeakSet only after trigger:
+   *   Elements are only added to window.__safeRevealed after trigger() fires, never
+   *   speculatively. This avoids permanently skipping elements that never animated.
    */
   export default function SafeReveal({
     children,
@@ -63,11 +71,21 @@
       const el = ref.current;
       if (!el || typeof window === "undefined") return;
 
-      // Persistent reveal guard — once shown, always shown.
+      // Skip permanently-revealed elements.
       const revealed: WeakSet<Element> =
         (window as any).__safeRevealed ??
         ((window as any).__safeRevealed = new WeakSet());
       if (revealed.has(el)) return;
+
+      // FIX 1: Wipe any stale inline styles left by a previous interrupted run.
+      const clearStyles = () => {
+        el.style.opacity = "";
+        el.style.transform = "";
+        el.style.transition = "";
+        el.style.transitionDelay = "";
+        el.style.willChange = "";
+      };
+      clearStyles();
 
       const reduced =
         typeof window.matchMedia === "function" &&
@@ -98,21 +116,13 @@
       el.style.transform = fromTransform;
       el.style.willChange = "opacity, transform";
 
-      const clearAll = () => {
-        el.style.transition = "";
-        el.style.transitionDelay = "";
-        el.style.opacity = "";
-        el.style.transform = "";
-        el.style.willChange = "";
-      };
-
       let triggered = false;
       let mounted = true;
 
       const trigger = () => {
         if (triggered) return;
         triggered = true;
-        revealed.add(el); // mark permanently revealed
+        revealed.add(el); // Only mark AFTER trigger fires.
 
         el.style.transition = `opacity ${duration}s cubic-bezier(0.22,1,0.36,1), transform ${duration}s cubic-bezier(0.22,1,0.36,1)`;
         if (delay > 0) el.style.transitionDelay = `${delay}s`;
@@ -123,41 +133,51 @@
             if (!mounted) return;
             el.style.opacity = "";
             el.style.transform = "";
-            window.setTimeout(clearAll, (delay + duration) * 1000 + 200);
+            window.setTimeout(clearStyles, (delay + duration) * 1000 + 200);
           });
         });
       };
 
-      const safety = window.setTimeout(trigger, 6000);
+      const safety = window.setTimeout(trigger, 4000);
 
-      if (typeof IntersectionObserver === "undefined") {
-        trigger();
-        window.clearTimeout(safety);
-        return;
+      // IO (works for native scroll).
+      let io: IntersectionObserver | null = null;
+      if (typeof IntersectionObserver !== "undefined") {
+        io = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (entry.isIntersecting) {
+                trigger();
+                window.clearTimeout(safety);
+                io!.disconnect();
+                break;
+              }
+            }
+          },
+          { threshold: 0.05, rootMargin: "0px 0px 5% 0px" },
+        );
+        io.observe(el);
       }
 
-      const io = new IntersectionObserver(
-        (entries) => {
-          for (const entry of entries) {
-            if (entry.isIntersecting) {
-              trigger();
-              window.clearTimeout(safety);
-              io.disconnect();
-              break;
-            }
-          }
-        },
-        { threshold: 0.05, rootMargin: "0px 0px 5% 0px" },
-      );
-      io.observe(el);
+      // FIX 2: Scroll listener — getBoundingClientRect() sees Lenis transforms.
+      const onScroll = () => {
+        if (triggered) return;
+        const r = el.getBoundingClientRect();
+        if (r.top < window.innerHeight * 0.95 && r.bottom > 0) {
+          trigger();
+          window.clearTimeout(safety);
+          io?.disconnect();
+        }
+      };
+      window.addEventListener("scroll", onScroll, { passive: true, capture: true });
 
       return () => {
         mounted = false;
-        io.disconnect();
+        io?.disconnect();
         window.clearTimeout(safety);
-        // Do NOT call clearAll — if already triggered, words are at natural
-        // state and clearAll is a no-op. If not yet triggered, leave primed
-        // so the IO can fire when the element enters view on next render.
+        window.removeEventListener("scroll", onScroll, true);
+        // FIX 1 cont: if trigger never fired, reset so next run starts clean.
+        if (!triggered) clearStyles();
       };
     }, [kind, duration, delay]);
 
