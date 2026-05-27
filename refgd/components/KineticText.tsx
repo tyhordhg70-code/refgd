@@ -4,17 +4,13 @@
   import { useEditContext } from "@/lib/edit-context";
 
   /**
-   * KineticText v6 — double-rAF fix for per-word CSS-transition reveal.
+   * KineticText v7 — WeakSet persistent-reveal guard.
    *
-   * v5 used void root.getBoundingClientRect() to force layout commit
-   * before clearing primed word transforms. On Safari/WebKit the forced
-   * reflow on the ROOT element sometimes did not flush pending inline
-   * style changes on child .kt-word spans — browser batched them and
-   * skipped the transition entirely.
-   *
-   * v6: double requestAnimationFrame (same as SafeReveal v9). First rAF
-   * fires after primed state is painted. Second rAF clears inline styles
-   * so the browser sees a genuine from→to delta per word.
+   * v6 used double-rAF for reliable transitions but the cleanup function
+   * could re-prime words on rescroll if the effect re-ran while the
+   * heading was above the viewport. v7 adds window.__ktRevealed WeakSet:
+   * once a heading has animated in, subsequent effect re-runs skip the
+   * prime-and-observe loop entirely — words stay visible permanently.
    */
   export default function KineticText({
     text,
@@ -36,7 +32,6 @@
   }) {
     const ctx = useEditContext();
     const editing = !!editId && ctx.isAdmin && ctx.editMode;
-
     const rootRef = useRef<HTMLElement | null>(null);
 
     const rawValue = editId ? ctx.getValue(editId, text) : text;
@@ -49,13 +44,22 @@
       const root = rootRef.current;
       if (!root || typeof window === "undefined") return;
 
+      // Persistent reveal guard — once words have animated, skip re-prime.
+      const ktRevealed: WeakSet<Element> =
+        (window as any).__ktRevealed ??
+        ((window as any).__ktRevealed = new WeakSet());
+      if (ktRevealed.has(root)) return;
+
       const reduced =
         typeof window.matchMedia === "function" &&
         window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      if (reduced) return;
+      if (reduced) { ktRevealed.add(root); return; }
 
       const rect = root.getBoundingClientRect();
-      if (rect.top < window.innerHeight && rect.bottom > 0) return;
+      if (rect.top < window.innerHeight && rect.bottom > 0) {
+        ktRevealed.add(root);
+        return;
+      }
 
       const words = Array.from(
         root.querySelectorAll<HTMLSpanElement>(".kt-word"),
@@ -84,6 +88,7 @@
       const trigger = () => {
         if (triggered) return;
         triggered = true;
+        ktRevealed.add(root); // permanently mark as revealed
 
         words.forEach((w, i) => {
           w.style.transition =
@@ -134,7 +139,7 @@
         mounted = false;
         io.disconnect();
         window.clearTimeout(safety);
-        clearAll();
+        // Do NOT clearAll — already-triggered elements are at natural state.
       };
     }, [value, delay, stagger]);
 
