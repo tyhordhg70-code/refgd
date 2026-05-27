@@ -212,7 +212,7 @@ export default function PathCard({
             background:
               "linear-gradient(180deg, rgb(18,16,30), rgb(8,8,16))",
             boxShadow:
-              "0 20px 40px -12px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.07) inset",
+              "0 0 0 1px rgba(255,255,255,0.07) inset",
           }}
           // v6.13.17 — Restored accent-coloured pulse glow on the
           // mobile carousel branch too. Body stays solid (no
