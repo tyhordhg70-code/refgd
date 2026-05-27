@@ -219,8 +219,7 @@ export default function PathCard({
           willChange: "transform",
         }}
       >
-        {/* Outer glow — sibling div with STATIC box-shadow; only opacity animates (GPU composited, no repaint flicker) */}
-        <div aria-hidden="true" className={`absolute ${radius} pointer-events-none ${OUTER_GLOW[accent]}`} style={{ inset: '-12px' }} />
+        {/* Mobile: outer glow removed — section overflow:hidden clips it; perimeter inner-glow (pi-glow-*) handles the effect */}
         <Tag
           {...linkProps}
           data-testid={`path-card-${index + 1}-link`}
@@ -337,8 +336,8 @@ export default function PathCard({
        */}
       <div style={{ animation: floatDisabled ? "none" : `floatSlow ${floatDuration} ease-in-out ${floatDelay} infinite` }} className="h-full">
         <Tilt3D intensity={0.85} className="h-full">
-          {/* Outer glow — sibling div with STATIC box-shadow; only opacity animates (GPU composited, no repaint flicker) */}
-          <div aria-hidden="true" className={`absolute ${radius} pointer-events-none ${OUTER_GLOW[accent]}`} style={{ inset: '-12px' }} />
+          {/* Outer glow — inset:0 flush on card; filter:blur(48px) fans colour 48px outward, no hard ring */}
+          <div aria-hidden="true" className={`absolute ${radius} pointer-events-none ${OUTER_GLOW[accent]}`} style={{ inset: 0 }} />
           <Tag
             {...linkProps}
             data-testid={`path-card-${index + 1}-link`}
