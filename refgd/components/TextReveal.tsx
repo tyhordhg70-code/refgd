@@ -1,243 +1,222 @@
 "use client";
 
-import { motion, useReducedMotion, type Variants } from "framer-motion";
-import { useMemo } from "react";
-import EditableText from "./EditableText";
-import { useEditContext } from "@/lib/edit-context";
+import {
+  motion,
+  useScroll,
+  useTransform,
+  useMotionValue,
+  useMotionValueEvent,
+  useReducedMotion,
+  type MotionValue,
+} from "framer-motion";
+import { useMemo, useRef } from "react";
 
-type Variant =
-  | "wordFade"
-  | "wordBlur"
-  | "lineMask"
-  | "wordSlide"
-  | "charBounce"
-  | "wordWave"
-  | "charGlitch";
+type Variant = "wordFade" | "wordBlur" | "lineMask" | "wordSlide" | "charBounce";
 
 type Props = {
   children: string;
   className?: string;
+  /** Element used for the wrapping block. */
   as?: "p" | "h1" | "h2" | "h3" | "h4" | "div" | "span";
-  /** Kept for API compatibility — no longer drives scroll progress. */
+  /**
+   * Spread the per-word activation across this fraction of the
+   * scroll-progress range (0..1). Smaller = snappier reveal.
+   */
   spread?: number;
+  /** Optional inline style passthrough (e.g. text-shadow). */
   style?: React.CSSProperties;
+  /**
+   * Animation flavour. Different sections of the page should pick
+   * different variants so the page doesn't feel like the same
+   * effect repeating endlessly.
+   */
   variant?: Variant;
-  /** Stable content-id; when set the block becomes editable in admin edit mode. */
-  editId?: string;
 };
 
 /**
- * One-shot in-view text reveal — the animation always completes
- * fully when the block enters the viewport, regardless of how
- * fast the user scrolls.
+ * Scroll-synchronised text reveal with multiple flavours.
  *
- * Variants give each section its own personality so the page
- * never feels like the same effect repeating.
+ * v32 — opacity LATCHES at its maximum reached value. The raw
+ * useScroll → useTransform mapping is symmetric: scrolling back up
+ * past the element lowers scrollYProgress, which previously dropped
+ * opacity from 1 back toward 0.15 and made the text visually
+ * "vanish on rescroll" — the bug the user has been reporting across
+ * every page of the site. We now subscribe to the raw scroll-derived
+ * opacity and feed it into a separate MotionValue that only ever
+ * monotonically increases. y / scale / blur / mask-position still
+ * track scrollYProgress symmetrically because those are parallax
+ * movement (cinematic) rather than visibility — only opacity
+ * needed the one-way latch.
  *
- * Pass `editId` to make the block inline-editable for admins.
+ * Variants:
+ *   wordFade   — opacity 0.15 → 1 per word (default, softest)
+ *   wordBlur   — blur(8px) → blur(0) + opacity latch
+ *   lineMask   — single-block clip-path slide-up + opacity latch
+ *   wordSlide  — each word translates up + opacity latch
+ *   charBounce — first-line hop on scroll + opacity latch
  */
 export default function TextReveal({
   children,
   className = "",
   as = "p",
+  spread = 0.6,
   style,
   variant = "wordFade",
-  editId,
 }: Props) {
+  const ref = useRef<HTMLDivElement | null>(null);
   const reduce = useReducedMotion();
-  const ctx = useEditContext();
-  const editing = !!editId && ctx.isAdmin && ctx.editMode;
-  const text = editId ? ctx.getValue(editId, children) : children;
-  const tokens = useMemo(() => text.split(/(\s+)/), [text]);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start 88%", "end 35%"],
+  });
 
-  // Edit mode: short-circuit the animation and render a plain editable
-  // element so admin click-to-edit works.
-  if (editing) {
-    return (
-      <EditableText
-        id={editId!}
-        defaultValue={children}
-        as={as}
-        multiline
-        className={className}
-      />
-    );
-  }
+  const tokens = useMemo(() => children.split(/(\s+)/), [children]);
+  const wordOnly = tokens.filter((w) => !/^\s+$/.test(w));
+  const total = wordOnly.length || 1;
 
-  // Both variants use `whitespace-pre-line` so the rendered text wrapping
-  // matches the EditableText (edit-mode) block exactly. Without this the
-  // edit-mode and view-mode blocks could break onto different lines and
-  // appear "misaligned".
-  const composedClassName = `${className} whitespace-pre-line`.trim();
+  // lineMask uses single transforms for the whole block.
+  // maskY (clip-path translate) stays scroll-linked so the reveal
+  // animates smoothly during scroll-down. maskOpacity is latched —
+  // once reached 1, it stays at 1.
+  const maskY = useTransform(scrollYProgress, [0, spread], ["100%", "0%"]);
+  const maskOpacityRaw = useTransform(scrollYProgress, [0, spread / 2], [0, 1]);
+  const maskOpacity = useLatchedMax(maskOpacityRaw, 0);
 
   if (reduce) {
     const Plain = as as keyof JSX.IntrinsicElements;
     return (
-      <Plain className={composedClassName} style={style}>
-        {text}
+      <Plain className={className} style={style}>
+        {children}
       </Plain>
     );
   }
 
   if (variant === "lineMask") {
-    // Was previously a clipPath-based reveal — clipPath inside a 3D
-    // (transform-style: preserve-3d) ancestor like CubicParallax fails
-    // to repaint reliably in Chromium and left the paragraph permanently
-    // invisible. Switched to a plain opacity + filter + y entrance which
-    // composites cleanly in any 3D context.
     const Tag = motion[as as "p"] as typeof motion.p;
     return (
       <Tag
-        className={composedClassName}
-        style={style}
-        initial={{ opacity: 0, filter: "blur(6px)", y: 24 }}
-        whileInView={{ opacity: 1, filter: "blur(0px)", y: 0 }}
-        // v21 — once:true so paragraphs don't fade back out when scrolled
-        // past and re-entered (user-reported "chapter 01 text goes missing
-        // on scroll" on /exclusive-mentorships).
-        viewport={{ once: true, amount: 0.15 }}
-        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        ref={ref as never}
+        className={className}
+        style={{ ...style, opacity: maskOpacity, y: maskY }}
         suppressHydrationWarning
       >
-        {text}
+        {children}
       </Tag>
     );
   }
 
   const Tag = motion[as as "p"] as typeof motion.p;
-
-  // Container drives stagger; child variants drive the visual.
-  const container: Variants = {
-    hidden: {},
-    show: { transition: { staggerChildren: variantStagger(variant), delayChildren: 0 } },
-  };
-
-  const word = wordVariants(variant);
+  let wordIdx = -1;
 
   return (
-    <Tag
-      className={composedClassName}
-      style={style}
-      variants={container}
-      initial="hidden"
-      whileInView="show"
-      // v21 — once:true (see comment above on the simple path).
-      viewport={{ once: true, amount: 0.15 }}
-      suppressHydrationWarning
-    >
-      {variant === "charBounce" || variant === "charGlitch"
-        ? renderChars(text, word)
-        : renderWords(tokens, word)}
+    <Tag ref={ref as never} className={className} style={style} suppressHydrationWarning>
+      {tokens.map((token, i) => {
+        if (/^\s+$/.test(token)) return token;
+        wordIdx += 1;
+        const start = (wordIdx / total) * spread;
+        const end = Math.min(1, start + spread / 2);
+        return (
+          <Word
+            key={i}
+            text={token}
+            start={start}
+            end={end}
+            scroll={scrollYProgress}
+            variant={variant}
+          />
+        );
+      })}
     </Tag>
   );
 }
 
-function variantStagger(v: Variant): number {
-  switch (v) {
-    case "charBounce":
-    case "charGlitch":
-      return 0.012;
-    case "wordWave":
-      return 0.03;
-    default:
-      return 0.022;
-  }
+/**
+ * Returns a MotionValue whose value is the running maximum of the
+ * source MotionValue. Once it climbs to 1 (fully revealed) it never
+ * comes back down on backscroll — fixes the user-reported
+ * "text vanishes on rescroll" bug.
+ */
+function useLatchedMax(source: MotionValue<number>, initial = 0): MotionValue<number> {
+  const latched = useMotionValue(initial);
+  useMotionValueEvent(source, "change", (v) => {
+    if (v > latched.get()) latched.set(v);
+  });
+  return latched;
 }
 
-function wordVariants(v: Variant): Variants {
-  switch (v) {
-    case "wordBlur":
-      return {
-        hidden: { opacity: 0, filter: "blur(8px)", y: 10 },
-        show: {
-          opacity: 1,
-          filter: "blur(0px)",
-          y: 0,
-          transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
-        },
-      };
-    case "wordSlide":
-      return {
-        hidden: { opacity: 0, x: -16, y: 0 },
-        show: {
-          opacity: 1,
-          x: 0,
-          y: 0,
-          transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] },
-        },
-      };
-    case "wordWave":
-      return {
-        hidden: { opacity: 0, y: 18, rotateX: -30 },
-        show: {
-          opacity: 1,
-          y: 0,
-          rotateX: 0,
-          transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
-        },
-      };
-    case "charBounce":
-      return {
-        hidden: { opacity: 0, y: 12, scale: 0.7 },
-        show: {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-          transition: { type: "spring", stiffness: 420, damping: 16 },
-        },
-      };
-    case "charGlitch":
-      return {
-        hidden: { opacity: 0, x: -2, skewX: 8, filter: "blur(4px)" },
-        show: {
-          opacity: 1,
-          x: 0,
-          skewX: 0,
-          filter: "blur(0px)",
-          transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] },
-        },
-      };
-    case "wordFade":
-    default:
-      return {
-        hidden: { opacity: 0, y: 8 },
-        show: {
-          opacity: 1,
-          y: 0,
-          transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] },
-        },
-      };
-  }
+/** Same idea, inverted — running MINIMUM (used for blur where 0 = clear). */
+function useLatchedMin(source: MotionValue<number>, initial = Infinity): MotionValue<number> {
+  const latched = useMotionValue(initial);
+  useMotionValueEvent(source, "change", (v) => {
+    if (v < latched.get()) latched.set(v);
+  });
+  return latched;
 }
 
-function renderWords(tokens: string[], word: Variants) {
-  return tokens.map((token, i) => {
-    if (/^\s+$/.test(token)) return token;
+function Word({
+  text,
+  start,
+  end,
+  scroll,
+  variant,
+}: {
+  text: string;
+  start: number;
+  end: number;
+  scroll: MotionValue<number>;
+  variant: Variant;
+}) {
+  // Raw scroll-derived values.
+  const opacityRaw = useTransform(scroll, [start, end], [0.15, 1]);
+  const blurRaw = useTransform(scroll, [start, end], [8, 0], { clamp: true });
+
+  // Latched: opacity only goes up, blur only goes down. Once a word
+  // is fully clear it stays that way through every future rescroll.
+  const opacity = useLatchedMax(opacityRaw, 0.15);
+  const blur = useLatchedMin(blurRaw, 8);
+
+  // y + scale can keep tracking scroll symmetrically — they're
+  // motion, not visibility. If a user wants to feel the parallax on
+  // rescroll, that's fine; nothing disappears.
+  const y = useTransform(scroll, [start, end], [22, 0], { clamp: true });
+  const scale = useTransform(
+    scroll,
+    [start, (start + end) / 2, end],
+    [0.85, 1.06, 1],
+    { clamp: true },
+  );
+  const filter = useTransform(blur, (b) => `blur(${b}px)`);
+
+  const baseStyle: React.CSSProperties = {
+    display: "inline-block",
+    willChange: "opacity, transform, filter",
+  };
+
+  if (variant === "wordBlur") {
     return (
-      <motion.span
-        key={i}
-        variants={word}
-        style={{ display: "inline-block", willChange: "transform, opacity, filter" }}
-        suppressHydrationWarning
-      >
-        {token}
+      <motion.span style={{ ...baseStyle, opacity, filter }} suppressHydrationWarning>
+        {text}
       </motion.span>
     );
-  });
-}
-
-function renderChars(text: string, char: Variants) {
-  return text.split("").map((c, i) => {
-    if (c === " ") return " ";
+  }
+  if (variant === "wordSlide") {
     return (
-      <motion.span
-        key={i}
-        variants={char}
-        style={{ display: "inline-block", willChange: "transform, opacity, filter" }}
-        suppressHydrationWarning
-      >
-        {c}
+      <motion.span style={{ ...baseStyle, opacity, y }} suppressHydrationWarning>
+        {text}
       </motion.span>
     );
-  });
+  }
+  if (variant === "charBounce") {
+    return (
+      <motion.span style={{ ...baseStyle, opacity, scale }} suppressHydrationWarning>
+        {text}
+      </motion.span>
+    );
+  }
+  // default wordFade
+  return (
+    <motion.span style={{ ...baseStyle, opacity }} suppressHydrationWarning>
+      {text}
+    </motion.span>
+  );
 }
