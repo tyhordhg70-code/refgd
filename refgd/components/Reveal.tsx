@@ -3,31 +3,26 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, type ReactNode } from "react";
 
 /**
- * Reveal v7 — rAF poll + CSS transitions (same engine as SafeReveal v13).
+ * Reveal v8 — mirrors SafeReveal v13's exact mechanism.
  *
- * WHY framer-motion whileInView was dropped for the Reveal function:
- *   1. initial={{ y: 36 }} displaced wrapped content DOWN 36 px.
- *      On mobile, buttons at the bottom of tall CTA cards were pushed below
- *      the viewport fold until the 0.52 s animation completed — this read
- *      as "buttons don't show on first scroll".
- *   2. Nested Reveal instances compounded: outer 36 px + inner 36 px = 72 px,
- *      pushing mid-card paragraphs off-screen ("With our exclusive service"
- *      paragraph). The 0.2 s delay on the inner Reveal meant it lagged behind
- *      the outer, briefly hiding the text on every rescroll.
- *   3. framer-motion v11 viewport:{ once:true } has an iOS WebKit race where
- *      elements briefly snap back to initial on scroll-out then refuse to
- *      re-trigger (once:true prevents it), leaving them permanently hidden
- *      after the first rescroll — exact "vanishes on rescroll" symptom.
+ * v7 was broken: it did NOT call clearStyles() at the top of the
+ * effect, and embedded the delay into the transition shorthand
+ * rather than using a separate transitionDelay property. On iOS
+ * Safari these two differences caused the CSS transition to silently
+ * fail on certain compositor stacking contexts (inside ParallaxChapter's
+ * `relative z-10` containment div), leaving elements permanently at
+ * opacity:0.
  *
- * FIX: rAF poll fires when el.getBoundingClientRect().top < window.innerHeight
- * (same as SafeReveal). Opacity + 12 px lift replaces the 36 px displacement.
- * Shared WeakSet (__safeRevealed) means a once-triggered element can never
- * reset even if the component re-renders or React StrictMode double-invokes.
+ * Fix: adopt SafeReveal v13's exact pattern verbatim:
+ *   1. clearStyles() at top of every effect run — wipes any stale
+ *      inline values from interrupted or re-run effects.
+ *   2. transitionDelay as a separate CSS property — more reliable
+ *      than embedding delay in the transition shorthand on iOS.
+ *   3. duration in dependency array — re-triggers clearStyles() if
+ *      the animation config ever changes on re-render.
  *
- * ParallaxBlock and Orb still use framer-motion — they are not scroll-reveal
- * components, they are layout/decoration utilities.
+ * ParallaxBlock and Orb keep their framer-motion implementations.
  */
-
 export function Reveal({
   children,
   delay = 0,
@@ -38,63 +33,73 @@ export function Reveal({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const duration = 0.52;
 
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof window === "undefined") return;
 
-    // Shared WeakSet with SafeReveal — once shown, always shown,
-    // even if the component re-mounts.
-    const set: WeakSet<Element> =
+    // Shared WeakSet with SafeReveal — once shown, always shown.
+    const revealed: WeakSet<Element> =
       (window as any).__safeRevealed ??
       ((window as any).__safeRevealed = new WeakSet());
-    if (set.has(el)) return;
+    if (revealed.has(el)) return;
+
+    // Wipe any stale inline styles from a previous interrupted run.
+    // This is the key fix over v7 — without this, a re-run can inherit
+    // opacity:0 / transform from a previous priming and never escape it.
+    const clearStyles = () => {
+      el.style.opacity = "";
+      el.style.transform = "";
+      el.style.transition = "";
+      el.style.transitionDelay = "";
+      el.style.willChange = "";
+    };
+    clearStyles();
 
     if (
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
-      set.add(el);
+      revealed.add(el);
       return;
     }
 
-    // Already in view on mount — mark visible, skip animation.
+    // Already in view on mount — mark revealed and skip.
     const initialRect = el.getBoundingClientRect();
     if (initialRect.top < window.innerHeight) {
-      set.add(el);
+      revealed.add(el);
       return;
     }
 
-    // Prime the hidden state — 12 px lift, opacity 0.
     el.style.opacity = "0";
-    el.style.transform = "translateY(12px)";
+    el.style.transform = "translateY(20px)";
     el.style.willChange = "opacity, transform";
 
     let triggered = false;
-    let active = true;
-    let rafId = 0;
 
     const trigger = () => {
       if (triggered) return;
       triggered = true;
-      set.add(el);
+      revealed.add(el);
 
-      const delayStr = delay > 0 ? `${delay}s ` : "";
-      el.style.transition =
-        `opacity 0.52s ${delayStr}cubic-bezier(0.22,1,0.36,1), ` +
-        `transform 0.52s ${delayStr}cubic-bezier(0.22,1,0.36,1)`;
+      el.style.transition = `opacity ${duration}s cubic-bezier(0.22,1,0.36,1), transform ${duration}s cubic-bezier(0.22,1,0.36,1)`;
+      if (delay > 0) el.style.transitionDelay = `${delay}s`;
 
+      // Double-rAF: first frame paints the primed state so the browser
+      // registers the starting values; second frame clears them so the
+      // browser fires the CSS transition from the primed values to natural.
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           el.style.opacity = "";
           el.style.transform = "";
-          window.setTimeout(() => {
-            el.style.transition = "";
-            el.style.willChange = "";
-          }, (delay + 0.52) * 1000 + 200);
+          window.setTimeout(clearStyles, (delay + duration) * 1000 + 200);
         });
       });
     };
+
+    let active = true;
+    let rafId = 0;
 
     const poll = () => {
       if (!active) return;
@@ -110,16 +115,9 @@ export function Reveal({
     return () => {
       active = false;
       cancelAnimationFrame(rafId);
-      if (!triggered) {
-        // Never triggered — element never entered viewport. Clean up primed state.
-        el.style.opacity = "";
-        el.style.transform = "";
-        el.style.transition = "";
-        el.style.willChange = "";
-      }
-      // If triggered: animation is underway or complete — do NOT reset.
+      if (!triggered) clearStyles();
     };
-  }, [delay]);
+  }, [delay, duration]);
 
   return (
     <div ref={ref} className={className}>
