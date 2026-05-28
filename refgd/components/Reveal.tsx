@@ -3,15 +3,19 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, type ReactNode } from "react";
 
 /**
- * Reveal (keyframes edition)
+ * Reveal (touch-safe edition)
  *
- * Uses a CSS @keyframes animation with animation-fill-mode:both instead
- * of a CSS transition. Animations are compositor-native: the from→to
- * states are declared in keyframes and tracked by the compositor as a
- * first-class lifecycle. fill-mode:both holds the `to` state forever
- * after completion, so the iOS Safari GPU compositor cannot revert to
- * a cached opacity:0 layer — the animation's terminal frame is the
- * authoritative source of truth, not the CSS cascade.
+ * Three previous mechanisms (CSS transition, inline opacity:1 forever,
+ * CSS @keyframes + fill-mode:both) all failed on iOS Safari due to a
+ * GPU compositor cache that cannot be flushed by any declarative
+ * state change. Tap-to-reappear confirms the issue.
+ *
+ * This version disables the reveal animation entirely on touch devices
+ * (iOS, Android, etc) and just renders children at their natural
+ * visible state. Desktop browsers still get the keyframes animation.
+ *
+ * Trade-off: mobile users lose the fade-up animation, but elements
+ * never vanish on rescroll.
  */
 function ensureKeyframes() {
   if (typeof document === "undefined") return;
@@ -21,6 +25,13 @@ function ensureKeyframes() {
   s.textContent =
     "@keyframes rv-lift{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}";
   document.head.appendChild(s);
+}
+
+function isTouchDevice() {
+  if (typeof window === "undefined") return false;
+  if (typeof window.matchMedia !== "function") return false;
+  // (hover: none) matches devices without precise hover — i.e. touch.
+  return window.matchMedia("(hover: none)").matches;
 }
 
 export function Reveal({
@@ -36,15 +47,20 @@ export function Reveal({
   const duration = 0.52;
 
   useEffect(() => {
-    ensureKeyframes();
     const el = ref.current;
     if (!el || typeof window === "undefined") return;
 
-    // Shared WeakSet with SafeReveal — once shown, always shown.
     const revealed: WeakSet<Element> =
       (window as any).__safeRevealed ??
       ((window as any).__safeRevealed = new WeakSet());
     if (revealed.has(el)) return;
+
+    // Touch devices: skip animation entirely. Element renders at
+    // natural visible state. No priming, no animation, no vanish bug.
+    if (isTouchDevice()) {
+      revealed.add(el);
+      return;
+    }
 
     if (
       typeof window.matchMedia === "function" &&
@@ -54,13 +70,14 @@ export function Reveal({
       return;
     }
 
+    ensureKeyframes();
+
     const initialRect = el.getBoundingClientRect();
     if (initialRect.top < window.innerHeight) {
       revealed.add(el);
       return;
     }
 
-    // Prime invisible inline (animation will override once triggered).
     el.style.opacity = "0";
     el.style.transform = "translateY(20px)";
 
@@ -72,11 +89,6 @@ export function Reveal({
       if (triggered) return;
       triggered = true;
       revealed.add(el);
-
-      // CSS @keyframes animation with fill-mode:both — compositor holds
-      // the `to` state (opacity:1, transform:none) permanently. The iOS
-      // GPU layer cache cannot show opacity:0 because the animation's
-      // terminal frame is authoritative.
       el.style.animation = `rv-lift ${duration}s cubic-bezier(0.22,1,0.36,1) ${delay}s both`;
       el.style.opacity = "";
       el.style.transform = "";
@@ -110,7 +122,6 @@ export function Reveal({
   );
 }
 
-// ─── ParallaxBlock ──────────────────────────────────────────────────────────
 export function ParallaxBlock({
   children,
   amount = 60,
@@ -134,7 +145,6 @@ export function ParallaxBlock({
   );
 }
 
-// ─── Orb ────────────────────────────────────────────────────────────────────
 export function Orb({
   color,
   size = 320,

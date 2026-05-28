@@ -4,20 +4,13 @@ import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
- * KineticText (keyframes edition)
+ * KineticText (touch-safe edition)
  *
- * Same iOS-compositor fix as Reveal/SafeReveal keyframes edition.
- *
- * Words previously animated via a CSS transition on inline transform
- * (translateY(120%) -> ""). iOS Safari's GPU compositor cached the
- * primed transform and ignored the cascade when the inline style was
- * cleared, leaving words stuck below the mask (invisible) until tapped.
- *
- * This version uses a CSS @keyframes animation with
- * animation-fill-mode:both. Each word gets the same animation with a
- * staggered animation-delay. The compositor holds the `to` state
- * (transform:none) forever after completion — no cascade fallback,
- * no stale GPU layer possible.
+ * Touch devices (iOS Safari especially) skip the per-word rise
+ * animation entirely. Words render at their natural in-mask position
+ * (transform:none) and stay there. No iOS compositor cache bug can
+ * affect what was never animated. Desktop browsers still get the
+ * staggered word-rise animation.
  */
 
 function ensureKeyframes() {
@@ -28,6 +21,12 @@ function ensureKeyframes() {
   s.textContent =
     "@keyframes kt-rise{from{transform:translateY(120%)}to{transform:none}}";
   document.head.appendChild(s);
+}
+
+function isTouchDevice() {
+  if (typeof window === "undefined") return false;
+  if (typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(hover: none)").matches;
 }
 
 export default function KineticText({
@@ -59,7 +58,6 @@ export default function KineticText({
       : text;
 
   useEffect(() => {
-    ensureKeyframes();
     const root = rootRef.current;
     if (!root || typeof window === "undefined") return;
 
@@ -67,6 +65,13 @@ export default function KineticText({
       (window as any).__ktRevealed ??
       ((window as any).__ktRevealed = new WeakSet());
     if (ktRevealed.has(root)) return;
+
+    // Touch devices: skip animation entirely. Words render at natural
+    // transform:none (inside mask, visible). Never vanish.
+    if (isTouchDevice()) {
+      ktRevealed.add(root);
+      return;
+    }
 
     const words = Array.from(root.querySelectorAll<HTMLSpanElement>(".kt-word"));
     if (!words.length) return;
@@ -79,16 +84,14 @@ export default function KineticText({
       return;
     }
 
-    // Already in view on mount — skip animation, keep words at natural state.
+    ensureKeyframes();
+
     const initialRect = root.getBoundingClientRect();
     if (initialRect.top < window.innerHeight) {
       ktRevealed.add(root);
       return;
     }
 
-    // Prime words to off-screen below mask. Inline transform here will
-    // be overridden by the animation once it starts (animations have
-    // higher precedence than inline styles for animated properties).
     words.forEach((w) => {
       w.style.transform = "translateY(120%)";
     });
@@ -104,14 +107,7 @@ export default function KineticText({
 
       words.forEach((w, i) => {
         const d = delay + i * stagger;
-        // animation-fill-mode:both holds `from` during the delay phase
-        // and `to` (transform:none) forever after completion. The
-        // compositor tracks the animation lifecycle — no opportunity
-        // to revert to a cached stale layer.
         w.style.animation = `kt-rise 0.45s cubic-bezier(0.25,0.4,0.25,1) ${d}s both`;
-        // Clear the primed inline transform so the animation has full
-        // control. (Animations override inline styles, so this just
-        // avoids leaving stale inline styles around.)
         w.style.transform = "";
       });
     };
@@ -131,7 +127,6 @@ export default function KineticText({
       active = false;
       cancelAnimationFrame(rafId);
       if (!triggered) {
-        // Reset primed styles so element is visible at natural state.
         words.forEach((w) => {
           w.style.transform = "";
         });

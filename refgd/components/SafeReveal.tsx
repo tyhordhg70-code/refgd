@@ -23,39 +23,18 @@ export type RevealKind =
   | "twist";
 
 /**
- * SafeReveal (keyframes edition)
+ * SafeReveal (touch-safe edition)
  *
- * iOS Safari GPU compositor caches stale opacity:0 layers when reveals
- * use CSS transitions on inline-style changes. Inline opacity="1" /
- * will-change tweaks could not break the cache.
- *
- * This version uses CSS @keyframes animations with animation-fill-mode:
- * both. Animations are compositor-native — the from→to states are
- * declared up front and the compositor tracks the animation lifecycle.
- * fill-mode:both means the element is held at the `from` state during
- * any delay, and held at the `to` state forever after completion. The
- * compositor cannot revert because the animation's terminal frame is
- * the authoritative source of truth, not the CSS cascade.
- *
- * Result: once the animation starts, the element is permanently visible.
- * No tap-to-reappear bug, no rescroll vanish.
+ * Touch devices (iOS Safari especially) skip the animation entirely
+ * and render children at natural visible state. iOS GPU compositor
+ * cache bugs cannot affect what was never animated. Desktop browsers
+ * still get the kind-specific keyframe animation.
  */
 
 const KINDS: RevealKind[] = [
-  "lift",
-  "slideLeft",
-  "slideRight",
-  "fan",
-  "fanLeft",
-  "fanRight",
-  "scale",
-  "wipe",
-  "flip3d",
-  "swingIn",
-  "swingInR",
-  "riseDep",
-  "tiltDown",
-  "twist",
+  "lift", "slideLeft", "slideRight", "fan", "fanLeft", "fanRight",
+  "scale", "wipe", "flip3d", "swingIn", "swingInR", "riseDep",
+  "tiltDown", "twist",
 ];
 
 function fromTransformFor(kind: RevealKind): string {
@@ -89,6 +68,12 @@ function ensureKeyframes() {
   document.head.appendChild(style);
 }
 
+function isTouchDevice() {
+  if (typeof window === "undefined") return false;
+  if (typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(hover: none)").matches;
+}
+
 export default function SafeReveal({
   children,
   className = "",
@@ -110,15 +95,19 @@ export default function SafeReveal({
   const ref = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    ensureKeyframes();
     const el = ref.current;
     if (!el || typeof window === "undefined") return;
 
-    // Persistent guard — once shown, always shown for this element.
     const revealed: WeakSet<Element> =
       (window as any).__safeRevealed ??
       ((window as any).__safeRevealed = new WeakSet());
     if (revealed.has(el)) return;
+
+    // Touch devices: skip animation entirely.
+    if (isTouchDevice()) {
+      revealed.add(el);
+      return;
+    }
 
     if (
       typeof window.matchMedia === "function" &&
@@ -128,16 +117,14 @@ export default function SafeReveal({
       return;
     }
 
-    // Already in viewport on mount — skip animation, just mark revealed.
+    ensureKeyframes();
+
     const initialRect = el.getBoundingClientRect();
     if (initialRect.top < window.innerHeight) {
       revealed.add(el);
       return;
     }
 
-    // Prime to invisible state inline (so element doesn't flash visible
-    // before the animation is applied). The animation will override these
-    // once triggered, and fill-mode:both holds the final state forever.
     el.style.opacity = "0";
     el.style.transform = fromTransformFor(kind);
 
@@ -149,13 +136,7 @@ export default function SafeReveal({
       if (triggered) return;
       triggered = true;
       revealed.add(el);
-
-      // Apply the animation. fill-mode:both holds the `from` state during
-      // the delay phase and the `to` state forever after completion. The
-      // compositor tracks this explicitly — no stale GPU layer possible.
       el.style.animation = `sr-${kind} ${duration}s cubic-bezier(0.22,1,0.36,1) ${delay}s both`;
-      // Clear inline opacity/transform AFTER the animation is applied so
-      // animation precedence takes over without a flash.
       el.style.opacity = "";
       el.style.transform = "";
     };
@@ -174,8 +155,6 @@ export default function SafeReveal({
     return () => {
       active = false;
       cancelAnimationFrame(rafId);
-      // If we never triggered, clear the primed inline styles so the
-      // element is visible at the CSS cascade default.
       if (!triggered) {
         el.style.opacity = "";
         el.style.transform = "";
