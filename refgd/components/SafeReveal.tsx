@@ -6,7 +6,7 @@ import {
   type ReactNode,
   type CSSProperties,
 } from "react";
-import { isIOSSafariLike } from "@/lib/iosCheck";
+import { isMobileLike } from "@/lib/iosCheck";
 
 export type RevealKind =
   | "lift"
@@ -86,7 +86,7 @@ export default function SafeReveal({
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
-    if (isIOSSafariLike()) return;
+    if (isMobileLike()) return;
     ensureCSS();
     const el = ref.current;
     if (!el || typeof window === "undefined") return;

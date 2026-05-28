@@ -1,7 +1,7 @@
 "use client";
 import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { isIOSSafariLike } from "@/lib/iosCheck";
+import { isMobileLike } from "@/lib/iosCheck";
 
 /**
  * Reveal — CSS-transition entrance, iOS-Safari-bypassed.
@@ -44,7 +44,7 @@ export function Reveal({
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
-    if (isIOSSafariLike()) return;
+    if (isMobileLike()) return;
     ensureCSS();
     const el = ref.current;
     if (!el || typeof window === "undefined") return;

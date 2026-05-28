@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
-import { isIOSSafariLike } from "@/lib/iosCheck";
+import { isMobileLike } from "@/lib/iosCheck";
 
 /**
  * KineticText — CSS-transition entrance, iOS-Safari-bypassed.
@@ -54,7 +54,7 @@ export default function KineticText({
       : text;
 
   useEffect(() => {
-    if (isIOSSafariLike()) return;
+    if (isMobileLike()) return;
     ensureCSS();
     const root = rootRef.current;
     if (!root || typeof window === "undefined") return;

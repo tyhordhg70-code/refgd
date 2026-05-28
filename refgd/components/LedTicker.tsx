@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { isIOSSafariLike } from "@/lib/iosCheck";
+import { isMobileLike } from "@/lib/iosCheck";
 
 /**
  * LedTicker — CSS-transition entrance, iOS-Safari-bypassed.
@@ -47,7 +47,7 @@ export default function LedTicker({
   }, [speed, items]);
 
   useEffect(() => {
-    if (isIOSSafariLike()) return;
+    if (isMobileLike()) return;
     ensureCSS();
     const el = wrapRef.current;
     if (!el || typeof window === "undefined") return;
