@@ -3,19 +3,18 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, type ReactNode } from "react";
 
 /**
- * Reveal (touch-safe edition)
+ * Reveal (IntersectionObserver + iOS replay edition)
  *
- * Three previous mechanisms (CSS transition, inline opacity:1 forever,
- * CSS @keyframes + fill-mode:both) all failed on iOS Safari due to a
- * GPU compositor cache that cannot be flushed by any declarative
- * state change. Tap-to-reappear confirms the issue.
- *
- * This version disables the reveal animation entirely on touch devices
- * (iOS, Android, etc) and just renders children at their natural
- * visible state. Desktop browsers still get the keyframes animation.
- *
- * Trade-off: mobile users lose the fade-up animation, but elements
- * never vanish on rescroll.
+ * Animation pipeline:
+ *   1. IntersectionObserver fires when element enters viewport.
+ *   2. On FIRST entry the keyframe animation plays with the configured
+ *      delay — element fades up from translateY(20px) -> 0 / opacity 0 -> 1.
+ *   3. animation-fill-mode:both holds the final visible state.
+ *   4. On iOS Safari, every SUBSEQUENT viewport re-entry replays the
+ *      animation (delay = 0). This defeats the GPU compositor cache:
+ *      no matter what stale bitmap the compositor was holding, the
+ *      next paint runs the animation again, ending at the visible
+ *      terminal frame. Non-iOS browsers animate once.
  */
 function ensureKeyframes() {
   if (typeof document === "undefined") return;
@@ -27,11 +26,14 @@ function ensureKeyframes() {
   document.head.appendChild(s);
 }
 
-function isTouchDevice() {
-  if (typeof window === "undefined") return false;
-  if (typeof window.matchMedia !== "function") return false;
-  // (hover: none) matches devices without precise hover — i.e. touch.
-  return window.matchMedia("(hover: none)").matches;
+function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return (
+    /iPad|iPhone|iPod/.test(ua) ||
+    ((navigator as any).platform === "MacIntel" &&
+      (navigator as any).maxTouchPoints > 1)
+  );
 }
 
 export function Reveal({
@@ -50,70 +52,58 @@ export function Reveal({
     const el = ref.current;
     if (!el || typeof window === "undefined") return;
 
-    const revealed: WeakSet<Element> =
-      (window as any).__safeRevealed ??
-      ((window as any).__safeRevealed = new WeakSet());
-    if (revealed.has(el)) return;
-
-    // Touch devices: skip animation entirely. Element renders at
-    // natural visible state. No priming, no animation, no vanish bug.
-    if (isTouchDevice()) {
-      revealed.add(el);
-      return;
-    }
-
     if (
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
-      revealed.add(el);
       return;
     }
 
     ensureKeyframes();
+    const ios = isIOS();
 
     const initialRect = el.getBoundingClientRect();
-    if (initialRect.top < window.innerHeight) {
-      revealed.add(el);
-      return;
+    const inViewOnMount =
+      initialRect.top < window.innerHeight && initialRect.bottom > 0;
+
+    let firstTrigger = !inViewOnMount;
+
+    // Prime to hidden only if off-screen on mount, so the first scroll
+    // into view gets the full reveal effect.
+    if (!inViewOnMount) {
+      el.style.opacity = "0";
+      el.style.transform = "translateY(20px)";
     }
 
-    el.style.opacity = "0";
-    el.style.transform = "translateY(20px)";
-
-    let triggered = false;
-    let active = true;
-    let rafId = 0;
-
-    const trigger = () => {
-      if (triggered) return;
-      triggered = true;
-      revealed.add(el);
-      el.style.animation = `rv-lift ${duration}s cubic-bezier(0.22,1,0.36,1) ${delay}s both`;
+    const play = (d: number) => {
+      el.style.animation = "none";
+      // sync reflow so the animation restart actually re-runs
+      void el.offsetHeight;
       el.style.opacity = "";
       el.style.transform = "";
+      el.style.animation = `rv-lift ${duration}s cubic-bezier(0.22,1,0.36,1) ${d}s both`;
     };
 
-    const poll = () => {
-      if (!active) return;
-      const r = el.getBoundingClientRect();
-      if (r.top < window.innerHeight) {
-        trigger();
-      } else {
-        rafId = requestAnimationFrame(poll);
-      }
-    };
-    rafId = requestAnimationFrame(poll);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            if (firstTrigger) {
+              firstTrigger = false;
+              play(delay);
+            } else if (ios) {
+              // iOS compositor cache defeat: replay on every re-entry.
+              play(0);
+            }
+          }
+        }
+      },
+      { threshold: 0.01 },
+    );
 
-    return () => {
-      active = false;
-      cancelAnimationFrame(rafId);
-      if (!triggered) {
-        el.style.opacity = "";
-        el.style.transform = "";
-      }
-    };
-  }, [delay, duration]);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [delay]);
 
   return (
     <div ref={ref} className={className}>

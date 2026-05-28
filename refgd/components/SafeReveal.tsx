@@ -23,12 +23,9 @@ export type RevealKind =
   | "twist";
 
 /**
- * SafeReveal (touch-safe edition)
- *
- * Touch devices (iOS Safari especially) skip the animation entirely
- * and render children at natural visible state. iOS GPU compositor
- * cache bugs cannot affect what was never animated. Desktop browsers
- * still get the kind-specific keyframe animation.
+ * SafeReveal (IntersectionObserver + iOS replay edition).
+ * See Reveal.tsx for the full animation strategy doc — same pattern,
+ * 14 kinds via the KINDS table.
  */
 
 const KINDS: RevealKind[] = [
@@ -63,15 +60,20 @@ function ensureKeyframes() {
   const style = document.createElement("style");
   style.id = "sr-keyframes";
   style.textContent = KINDS.map(
-    (k) => `@keyframes sr-${k}{from{opacity:0;transform:${fromTransformFor(k)}}to{opacity:1;transform:none}}`,
+    (k) =>
+      `@keyframes sr-${k}{from{opacity:0;transform:${fromTransformFor(k)}}to{opacity:1;transform:none}}`,
   ).join("");
   document.head.appendChild(style);
 }
 
-function isTouchDevice() {
-  if (typeof window === "undefined") return false;
-  if (typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(hover: none)").matches;
+function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return (
+    /iPad|iPhone|iPod/.test(ua) ||
+    ((navigator as any).platform === "MacIntel" &&
+      (navigator as any).maxTouchPoints > 1)
+  );
 }
 
 export default function SafeReveal({
@@ -98,68 +100,53 @@ export default function SafeReveal({
     const el = ref.current;
     if (!el || typeof window === "undefined") return;
 
-    const revealed: WeakSet<Element> =
-      (window as any).__safeRevealed ??
-      ((window as any).__safeRevealed = new WeakSet());
-    if (revealed.has(el)) return;
-
-    // Touch devices: skip animation entirely.
-    if (isTouchDevice()) {
-      revealed.add(el);
-      return;
-    }
-
     if (
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
-      revealed.add(el);
       return;
     }
 
     ensureKeyframes();
+    const ios = isIOS();
 
     const initialRect = el.getBoundingClientRect();
-    if (initialRect.top < window.innerHeight) {
-      revealed.add(el);
-      return;
+    const inViewOnMount =
+      initialRect.top < window.innerHeight && initialRect.bottom > 0;
+
+    let firstTrigger = !inViewOnMount;
+
+    if (!inViewOnMount) {
+      el.style.opacity = "0";
+      el.style.transform = fromTransformFor(kind);
     }
 
-    el.style.opacity = "0";
-    el.style.transform = fromTransformFor(kind);
-
-    let triggered = false;
-    let active = true;
-    let rafId = 0;
-
-    const trigger = () => {
-      if (triggered) return;
-      triggered = true;
-      revealed.add(el);
-      el.style.animation = `sr-${kind} ${duration}s cubic-bezier(0.22,1,0.36,1) ${delay}s both`;
+    const play = (d: number) => {
+      el.style.animation = "none";
+      void el.offsetHeight;
       el.style.opacity = "";
       el.style.transform = "";
+      el.style.animation = `sr-${kind} ${duration}s cubic-bezier(0.22,1,0.36,1) ${d}s both`;
     };
 
-    const poll = () => {
-      if (!active) return;
-      const r = el.getBoundingClientRect();
-      if (r.top < window.innerHeight) {
-        trigger();
-      } else {
-        rafId = requestAnimationFrame(poll);
-      }
-    };
-    rafId = requestAnimationFrame(poll);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            if (firstTrigger) {
+              firstTrigger = false;
+              play(delay);
+            } else if (ios) {
+              play(0);
+            }
+          }
+        }
+      },
+      { threshold: 0.01 },
+    );
 
-    return () => {
-      active = false;
-      cancelAnimationFrame(rafId);
-      if (!triggered) {
-        el.style.opacity = "";
-        el.style.transform = "";
-      }
-    };
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [kind, duration, delay]);
 
   const Comp = Tag as any;

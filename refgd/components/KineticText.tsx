@@ -4,13 +4,15 @@ import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
- * KineticText (touch-safe edition)
+ * KineticText (IntersectionObserver + iOS replay edition).
  *
- * Touch devices (iOS Safari especially) skip the per-word rise
- * animation entirely. Words render at their natural in-mask position
- * (transform:none) and stay there. No iOS compositor cache bug can
- * affect what was never animated. Desktop browsers still get the
- * staggered word-rise animation.
+ * Words rise from translateY(120%) to none with a stagger. On iOS,
+ * the per-word animation replays on every viewport re-entry to
+ * defeat the GPU compositor cache (which otherwise leaves words
+ * stuck below the mask, requiring a tap to reappear).
+ *
+ * Re-entry replays use a tighter stagger (1/3 of original) so the
+ * re-reveal feels snappier and less repetitive on rescroll.
  */
 
 function ensureKeyframes() {
@@ -23,10 +25,14 @@ function ensureKeyframes() {
   document.head.appendChild(s);
 }
 
-function isTouchDevice() {
-  if (typeof window === "undefined") return false;
-  if (typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(hover: none)").matches;
+function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return (
+    /iPad|iPhone|iPod/.test(ua) ||
+    ((navigator as any).platform === "MacIntel" &&
+      (navigator as any).maxTouchPoints > 1)
+  );
 }
 
 export default function KineticText({
@@ -61,77 +67,66 @@ export default function KineticText({
     const root = rootRef.current;
     if (!root || typeof window === "undefined") return;
 
-    const ktRevealed: WeakSet<Element> =
-      (window as any).__ktRevealed ??
-      ((window as any).__ktRevealed = new WeakSet());
-    if (ktRevealed.has(root)) return;
-
-    // Touch devices: skip animation entirely. Words render at natural
-    // transform:none (inside mask, visible). Never vanish.
-    if (isTouchDevice()) {
-      ktRevealed.add(root);
-      return;
-    }
-
-    const words = Array.from(root.querySelectorAll<HTMLSpanElement>(".kt-word"));
-    if (!words.length) return;
-
     if (
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
-      ktRevealed.add(root);
       return;
     }
+
+    const words = Array.from(
+      root.querySelectorAll<HTMLSpanElement>(".kt-word"),
+    );
+    if (!words.length) return;
 
     ensureKeyframes();
+    const ios = isIOS();
 
     const initialRect = root.getBoundingClientRect();
-    if (initialRect.top < window.innerHeight) {
-      ktRevealed.add(root);
-      return;
+    const inViewOnMount =
+      initialRect.top < window.innerHeight && initialRect.bottom > 0;
+
+    let firstTrigger = !inViewOnMount;
+
+    if (!inViewOnMount) {
+      words.forEach((w) => {
+        w.style.transform = "translateY(120%)";
+      });
     }
 
-    words.forEach((w) => {
-      w.style.transform = "translateY(120%)";
-    });
-
-    let triggered = false;
-    let active = true;
-    let rafId = 0;
-
-    const trigger = () => {
-      if (triggered) return;
-      triggered = true;
-      ktRevealed.add(root);
-
+    const play = (baseDelay: number, perWordStagger: number) => {
+      // Reset animations on every word so the re-run actually fires.
+      words.forEach((w) => {
+        w.style.animation = "none";
+      });
+      // sync reflow
+      void root.offsetHeight;
       words.forEach((w, i) => {
-        const d = delay + i * stagger;
-        w.style.animation = `kt-rise 0.45s cubic-bezier(0.25,0.4,0.25,1) ${d}s both`;
         w.style.transform = "";
+        const d = baseDelay + i * perWordStagger;
+        w.style.animation = `kt-rise 0.45s cubic-bezier(0.25,0.4,0.25,1) ${d}s both`;
       });
     };
 
-    const poll = () => {
-      if (!active) return;
-      const r = root.getBoundingClientRect();
-      if (r.top < window.innerHeight) {
-        trigger();
-      } else {
-        rafId = requestAnimationFrame(poll);
-      }
-    };
-    rafId = requestAnimationFrame(poll);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            if (firstTrigger) {
+              firstTrigger = false;
+              play(delay, stagger);
+            } else if (ios) {
+              // Snappier re-reveal: third the stagger, no base delay.
+              play(0, stagger / 3);
+            }
+          }
+        }
+      },
+      { threshold: 0.01 },
+    );
 
-    return () => {
-      active = false;
-      cancelAnimationFrame(rafId);
-      if (!triggered) {
-        words.forEach((w) => {
-          w.style.transform = "";
-        });
-      }
-    };
+    observer.observe(root);
+    return () => observer.disconnect();
   }, [value, delay, stagger]);
 
   if (editing) {
