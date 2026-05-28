@@ -6,6 +6,7 @@ import {
   type ReactNode,
   type CSSProperties,
 } from "react";
+import { isIOSSafariLike } from "@/lib/iosCheck";
 
 export type RevealKind =
   | "lift"
@@ -24,9 +25,8 @@ export type RevealKind =
   | "twist";
 
 /**
- * SafeReveal — bulletproof CSS-transition reveal.
- * See Reveal.tsx for full doc. Uses --sr-from CSS variable so a
- * single transition class covers all 14 kinds.
+ * SafeReveal — CSS-transition entrance, iOS-Safari-bypassed.
+ * See lib/iosCheck.ts and Reveal.tsx for full doc.
  */
 
 function fromTransformFor(kind: RevealKind): string {
@@ -83,24 +83,23 @@ export default function SafeReveal({
   as?: "div" | "section" | "article" | "li";
 }) {
   const ref = useRef<HTMLElement | null>(null);
-  const [revealed, setRevealed] = useState(false);
+  const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
+    if (isIOSSafariLike()) return;
     ensureCSS();
     const el = ref.current;
     if (!el || typeof window === "undefined") return;
 
     const r = el.getBoundingClientRect();
-    if (r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0) {
-      requestAnimationFrame(() => setRevealed(true));
-      return;
-    }
+    if (r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0) return;
+    setHidden(true);
 
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
           if (e.isIntersecting) {
-            setRevealed(true);
+            setHidden(false);
             io.disconnect();
             break;
           }
@@ -112,18 +111,24 @@ export default function SafeReveal({
     return () => io.disconnect();
   }, []);
 
-  const mergedStyle: CSSProperties = {
-    ...(style || {}),
-    ["--sr-from" as any]: fromTransformFor(kind),
-    ["--sr-dur" as any]: `${duration}s`,
-    transitionDelay: delay ? `${delay}s` : undefined,
-  };
+  const mergedStyle: CSSProperties = hidden
+    ? {
+        ...(style || {}),
+        ["--sr-from" as any]: fromTransformFor(kind),
+        ["--sr-dur" as any]: `${duration}s`,
+      }
+    : {
+        ...(style || {}),
+        ["--sr-from" as any]: fromTransformFor(kind),
+        ["--sr-dur" as any]: `${duration}s`,
+        transitionDelay: delay ? `${delay}s` : undefined,
+      };
 
   const Comp = Tag as any;
   return (
     <Comp
       ref={ref}
-      className={`sr ${revealed ? "" : "sr-hidden"} ${className}`}
+      className={`sr ${hidden ? "sr-hidden" : ""} ${className}`}
       style={mergedStyle}
     >
       {children}

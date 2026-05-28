@@ -2,11 +2,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
+import { isIOSSafariLike } from "@/lib/iosCheck";
 
 /**
- * KineticText — bulletproof CSS-transition reveal.
- * See Reveal.tsx for full doc. Per-word stagger via transition-delay
- * computed in JSX per word.
+ * KineticText — CSS-transition entrance, iOS-Safari-bypassed.
+ * See lib/iosCheck.ts and Reveal.tsx for full doc.
  */
 
 function ensureCSS() {
@@ -16,7 +16,7 @@ function ensureCSS() {
   s.id = "kt-css";
   s.textContent = `
 .kt-word{transform:none;transition:transform 0.55s cubic-bezier(0.25,0.4,0.25,1)}
-.kt-word.kt-hidden{transform:translate3d(0,120%,0)}
+.kt-word.kt-hidden{transform:translateY(120%)}
 @media (prefers-reduced-motion: reduce){
   .kt-word{transition:none}
   .kt-word.kt-hidden{transform:none}
@@ -45,7 +45,7 @@ export default function KineticText({
   const ctx = useEditContext();
   const editing = !!editId && ctx.isAdmin && ctx.editMode;
   const rootRef = useRef<HTMLElement | null>(null);
-  const [revealed, setRevealed] = useState(false);
+  const [hidden, setHidden] = useState(false);
 
   const rawValue = editId ? ctx.getValue(editId, text) : text;
   const value: string =
@@ -54,21 +54,20 @@ export default function KineticText({
       : text;
 
   useEffect(() => {
+    if (isIOSSafariLike()) return;
     ensureCSS();
     const root = rootRef.current;
     if (!root || typeof window === "undefined") return;
 
     const r = root.getBoundingClientRect();
-    if (r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0) {
-      requestAnimationFrame(() => setRevealed(true));
-      return;
-    }
+    if (r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0) return;
+    setHidden(true);
 
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
           if (e.isIntersecting) {
-            setRevealed(true);
+            setHidden(false);
             io.disconnect();
             break;
           }
@@ -119,8 +118,8 @@ export default function KineticText({
             aria-hidden="true"
           >
             <span
-              className={`kt-word ${revealed ? "" : "kt-hidden"} inline-block`}
-              style={d > 0 ? { transitionDelay: `${d}s` } : undefined}
+              className={`kt-word ${hidden ? "kt-hidden" : ""} inline-block`}
+              style={!hidden && d > 0 ? { transitionDelay: `${d}s` } : undefined}
             >
               {w}
               {i < words.length - 1 ? "\u00A0" : ""}

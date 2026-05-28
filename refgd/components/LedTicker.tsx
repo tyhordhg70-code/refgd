@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { isIOSSafariLike } from "@/lib/iosCheck";
 
 /**
- * LedTicker — bulletproof CSS-transition reveal.
- * See Reveal.tsx for full doc. Marquee inside is unchanged pure-CSS.
+ * LedTicker — CSS-transition entrance, iOS-Safari-bypassed.
+ * See lib/iosCheck.ts and Reveal.tsx for full doc.
+ * Marquee inside is unchanged pure-CSS.
  */
 
 function ensureCSS() {
@@ -13,7 +15,7 @@ function ensureCSS() {
   s.id = "lt-css";
   s.textContent = `
 .lt{opacity:1;transform:none;transition:opacity 0.85s cubic-bezier(0.22,1.2,0.36,1),transform 0.85s cubic-bezier(0.22,1.2,0.36,1);transform-origin:right center}
-.lt.lt-hidden{opacity:0;transform:translate3d(80px,0,0) scaleX(0.92)}
+.lt.lt-hidden{opacity:0;transform:translateX(80px) scaleX(0.92)}
 @media (prefers-reduced-motion: reduce){
   .lt{transition:none}
   .lt.lt-hidden{opacity:1;transform:none}
@@ -34,7 +36,7 @@ export default function LedTicker({
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const [revealed, setRevealed] = useState(false);
+  const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
     const el = trackRef.current;
@@ -45,21 +47,20 @@ export default function LedTicker({
   }, [speed, items]);
 
   useEffect(() => {
+    if (isIOSSafariLike()) return;
     ensureCSS();
     const el = wrapRef.current;
     if (!el || typeof window === "undefined") return;
 
     const r = el.getBoundingClientRect();
-    if (r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0) {
-      requestAnimationFrame(() => setRevealed(true));
-      return;
-    }
+    if (r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0) return;
+    setHidden(true);
 
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
           if (e.isIntersecting) {
-            setRevealed(true);
+            setHidden(false);
             io.disconnect();
             break;
           }
@@ -74,7 +75,7 @@ export default function LedTicker({
   return (
     <div
       ref={wrapRef}
-      className={`led-ticker lt ${revealed ? "" : "lt-hidden"} relative w-full overflow-hidden border-y border-white/[0.07] ${className}`}
+      className={`led-ticker lt ${hidden ? "lt-hidden" : ""} relative w-full overflow-hidden border-y border-white/[0.07] ${className}`}
       style={{ ["--led-accent" as string]: accent }}
     >
       <div className="led-ticker-mask">
