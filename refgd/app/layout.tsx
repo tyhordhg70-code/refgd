@@ -46,7 +46,6 @@ import Cosmic3DShapes from "@/components/Cosmic3DShapes";
    once it lifts. The useEntranceReady gate in components is
    already wired up — just remounting the screen here re-arms it. */
 import LoadingScreen from "@/components/LoadingScreen";
-import MobileMotionGate from "@/components/MobileMotionGate";
 import SmoothScroll from "@/components/SmoothScroll";
 import EditProvider from "@/lib/edit-context";
 import EditorToolbar from "@/components/EditorToolbar";
@@ -140,12 +139,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           above — the page can't be scrolled until galaxy +
           critical assets are warm. */}
       <body className="min-h-screen bg-ink-950 text-white antialiased">
-        {/* MobileMotionGate must be the FIRST client component in the
-            tree so its module-level side effect (which sets
-            MotionGlobalConfig.skipAnimations on mobile) runs before any
-            framer-motion component instantiates. See the component for
-            the full rationale. */}
-        <MobileMotionGate />
         {/* Lenis-powered smooth scroll for the entire site (no-op for
             users with prefers-reduced-motion). */}
         <SmoothScroll />
