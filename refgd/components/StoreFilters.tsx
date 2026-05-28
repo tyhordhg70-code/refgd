@@ -330,12 +330,12 @@ export default function StoreFilters({
   }
 
   return (
-    <div>
+    <div className="w-full">
       {/* Region selector — radio-style, only one active at a time */}
       <div
         role="radiogroup"
         aria-label="Filter stores by region"
-        className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4"
+        className="mb-6 grid w-full grid-cols-2 gap-3 sm:grid-cols-4"
       >
         {REGIONS.map((r) => {
           const active = region === r.id;

@@ -715,7 +715,7 @@ html { scroll-behavior: smooth; }
  * Compact symmetric outer glow — no 1px ring so safe on OLED phones.
  * Starts at low visible alpha (not 0) so the glow is always apparent.
  */
-.pc-outer-glow-gold    { background:rgba(245,185,69,0.55);  filter:blur(48px); animation:pcGlowFade 5.0s ease-in-out infinite; }
+.pc-outer-glow-gold    { background:rgba(245,185,69,0.38);  filter:blur(28px); animation:pcGlowFade 5.0s ease-in-out infinite; }
 .pc-outer-glow-cyan    { background:rgba(34,211,238,0.55);  filter:blur(48px); animation:pcGlowFade 5.2s ease-in-out infinite; }
 .pc-outer-glow-violet  { background:rgba(167,139,250,0.55); filter:blur(48px); animation:pcGlowFade 5.4s ease-in-out infinite; }
 .pc-outer-glow-orange  { background:rgba(249,115,22,0.55);  filter:blur(48px); animation:pcGlowFade 5.0s ease-in-out infinite; }
