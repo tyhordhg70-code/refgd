@@ -19,24 +19,87 @@ type Props = {
   items: string[];
   accent?: Accent;
   className?: string;
+  /**
+   * Optional inline element (image / illustration) to splice between
+   * specific list items. The map's keys are 1-based item indices —
+   * the inline node renders AFTER that item. e.g. `{ 4: <img /> }`
+   * inserts the node between cards 4 and 5.
+   */
   insert?: Record<number, React.ReactNode>;
+  /**
+   * When set, every list item becomes inline-editable for admins.
+   * Each item resolves to `${editIdPrefix}.${index}`.
+   */
   editIdPrefix?: string;
+  /**
+   * If provided, each item's body becomes a click target that
+   * elastically expands to reveal the matching detail string. The
+   * map keys are 0-based indices.
+   */
   details?: Record<number, string>;
+  /**
+   * When set, the elastic detail strings become inline-editable for
+   * admins. Each detail resolves to `${detailsEditIdPrefix}.${index}`.
+   */
   detailsEditIdPrefix?: string;
 };
 
-const ACCENT: Record<string, { num: string; rgb: string; rgb2: string; rim: string }> = {
-  violet:  { num: "text-violet-200",  rgb: "167,139,250", rgb2: "139,92,246",  rim: "rgba(167,139,250,0.55)" },
-  cyan:    { num: "text-cyan-200",    rgb: "103,232,249", rgb2: "34,211,238",  rim: "rgba(103,232,249,0.55)" },
-  amber:   { num: "text-amber-200",   rgb: "252,211,77",  rgb2: "245,158,11",  rim: "rgba(252,211,77,0.55)"  },
-  rose:    { num: "text-rose-200",    rgb: "251,113,133", rgb2: "244,63,94",   rim: "rgba(251,113,133,0.55)" },
-  emerald: { num: "text-emerald-200", rgb: "110,231,183", rgb2: "16,185,129",  rim: "rgba(110,231,183,0.55)" },
-  indigo:  { num: "text-indigo-200",  rgb: "165,180,252", rgb2: "129,140,248", rim: "rgba(165,180,252,0.55)" },
+const ACCENT: Record<
+  string,
+  { num: string; rgb: string; rgb2: string; rim: string }
+> = {
+  violet: {
+    num: "text-violet-200",
+    rgb: "167,139,250",
+    rgb2: "139,92,246",
+    rim: "rgba(167,139,250,0.55)",
+  },
+  cyan: {
+    num: "text-cyan-200",
+    rgb: "103,232,249",
+    rgb2: "34,211,238",
+    rim: "rgba(103,232,249,0.55)",
+  },
+  amber: {
+    num: "text-amber-200",
+    rgb: "252,211,77",
+    rgb2: "245,158,11",
+    rim: "rgba(252,211,77,0.55)",
+  },
+  rose: {
+    num: "text-rose-200",
+    rgb: "251,113,133",
+    rgb2: "244,63,94",
+    rim: "rgba(251,113,133,0.55)",
+  },
+  emerald: {
+    num: "text-emerald-200",
+    rgb: "110,231,183",
+    rgb2: "16,185,129",
+    rim: "rgba(110,231,183,0.55)",
+  },
+  indigo: {
+    num: "text-indigo-200",
+    rgb: "165,180,252",
+    rgb2: "129,140,248",
+    rim: "rgba(165,180,252,0.55)",
+  },
 };
 
+/**
+ * Numbered list with one-shot bounce-in entrance.
+ *  – Each row enters with a short fly-up + bounce, completing in
+ *    ~0.7s after viewport entry. Cannot freeze mid-scroll.
+ *  – Subtle holographic rim glow on hover. No scroll-linked transforms.
+ */
 export default function BounceList({
-  items, accent = "violet", className = "", insert,
-  editIdPrefix, details, detailsEditIdPrefix,
+  items,
+  accent = "violet",
+  className = "",
+  insert,
+  editIdPrefix,
+  details,
+  detailsEditIdPrefix,
 }: Props) {
   const tokens = useMemo(() => ACCENT[accent] ?? ACCENT.violet, [accent]);
   const reduce = useReducedMotion();
@@ -65,7 +128,14 @@ export default function BounceList({
 }
 
 function Row({
-  index, text, tokens, reduce, afterNode, editId, detail, detailEditId,
+  index,
+  text,
+  tokens,
+  reduce,
+  afterNode,
+  editId,
+  detail,
+  detailEditId,
 }: {
   index: number;
   text: string;
@@ -81,66 +151,58 @@ function Row({
   const detailEditing = !!detailEditId && ctx.isAdmin && ctx.editMode;
   const value = editId ? ctx.getValue(editId, text) : text;
   const [open, setOpen] = useState(false);
+  // In admin-edit mode the row is NOT clickable (so the elastic toggle
+  // doesn't collide with text editing) — but we still want admins to
+  // see and edit the detail copy, so we render it always-open whenever
+  // the detail is editable.
   const elastic = !!detail && !editing && !detailEditing;
   const showDetail = !!detail && (elastic || detailEditing);
-
-  // v28 — mount-tween cinematic entrance on mobile (no IO).
-  // Pre-mount: render the visible end state so nothing is stranded
-  // invisible if hydration is delayed.
-  const [mounted, setMounted] = useState(false);
+  // v21 — keep the entrance but DOWNGRADE to opacity-only on mobile.
+  // Full bounce (y + scale + opacity keyframes, staggered across many
+  // cards, on top of backdrop-blur) was overwhelming Chrome Android's
+  // compositor and producing the "vanishes mid appearance and reappears"
+  // flicker. Opacity-only fades cheaply and composites cleanly; desktop
+  // keeps the punchy bounce path.
   const [mobile, setMobile] = useState(false);
-  useEffect(() => {
-    setMobile(isMobileLike());
-    setMounted(true);
-  }, []);
-
-  const flyX = (index % 2 === 0 ? -1 : 1) * 70;
-
-  let initial: any, animateOrWhileInView: any, useAnimate = false, viewport: any;
-  if (reduce) {
-    initial = { opacity: 0 };
-    animateOrWhileInView = { opacity: 1 };
-    useAnimate = true;
-  } else if (!mounted) {
-    initial = { opacity: 1 };
-    animateOrWhileInView = { opacity: 1 };
-    useAnimate = true;
-  } else if (mobile) {
-    initial = { opacity: 0, x: flyX, y: 56 };
-    animateOrWhileInView = {
-      opacity: 1, x: 0, y: 0,
-      transition: {
-        duration: 0.85,
-        delay: Math.min(index * 0.09, 0.55),
-        ease: [0.16, 1, 0.3, 1],
-      },
-    };
-    useAnimate = true;
-  } else {
-    initial = { opacity: 0.001, y: 24, scale: 0.97 };
-    animateOrWhileInView = {
-      opacity: 1, y: [24, -6, 0], scale: [0.97, 1.015, 1],
-      transition: {
-        duration: 0.55,
-        delay: Math.min(index * 0.04, 0.18),
-        times: [0, 0.6, 1],
-        ease: [0.22, 1, 0.36, 1],
-      },
-    };
-    viewport = { once: true, margin: "0px 0px -10% 0px" };
-  }
-
-  const motionProps: any = { initial, suppressHydrationWarning: true };
-  if (useAnimate) motionProps.animate = animateOrWhileInView;
-  else { motionProps.whileInView = animateOrWhileInView; motionProps.viewport = viewport; }
-
+  useEffect(() => { setMobile(isMobileLike()); }, []);
+  const initial = reduce
+    ? { opacity: 0 }
+    : mobile
+      ? { opacity: 0 }
+      : { opacity: 0.001, y: 24, scale: 0.97 };
+  const whileInView = reduce
+    ? { opacity: 1 }
+    : mobile
+      ? {
+          opacity: 1,
+          transition: {
+            duration: 0.45,
+            delay: Math.min(index * 0.04, 0.18),
+            ease: [0.22, 1, 0.36, 1],
+          },
+        }
+      : {
+          opacity: 1,
+          y: [24, -6, 0],
+          scale: [0.97, 1.015, 1],
+          transition: {
+            duration: 0.55,
+            delay: Math.min(index * 0.04, 0.18),
+            times: [0, 0.6, 1],
+            ease: [0.22, 1, 0.36, 1],
+          },
+        };
   return (
     <>
       <motion.li
-        {...motionProps}
+        initial={initial}
+        whileInView={whileInView}
+        viewport={{ once: true, margin: "0px 0px -10% 0px" }}
         className="group relative isolate"
+        suppressHydrationWarning
         data-testid={`bounce-list-item-${index}`}
       >
+        {/* Holographic rim glow */}
         <div
           aria-hidden
           className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 transition-opacity duration-500 group-hover:opacity-100"
@@ -149,11 +211,15 @@ function Row({
             filter: "blur(12px)",
           }}
         />
+
+        {/* Card body */}
         <div
           className={`relative flex items-start gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.035] px-5 py-4 backdrop-blur-md transition-shadow duration-500 group-hover:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)] sm:gap-6 sm:px-6 sm:py-5 ${
             elastic ? `bounce-elastic ${open ? "is-open" : ""}` : ""
           } ${detailEditing ? "bounce-elastic is-open" : ""}`}
-          style={{ boxShadow: `0 12px 30px -18px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)` }}
+          style={{
+            boxShadow: `0 12px 30px -18px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)`,
+          }}
           onClick={elastic ? () => setOpen((o) => !o) : undefined}
           role={elastic ? "button" : undefined}
           tabIndex={elastic ? 0 : undefined}
@@ -169,43 +235,66 @@ function Row({
           }
           aria-expanded={elastic ? open : undefined}
         >
+          {/* Index */}
           <div className="relative shrink-0">
             <span
               className={`heading-display block text-[0.7rem] font-bold uppercase tracking-[0.35em] ${tokens.num}`}
-              style={{ textShadow: `0 0 18px ${tokens.rim}, 0 0 2px ${tokens.rim}` }}
+              style={{
+                textShadow: `0 0 18px ${tokens.rim}, 0 0 2px ${tokens.rim}`,
+              }}
             >
               {String(index + 1).padStart(2, "0")}
             </span>
             <div
               aria-hidden
               className="mt-1 h-px w-8"
-              style={{ background: `linear-gradient(90deg, rgba(${tokens.rgb},0.9), transparent)` }}
+              style={{
+                background: `linear-gradient(90deg, rgba(${tokens.rgb},0.9), transparent)`,
+              }}
             />
           </div>
+
+          {/* Body */}
           <div className="relative flex-1">
             <p className="text-[0.98rem] leading-relaxed text-white/85 sm:text-lg">
-              {editId ? (
-                <EditableText id={editId} defaultValue={text} as="span" multiline />
-              ) : (
-                value
-              )}
+              {/* v6.13.63 — Always render EditableText when editId is set so
+                    admin-saved dx/dy text-drag offsets apply in PUBLIC view too.
+                    Previously the public branch fell back to a plain {value} text
+                    node, which bypassed EditableText's unconditional useMoveOffset
+                    transform — text the admin moved snapped back at runtime. */}
+                {editId ? (
+                  <EditableText
+                    id={editId}
+                    defaultValue={text}
+                    as="span"
+                    multiline
+                  />
+                ) : (
+                  value
+                )}
             </p>
             {showDetail ? (
               <div className="bounce-elastic-content">
-                {detailEditId ? (
-                  <EditableText
-                    id={detailEditId}
-                    defaultValue={detail || ""}
-                    as="p"
-                    multiline
-                    className="text-[0.92rem] leading-relaxed text-white/65 sm:text-base"
-                  />
-                ) : (
-                  <p className="text-[0.92rem] leading-relaxed text-white/65 sm:text-base">{detail}</p>
-                )}
+                {/* v6.13.63 — Same fix as the main row above: always use
+                      EditableText when detailEditId is set so saved text-drag
+                      offsets persist in public view. */}
+                  {detailEditId ? (
+                    <EditableText
+                      id={detailEditId}
+                      defaultValue={detail || ""}
+                      as="p"
+                      multiline
+                      className="text-[0.92rem] leading-relaxed text-white/65 sm:text-base"
+                    />
+                  ) : (
+                    <p className="text-[0.92rem] leading-relaxed text-white/65 sm:text-base">
+                      {detail}
+                    </p>
+                  )}
               </div>
             ) : null}
           </div>
+
           {elastic ? (
             <div className="bounce-elastic-arrow shrink-0 self-center text-white/55">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
@@ -216,7 +305,11 @@ function Row({
         </div>
       </motion.li>
       {afterNode ? (
-        <li aria-hidden="true" className="list-none pt-2" data-testid={`bounce-list-insert-${index + 1}`}>
+        <li
+          aria-hidden="true"
+          className="list-none pt-2"
+          data-testid={`bounce-list-insert-${index + 1}`}
+        >
           {afterNode}
         </li>
       ) : null}
