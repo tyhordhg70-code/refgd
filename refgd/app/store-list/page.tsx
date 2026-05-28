@@ -13,6 +13,7 @@ import ParallaxChapter from "@/components/ParallaxChapter";
 import { Reveal } from "@/components/Reveal";
 import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
 import IOSHide from "@/components/IOSHide";
+import IOSSafariFlag from "@/components/IOSSafariFlag";
 import EditableText from "@/components/EditableText";
 import ChapterPill from "@/components/ChapterPill";
 import LedTicker from "@/components/LedTicker";
@@ -67,6 +68,7 @@ export default async function StoreListPage() {
 
   return (
     <>
+      <IOSSafariFlag />
       {/* v6.13.32 — "The storelist should have same background on entire
           page as the one that get rewarded uses." The Get-rewarded hero
           paints `bg-ink-950` plus three soft mesh orbs (amber / violet /
