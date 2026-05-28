@@ -3,37 +3,43 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, type ReactNode } from "react";
 
 /**
- * Reveal (IntersectionObserver + iOS replay edition)
+ * Reveal (glass-card-reveal pattern — iOS-eviction-safe).
  *
- * Animation pipeline:
- *   1. IntersectionObserver fires when element enters viewport.
- *   2. On FIRST entry the keyframe animation plays with the configured
- *      delay — element fades up from translateY(20px) -> 0 / opacity 0 -> 1.
- *   3. animation-fill-mode:both holds the final visible state.
- *   4. On iOS Safari, every SUBSEQUENT viewport re-entry replays the
- *      animation (delay = 0). This defeats the GPU compositor cache:
- *      no matter what stale bitmap the compositor was holding, the
- *      next paint runs the animation again, ending at the visible
- *      terminal frame. Non-iOS browsers animate once.
+ * Adopts the same pattern proven on .glass-card-reveal in globals.css
+ * to defeat the iOS Safari "compositing-memory pressure animation
+ * eviction" bug. Three earlier approaches (CSS transition, keyframes
+ * + fill-mode:both, IntersectionObserver replay) all failed because
+ * when iOS evicts the animation, the element falls back to its CSS
+ * cascade — and if the base style doesn't EXPLICITLY declare
+ * opacity:1 / transform:none, the previously-applied FROM keyframe
+ * state (opacity:0, transform:translateY(...)) lingers.
+ *
+ * Strategy:
+ *   • `.rv-base` always present — declares opacity:1 / transform:none
+ *     so iOS-evicted animations fall back to a visible state.
+ *   • `.rv-pending` applied if element is off-screen on mount — sets
+ *     opacity:0 so the element doesn't flash before IO triggers.
+ *   • On IntersectionObserver fire, swap `.rv-pending` → `.rv-go`.
+ *   • `.rv-go` uses `animation-fill-mode: backwards` — holds `from`
+ *     during delay, animates, then DROPS the state on completion so
+ *     the visible base CSS takes over.
  */
-function ensureKeyframes() {
-  if (typeof document === "undefined") return;
-  if (document.getElementById("rv-keyframes")) return;
-  const s = document.createElement("style");
-  s.id = "rv-keyframes";
-  s.textContent =
-    "@keyframes rv-lift{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}";
-  document.head.appendChild(s);
-}
 
-function isIOS(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent;
-  return (
-    /iPad|iPhone|iPod/.test(ua) ||
-    ((navigator as any).platform === "MacIntel" &&
-      (navigator as any).maxTouchPoints > 1)
-  );
+function ensureCSS() {
+  if (typeof document === "undefined") return;
+  if (document.getElementById("rv-css")) return;
+  const s = document.createElement("style");
+  s.id = "rv-css";
+  s.textContent = `
+.rv-base{opacity:1;transform:none}
+.rv-pending{opacity:0;transform:translate3d(0,20px,0)}
+@keyframes rv-lift{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+.rv-go{animation:rv-lift 0.52s cubic-bezier(0.22,1,0.36,1) backwards}
+@media (prefers-reduced-motion: reduce){
+  .rv-pending{opacity:1;transform:none}
+  .rv-go{animation:none}
+}`;
+  document.head.appendChild(s);
 }
 
 export function Reveal({
@@ -46,55 +52,38 @@ export function Reveal({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const duration = 0.52;
 
   useEffect(() => {
+    ensureCSS();
     const el = ref.current;
     if (!el || typeof window === "undefined") return;
 
-    if (
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ) {
-      return;
-    }
-
-    ensureKeyframes();
-    const ios = isIOS();
+    const done: WeakSet<Element> =
+      (window as any).__rvDone ??
+      ((window as any).__rvDone = new WeakSet());
+    if (done.has(el)) return;
 
     const initialRect = el.getBoundingClientRect();
     const inViewOnMount =
       initialRect.top < window.innerHeight && initialRect.bottom > 0;
 
-    let firstTrigger = !inViewOnMount;
-
-    // Prime to hidden only if off-screen on mount, so the first scroll
-    // into view gets the full reveal effect.
-    if (!inViewOnMount) {
-      el.style.opacity = "0";
-      el.style.transform = "translateY(20px)";
+    if (inViewOnMount) {
+      // Already visible — no animation, base CSS keeps it visible.
+      done.add(el);
+      return;
     }
 
-    const play = (d: number) => {
-      el.style.animation = "none";
-      // sync reflow so the animation restart actually re-runs
-      void el.offsetHeight;
-      el.style.opacity = "";
-      el.style.transform = "";
-      el.style.animation = `rv-lift ${duration}s cubic-bezier(0.22,1,0.36,1) ${d}s both`;
-    };
+    el.classList.add("rv-pending");
 
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            if (firstTrigger) {
-              firstTrigger = false;
-              play(delay);
-            } else if (ios) {
-              // iOS compositor cache defeat: replay on every re-entry.
-              play(0);
-            }
+            done.add(el);
+            if (delay > 0) el.style.animationDelay = `${delay}s`;
+            el.classList.remove("rv-pending");
+            el.classList.add("rv-go");
+            observer.disconnect();
           }
         }
       },
@@ -106,7 +95,7 @@ export function Reveal({
   }, [delay]);
 
   return (
-    <div ref={ref} className={className}>
+    <div ref={ref} className={`rv-base ${className}`}>
       {children}
     </div>
   );

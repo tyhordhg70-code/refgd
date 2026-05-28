@@ -4,35 +4,26 @@ import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
- * KineticText (IntersectionObserver + iOS replay edition).
- *
- * Words rise from translateY(120%) to none with a stagger. On iOS,
- * the per-word animation replays on every viewport re-entry to
- * defeat the GPU compositor cache (which otherwise leaves words
- * stuck below the mask, requiring a tap to reappear).
- *
- * Re-entry replays use a tighter stagger (1/3 of original) so the
- * re-reveal feels snappier and less repetitive on rescroll.
+ * KineticText (glass-card-reveal pattern — iOS-eviction-safe).
+ * See Reveal.tsx for full strategy. Per-word stagger via inline
+ * animation-delay on each .kt-word.
  */
 
-function ensureKeyframes() {
+function ensureCSS() {
   if (typeof document === "undefined") return;
-  if (document.getElementById("kt-keyframes")) return;
+  if (document.getElementById("kt-css")) return;
   const s = document.createElement("style");
-  s.id = "kt-keyframes";
-  s.textContent =
-    "@keyframes kt-rise{from{transform:translateY(120%)}to{transform:none}}";
+  s.id = "kt-css";
+  s.textContent = `
+.kt-word{transform:none}
+.kt-word.kt-pending{transform:translate3d(0,120%,0)}
+@keyframes kt-rise{from{transform:translateY(120%)}to{transform:none}}
+.kt-word.kt-go{animation:kt-rise 0.45s cubic-bezier(0.25,0.4,0.25,1) backwards}
+@media (prefers-reduced-motion: reduce){
+  .kt-word.kt-pending{transform:none}
+  .kt-word.kt-go{animation:none}
+}`;
   document.head.appendChild(s);
-}
-
-function isIOS(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent;
-  return (
-    /iPad|iPhone|iPod/.test(ua) ||
-    ((navigator as any).platform === "MacIntel" &&
-      (navigator as any).maxTouchPoints > 1)
-  );
 }
 
 export default function KineticText({
@@ -64,61 +55,43 @@ export default function KineticText({
       : text;
 
   useEffect(() => {
+    ensureCSS();
     const root = rootRef.current;
     if (!root || typeof window === "undefined") return;
 
-    if (
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ) {
-      return;
-    }
+    const done: WeakSet<Element> =
+      (window as any).__ktDone ??
+      ((window as any).__ktDone = new WeakSet());
+    if (done.has(root)) return;
 
     const words = Array.from(
       root.querySelectorAll<HTMLSpanElement>(".kt-word"),
     );
     if (!words.length) return;
 
-    ensureKeyframes();
-    const ios = isIOS();
-
     const initialRect = root.getBoundingClientRect();
     const inViewOnMount =
       initialRect.top < window.innerHeight && initialRect.bottom > 0;
 
-    let firstTrigger = !inViewOnMount;
-
-    if (!inViewOnMount) {
-      words.forEach((w) => {
-        w.style.transform = "translateY(120%)";
-      });
+    if (inViewOnMount) {
+      done.add(root);
+      return;
     }
 
-    const play = (baseDelay: number, perWordStagger: number) => {
-      // Reset animations on every word so the re-run actually fires.
-      words.forEach((w) => {
-        w.style.animation = "none";
-      });
-      // sync reflow
-      void root.offsetHeight;
-      words.forEach((w, i) => {
-        w.style.transform = "";
-        const d = baseDelay + i * perWordStagger;
-        w.style.animation = `kt-rise 0.45s cubic-bezier(0.25,0.4,0.25,1) ${d}s both`;
-      });
-    };
+    words.forEach((w) => w.classList.add("kt-pending"));
 
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            if (firstTrigger) {
-              firstTrigger = false;
-              play(delay, stagger);
-            } else if (ios) {
-              // Snappier re-reveal: third the stagger, no base delay.
-              play(0, stagger / 3);
-            }
+            done.add(root);
+            words.forEach((w, i) => {
+              const d = delay + i * stagger;
+              if (d > 0) w.style.animationDelay = `${d}s`;
+              w.classList.remove("kt-pending");
+              w.classList.add("kt-go");
+            });
+            observer.disconnect();
           }
         }
       },

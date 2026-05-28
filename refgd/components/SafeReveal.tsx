@@ -23,16 +23,10 @@ export type RevealKind =
   | "twist";
 
 /**
- * SafeReveal (IntersectionObserver + iOS replay edition).
- * See Reveal.tsx for the full animation strategy doc — same pattern,
- * 14 kinds via the KINDS table.
+ * SafeReveal (glass-card-reveal pattern — iOS-eviction-safe).
+ * See Reveal.tsx for full strategy doc. Uses a CSS custom property
+ * `--sr-from` to share one keyframe/class across all 14 kinds.
  */
-
-const KINDS: RevealKind[] = [
-  "lift", "slideLeft", "slideRight", "fan", "fanLeft", "fanRight",
-  "scale", "wipe", "flip3d", "swingIn", "swingInR", "riseDep",
-  "tiltDown", "twist",
-];
 
 function fromTransformFor(kind: RevealKind): string {
   switch (kind) {
@@ -54,26 +48,24 @@ function fromTransformFor(kind: RevealKind): string {
   }
 }
 
-function ensureKeyframes() {
+function ensureCSS() {
   if (typeof document === "undefined") return;
-  if (document.getElementById("sr-keyframes")) return;
-  const style = document.createElement("style");
-  style.id = "sr-keyframes";
-  style.textContent = KINDS.map(
-    (k) =>
-      `@keyframes sr-${k}{from{opacity:0;transform:${fromTransformFor(k)}}to{opacity:1;transform:none}}`,
-  ).join("");
-  document.head.appendChild(style);
-}
-
-function isIOS(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent;
-  return (
-    /iPad|iPhone|iPod/.test(ua) ||
-    ((navigator as any).platform === "MacIntel" &&
-      (navigator as any).maxTouchPoints > 1)
-  );
+  if (document.getElementById("sr-css")) return;
+  const s = document.createElement("style");
+  s.id = "sr-css";
+  // Single keyframe and class via CSS custom property --sr-from.
+  // Variable resolves at the from-keyframe's concrete value, then
+  // interpolates to none. Browser support: all modern browsers.
+  s.textContent = `
+.sr-base{opacity:1;transform:none}
+.sr-pending{opacity:0;transform:var(--sr-from, translateY(20px))}
+@keyframes sr-go{from{opacity:0;transform:var(--sr-from, translateY(20px))}to{opacity:1;transform:none}}
+.sr-go{animation:sr-go var(--sr-dur, 0.95s) cubic-bezier(0.22,1,0.36,1) backwards}
+@media (prefers-reduced-motion: reduce){
+  .sr-pending{opacity:1;transform:none}
+  .sr-go{animation:none}
+}`;
+  document.head.appendChild(s);
 }
 
 export default function SafeReveal({
@@ -97,48 +89,39 @@ export default function SafeReveal({
   const ref = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    ensureCSS();
     const el = ref.current;
     if (!el || typeof window === "undefined") return;
 
-    if (
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ) {
-      return;
-    }
+    const done: WeakSet<Element> =
+      (window as any).__srDone ??
+      ((window as any).__srDone = new WeakSet());
+    if (done.has(el)) return;
 
-    ensureKeyframes();
-    const ios = isIOS();
+    // Set the per-element variables so keyframe + pending use this kind.
+    el.style.setProperty("--sr-from", fromTransformFor(kind));
+    el.style.setProperty("--sr-dur", `${duration}s`);
 
     const initialRect = el.getBoundingClientRect();
     const inViewOnMount =
       initialRect.top < window.innerHeight && initialRect.bottom > 0;
 
-    let firstTrigger = !inViewOnMount;
-
-    if (!inViewOnMount) {
-      el.style.opacity = "0";
-      el.style.transform = fromTransformFor(kind);
+    if (inViewOnMount) {
+      done.add(el);
+      return;
     }
 
-    const play = (d: number) => {
-      el.style.animation = "none";
-      void el.offsetHeight;
-      el.style.opacity = "";
-      el.style.transform = "";
-      el.style.animation = `sr-${kind} ${duration}s cubic-bezier(0.22,1,0.36,1) ${d}s both`;
-    };
+    el.classList.add("sr-pending");
 
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            if (firstTrigger) {
-              firstTrigger = false;
-              play(delay);
-            } else if (ios) {
-              play(0);
-            }
+            done.add(el);
+            if (delay > 0) el.style.animationDelay = `${delay}s`;
+            el.classList.remove("sr-pending");
+            el.classList.add("sr-go");
+            observer.disconnect();
           }
         }
       },
@@ -151,7 +134,7 @@ export default function SafeReveal({
 
   const Comp = Tag as any;
   return (
-    <Comp ref={ref} className={className} style={style}>
+    <Comp ref={ref} className={`sr-base ${className}`} style={style}>
       {children}
     </Comp>
   );
