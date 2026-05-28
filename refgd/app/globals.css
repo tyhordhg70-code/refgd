@@ -800,6 +800,13 @@ html { scroll-behavior: smooth; }
   .editorial-display { letter-spacing: -0.03em; }
 }
 
+/* v19 — html bg matched to .cosmic-base top stop so mobile-Chrome
+   URL-bar collapse / overscroll rubber-band never exposes a pure-
+   black strip below page-scoped fixed backgrounds. body's bg-ink-950
+   (#06030f) was reading as black against the cosmic gradient base. */
+html { background-color: #04030f; }
+html, body { overscroll-behavior-y: none; }
+
 /* ─── Mobile/tablet performance — cut expensive effects ─────────── */
 @media (max-width: 1024px) {
   /* Drop the second pulsating overlay layer entirely on tablets;

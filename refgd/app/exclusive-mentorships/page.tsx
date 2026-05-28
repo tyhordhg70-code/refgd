@@ -83,7 +83,13 @@ const EMOTIONS = ["Fear", "Excitement", "Curiosity", "Anger", "Guilt", "Sadness"
  */
 export default function MentorshipsPage() {
   return (
-    <div className="relative">
+    <div className="relative min-h-[100dvh] bg-[#04030f]">
+      {/* v19 — min-h-[100dvh] + bg matched to .cosmic-base's top stop
+          (#04030f). Was bare `relative`: on mobile Chrome the URL bar
+          collapse/reveal briefly desyncs fixed elements and overscroll
+          rubber-band exposed body-color (#06030f) as a black strip at
+          the bottom while scrolling. Backstop bg + full-dvh root
+          eliminates the gap regardless of viewport-unit weirdness. */}
       {/* Page-scoped cosmic backdrop + abstract liquid bubbles */}
       <CosmicBackground />
       <LiquidParticles count={14} />
