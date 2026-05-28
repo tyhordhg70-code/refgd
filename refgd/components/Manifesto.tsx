@@ -6,6 +6,14 @@ import { useRef } from "react";
  * DeSo-style editorial manifesto block: oversized words pinned to the
  * viewport while the user scrolls, with each word lighting up in
  * sequence. Magazine-style cinematic typography.
+ *
+ * v37 — opacity floor raised so words never dip below 0.92.
+ * Previously the per-line opacity ramp went 0.18 → 1 → 1 → 0.35,
+ * meaning every word visibly DIMMED to 35% as scroll passed it. On
+ * backscroll the same dimming re-applied, which contributed to the
+ * "text vanishes on rescroll" perception. Now the ramp is
+ * 0.92 → 1 → 1 → 0.96 — words still pulse subtly into prominence
+ * for their slot (cinematic effect preserved) but never fade away.
  */
 export default function Manifesto({
   words,
@@ -63,10 +71,12 @@ function ManifestoLine({
 }) {
   const start = index / total;
   const end = (index + 1) / total;
+  // v37: opacity floor raised from 0.18/0.35 to 0.92/0.96 so words
+  // pulse into prominence for their slot but never visibly vanish.
   const opacity = useTransform(
     progress,
     [Math.max(0, start - 0.05), start + 0.04, end - 0.04, Math.min(1, end + 0.1)],
-    [0.18, 1, 1, 0.35],
+    [0.92, 1, 1, 0.96],
   );
   const y = useTransform(
     progress,

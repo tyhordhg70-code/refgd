@@ -21,7 +21,7 @@ type Props = {
  * viewport entry. No scroll-linked transforms (which were laggy and
  * froze mid-scroll).
  *
- * v36 — HARDCODED RULE: viewport.once = true.
+ * v37 — HARDCODED RULE (re-affirmed). Was v36: viewport.once = true.
  *
  * Earlier versions had `once: false`, which meant every time the
  * user scrolled an already-revealed section BACK into view (e.g. on
