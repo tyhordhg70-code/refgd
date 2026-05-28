@@ -3,25 +3,20 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, type ReactNode } from "react";
 
 /**
- * Reveal v8 — mirrors SafeReveal v13's exact mechanism.
+ * Reveal v9 — applies the same iOS compositor fix as SafeReveal v14.
  *
- * v7 was broken: it did NOT call clearStyles() at the top of the
- * effect, and embedded the delay into the transition shorthand
- * rather than using a separate transitionDelay property. On iOS
- * Safari these two differences caused the CSS transition to silently
- * fail on certain compositor stacking contexts (inside ParallaxChapter's
- * `relative z-10` containment div), leaving elements permanently at
- * opacity:0.
+ * Root cause of "vanish on rescroll":
+ *   iOS Safari caches the element's GPU layer at opacity:0. When we
+ *   set el.style.opacity = "" the inline style is removed but the GPU
+ *   compositor does NOT re-query the CSS cascade — it reuses its cached
+ *   opacity:0. The element stays blank.
  *
- * Fix: adopt SafeReveal v13's exact pattern verbatim:
- *   1. clearStyles() at top of every effect run — wipes any stale
- *      inline values from interrupted or re-run effects.
- *   2. transitionDelay as a separate CSS property — more reliable
- *      than embedding delay in the transition shorthand on iOS.
- *   3. duration in dependency array — re-triggers clearStyles() if
- *      the animation config ever changes on re-render.
+ *   Fix: set el.style.opacity = "1" and el.style.transform = "none"
+ *   explicitly. An explicit value change forces the compositor to update.
  *
- * ParallaxBlock and Orb keep their framer-motion implementations.
+ *   Also dropped will-change from priming (globals.css ~1976 documents
+ *   that too many will-change layers causes iOS to evict transitions,
+ *   leaving elements at opacity:0 permanently).
  */
 export function Reveal({
   children,
@@ -46,8 +41,6 @@ export function Reveal({
     if (revealed.has(el)) return;
 
     // Wipe any stale inline styles from a previous interrupted run.
-    // This is the key fix over v7 — without this, a re-run can inherit
-    // opacity:0 / transform from a previous priming and never escape it.
     const clearStyles = () => {
       el.style.opacity = "";
       el.style.transform = "";
@@ -65,18 +58,20 @@ export function Reveal({
       return;
     }
 
-    // Already in view on mount — mark revealed and skip.
+    // Already in view on mount — skip.
     const initialRect = el.getBoundingClientRect();
     if (initialRect.top < window.innerHeight) {
       revealed.add(el);
       return;
     }
 
+    // No will-change — prevents iOS layer-budget exhaustion.
     el.style.opacity = "0";
     el.style.transform = "translateY(20px)";
-    el.style.willChange = "opacity, transform";
 
     let triggered = false;
+    let active = true;
+    let rafId = 0;
 
     const trigger = () => {
       if (triggered) return;
@@ -86,20 +81,16 @@ export function Reveal({
       el.style.transition = `opacity ${duration}s cubic-bezier(0.22,1,0.36,1), transform ${duration}s cubic-bezier(0.22,1,0.36,1)`;
       if (delay > 0) el.style.transitionDelay = `${delay}s`;
 
-      // Double-rAF: first frame paints the primed state so the browser
-      // registers the starting values; second frame clears them so the
-      // browser fires the CSS transition from the primed values to natural.
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          el.style.opacity = "";
-          el.style.transform = "";
+          // Explicit "1" and "none" — force the iOS GPU compositor to update
+          // its cached layer values (removing inline styles is insufficient).
+          el.style.opacity = "1";
+          el.style.transform = "none";
           window.setTimeout(clearStyles, (delay + duration) * 1000 + 200);
         });
       });
     };
-
-    let active = true;
-    let rafId = 0;
 
     const poll = () => {
       if (!active) return;
@@ -126,21 +117,23 @@ export function Reveal({
   );
 }
 
-/** Block that lifts into place on viewport entry. */
+// ─── ParallaxBlock ──────────────────────────────────────────────────────────
 export function ParallaxBlock({
   children,
   amount = 60,
   className = "",
-}: { children: ReactNode; amount?: number; className?: string }) {
+}: {
+  children: ReactNode;
+  amount?: number;
+  className?: string;
+}) {
   const reduced = useReducedMotion();
   return (
     <motion.div
       initial={reduced ? {} : { y: amount * 0.6 }}
       whileInView={{ y: 0 }}
       viewport={{ once: true, amount: 0.1 }}
-      transition={{ duration: reduced ? 0 : 0.9, ease: [0.22, 1, 0.36, 1] }}
-      style={{ position: "relative" }}
-      suppressHydrationWarning
+      transition={{ type: "spring", stiffness: 60, damping: 20 }}
       className={className}
     >
       {children}
@@ -148,16 +141,21 @@ export function ParallaxBlock({
   );
 }
 
-/** Simple gradient orb for backgrounds */
+// ─── Orb ────────────────────────────────────────────────────────────────────
 export function Orb({
+  color,
+  size = 320,
   className = "",
-  color = "rgba(245,185,69,0.35)",
-}: { className?: string; color?: string }) {
+}: {
+  color: string;
+  size?: number;
+  className?: string;
+}) {
   return (
     <div
-      aria-hidden="true"
+      aria-hidden
+      style={{ width: size, height: size, background: color }}
       className={`absolute rounded-full blur-3xl ${className}`}
-      style={{ background: color }}
     />
   );
 }

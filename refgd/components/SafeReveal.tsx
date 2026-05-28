@@ -23,31 +23,29 @@ export type RevealKind =
   | "twist";
 
 /**
- * SafeReveal v13
+ * SafeReveal v14
  *
- * ROOT CAUSE OF "NO ANIMATIONS" (found by reading SmoothScroll.tsx):
- *   The layout mounts a LoadingScreen that blocks all scroll until the
- *   galaxy worker + hero canvas boot. That can take several seconds.
- *   Every version since v9 set a 3–6 second safety timer. The timer
- *   fired WHILE THE LOADING SCREEN WAS STILL UP — triggering all
- *   below-fold elements, playing their opacity/transform transitions
- *   completely hidden behind the loading overlay. By the time the
- *   loading screen lifted and the user could scroll, every element
- *   was already at its natural visible state. Scrolling produced no
- *   animation whatsoever.
+ * FIX for "vanish on rescroll" (iOS Safari compositor cache bug):
+ *   Setting el.style.opacity = "" removes the inline style and lets
+ *   the CSS cascade supply opacity:1. On iOS Safari the GPU compositor
+ *   caches the element at opacity:0 and does NOT re-query the cascade
+ *   when the inline style is removed — the visual stays at 0 forever.
  *
- * FIX: safety timer removed. The rAF poll (introduced in v12)
- *   fires every frame and calls getBoundingClientRect() which returns
- *   the correct visual position. Lenis on this site drives window.scrollY
- *   (not CSS transforms), so getBoundingClientRect() works perfectly.
- *   Elements are triggered exactly when they enter the visible viewport,
- *   no earlier, regardless of how long the loading screen is up.
+ *   Fix: set el.style.opacity = "1" and el.style.transform = "none"
+ *   EXPLICITLY so the compositor receives an unambiguous value-changed
+ *   signal and recomposites the layer.
  *
- * All other fixes from v11/v12 are preserved:
- *   - clearStyles() at top of every effect run (stale-opacity ghost)
+ *   Also removed will-change from priming. globals.css comment (line
+ *   ~1976) documents that too many will-change'd layers causes iOS to
+ *   evict/drop running transitions entirely, leaving elements at their
+ *   from-state (opacity:0). Without will-change the transition runs on
+ *   the CPU rasteriser — slightly less smooth but 100% reliable.
+ *
+ * Everything else from v13 preserved:
+ *   - clearStyles() at top of every effect run
+ *   - rAF poll (no safety timer)
+ *   - shared __safeRevealed WeakSet
  *   - cleanup resets styles only if trigger never fired
- *   - WeakSet entry only after trigger fires
- *   - No mounted guard inside trigger rAF (animation always completes)
  */
 export default function SafeReveal({
   children,
@@ -118,9 +116,11 @@ export default function SafeReveal({
       kind === "slideRight" ? "translateX(20px)"                                       :
       "translateY(20px)";
 
+    // No will-change: omitting it prevents iOS from promoting this element
+    // to a dedicated GPU layer. Too many will-change layers causes iOS to
+    // drop transitions entirely (documented in globals.css ~line 1976).
     el.style.opacity = "0";
     el.style.transform = fromTransform;
-    el.style.willChange = "opacity, transform";
 
     let triggered = false;
 
@@ -132,22 +132,19 @@ export default function SafeReveal({
       el.style.transition = `opacity ${duration}s cubic-bezier(0.22,1,0.36,1), transform ${duration}s cubic-bezier(0.22,1,0.36,1)`;
       if (delay > 0) el.style.transitionDelay = `${delay}s`;
 
-      // Double-rAF: first frame paints the primed state so the browser
-      // registers the starting values; second frame clears them so the
-      // browser fires the CSS transition from the primed values to natural.
-      // No mounted guard — a triggered animation always completes.
+      // Double-rAF: first frame paints the primed state; second frame
+      // sets EXPLICIT target values so the iOS GPU compositor receives
+      // an unambiguous value-changed signal (setting "" relies on the
+      // CSS cascade which iOS ignores when it has a cached GPU layer).
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          el.style.opacity = "";
-          el.style.transform = "";
+          el.style.opacity = "1";
+          el.style.transform = "none";
           window.setTimeout(clearStyles, (delay + duration) * 1000 + 200);
         });
       });
     };
 
-    // rAF poll: checks visual (post-scroll) position every frame.
-    // No safety timer — firing behind the LoadingScreen was killing
-    // all animations by revealing elements before the user could see them.
     let active = true;
     let rafId = 0;
 
