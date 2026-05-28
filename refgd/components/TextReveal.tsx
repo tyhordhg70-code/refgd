@@ -3,11 +3,9 @@
 import {
   motion,
   useReducedMotion,
-  useScroll,
-  useMotionValueEvent,
   type Variants,
 } from "framer-motion";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 
@@ -31,19 +29,26 @@ type Props = {
 };
 
 /**
- * v38 — BOTH mobile and desktop run the SCROLL-LINKED progressive reveal:
- * each word (or char, for charBounce/charGlitch) reveals as the scroll
- * position passes its slot inside the paragraph. Reveal is LATCHED — once
- * a unit is shown it stays shown (monotonic max), so backscroll never
- * re-hides text.
+ * v39 — STAGGERED whileInView entrance for BOTH mobile and desktop.
  *
- * Mobile previously used a mount-tween (single stagger that fired on
- * mount). That meant the animation finished before the user scrolled the
- * paragraph into view, so on mobile the text just sat there static — the
- * "all animations are gone on mobile" report. The scroll-linked latched
- * reveal is driven by useScroll (no IntersectionObserver), so it is
- * robust on iOS Safari / Chrome Android and, because it latches, it can
- * never leave a word stuck invisible.
+ * Each word (or char, for charBounce/charGlitch) is a motion.span that
+ * animates from `hidden` to `show`. A parent container drives the cascade
+ * with `staggerChildren`, fired by `whileInView` with `viewport.once =
+ * true`.
+ *
+ * Why this and not the v38 scroll-linked reveal: the scroll-linked
+ * version tied each unit to a slice of the element's scrollYProgress.
+ * For paragraphs near the BOTTOM of the page (e.g. the final
+ * "suitable for EVERYONE … WORLDWIDE" line, which sits just above the
+ * footer CTA) the page can't scroll far enough for progress to reach the
+ * end, so the trailing words/chars never revealed — the text appeared to
+ * "cut off and vanish". A time-based stagger fired once on entry ALWAYS
+ * completes, regardless of where the element sits on the page.
+ *
+ * Latching: `viewport.once = true` means the entrance fires exactly once
+ * as the element scrolls into view and then stays in its `show` state
+ * forever — backscroll can never re-hide it (the "text vanishes on
+ * rescroll" bug). This is reliable on iOS Safari / Chrome Android.
  *
  * All variants are preserved (wordFade, wordBlur, wordSlide, wordWave,
  * charBounce, charGlitch, lineMask). editId / EditableText /
@@ -113,123 +118,54 @@ export default function TextReveal({
   }
 
   const word = wordVariants(variant);
-
-  // Mobile AND desktop = scroll-linked progressive reveal with latching.
-  return (
-    <DesktopProgressive
-      as={as}
-      className={composedClassName}
-      style={style}
-      text={text}
-      tokens={tokens}
-      variant={variant}
-      word={word}
-      spread={spread}
-    />
-  );
-}
-
-/**
- * Splits the paragraph into per-word (or per-char) units, ties each
- * unit to a slice of scrollYProgress, and reveals it when scroll
- * passes that slot. A single MotionValue listener tracks the running
- * MAX revealed-count, so once a word is shown it stays shown
- * regardless of how the user scrolls afterward.
- */
-function DesktopProgressive({
-  as,
-  className,
-  style,
-  text,
-  tokens,
-  variant,
-  word,
-  spread,
-}: {
-  as: NonNullable<Props["as"]>;
-  className: string;
-  style?: React.CSSProperties;
-  text: string;
-  tokens: string[];
-  variant: Variant;
-  word: Variants;
-  spread: number;
-}) {
-  const ref = useRef<HTMLElement | null>(null);
-  const { scrollYProgress } = useScroll({
-    target: ref as React.RefObject<HTMLElement>,
-    offset: ["start 88%", "end 35%"],
-  });
-
   const isChar = variant === "charBounce" || variant === "charGlitch";
 
-  // Pre-compute unit list so we know total count for slot math.
-  const units = useMemo(() => {
-    if (isChar) {
-      return text.split("").map((c, i) => ({ kind: "unit" as const, value: c, key: i, isSpace: c === " " }));
-    }
-    return tokens.map((tok, i) => ({
-      kind: "unit" as const,
-      value: tok,
-      key: i,
-      isSpace: /^\s+$/.test(tok),
-    }));
-  }, [text, tokens, isChar]);
+  // Build the unit list: per-character for char variants, per-token
+  // (word + whitespace) otherwise. Whitespace is rendered as plain text
+  // so it never animates and word spacing is preserved.
+  const units: { value: string; isSpace: boolean; key: number }[] = isChar
+    ? text.split("").map((c, i) => ({ value: c, isSpace: c === " ", key: i }))
+    : tokens.map((tok, i) => ({ value: tok, isSpace: /^\s+$/.test(tok), key: i }));
 
-  const visibleUnitCount = units.filter((u) => !u.isSpace).length || 1;
+  // Stagger is tuned per unit type and damped by `spread` so callers can
+  // make a reveal snappier or slower. Char variants use a tighter stagger
+  // because there are many more units.
+  const baseStep = isChar ? 0.018 : 0.045;
+  const step = baseStep * (spread > 0 ? spread : 0.6) * (1 / 0.6);
 
-  const [revealedCount, setRevealedCount] = useState(0);
-
-  // Listener: convert scroll progress into a count of revealed units.
-  // Latches via monotonic max — count can only go up.
-  useMotionValueEvent(scrollYProgress, "change", (v) => {
-    const safeSpread = spread > 0 ? spread : 0.6;
-    const ratio = Math.min(1, Math.max(0, v / safeSpread));
-    const next = Math.min(visibleUnitCount, Math.ceil(ratio * visibleUnitCount));
-    setRevealedCount((prev) => (next > prev ? next : prev));
-  });
-
-  // Initial check — if the page mounted with scroll already past the
-  // element (e.g. anchor link, back navigation), reveal immediately.
-  useEffect(() => {
-    const v = scrollYProgress.get();
-    const safeSpread = spread > 0 ? spread : 0.6;
-    const ratio = Math.min(1, Math.max(0, v / safeSpread));
-    const next = Math.min(visibleUnitCount, Math.ceil(ratio * visibleUnitCount));
-    if (next > 0) setRevealedCount((prev) => (next > prev ? next : prev));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const container: Variants = {
+    hidden: {},
+    show: {
+      transition: { staggerChildren: step },
+    },
+  };
 
   const Tag = motion[as as "p"] as typeof motion.p;
 
-  // Walk units, assigning each non-space unit a 0-based visible index.
-  let visIdx = -1;
-  const children = units.map((u) => {
-    if (u.isSpace) return u.value;
-    visIdx += 1;
-    const idx = visIdx;
-    return (
-      <motion.span
-        key={u.key}
-        variants={word}
-        initial="hidden"
-        animate={idx < revealedCount ? "show" : "hidden"}
-        style={{ display: "inline-block" }}
-        suppressHydrationWarning
-      >
-        {u.value}
-      </motion.span>
-    );
-  });
-
   return (
     <Tag
-      ref={ref as React.Ref<HTMLParagraphElement>}
-      className={className}
+      className={composedClassName}
       style={style}
+      variants={container}
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, amount: 0.15 }}
       suppressHydrationWarning
     >
-      {children}
+      {units.map((u) =>
+        u.isSpace ? (
+          u.value
+        ) : (
+          <motion.span
+            key={u.key}
+            variants={word}
+            style={{ display: "inline-block" }}
+            suppressHydrationWarning
+          >
+            {u.value}
+          </motion.span>
+        ),
+      )}
     </Tag>
   );
 }
