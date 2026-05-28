@@ -143,7 +143,7 @@ export default function LedJoySection() {
                 }
               }
             },
-            { threshold: [0.30, 0.40, 0.50, 0.55, 0.60], rootMargin: "0px 0px 0px 0px" },
+            { threshold: [0, 0.05, 0.10, 0.15, 0.25, 0.50], rootMargin: "0px 0px 0px 0px" },
           );
           io.observe(el);
         }

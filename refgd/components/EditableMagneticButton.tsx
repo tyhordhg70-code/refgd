@@ -237,22 +237,5 @@ function EditableMagneticButtonInner({
 }
 
 export default function EditableMagneticButton(props: EditableMagneticButtonProps) {
-  return (
-    <EditorIsland
-      id={props.labelKey}
-      fallback={
-        <MagneticButton
-          href={props.defaultUrl}
-          external={props.external ?? false}
-          variant={props.variant ?? "primary"}
-          data-testid={props.testId}
-        >
-          <span>{props.defaultLabel}</span>
-          {props.icon}
-        </MagneticButton>
-      }
-    >
-      <EditableMagneticButtonInner {...props} />
-    </EditorIsland>
-  );
+  return <EditableMagneticButtonInner {...props} />;
 }
