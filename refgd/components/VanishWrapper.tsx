@@ -7,11 +7,13 @@ import { isMobileLike } from "@/lib/iosCheck";
 /**
  * VanishWrapper — cinematic scroll-into-view entrance.
  *
- * v22 — mobile fly-in: opacity + translateY(64) only, eased over
- * 0.95s with cubic-bezier(0.16,1,0.3,1) for a soft, dramatic landing.
- * Single-tween transforms (no keyframe arrays) avoid the v18 flicker
- * while still giving the wrapped block real cinematic motion.
- * Desktop keeps the y + scale entrance.
+ * v28 — on mobile, the entrance plays on mount via `animate` instead
+ * of waiting for an IntersectionObserver. The IO path was leaving
+ * children stranded invisible on Chrome Android (same failure mode
+ * that already forced Reveal/SafeReveal/KineticText/LedTicker to
+ * bypass IO on mobile). Pre-hydration we render a plain visible
+ * div so nothing is ever stranded at opacity:0 if hydration is
+ * delayed by the loading screen.
  */
 export default function VanishWrapper({
   children,
@@ -26,32 +28,46 @@ export default function VanishWrapper({
 }) {
   const reduce = useReducedMotion();
   const entranceReady = useEntranceReady();
+  const [mounted, setMounted] = useState(false);
   const [mobile, setMobile] = useState(false);
-  useEffect(() => { setMobile(isMobileLike()); }, []);
+  useEffect(() => {
+    setMobile(isMobileLike());
+    setMounted(true);
+  }, []);
 
-  if (reduce) return <div className={className}>{children}</div>;
+  if (reduce || !mounted) return <div className={className}>{children}</div>;
 
-  const initial = mobile
-    ? { opacity: 0, y: 64 }
-    : { opacity: 0, y: drift, scale: minScale };
-  const target = mobile
-    ? { opacity: 1, y: 0 }
-    : { opacity: 1, y: 0, scale: 1 };
+  if (mobile) {
+    // Mount-tween cinematic entrance: opacity + translateY only.
+    // Single-property tween that the GPU compositor handles without
+    // creating per-element layers, and no IO dependency that can
+    // strand the child invisible. The entranceReady gate still
+    // delays it until the loading screen finishes so the orchestrated
+    // page-in sequence is preserved.
+    return (
+      <motion.div
+        className={className}
+        initial={{ opacity: 0, y: 64 }}
+        animate={entranceReady ? { opacity: 1, y: 0 } : { opacity: 0, y: 64 }}
+        transition={{ duration: 0.95, ease: [0.16, 1, 0.3, 1] }}
+        suppressHydrationWarning
+      >
+        {children}
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
       className={className}
-      initial={initial}
+      initial={{ opacity: 0, y: drift, scale: minScale }}
       {...(entranceReady
         ? {
-            whileInView: target,
+            whileInView: { opacity: 1, y: 0, scale: 1 },
             viewport: { once: true, margin: "0px 0px -10% 0px" },
           }
         : {})}
-      transition={{
-        duration: mobile ? 0.95 : 0.85,
-        ease: mobile ? [0.16, 1, 0.3, 1] : [0.22, 1, 0.36, 1],
-      }}
+      transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
       suppressHydrationWarning
     >
       {children}
