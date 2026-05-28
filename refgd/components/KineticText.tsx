@@ -77,7 +77,7 @@ export default function KineticText({
     }
 
     const initialRect = root.getBoundingClientRect();
-    if (initialRect.top < window.innerHeight && initialRect.bottom > 0) {
+    if (initialRect.top < window.innerHeight) {
       ktRevealed.add(root);
       return;
     }
@@ -121,7 +121,7 @@ export default function KineticText({
     const poll = () => {
       if (!active) return;
       const r = root.getBoundingClientRect();
-      if (r.top < window.innerHeight * 0.92 && r.bottom > 0) {
+      if (r.top < window.innerHeight * 0.92) {
         trigger();
       } else {
         rafId = requestAnimationFrame(poll);
@@ -132,7 +132,7 @@ export default function KineticText({
     return () => {
       active = false;
       cancelAnimationFrame(rafId);
-      clearAll(); // always reset — never leave words in primed-invisible state
+      if (!triggered) clearAll(); // only reset if anim never fired (avoid rescroll-vanish flash)
     };
   }, [value, delay, stagger]);
 

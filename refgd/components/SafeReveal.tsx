@@ -99,7 +99,7 @@ export default function SafeReveal({
 
     // Already in view on mount — mark revealed and skip.
     const initialRect = el.getBoundingClientRect();
-    if (initialRect.top < window.innerHeight && initialRect.bottom > 0) {
+    if (initialRect.top < window.innerHeight) {
       revealed.add(el);
       return;
     }
@@ -154,7 +154,7 @@ export default function SafeReveal({
     const poll = () => {
       if (!active) return;
       const r = el.getBoundingClientRect();
-      if (r.top < window.innerHeight * 0.92 && r.bottom > 0) {
+      if (r.top < window.innerHeight * 0.92) {
         trigger();
       } else {
         rafId = requestAnimationFrame(poll);
