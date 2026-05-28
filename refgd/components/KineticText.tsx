@@ -121,7 +121,7 @@ export default function KineticText({
     const poll = () => {
       if (!active) return;
       const r = root.getBoundingClientRect();
-      if (r.top < window.innerHeight * 1.15 && r.bottom > 0) {
+      if (r.top < window.innerHeight * 0.92 && r.bottom > 0) {
         trigger();
       } else {
         rafId = requestAnimationFrame(poll);
