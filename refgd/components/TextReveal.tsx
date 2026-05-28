@@ -10,7 +10,6 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
-import { isMobileLike } from "@/lib/iosCheck";
 
 type Variant =
   | "wordFade"
@@ -32,20 +31,23 @@ type Props = {
 };
 
 /**
- * v34 — desktop runs a v21-style SCROLL-LINKED progressive reveal:
- * each word (or char, for charBounce/charGlitch) reveals as the
- * scroll position passes its slot inside the paragraph. Reveal is
- * LATCHED — once a unit is shown it stays shown, so backscroll
- * never re-hides text (fixes the user-reported "text vanishes on
- * rescroll" bug across the site).
+ * v38 — BOTH mobile and desktop run the SCROLL-LINKED progressive reveal:
+ * each word (or char, for charBounce/charGlitch) reveals as the scroll
+ * position passes its slot inside the paragraph. Reveal is LATCHED — once
+ * a unit is shown it stays shown (monotonic max), so backscroll never
+ * re-hides text.
  *
- * Mobile keeps v30's mount-tween (single stagger on mount) because
- * Chrome Android intermittently drops 3D/blur layers on scroll-back
- * and IntersectionObserver-based reveal has been flaky on iOS Safari.
+ * Mobile previously used a mount-tween (single stagger that fired on
+ * mount). That meant the animation finished before the user scrolled the
+ * paragraph into view, so on mobile the text just sat there static — the
+ * "all animations are gone on mobile" report. The scroll-linked latched
+ * reveal is driven by useScroll (no IntersectionObserver), so it is
+ * robust on iOS Safari / Chrome Android and, because it latches, it can
+ * never leave a word stuck invisible.
  *
- * All v30 variants are preserved (wordFade, wordBlur, wordSlide,
- * wordWave, charBounce, charGlitch, lineMask). editId / EditableText
- * / useEditContext integration is preserved verbatim from v30.
+ * All variants are preserved (wordFade, wordBlur, wordSlide, wordWave,
+ * charBounce, charGlitch, lineMask). editId / EditableText /
+ * useEditContext integration is preserved verbatim.
  */
 export default function TextReveal({
   children,
@@ -58,9 +60,7 @@ export default function TextReveal({
 }: Props) {
   const reduce = useReducedMotion();
   const [mounted, setMounted] = useState(false);
-  const [mobile, setMobile] = useState(false);
   useEffect(() => {
-    setMobile(isMobileLike());
     setMounted(true);
   }, []);
 
@@ -93,24 +93,17 @@ export default function TextReveal({
   }
 
   // Single-block lineMask reveal (no per-word here — it's a one-piece
-  // clip/blur transition, identical to v30).
+  // clip/blur transition). whileInView + once:true so it reveals as the
+  // block scrolls in and latches (never re-hides).
   if (variant === "lineMask") {
     const Tag = motion[as as "p"] as typeof motion.p;
-    const lm = mobile
-      ? {
-          initial: { opacity: 0, filter: "blur(6px)", y: 24 },
-          animate: { opacity: 1, filter: "blur(0px)", y: 0 },
-        }
-      : {
-          initial: { opacity: 0, filter: "blur(6px)", y: 24 },
-          whileInView: { opacity: 1, filter: "blur(0px)", y: 0 },
-          viewport: { once: true, amount: 0.15 },
-        };
     return (
       <Tag
         className={composedClassName}
         style={style}
-        {...lm}
+        initial={{ opacity: 0, filter: "blur(6px)", y: 24 }}
+        whileInView={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+        viewport={{ once: true, amount: 0.15 }}
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         suppressHydrationWarning
       >
@@ -120,36 +113,8 @@ export default function TextReveal({
   }
 
   const word = wordVariants(variant);
-  const Tag = motion[as as "p"] as typeof motion.p;
 
-  // Mobile = mount-tween with staggerChildren (v30 behavior verbatim).
-  if (mobile) {
-    const container: Variants = {
-      hidden: {},
-      show: {
-        transition: {
-          staggerChildren: variantStagger(variant),
-          delayChildren: 0,
-        },
-      },
-    };
-    return (
-      <Tag
-        className={composedClassName}
-        style={style}
-        variants={container}
-        initial="hidden"
-        animate="show"
-        suppressHydrationWarning
-      >
-        {variant === "charBounce" || variant === "charGlitch"
-          ? renderChars(text, word)
-          : renderWords(tokens, word)}
-      </Tag>
-    );
-  }
-
-  // Desktop = scroll-linked progressive reveal with latching.
+  // Mobile AND desktop = scroll-linked progressive reveal with latching.
   return (
     <DesktopProgressive
       as={as}
@@ -269,18 +234,6 @@ function DesktopProgressive({
   );
 }
 
-function variantStagger(v: Variant): number {
-  switch (v) {
-    case "charBounce":
-    case "charGlitch":
-      return 0.012;
-    case "wordWave":
-      return 0.03;
-    default:
-      return 0.022;
-  }
-}
-
 function wordVariants(v: Variant): Variants {
   switch (v) {
     case "wordBlur":
@@ -315,26 +268,4 @@ function wordVariants(v: Variant): Variants {
         show: { opacity: 1, y: 0, transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] } },
       };
   }
-}
-
-function renderWords(tokens: string[], word: Variants) {
-  return tokens.map((token, i) => {
-    if (/^\s+$/.test(token)) return token;
-    return (
-      <motion.span key={i} variants={word} style={{ display: "inline-block" }} suppressHydrationWarning>
-        {token}
-      </motion.span>
-    );
-  });
-}
-
-function renderChars(text: string, char: Variants) {
-  return text.split("").map((c, i) => {
-    if (c === " ") return " ";
-    return (
-      <motion.span key={i} variants={char} style={{ display: "inline-block" }} suppressHydrationWarning>
-        {c}
-      </motion.span>
-    );
-  });
 }

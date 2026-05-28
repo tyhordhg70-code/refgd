@@ -1,8 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
-import { isMobileLike } from "@/lib/iosCheck";
+import { useMemo, useState } from "react";
 import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 
@@ -157,41 +156,27 @@ function Row({
   // the detail is editable.
   const elastic = !!detail && !editing && !detailEditing;
   const showDetail = !!detail && (elastic || detailEditing);
-  // v21 — keep the entrance but DOWNGRADE to opacity-only on mobile.
-  // Full bounce (y + scale + opacity keyframes, staggered across many
-  // cards, on top of backdrop-blur) was overwhelming Chrome Android's
-  // compositor and producing the "vanishes mid appearance and reappears"
-  // flicker. Opacity-only fades cheaply and composites cleanly; desktop
-  // keeps the punchy bounce path.
-  const [mobile, setMobile] = useState(false);
-  useEffect(() => { setMobile(isMobileLike()); }, []);
+  // v38 — restore the full bounce entrance on mobile too (was downgraded
+  // to opacity-only in v21). The bounce (y + scale keyframes) is the
+  // lively "card flies up" beat the user wanted back. viewport.once stays
+  // true below, so each row plays its bounce exactly once as it scrolls in
+  // and then latches — it can never re-hide on backscroll.
   const initial = reduce
     ? { opacity: 0 }
-    : mobile
-      ? { opacity: 0 }
-      : { opacity: 0.001, y: 24, scale: 0.97 };
+    : { opacity: 0.001, y: 24, scale: 0.97 };
   const whileInView = reduce
     ? { opacity: 1 }
-    : mobile
-      ? {
-          opacity: 1,
-          transition: {
-            duration: 0.45,
-            delay: Math.min(index * 0.04, 0.18),
-            ease: [0.22, 1, 0.36, 1],
-          },
-        }
-      : {
-          opacity: 1,
-          y: [24, -6, 0],
-          scale: [0.97, 1.015, 1],
-          transition: {
-            duration: 0.55,
-            delay: Math.min(index * 0.04, 0.18),
-            times: [0, 0.6, 1],
-            ease: [0.22, 1, 0.36, 1],
-          },
-        };
+    : {
+        opacity: 1,
+        y: [24, -6, 0],
+        scale: [0.97, 1.015, 1],
+        transition: {
+          duration: 0.55,
+          delay: Math.min(index * 0.04, 0.18),
+          times: [0, 0.6, 1],
+          ease: [0.22, 1, 0.36, 1],
+        },
+      };
   return (
     <>
       <motion.li
