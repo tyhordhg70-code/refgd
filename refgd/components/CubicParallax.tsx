@@ -62,7 +62,13 @@ export default function CubicParallax({
           z: 0,
           opacity: 1,
         }}
-        viewport={{ once: false, margin: "-80px" }}
+        // v23 — once:true. With once:false the entire parallax section
+        // re-fades from opacity:0 every time you scroll back into it,
+        // momentarily exposing the page background (#04030f) where the
+        // section content normally paints — the user-reported "black bar
+        // on first scroll where parallax scroll is". One-shot keeps the
+        // cinematic 3D entrance but the content stays mounted afterward.
+        viewport={{ once: true, margin: "-80px" }}
         transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
         style={{
           transformStyle: "preserve-3d",
