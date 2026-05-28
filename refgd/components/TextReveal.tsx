@@ -1,7 +1,13 @@
 "use client";
 
-import { motion, useReducedMotion, type Variants } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import {
+  motion,
+  useReducedMotion,
+  useScroll,
+  useMotionValueEvent,
+  type Variants,
+} from "framer-motion";
+import { useEffect, useMemo, useRef, useState } from "react";
 import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 import { isMobileLike } from "@/lib/iosCheck";
@@ -26,36 +32,26 @@ type Props = {
 };
 
 /**
- * v30 — mobile + desktop both run the FULL per-variant text
- * animations (blur, slide, wave, bounce, glitch). The only
- * difference between the two: mobile uses `animate` (mount-tween)
- * and desktop uses `whileInView` (scroll-trigger).
+ * v34 — desktop runs a v21-style SCROLL-LINKED progressive reveal:
+ * each word (or char, for charBounce/charGlitch) reveals as the
+ * scroll position passes its slot inside the paragraph. Reveal is
+ * LATCHED — once a unit is shown it stays shown, so backscroll
+ * never re-hides text (fixes the user-reported "text vanishes on
+ * rescroll" bug across the site).
  *
- * Why this is safe on mobile:
+ * Mobile keeps v30's mount-tween (single stagger on mount) because
+ * Chrome Android intermittently drops 3D/blur layers on scroll-back
+ * and IntersectionObserver-based reveal has been flaky on iOS Safari.
  *
- *   • The original v25 GPU-layer concern (200+ will-change spans
- *     per long paragraph + 1000vh scroll bg = Chrome Android tile
- *     eviction) only applied while the spans were LONG-LIVED with
- *     active will-change AND repeatedly toggled in/out of view by
- *     IntersectionObserver. With mount-tween, each span animates
- *     once on mount and framer-motion automatically clears its
- *     will-change when the animation settles. Nothing stays
- *     promoted, nothing gets re-triggered by scroll.
- *
- *   • IntersectionObserver was the real bug — it intermittently
- *     failed to fire on Chrome Android and stranded entire
- *     paragraphs at opacity:0 forever. `animate` doesn't use IO
- *     at all, so this class of failure is eliminated.
- *
- *   • The `mounted` gate guarantees SSR + pre-hydration paint
- *     is always plain visible text, so even if hydration is
- *     delayed by the loading screen the content cannot be
- *     stranded blurred or invisible.
+ * All v30 variants are preserved (wordFade, wordBlur, wordSlide,
+ * wordWave, charBounce, charGlitch, lineMask). editId / EditableText
+ * / useEditContext integration is preserved verbatim from v30.
  */
 export default function TextReveal({
   children,
   className = "",
   as = "p",
+  spread = 0.6,
   style,
   variant = "wordFade",
   editId,
@@ -67,6 +63,7 @@ export default function TextReveal({
     setMobile(isMobileLike());
     setMounted(true);
   }, []);
+
   const ctx = useEditContext();
   const editing = !!editId && ctx.isAdmin && ctx.editMode;
   const text = editId ? ctx.getValue(editId, children) : children;
@@ -95,19 +92,11 @@ export default function TextReveal({
     );
   }
 
-  // Helper to choose between mount-tween (mobile) and scroll-trigger (desktop).
-  const triggerProps = mobile
-    ? { initial: "hidden" as const, animate: "show" as const }
-    : {
-        initial: "hidden" as const,
-        whileInView: "show" as const,
-        viewport: { once: true, amount: 0.15 },
-      };
-
-  // Single-paragraph lineMask variant runs the blur-to-clear entrance.
+  // Single-block lineMask reveal (no per-word here — it's a one-piece
+  // clip/blur transition, identical to v30).
   if (variant === "lineMask") {
     const Tag = motion[as as "p"] as typeof motion.p;
-    const lineMaskMobile = mobile
+    const lm = mobile
       ? {
           initial: { opacity: 0, filter: "blur(6px)", y: 24 },
           animate: { opacity: 1, filter: "blur(0px)", y: 0 },
@@ -121,7 +110,7 @@ export default function TextReveal({
       <Tag
         className={composedClassName}
         style={style}
-        {...lineMaskMobile}
+        {...lm}
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         suppressHydrationWarning
       >
@@ -130,24 +119,150 @@ export default function TextReveal({
     );
   }
 
-  const Tag = motion[as as "p"] as typeof motion.p;
-  const container: Variants = {
-    hidden: {},
-    show: { transition: { staggerChildren: variantStagger(variant), delayChildren: 0 } },
-  };
   const word = wordVariants(variant);
+  const Tag = motion[as as "p"] as typeof motion.p;
+
+  // Mobile = mount-tween with staggerChildren (v30 behavior verbatim).
+  if (mobile) {
+    const container: Variants = {
+      hidden: {},
+      show: {
+        transition: {
+          staggerChildren: variantStagger(variant),
+          delayChildren: 0,
+        },
+      },
+    };
+    return (
+      <Tag
+        className={composedClassName}
+        style={style}
+        variants={container}
+        initial="hidden"
+        animate="show"
+        suppressHydrationWarning
+      >
+        {variant === "charBounce" || variant === "charGlitch"
+          ? renderChars(text, word)
+          : renderWords(tokens, word)}
+      </Tag>
+    );
+  }
+
+  // Desktop = scroll-linked progressive reveal with latching.
+  return (
+    <DesktopProgressive
+      as={as}
+      className={composedClassName}
+      style={style}
+      text={text}
+      tokens={tokens}
+      variant={variant}
+      word={word}
+      spread={spread}
+    />
+  );
+}
+
+/**
+ * Splits the paragraph into per-word (or per-char) units, ties each
+ * unit to a slice of scrollYProgress, and reveals it when scroll
+ * passes that slot. A single MotionValue listener tracks the running
+ * MAX revealed-count, so once a word is shown it stays shown
+ * regardless of how the user scrolls afterward.
+ */
+function DesktopProgressive({
+  as,
+  className,
+  style,
+  text,
+  tokens,
+  variant,
+  word,
+  spread,
+}: {
+  as: NonNullable<Props["as"]>;
+  className: string;
+  style?: React.CSSProperties;
+  text: string;
+  tokens: string[];
+  variant: Variant;
+  word: Variants;
+  spread: number;
+}) {
+  const ref = useRef<HTMLElement | null>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref as React.RefObject<HTMLElement>,
+    offset: ["start 88%", "end 35%"],
+  });
+
+  const isChar = variant === "charBounce" || variant === "charGlitch";
+
+  // Pre-compute unit list so we know total count for slot math.
+  const units = useMemo(() => {
+    if (isChar) {
+      return text.split("").map((c, i) => ({ kind: "unit" as const, value: c, key: i, isSpace: c === " " }));
+    }
+    return tokens.map((tok, i) => ({
+      kind: "unit" as const,
+      value: tok,
+      key: i,
+      isSpace: /^\s+$/.test(tok),
+    }));
+  }, [text, tokens, isChar]);
+
+  const visibleUnitCount = units.filter((u) => !u.isSpace).length || 1;
+
+  const [revealedCount, setRevealedCount] = useState(0);
+
+  // Listener: convert scroll progress into a count of revealed units.
+  // Latches via monotonic max — count can only go up.
+  useMotionValueEvent(scrollYProgress, "change", (v) => {
+    const ratio = Math.min(1, Math.max(0, v / spread));
+    const next = Math.min(visibleUnitCount, Math.ceil(ratio * visibleUnitCount));
+    setRevealedCount((prev) => (next > prev ? next : prev));
+  });
+
+  // Initial check — if the page mounted with scroll already past the
+  // element (e.g. anchor link, back navigation), reveal immediately.
+  useEffect(() => {
+    const v = scrollYProgress.get();
+    const ratio = Math.min(1, Math.max(0, v / spread));
+    const next = Math.min(visibleUnitCount, Math.ceil(ratio * visibleUnitCount));
+    if (next > 0) setRevealedCount((prev) => (next > prev ? next : prev));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const Tag = motion[as as "p"] as typeof motion.p;
+
+  // Walk units, assigning each non-space unit a 0-based visible index.
+  let visIdx = -1;
+  const children = units.map((u) => {
+    if (u.isSpace) return u.value;
+    visIdx += 1;
+    const idx = visIdx;
+    return (
+      <motion.span
+        key={u.key}
+        variants={word}
+        initial="hidden"
+        animate={idx < revealedCount ? "show" : "hidden"}
+        style={{ display: "inline-block" }}
+        suppressHydrationWarning
+      >
+        {u.value}
+      </motion.span>
+    );
+  });
 
   return (
     <Tag
-      className={composedClassName}
+      ref={ref as React.Ref<HTMLParagraphElement>}
+      className={className}
       style={style}
-      variants={container}
-      {...triggerProps}
       suppressHydrationWarning
     >
-      {variant === "charBounce" || variant === "charGlitch"
-        ? renderChars(text, word)
-        : renderWords(tokens, word)}
+      {children}
     </Tag>
   );
 }
