@@ -99,8 +99,28 @@ export default function IOSSafariFlag() {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
-:root[data-mobile-compat] .orb {
+/* v17 — kill ALL will-change on mobile, not just .orb.
+ * Tailwind's `will-change-transform` was on MagneticButton (the
+ * Submit button), creating a dedicated GPU layer that Chrome Android
+ * was evicting on rescroll and failing to re-rasterize — the user
+ * reproduced exactly that: "on rescroll submit your order button
+ * vanishes". Same pattern was making the chapter 05 pill vanish: it
+ * was a descendant of will-change-promoted ancestors. Resetting
+ * will-change to auto lets the browser stop pre-allocating those
+ * tiles, so there's nothing to evict.
+ *
+ * Also flatten transform-style and reset mix-blend-mode globally on
+ * mobile to remove the other two layer-creation triggers (the
+ * WastingTimeIllustration uses preserve-3d, and several brand
+ * illustrations use mix-blend-mode: screen / lighten — both are
+ * layer-promoting in Blink and WebKit). The visible effect on mobile
+ * is identical apart from a slightly less luminous illustration tint;
+ * the rescroll-vanish bug is gone.
+ */
+:root[data-mobile-compat] * {
   will-change: auto !important;
+  transform-style: flat !important;
+  mix-blend-mode: normal !important;
 }
 /* ─── v16 safety net ────────────────────────────────────────────────
  * Reveal-component classes (Reveal / SafeReveal / KineticText /
