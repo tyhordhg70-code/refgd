@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 
 /**
  * LedTicker — LED matrix-style horizontal scrolling text bar.
@@ -12,15 +13,6 @@ import { useEffect, useRef } from "react";
  * "fly-in" — slides in from the right with a subtle overshoot —
  * so the visitor's eye is drawn to it just as the marquee text
  * (e.g. "Cashback up to 100%") starts to scroll.
- *
- * v2 — entrance was previously a framer-motion <motion.div> with
- * initial={{ opacity: 0, x: 80, scaleX: 0.92 }} + whileInView.
- * On iOS Safari, framer-motion's IntersectionObserver-backed
- * whileInView failed to fire reliably, leaving the ticker
- * permanently invisible on first scroll. Fix: rAF poll (same
- * engine as SafeReveal v13 / Reveal v7) — fires the moment the
- * ticker's top edge enters window.innerHeight, then applies a CSS
- * transition for the fly-in. No framer-motion dependency.
  */
 export default function LedTicker({
   items,
@@ -34,9 +26,7 @@ export default function LedTicker({
   className?: string;
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
 
-  // Compute scroll duration from track width so loops are smooth.
   useEffect(() => {
     const el = trackRef.current;
     if (!el) return;
@@ -45,78 +35,14 @@ export default function LedTicker({
     el.style.setProperty("--led-duration", `${duration}s`);
   }, [speed, items]);
 
-  // Entrance: rAF poll → CSS transition (fly-in from right).
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el || typeof window === "undefined") return;
-
-    if (
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ) {
-      return; // skip entrance, ticker is already visible (no priming done)
-    }
-
-    // Already in view on mount — no fly-in needed.
-    const rect = el.getBoundingClientRect();
-    if (rect.top < window.innerHeight) return;
-
-    // Prime: position off to the right, collapsed, invisible.
-    el.style.opacity = "0";
-    el.style.transform = "translateX(80px) scaleX(0.92)";
-    el.style.transformOrigin = "right center";
-    el.style.willChange = "opacity, transform";
-
-    let active = true;
-    let rafId = 0;
-    let triggered = false;
-
-    const trigger = () => {
-      if (triggered) return;
-      triggered = true;
-      el.style.transition =
-        "opacity 0.55s cubic-bezier(0.22,1,0.36,1), " +
-        "transform 0.55s cubic-bezier(0.22,1,0.36,1)";
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          el.style.opacity = "";
-          el.style.transform = "";
-          window.setTimeout(() => {
-            el.style.transition = "";
-            el.style.willChange = "";
-          }, 800);
-        });
-      });
-    };
-
-    const poll = () => {
-      if (!active) return;
-      const r = el.getBoundingClientRect();
-      if (r.top < window.innerHeight) {
-        trigger();
-      } else {
-        rafId = requestAnimationFrame(poll);
-      }
-    };
-    rafId = requestAnimationFrame(poll);
-
-    return () => {
-      active = false;
-      cancelAnimationFrame(rafId);
-      if (!triggered) {
-        el.style.opacity = "";
-        el.style.transform = "";
-        el.style.transition = "";
-        el.style.willChange = "";
-      }
-    };
-  }, []);
-
   return (
-    <div
-      ref={wrapRef}
+    <motion.div
+      initial={{ opacity: 0, x: 80, scaleX: 0.92 }}
+      whileInView={{ opacity: 1, x: 0, scaleX: 1 }}
+      viewport={{ once: true, amount: 0.05 }}
+      transition={{ type: "spring", stiffness: 110, damping: 14, mass: 0.9 }}
       className={`led-ticker relative w-full overflow-hidden border-y border-white/[0.07] ${className}`}
-      style={{ ["--led-accent" as string]: accent }}
+      style={{ ["--led-accent" as string]: accent, transformOrigin: "right center" }}
     >
       <div className="led-ticker-mask">
         <div ref={trackRef} className="led-ticker-track">
@@ -142,6 +68,6 @@ export default function LedTicker({
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
