@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * LedTicker — React-state-driven className (GlassCard pattern).
+ * LedTicker — bulletproof CSS-transition reveal.
  * See Reveal.tsx for full doc. Marquee inside is unchanged pure-CSS.
  */
 
@@ -12,13 +12,11 @@ function ensureCSS() {
   const s = document.createElement("style");
   s.id = "lt-css";
   s.textContent = `
-.lt-base{opacity:1;transform:none;will-change:transform,opacity}
-.lt-pending{opacity:0;transform:translate3d(80px,0,0) scaleX(0.92)}
-@keyframes lt-fly{from{opacity:0;transform:translateX(80px) scaleX(0.92)}to{opacity:1;transform:none}}
-.lt-go{animation:lt-fly 0.85s cubic-bezier(0.22,1.2,0.36,1) backwards;transform-origin:right center}
+.lt{opacity:1;transform:none;transition:opacity 0.85s cubic-bezier(0.22,1.2,0.36,1),transform 0.85s cubic-bezier(0.22,1.2,0.36,1);transform-origin:right center}
+.lt.lt-hidden{opacity:0;transform:translate3d(80px,0,0) scaleX(0.92)}
 @media (prefers-reduced-motion: reduce){
-  .lt-pending{opacity:1;transform:none}
-  .lt-go{animation:none}
+  .lt{transition:none}
+  .lt.lt-hidden{opacity:1;transform:none}
 }`;
   document.head.appendChild(s);
 }
@@ -52,10 +50,8 @@ export default function LedTicker({
     if (!el || typeof window === "undefined") return;
 
     const r = el.getBoundingClientRect();
-    const inView =
-      r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0;
-    if (inView) {
-      setRevealed(true);
+    if (r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0) {
+      requestAnimationFrame(() => setRevealed(true));
       return;
     }
 
@@ -75,12 +71,10 @@ export default function LedTicker({
     return () => io.disconnect();
   }, []);
 
-  const stateCls = revealed ? "lt-go" : "lt-pending";
-
   return (
     <div
       ref={wrapRef}
-      className={`led-ticker lt-base ${stateCls} relative w-full overflow-hidden border-y border-white/[0.07] ${className}`}
+      className={`led-ticker lt ${revealed ? "" : "lt-hidden"} relative w-full overflow-hidden border-y border-white/[0.07] ${className}`}
       style={{ ["--led-accent" as string]: accent }}
     >
       <div className="led-ticker-mask">

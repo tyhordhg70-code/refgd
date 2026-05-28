@@ -3,19 +3,26 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
- * Reveal — React-state-driven className (GlassCard pattern).
+ * Reveal — bulletproof CSS-transition reveal.
  *
- * Previous versions added the .rv-go / .rv-pending classes imperatively
- * via classList.add/remove in useEffect. The bug: when React re-renders
- * the component (parent state change, scroll-driven state, Lenis tick,
- * etc.), React's reconciler resets className to the value in JSX and
- * wipes out the imperatively-added classes — leaving the element with
- * only .rv-base, or worse, with the stale .rv-pending lingering and
- * the iOS compositor caching the hidden state.
+ * Six prior approaches using CSS @keyframes (with various fill-modes,
+ * IntersectionObserver replay, classList mutation, React-state
+ * className, etc.) all suffered the same fundamental iOS Safari bug:
+ * under GPU compositing-memory pressure (preserve-3d ancestors +
+ * many will-change layers), iOS evicts the animation property and
+ * the element falls back to whatever CSS cascade resolves — which
+ * was unreliable across re-renders and parent transforms.
  *
- * This version drives the className from React state (useState), so
- * every re-render outputs the correct class string declaratively.
- * Matches the proven GlassCard / glass-card-reveal pattern.
+ * This version uses CSS TRANSITIONS instead of @keyframes:
+ *   • The element's natural state is visible (opacity:1, transform:none).
+ *   • A `.rv-hidden` class overrides to opacity:0 / transform:translateY.
+ *   • Removing `.rv-hidden` causes the browser to transition to the
+ *     natural state. After the transition completes, the element has
+ *     no animation property — it's just sitting in its declared CSS
+ *     state. iOS Safari has nothing to evict, nothing to cache wrong.
+ *   • If anything goes wrong (eviction, re-render, etc.), the worst
+ *     possible outcome is the element snaps to its visible natural
+ *     state. It cannot vanish.
  */
 function ensureCSS() {
   if (typeof document === "undefined") return;
@@ -23,13 +30,11 @@ function ensureCSS() {
   const s = document.createElement("style");
   s.id = "rv-css";
   s.textContent = `
-.rv-base{opacity:1;transform:none;will-change:transform,opacity}
-.rv-pending{opacity:0;transform:translate3d(0,20px,0)}
-@keyframes rv-lift{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
-.rv-go{animation:rv-lift 0.52s cubic-bezier(0.22,1,0.36,1) backwards}
+.rv{opacity:1;transform:none;transition:opacity 0.55s cubic-bezier(0.22,1,0.36,1),transform 0.55s cubic-bezier(0.22,1,0.36,1)}
+.rv.rv-hidden{opacity:0;transform:translate3d(0,20px,0)}
 @media (prefers-reduced-motion: reduce){
-  .rv-pending{opacity:1;transform:none}
-  .rv-go{animation:none}
+  .rv{transition:none}
+  .rv.rv-hidden{opacity:1;transform:none}
 }`;
   document.head.appendChild(s);
 }
@@ -52,10 +57,8 @@ export function Reveal({
     if (!el || typeof window === "undefined") return;
 
     const r = el.getBoundingClientRect();
-    const inView =
-      r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0;
-    if (inView) {
-      setRevealed(true);
+    if (r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0) {
+      requestAnimationFrame(() => setRevealed(true));
       return;
     }
 
@@ -75,12 +78,11 @@ export function Reveal({
     return () => io.disconnect();
   }, []);
 
-  const stateCls = revealed ? "rv-go" : "rv-pending";
   return (
     <div
       ref={ref}
-      className={`rv-base ${stateCls} ${className}`}
-      style={{ animationDelay: delay ? `${delay}s` : undefined }}
+      className={`rv ${revealed ? "" : "rv-hidden"} ${className}`}
+      style={{ transitionDelay: delay ? `${delay}s` : undefined }}
     >
       {children}
     </div>

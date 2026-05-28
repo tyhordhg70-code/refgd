@@ -4,9 +4,9 @@ import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
- * KineticText — React-state-driven className (GlassCard pattern).
- * See Reveal.tsx for full doc. Per-word stagger via animation-delay
- * computed inline per word in the JSX, not mutated imperatively.
+ * KineticText — bulletproof CSS-transition reveal.
+ * See Reveal.tsx for full doc. Per-word stagger via transition-delay
+ * computed in JSX per word.
  */
 
 function ensureCSS() {
@@ -15,13 +15,11 @@ function ensureCSS() {
   const s = document.createElement("style");
   s.id = "kt-css";
   s.textContent = `
-.kt-word{transform:none;will-change:transform}
-.kt-word.kt-pending{transform:translate3d(0,120%,0)}
-@keyframes kt-rise{from{transform:translateY(120%)}to{transform:none}}
-.kt-word.kt-go{animation:kt-rise 0.45s cubic-bezier(0.25,0.4,0.25,1) backwards}
+.kt-word{transform:none;transition:transform 0.55s cubic-bezier(0.25,0.4,0.25,1)}
+.kt-word.kt-hidden{transform:translate3d(0,120%,0)}
 @media (prefers-reduced-motion: reduce){
-  .kt-word.kt-pending{transform:none}
-  .kt-word.kt-go{animation:none}
+  .kt-word{transition:none}
+  .kt-word.kt-hidden{transform:none}
 }`;
   document.head.appendChild(s);
 }
@@ -61,10 +59,8 @@ export default function KineticText({
     if (!root || typeof window === "undefined") return;
 
     const r = root.getBoundingClientRect();
-    const inView =
-      r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0;
-    if (inView) {
-      setRevealed(true);
+    if (r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0) {
+      requestAnimationFrame(() => setRevealed(true));
       return;
     }
 
@@ -97,7 +93,6 @@ export default function KineticText({
 
   const words = value.split(" ");
   const Tg = Tag as any;
-  const wordCls = revealed ? "kt-word kt-go inline-block" : "kt-word kt-pending inline-block";
 
   return (
     <Tg
@@ -124,8 +119,8 @@ export default function KineticText({
             aria-hidden="true"
           >
             <span
-              className={wordCls}
-              style={revealed && d > 0 ? { animationDelay: `${d}s` } : undefined}
+              className={`kt-word ${revealed ? "" : "kt-hidden"} inline-block`}
+              style={d > 0 ? { transitionDelay: `${d}s` } : undefined}
             >
               {w}
               {i < words.length - 1 ? "\u00A0" : ""}

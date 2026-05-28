@@ -24,10 +24,9 @@ export type RevealKind =
   | "twist";
 
 /**
- * SafeReveal — React-state-driven className (GlassCard pattern).
- * See Reveal.tsx for full doc on why imperative classList mutation
- * doesn't survive React re-renders. Uses CSS custom property
- * --sr-from set via React's style prop (also declarative).
+ * SafeReveal — bulletproof CSS-transition reveal.
+ * See Reveal.tsx for full doc. Uses --sr-from CSS variable so a
+ * single transition class covers all 14 kinds.
  */
 
 function fromTransformFor(kind: RevealKind): string {
@@ -56,13 +55,11 @@ function ensureCSS() {
   const s = document.createElement("style");
   s.id = "sr-css";
   s.textContent = `
-.sr-base{opacity:1;transform:none;will-change:transform,opacity}
-.sr-pending{opacity:0;transform:var(--sr-from, translateY(20px))}
-@keyframes sr-go{from{opacity:0;transform:var(--sr-from, translateY(20px))}to{opacity:1;transform:none}}
-.sr-go{animation:sr-go var(--sr-dur, 0.95s) cubic-bezier(0.22,1,0.36,1) backwards}
+.sr{opacity:1;transform:none;transition:opacity var(--sr-dur, 0.95s) cubic-bezier(0.22,1,0.36,1),transform var(--sr-dur, 0.95s) cubic-bezier(0.22,1,0.36,1)}
+.sr.sr-hidden{opacity:0;transform:var(--sr-from, translateY(20px))}
 @media (prefers-reduced-motion: reduce){
-  .sr-pending{opacity:1;transform:none}
-  .sr-go{animation:none}
+  .sr{transition:none}
+  .sr.sr-hidden{opacity:1;transform:none}
 }`;
   document.head.appendChild(s);
 }
@@ -94,10 +91,8 @@ export default function SafeReveal({
     if (!el || typeof window === "undefined") return;
 
     const r = el.getBoundingClientRect();
-    const inView =
-      r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0;
-    if (inView) {
-      setRevealed(true);
+    if (r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0) {
+      requestAnimationFrame(() => setRevealed(true));
       return;
     }
 
@@ -117,19 +112,18 @@ export default function SafeReveal({
     return () => io.disconnect();
   }, []);
 
-  const stateCls = revealed ? "sr-go" : "sr-pending";
   const mergedStyle: CSSProperties = {
     ...(style || {}),
     ["--sr-from" as any]: fromTransformFor(kind),
     ["--sr-dur" as any]: `${duration}s`,
-    animationDelay: delay ? `${delay}s` : undefined,
+    transitionDelay: delay ? `${delay}s` : undefined,
   };
 
   const Comp = Tag as any;
   return (
     <Comp
       ref={ref}
-      className={`sr-base ${stateCls} ${className}`}
+      className={`sr ${revealed ? "" : "sr-hidden"} ${className}`}
       style={mergedStyle}
     >
       {children}
