@@ -102,6 +102,29 @@ export default function IOSSafariFlag() {
 :root[data-mobile-compat] .orb {
   will-change: auto !important;
 }
+/* ─── v16 safety net ────────────────────────────────────────────────
+ * Reveal-component classes (Reveal / SafeReveal / KineticText /
+ * LedTicker) are ALREADY mobile-bypassed in JS (see lib/iosCheck.ts
+ * isMobileLike). This rule is a belt-and-braces defence in case any
+ * of those classes ever land on the DOM through a React remount,
+ * hydration race, or future regression: on mobile they are forced
+ * visible regardless of what JS thinks.
+ *
+ * Also forces overflow:visible on a couple of common wrapper
+ * patterns where ancestor clipping has been observed to compound
+ * with paint-skip and hide entire region grids / chapter blocks.
+ * ────────────────────────────────────────────────────────────────── */
+:root[data-mobile-compat] .rv-hidden,
+:root[data-mobile-compat] .sr-hidden,
+:root[data-mobile-compat] .kt-hidden,
+:root[data-mobile-compat] .lt-hidden,
+:root[data-mobile-compat] [data-reveal-pending="1"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  filter: none !important;
+  clip-path: none !important;
+}
 `;
     document.head.appendChild(style);
   }, []);
