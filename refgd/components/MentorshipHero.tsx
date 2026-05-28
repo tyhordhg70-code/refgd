@@ -111,9 +111,19 @@ export default function MentorshipHero({
       className="relative h-[130svh] overflow-clip sm:h-[180svh]"
       data-testid="mentorship-hero"
     >
-      {/* Inner sticky canvas — pins to viewport while the outer 200svh
-          runway scrolls past. */}
-      <div className="sticky top-0 h-[100svh] w-full overflow-hidden">
+      {/* Inner sticky canvas — pins to viewport while the outer runway
+          scrolls past. */}
+      {/* v42 — h-[100lvh] (was h-[100svh]). The pinned canvas was sized to
+          the SMALL viewport (URL bar shown). When the mobile URL bar
+          collapses on scroll, the visual viewport grows ~56-120px but the
+          svh-sized canvas did NOT — leaving a strip at the bottom that the
+          browser autofilled with the dark body background. That is the
+          "black bar" on the parallax hero. lvh sizes the canvas to the
+          LARGE (URL-bar-hidden) viewport, so the strip the URL bar reveals
+          is ALWAYS already painted with the scene; nothing to autofill.
+          When the bar is shown the slight overflow is clipped by the
+          section's overflow-clip. */}
+      <div className="sticky top-0 h-[100lvh] w-full overflow-hidden">
         <motion.div
           className="absolute inset-0 grid h-full w-full place-items-center overflow-hidden"
           style={mounted ? { opacity: masterOp } : { opacity: 0 }}
