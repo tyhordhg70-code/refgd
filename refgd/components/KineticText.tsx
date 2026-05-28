@@ -62,7 +62,6 @@ export default function KineticText({
         w.style.transition = "";
         w.style.transitionDelay = "";
         w.style.transform = "";
-        w.style.filter = "";
         w.style.willChange = "";
       });
     };
@@ -84,8 +83,7 @@ export default function KineticText({
 
     words.forEach((w) => {
       w.style.transform = "translateY(120%)";
-      w.style.filter = "blur(6px)";
-      w.style.willChange = "transform, filter";
+      w.style.willChange = "transform";
     });
 
     let triggered = false;
@@ -97,7 +95,7 @@ export default function KineticText({
 
       words.forEach((w, i) => {
         w.style.transition =
-          "transform 0.45s cubic-bezier(0.25,0.4,0.25,1), filter 0.45s cubic-bezier(0.25,0.4,0.25,1)";
+          "transform 0.45s cubic-bezier(0.25,0.4,0.25,1)";
         const d = delay + i * stagger;
         if (d > 0) w.style.transitionDelay = `${d}s`;
       });
@@ -107,7 +105,6 @@ export default function KineticText({
         requestAnimationFrame(() => {
           words.forEach((w) => {
             w.style.transform = "";
-            w.style.filter = "";
           });
           window.setTimeout(clearAll, totalMs);
         });
