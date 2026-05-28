@@ -2,7 +2,7 @@ import PathCard from "@/components/PathCard";
 import AnimatedTelegramBox from "@/components/AnimatedTelegramBox";
 import ParallaxChapter from "@/components/ParallaxChapter";
 import ParallaxIllustration from "@/components/ParallaxIllustration";
-import MeshExpansionReveal from "@/components/MeshExpansionReveal";
+import TelegramCard3D from "@/components/TelegramCard3D";
 import EditableText from "@/components/EditableText";
 import HomeCTAButton from "@/components/HomeCTAButton";
 import HomeBackground from "@/components/HomeBackground";
@@ -177,15 +177,8 @@ export default async function HomePage() {
               data-telegram-snap
               className="container-px pb-10 sm:pb-14 [scroll-margin-top:12vh] [scroll-snap-align:start] [scroll-snap-stop:normal]"
             >
-              {/* "Stay up to speed" CTA — the box is statically
-                  positioned (always present, no fold-in entrance). The
-                  distorted-mesh wireframe shockwave that detonates over
-                  it is triggered ONLY when the user has SETTLED on the
-                  box (≥ 50 % in view + scroll idle ≥ 400 ms) so the
-                  user actually sees the cinematic burst rather than
-                  having it fire while their eye is still tracking the
-                  scroll past it. */}
-              <MeshExpansionReveal borderRadius="2.5rem">
+              {/* Telegram CTA — TelegramCard3D animates the whole card in 3D on scroll-in */}
+              <TelegramCard3D>
                 {/* v6.13.16 — Removed `sm:pulse-glow-violet`. The user
                     reported "home page glows instead of black"; the
                     actual source was THIS Telegram CTA wrapper, not
@@ -235,7 +228,7 @@ export default async function HomePage() {
                     </div>
                   </div>
                 </div>
-              </MeshExpansionReveal>
+              </TelegramCard3D>
             </section>
             {/* v6.7 — REMOVED the decorative fade-to-footer gradient.
                 The opaque rgb(10,12,20) bottom stop was rendering as a
