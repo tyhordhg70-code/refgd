@@ -20,6 +20,25 @@ type Props = {
  * entrance — translate + rotate + Z-depth, all completing once on
  * viewport entry. No scroll-linked transforms (which were laggy and
  * froze mid-scroll).
+ *
+ * v36 — HARDCODED RULE: viewport.once = true.
+ *
+ * Earlier versions had `once: false`, which meant every time the
+ * user scrolled an already-revealed section BACK into view (e.g. on
+ * upward scroll past a section they'd already passed), framer-motion
+ * re-fired the `initial` state (opacity:0, translated, rotated,
+ * pushed back in Z) before re-animating to `whileInView`. That is
+ * the "text vanishes on backscroll" bug the user reported across
+ * every page of refgd.onrender.com.
+ *
+ * Setting `once: true` makes the entrance animation fire EXACTLY
+ * once per element per page load. The animation itself is fully
+ * preserved — the section still flies in with the 3D parallax
+ * entrance the first time it enters the viewport. It just never
+ * vanishes again afterward.
+ *
+ * Do NOT change `once` back to `false`. The whole point of this
+ * wrapper is a ONE-SHOT entrance.
  */
 export default function CubicParallax({
   children,
@@ -62,7 +81,7 @@ export default function CubicParallax({
           z: 0,
           opacity: 1,
         }}
-        viewport={{ once: false, margin: "-80px" }}
+        viewport={{ once: true, margin: "-80px" }}
         transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
         style={{
           transformStyle: "preserve-3d",
