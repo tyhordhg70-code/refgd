@@ -222,7 +222,6 @@ export default async function StoreListPage() {
           page lengths with headroom; spots and particles below are
           re-distributed across the full range so the colour pulses
           stay visible everywhere on the page. */}
-      <IOSHide>
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 -z-[1] overflow-hidden"
@@ -274,9 +273,15 @@ export default async function StoreListPage() {
         ))}
 
         {/* (B) Floating abstract gradient PARTICLES.
-            Inline keyframes so we don't grow globals.css for a
-            single use-site. Mix of warm + cool gradients drifting
-            in y/x and pulsing in opacity. */}
+            v6.13.72 — wrapped in <IOSHide>: 90 GPU-promoted particles
+            (transform/opacity keyframes + mix-blend-mode + willChange)
+            were consuming compositor layer budget on iPhone Safari,
+            causing the regions / LED ticker / submit CTA below to be
+            evicted from the GPU on rescroll. The orb mesh + gradient
+            spots above remain (they define the page's colour
+            atmosphere); only these decorative atoms are dropped on
+            iOS so the foreground content stays resident. */}
+        <IOSHide>
         {Array.from({ length: 90 }).map((_, i) => {
           // Deterministic pseudo-random so SSR + client agree.
           const r = (n: number) => ((Math.sin(i * 12.9898 + n * 78.233) + 1) / 2);
@@ -310,6 +315,8 @@ export default async function StoreListPage() {
             />
           );
         })}
+        </IOSHide>
+        <IOSHide>
         {/* v6.13.71 — STAR FIELD. 200 deterministic twinkling stars
             distributed across the full 1000vh page height. Colours
             cycle warm-gold / white / cool-blue / violet to match the
@@ -350,8 +357,8 @@ export default async function StoreListPage() {
             />
           );
         })}
+        </IOSHide>
       </div>
-      </IOSHide>
 
       {/* v6.13.34 — Skip-to-storelist button. Visibility is now
           gated by an IntersectionObserver on the get-rewarded
