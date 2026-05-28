@@ -154,7 +154,7 @@ export default function SafeReveal({
     const poll = () => {
       if (!active) return;
       const r = el.getBoundingClientRect();
-      if (r.top < window.innerHeight * 0.92) {
+      if (r.top < window.innerHeight) {
         trigger();
       } else {
         rafId = requestAnimationFrame(poll);

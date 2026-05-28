@@ -21,7 +21,7 @@ export default function KineticText({
   text,
   className = "",
   delay = 0,
-  stagger = 0.06,
+  stagger = 0.025,
   as: Tag = "h1",
   style,
   editId,
@@ -97,12 +97,12 @@ export default function KineticText({
 
       words.forEach((w, i) => {
         w.style.transition =
-          "transform 0.85s cubic-bezier(0.25,0.4,0.25,1), filter 0.85s cubic-bezier(0.25,0.4,0.25,1)";
+          "transform 0.45s cubic-bezier(0.25,0.4,0.25,1), filter 0.45s cubic-bezier(0.25,0.4,0.25,1)";
         const d = delay + i * stagger;
         if (d > 0) w.style.transitionDelay = `${d}s`;
       });
 
-      const totalMs = (delay + (words.length - 1) * stagger + 0.85) * 1000 + 250;
+      const totalMs = (delay + (words.length - 1) * stagger + 0.45) * 1000 + 250;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           words.forEach((w) => {
@@ -121,7 +121,7 @@ export default function KineticText({
     const poll = () => {
       if (!active) return;
       const r = root.getBoundingClientRect();
-      if (r.top < window.innerHeight * 0.92) {
+      if (r.top < window.innerHeight) {
         trigger();
       } else {
         rafId = requestAnimationFrame(poll);

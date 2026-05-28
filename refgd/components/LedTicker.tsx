@@ -39,7 +39,7 @@ export default function LedTicker({
     <motion.div
       initial={{ opacity: 0, x: 80, scaleX: 0.92 }}
       whileInView={{ opacity: 1, x: 0, scaleX: 1 }}
-      viewport={{ once: true, amount: 0.3 }}
+      viewport={{ once: true, amount: 0.05 }}
       transition={{ type: "spring", stiffness: 110, damping: 14, mass: 0.9 }}
       className={`led-ticker relative w-full overflow-hidden border-y border-white/[0.07] ${className}`}
       style={{ ["--led-accent" as string]: accent, transformOrigin: "right center" }}
