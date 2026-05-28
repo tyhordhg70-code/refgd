@@ -3,20 +3,14 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, type ReactNode } from "react";
 
 /**
- * Reveal v9 — applies the same iOS compositor fix as SafeReveal v14.
+ * Reveal v10 — same iOS compositor fix as SafeReveal v15.
  *
- * Root cause of "vanish on rescroll":
- *   iOS Safari caches the element's GPU layer at opacity:0. When we
- *   set el.style.opacity = "" the inline style is removed but the GPU
- *   compositor does NOT re-query the CSS cascade — it reuses its cached
- *   opacity:0. The element stays blank.
+ * Never clear inline opacity after trigger. clearStyles() leaves
+ * opacity:"1" permanently so the iOS GPU compositor always has an
+ * authoritative value and cannot revert to a stale cached opacity:0.
  *
- *   Fix: set el.style.opacity = "1" and el.style.transform = "none"
- *   explicitly. An explicit value change forces the compositor to update.
- *
- *   Also dropped will-change from priming (globals.css ~1976 documents
- *   that too many will-change layers causes iOS to evict transitions,
- *   leaving elements at opacity:0 permanently).
+ * will-change restored (v14 removed it, which broke elements inside
+ * animated parent compositor layers like ParallaxChapter).
  */
 export function Reveal({
   children,
@@ -40,9 +34,10 @@ export function Reveal({
       ((window as any).__safeRevealed = new WeakSet());
     if (revealed.has(el)) return;
 
-    // Wipe any stale inline styles from a previous interrupted run.
+    // clearStyles keeps opacity:"1" — never "" — to hold the iOS GPU
+    // compositor at an authoritative value after the transition completes.
     const clearStyles = () => {
-      el.style.opacity = "";
+      el.style.opacity = "1";
       el.style.transform = "";
       el.style.transition = "";
       el.style.transitionDelay = "";
@@ -65,9 +60,9 @@ export function Reveal({
       return;
     }
 
-    // No will-change — prevents iOS layer-budget exhaustion.
     el.style.opacity = "0";
     el.style.transform = "translateY(20px)";
+    el.style.willChange = "opacity, transform";
 
     let triggered = false;
     let active = true;
@@ -83,10 +78,8 @@ export function Reveal({
 
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          // Explicit "1" and "none" — force the iOS GPU compositor to update
-          // its cached layer values (removing inline styles is insufficient).
           el.style.opacity = "1";
-          el.style.transform = "none";
+          el.style.transform = "";
           window.setTimeout(clearStyles, (delay + duration) * 1000 + 200);
         });
       });

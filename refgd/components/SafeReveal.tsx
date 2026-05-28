@@ -23,29 +23,26 @@ export type RevealKind =
   | "twist";
 
 /**
- * SafeReveal v14
+ * SafeReveal v15
  *
- * FIX for "vanish on rescroll" (iOS Safari compositor cache bug):
- *   Setting el.style.opacity = "" removes the inline style and lets
- *   the CSS cascade supply opacity:1. On iOS Safari the GPU compositor
- *   caches the element at opacity:0 and does NOT re-query the cascade
- *   when the inline style is removed — the visual stays at 0 forever.
+ * FIX for "tap to reappear" / iOS compositor cache bug:
  *
- *   Fix: set el.style.opacity = "1" and el.style.transform = "none"
- *   EXPLICITLY so the compositor receives an unambiguous value-changed
- *   signal and recomposites the layer.
+ *   When clearStyles() sets el.style.opacity = "" iOS Safari's GPU
+ *   compositor ignores the CSS cascade and keeps its cached layer at
+ *   opacity:0 — the element stays visually blank. Tapping the element
+ *   forces a repaint which flushes the cache and shows the correct value.
  *
- *   Also removed will-change from priming. globals.css comment (line
- *   ~1976) documents that too many will-change'd layers causes iOS to
- *   evict/drop running transitions entirely, leaving elements at their
- *   from-state (opacity:0). Without will-change the transition runs on
- *   the CPU rasteriser — slightly less smooth but 100% reliable.
+ *   Root cause: the compositor uses the inline style value to decide
+ *   what to cache. When inline opacity is REMOVED, the compositor falls
+ *   back to... nothing, and keeps the previous cached composited value.
  *
- * Everything else from v13 preserved:
- *   - clearStyles() at top of every effect run
- *   - rAF poll (no safety timer)
- *   - shared __safeRevealed WeakSet
- *   - cleanup resets styles only if trigger never fired
+ *   Fix: NEVER remove the inline opacity after trigger. clearStyles()
+ *   now leaves opacity:"1" permanently on the element. A permanent
+ *   inline style is authoritative — the compositor cannot ignore it and
+ *   cannot revert to a cached opacity:0 layer.
+ *
+ *   will-change restored (v14 removed it which broke the transition for
+ *   elements inside animated parent layers, e.g. ParallaxChapter).
  */
 export default function SafeReveal({
   children,
@@ -77,9 +74,9 @@ export default function SafeReveal({
       ((window as any).__safeRevealed = new WeakSet());
     if (revealed.has(el)) return;
 
-    // Wipe any stale inline styles from a previous interrupted run.
+    // Wipe stale styles. NOTE: sets opacity:"1" not "" — see fix note above.
     const clearStyles = () => {
-      el.style.opacity = "";
+      el.style.opacity = "1";
       el.style.transform = "";
       el.style.transition = "";
       el.style.transitionDelay = "";
@@ -116,11 +113,9 @@ export default function SafeReveal({
       kind === "slideRight" ? "translateX(20px)"                                       :
       "translateY(20px)";
 
-    // No will-change: omitting it prevents iOS from promoting this element
-    // to a dedicated GPU layer. Too many will-change layers causes iOS to
-    // drop transitions entirely (documented in globals.css ~line 1976).
     el.style.opacity = "0";
     el.style.transform = fromTransform;
+    el.style.willChange = "opacity, transform";
 
     let triggered = false;
 
@@ -132,14 +127,15 @@ export default function SafeReveal({
       el.style.transition = `opacity ${duration}s cubic-bezier(0.22,1,0.36,1), transform ${duration}s cubic-bezier(0.22,1,0.36,1)`;
       if (delay > 0) el.style.transitionDelay = `${delay}s`;
 
-      // Double-rAF: first frame paints the primed state; second frame
-      // sets EXPLICIT target values so the iOS GPU compositor receives
-      // an unambiguous value-changed signal (setting "" relies on the
-      // CSS cascade which iOS ignores when it has a cached GPU layer).
+      // Double-rAF: first frame registers primed state; second frame sets
+      // explicit target values. opacity:"1" (not "") so the iOS compositor
+      // receives an authoritative value and cannot revert to cached opacity:0.
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           el.style.opacity = "1";
-          el.style.transform = "none";
+          el.style.transform = "";
+          // clearStyles fires after transition completes. It keeps opacity:"1"
+          // permanently so the iOS GPU layer is never left at a stale value.
           window.setTimeout(clearStyles, (delay + duration) * 1000 + 200);
         });
       });
