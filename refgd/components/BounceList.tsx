@@ -157,28 +157,37 @@ function Row({
   // the detail is editable.
   const elastic = !!detail && !editing && !detailEditing;
   const showDetail = !!detail && (elastic || detailEditing);
-  // v21 — keep the entrance but DOWNGRADE to opacity-only on mobile.
-  // Full bounce (y + scale + opacity keyframes, staggered across many
-  // cards, on top of backdrop-blur) was overwhelming Chrome Android's
-  // compositor and producing the "vanishes mid appearance and reappears"
-  // flicker. Opacity-only fades cheaply and composites cleanly; desktop
-  // keeps the punchy bounce path.
+  // v22 — cinematic fly-in on mobile.
+  //
+  // Each card flies in diagonally from below with alternating
+  // horizontal offset (odd cards from the right, even from the left)
+  // for visual rhythm. Single eased tween per property — no keyframe
+  // arrays, no scale, no blur — so the GPU compositor only has to
+  // animate translate3d + opacity, which composites cleanly even
+  // stacked under backdrop-blur on Chrome Android. The 0.85s duration
+  // with cubic-bezier(0.16,1,0.3,1) (a hard soft-landing curve) gives
+  // the "cinematic fly-in" feel the user asked for without re-introducing
+  // the v18 flicker. Stagger 0.09s per card so they arrive in sequence.
+  // Desktop keeps the punchy bounce path.
   const [mobile, setMobile] = useState(false);
   useEffect(() => { setMobile(isMobileLike()); }, []);
+  const flyX = (index % 2 === 0 ? -1 : 1) * 70;
   const initial = reduce
     ? { opacity: 0 }
     : mobile
-      ? { opacity: 0 }
+      ? { opacity: 0, x: flyX, y: 56 }
       : { opacity: 0.001, y: 24, scale: 0.97 };
   const whileInView = reduce
     ? { opacity: 1 }
     : mobile
       ? {
           opacity: 1,
+          x: 0,
+          y: 0,
           transition: {
-            duration: 0.45,
-            delay: Math.min(index * 0.04, 0.18),
-            ease: [0.22, 1, 0.36, 1],
+            duration: 0.85,
+            delay: Math.min(index * 0.09, 0.55),
+            ease: [0.16, 1, 0.3, 1],
           },
         }
       : {

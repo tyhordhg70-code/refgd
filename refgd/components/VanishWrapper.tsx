@@ -5,15 +5,13 @@ import { useEntranceReady } from "@/lib/loading-screen-gate";
 import { isMobileLike } from "@/lib/iosCheck";
 
 /**
- * VanishWrapper — one-shot scroll-into-view ENTRANCE.
+ * VanishWrapper — cinematic scroll-into-view entrance.
  *
- * v21 — on mobile, run an OPACITY-only fade (no y, no scale). The
- * v20 full-bypass eliminated the flicker but the user wanted the
- * animation back. The original flicker came from transform+scale
- * compositor stress on Chrome Android when stacked with the
- * staggered BounceList Row transforms and backdrop-blur recomposite.
- * Opacity-only is cheap, composites cleanly, and still gives the
- * "section appears" beat. Desktop keeps the full fade+rise+scale.
+ * v22 — mobile fly-in: opacity + translateY(64) only, eased over
+ * 0.95s with cubic-bezier(0.16,1,0.3,1) for a soft, dramatic landing.
+ * Single-tween transforms (no keyframe arrays) avoid the v18 flicker
+ * while still giving the wrapped block real cinematic motion.
+ * Desktop keeps the y + scale entrance.
  */
 export default function VanishWrapper({
   children,
@@ -34,10 +32,10 @@ export default function VanishWrapper({
   if (reduce) return <div className={className}>{children}</div>;
 
   const initial = mobile
-    ? { opacity: 0 }
+    ? { opacity: 0, y: 64 }
     : { opacity: 0, y: drift, scale: minScale };
   const target = mobile
-    ? { opacity: 1 }
+    ? { opacity: 1, y: 0 }
     : { opacity: 1, y: 0, scale: 1 };
 
   return (
@@ -50,7 +48,10 @@ export default function VanishWrapper({
             viewport: { once: true, margin: "0px 0px -10% 0px" },
           }
         : {})}
-      transition={{ duration: mobile ? 0.55 : 0.85, ease: [0.22, 1, 0.36, 1] }}
+      transition={{
+        duration: mobile ? 0.95 : 0.85,
+        ease: mobile ? [0.16, 1, 0.3, 1] : [0.22, 1, 0.36, 1],
+      }}
       suppressHydrationWarning
     >
       {children}
