@@ -1228,14 +1228,55 @@ html, body { overscroll-behavior-y: none; }
   }
 }
 @media (hover: none) {
+  /* v43 — STOP THE MOBILE COMPOSITOR EVICTION that makes the glass
+     cards AND the "chapter 01" header VANISH on phones.
+
+     The previous rule did the OPPOSITE of what mobile needs: it ADDED
+     a perpetual liquidMeshBreathe loop plus a permanent `will-change`
+     to every .liquid-glass-mobile element. Each of those elements ALSO
+     carries a backdrop-filter blur and a preserve-3d perspective layer
+     (from the .liquid-glass-3d base rule). Stacked across the dozens of
+     cards on store-list / evade-cancelations / exclusive-mentorships,
+     plus the perpetual .float-card translateY loop, this blows straight
+     past the mobile GPU's compositing-memory budget. The browser then
+     EVICTS those promoted layers mid-scroll and never repaints them —
+     so the card / chapter header renders BLANK. That is the recurring
+     "cards vanish / Chapter 01 vanishes on mobile" report. Every prior
+     attempt only touched the JS reveal logic; the element was revealed
+     fine and THEN dropped by the compositor.
+
+     Fix: on touch devices, neutralise every PERPETUAL GPU promotion on
+     these elements — kill the infinite breathe/float loops, release
+     `will-change`, and flatten the 3D transform context (the base
+     transform was an identity perspective anyway, so there is no visual
+     loss, only the costly layer goes away). One-shot entrance keyframes
+     (.glass-card-reveal, KineticText, parallax) are deliberately left
+     alone, so the page stays lively; only the always-on layers that
+     caused the eviction are removed. Elements now paint once on a
+     cheap, stable layer and can no longer blank out. */
+  .liquid-glass-3d,
   .liquid-glass-mobile {
-    animation: liquidMeshBreathe 6.5s ease-in-out infinite;
-    will-change: transform, border-radius;
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    transform-style: flat !important;
+    will-change: auto !important;
   }
-  /* Hover transform never fires on touch — disable so animation isn't
-     overridden by the static :hover stylesheet rule. */
   .liquid-glass-3d:hover {
     transform: none;
+  }
+  /* Same eviction risk from the perpetual float loop and the leftover
+     will-change hints on the reveal wrappers, on every card. */
+  .float-card,
+  .float-card-2,
+  .float-card-3 {
+    animation: none !important;
+    transform: none !important;
+    will-change: auto !important;
+  }
+  .glass-card-reveal,
+  .gc-pending {
+    will-change: auto !important;
   }
 }
 /* Desktop (hover-capable) devices skip the breathe loop entirely. */
