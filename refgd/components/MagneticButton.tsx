@@ -28,7 +28,7 @@
     "data-testid"?: string;
   }) {
     const base =
-      "group relative inline-flex w-full items-center justify-center gap-2 rounded-full px-7 py-3.5 font-semibold tracking-wide transition will-change-transform";
+      "group relative inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 font-semibold tracking-wide transition will-change-transform";
     const variantCls = {
       primary:
         "text-ink-950 bg-gradient-to-br from-amber-200 via-amber-400 to-amber-600 shadow-[0_18px_60px_-15px_rgba(245,185,69,0.7)] hover:shadow-[0_22px_80px_-15px_rgba(245,185,69,0.95)]",
