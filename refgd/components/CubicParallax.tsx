@@ -1,6 +1,8 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { isMobileLike } from "@/lib/iosCheck";
 
 type Props = {
   children: React.ReactNode;
@@ -21,7 +23,22 @@ type Props = {
  * viewport entry. No scroll-linked transforms (which were laggy and
  * froze mid-scroll).
  *
- * v37 — HARDCODED RULE (re-affirmed). Was v36: viewport.once = true.
+ * v41 — RE-APPLY THE MOBILE 3D BYPASS (was v25, lost in the v31
+ * rollback). On mobile-like devices we DO NOT build a 3D context at
+ * all: no `perspective`, no `preserve-3d`, no rotateX/rotateY/z, no
+ * 3D `willChange`. Instead the content gets a lightweight 2D fade +
+ * rise that still feels lively, latches once, and never re-fires.
+ *
+ * Why: on Chrome Android / mobile WebKit, the 3D compositing layer
+ * (perspective + preserve-3d + rotateX/rotateY/z) gets evicted and
+ * fails to re-rasterize when the section is scrolled away and back.
+ * The un-painted 3D layer surfaces as a BLACK BAR across the parallax
+ * section on scroll-back — the exact bug the user reported. Removing
+ * the 3D context on mobile removes the layer that can be evicted, so
+ * there is nothing left to flash black. Desktop keeps the full 3D
+ * entrance (hover/pointer devices + wide viewports don't hit the bug).
+ *
+ * HARDCODED RULE (re-affirmed from v36): viewport.once = true.
  *
  * Earlier versions had `once: false`, which meant every time the
  * user scrolled an already-revealed section BACK into view (e.g. on
@@ -33,12 +50,11 @@ type Props = {
  *
  * Setting `once: true` makes the entrance animation fire EXACTLY
  * once per element per page load. The animation itself is fully
- * preserved — the section still flies in with the 3D parallax
- * entrance the first time it enters the viewport. It just never
- * vanishes again afterward.
+ * preserved — the section still flies in the first time it enters
+ * the viewport. It just never vanishes again afterward.
  *
- * Do NOT change `once` back to `false`. The whole point of this
- * wrapper is a ONE-SHOT entrance.
+ * Do NOT change `once` back to `false`, and do NOT re-introduce a 3D
+ * context on mobile.
  */
 export default function CubicParallax({
   children,
@@ -49,6 +65,11 @@ export default function CubicParallax({
   className = "",
 }: Props) {
   const reduce = useReducedMotion();
+  const [mobile, setMobile] = useState(false);
+
+  useEffect(() => {
+    setMobile(isMobileLike());
+  }, []);
 
   if (reduce) {
     return (
@@ -58,6 +79,25 @@ export default function CubicParallax({
     );
   }
 
+  // MOBILE — no 3D context. Lightweight 2D fade + rise, one-shot.
+  if (mobile) {
+    return (
+      <div className={className} data-testid="cubic-parallax">
+        <motion.div
+          initial={{ y: 28, opacity: 0 }}
+          whileInView={{ y: 0, opacity: 1 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          style={{ willChange: "transform, opacity" }}
+          suppressHydrationWarning
+        >
+          {children}
+        </motion.div>
+      </div>
+    );
+  }
+
+  // DESKTOP — full one-shot 3D parallax entrance.
   return (
     <div
       className={className}
