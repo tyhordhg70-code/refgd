@@ -2,6 +2,7 @@
 import { useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useEntranceReady } from "@/lib/loading-screen-gate";
+import { isMobileLike } from "@/lib/iosCheck";
 
 /**
  * GlassCard — Lusion.co-style glassmorphism panel.
@@ -154,6 +155,20 @@ export default function GlassCard({
     if (!entranceReady) return;
     const el = ref.current;
     if (!el) return;
+    // v40 — On mobile-like devices, reveal immediately and DO NOT set up
+    // an IntersectionObserver. The IO-gated `.gc-pending` state
+    // (opacity:0) is the only reveal path on this site with NO mobile
+    // safety net, and on mobile the compositor's tile-eviction /
+    // paint-skip bug can leave a still-pending card stuck invisible —
+    // exactly the "glass cards still vanish" report. Revealing on mount
+    // lets the entrance keyframe play once and guarantees the card lands
+    // visible (the keyframe ends on opacity:1 and fill-mode:backwards
+    // falls back to the base `opacity:1`). It never sits in gc-pending,
+    // so there is nothing for the compositor to drop and leave blank.
+    if (isMobileLike()) {
+      setRevealed(true);
+      return;
+    }
     // If the card is already visible on first paint (above-the-fold
     // hero panels, etc.), reveal immediately.
     const r = el.getBoundingClientRect();

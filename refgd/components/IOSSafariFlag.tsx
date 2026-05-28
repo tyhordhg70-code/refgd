@@ -132,6 +132,7 @@ export default function IOSSafariFlag() {
 :root[data-mobile-compat] .sr-hidden,
 :root[data-mobile-compat] .kt-hidden,
 :root[data-mobile-compat] .lt-hidden,
+:root[data-mobile-compat] .gc-pending,
 :root[data-mobile-compat] [data-reveal-pending="1"] {
   opacity: 1 !important;
   visibility: visible !important;
