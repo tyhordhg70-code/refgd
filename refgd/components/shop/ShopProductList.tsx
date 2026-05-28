@@ -82,7 +82,7 @@
                   key={p.id}
                   initial={reduced ? {} : { opacity: 0, y: 50, rotateX: 14, scale: 0.94 }}
                   whileInView={reduced ? undefined : { opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-                  viewport={{ once: false, amount: 0.15 }}
+                  viewport={{ once: true, amount: 0.15 }}
                   transition={{ duration: 0.85, delay: 0.08 + i * 0.06, ease: [0.22, 1, 0.36, 1] }}
                   className="relative overflow-hidden rounded-[1.5rem] border border-white/15"
                   style={{
