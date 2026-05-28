@@ -10,12 +10,21 @@
   //   MIN_DISCOUNT    minimum discount % we will ever display    (default 5)
   //
   // Usage: node scripts/sync-giftcards.mjs [path/to/page.tsx]
+  //
+  // v27 — the Next.js server-action ID for "fetch products" is a
+  // build-specific 40-char hex hash that regenerates on every
+  // spawngc.gg deploy. The hardcoded `PRODUCTS_ACTION` constant
+  // went stale around May 24 2026 and every cron run since failed
+  // with "page 1: unexpected response shape". Now we auto-discover
+  // the current hash on each run by scanning the /products page +
+  // its JS chunks for 40-char hex strings, then probing each one
+  // with a minimal POST until one returns the expected
+  // `{items, pagination}` shape. Result is cached for the run.
 
   import { readFileSync, writeFileSync } from 'node:fs';
 
   const LOGIN_URL = 'https://spawngc.gg/accounts/login/';
   const PRODUCTS_URL = 'https://spawngc.gg/products';
-  const PRODUCTS_ACTION = '6584623a7ab040205dfad74a46bf1e9e8f74abe5';
 
   const MARGIN_PCT = parseInt(process.env.MARGIN_PCT || '10', 10);
   const MIN_DISCOUNT = parseInt(process.env.MIN_DISCOUNT || '5', 10);
@@ -72,7 +81,7 @@
     console.log('[auth] logged in as', email);
   }
 
-  // --- products ---------------------------------------------------------------
+  // --- RSC payload parser -----------------------------------------------------
   function parseRscPayload(text) {
     // Response format: each line is "<id>:<json>". We want the line starting with "1:".
     for (const line of text.split(/\r?\n/)) {
@@ -83,16 +92,92 @@
     return null;
   }
 
+  // --- action-hash discovery --------------------------------------------------
+  async function fetchText(url) {
+    const r = await fetch(url, { headers: { 'User-Agent': UA, 'Cookie': cookieHeader() } });
+    applySetCookie(r.headers);
+    return r.text();
+  }
+
+  async function probeAction(hash) {
+    const r = await fetch(PRODUCTS_URL, {
+      method: 'POST',
+      headers: {
+        'User-Agent': UA,
+        'Cookie': cookieHeader(),
+        'Next-Action': hash,
+        'X-CSRFToken': jar.get('csrftoken') || '',
+        'Content-Type': 'text/plain;charset=UTF-8',
+        'Referer': 'https://spawngc.gg/products',
+        'Origin': 'https://spawngc.gg',
+      },
+      body: JSON.stringify([{ page: 1, category: '', availability: '', search: '' }]),
+    });
+    if (!r.ok) return null;
+    const text = await r.text();
+    const data = parseRscPayload(text);
+    if (data && Array.isArray(data.items) && data.pagination) return data;
+    return null;
+  }
+
+  async function discoverProductsAction() {
+    // 1. Fetch the /products page HTML.
+    const html = await fetchText(PRODUCTS_URL);
+
+    // 2. Collect candidate hashes from the page HTML AND every referenced
+    //    /_next/static/chunks/*.js file. Server-action IDs are 40-char
+    //    lowercase hex strings registered in the JS chunks.
+    const candidates = new Set();
+    const harvest = (s) => {
+      for (const m of s.matchAll(/\b[0-9a-f]{40}\b/g)) candidates.add(m[0]);
+    };
+    harvest(html);
+
+    const chunkUrls = new Set();
+    for (const m of html.matchAll(/["']([^"'\s]*\/_next\/static\/chunks\/[^"'\s]+\.js)["']/g)) {
+      const u = m[1].startsWith('http') ? m[1] : 'https://spawngc.gg' + m[1];
+      chunkUrls.add(u);
+    }
+    console.log(`[discover] scanning ${chunkUrls.size} chunks + page HTML for action hashes`);
+
+    // Fetch chunks in parallel (cap concurrency).
+    const list = [...chunkUrls];
+    const conc = 8;
+    for (let i = 0; i < list.length; i += conc) {
+      await Promise.all(list.slice(i, i + conc).map(async (u) => {
+        try { harvest(await fetchText(u)); } catch {}
+      }));
+    }
+    console.log(`[discover] ${candidates.size} unique 40-hex candidates`);
+
+    // 3. Probe each candidate; first one returning a valid {items, pagination} wins.
+    let probed = 0;
+    for (const h of candidates) {
+      probed++;
+      const data = await probeAction(h);
+      if (data) {
+        console.log(`[discover] action hash: ${h} (after ${probed} probes, ${data.items.length} items on page 1)`);
+        return { hash: h, firstPage: data };
+      }
+    }
+    throw new Error(`could not discover products action hash; tried ${probed} candidates`);
+  }
+
+  // --- products ---------------------------------------------------------------
   async function fetchAllProducts() {
-    const items = [];
-    let page = 1;
-    while (true) {
+    const { hash, firstPage } = await discoverProductsAction();
+    const items = [...firstPage.items];
+    console.log(`[fetch] page 1/${firstPage.pagination.total_pages}: +${firstPage.items.length} (total ${items.length}/${firstPage.pagination.total_items})`);
+
+    let page = 2;
+    let pagination = firstPage.pagination;
+    while (pagination.has_next) {
       const r = await fetch(PRODUCTS_URL, {
         method: 'POST',
         headers: {
           'User-Agent': UA,
           'Cookie': cookieHeader(),
-          'Next-Action': PRODUCTS_ACTION,
+          'Next-Action': hash,
           'X-CSRFToken': jar.get('csrftoken') || '',
           'Content-Type': 'text/plain;charset=UTF-8',
           'Referer': 'https://spawngc.gg/products',
@@ -103,11 +188,12 @@
       const text = await r.text();
       const data = parseRscPayload(text);
       if (!data || !data.items) {
-        throw new Error(`page ${page}: unexpected response shape`);
+        // Dump a snippet of the response so future failures self-document.
+        throw new Error(`page ${page}: unexpected response shape. snippet: ${text.slice(0, 300)}`);
       }
       items.push(...data.items);
       console.log(`[fetch] page ${page}/${data.pagination.total_pages}: +${data.items.length} (total ${items.length}/${data.pagination.total_items})`);
-      if (!data.pagination.has_next) break;
+      pagination = data.pagination;
       page++;
       if (page > 50) throw new Error('runaway pagination');
     }
@@ -131,12 +217,14 @@
       price = `${refgdDiscount}% off`;
     }
 
+    // v26 — images are baked into the repo at /public/gc-img/<uuid>.webp.
+    // Emit those local paths instead of spawngc URLs so the giftcards
+    // grid loads as static assets (was painting blank for several
+    // seconds while 137 spawngc fetches went through the API proxy).
     let image = null;
     if (p.image && typeof p.image === 'string') {
-      const idx = p.image.indexOf('/media/');
-      // v6.13.65 — emit absolute spawngc URLs so next/image can optimize them
-          // (resize + AVIF/WebP) and the proxy hop is avoided entirely.
-          if (idx >= 0) image = 'https://spawngc.gg' + p.image.slice(idx);
+      const m = p.image.match(/\/media\/images\/([0-9a-f-]+)\.png/i);
+      if (m) image = `/gc-img/${m[1]}.webp`;
     }
 
     const card = {
@@ -230,4 +318,3 @@
     console.error('[fatal]', e.message);
     process.exit(1);
   });
-  
