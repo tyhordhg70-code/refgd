@@ -4,19 +4,32 @@ import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
- * KineticText v11
+ * KineticText (keyframes edition)
  *
- * Same root-cause fix as SafeReveal v13: safety timer removed.
+ * Same iOS-compositor fix as Reveal/SafeReveal keyframes edition.
  *
- * The 3-second safety timer was firing while the LoadingScreen overlay
- * was still blocking the page — triggering all heading animations
- * invisibly behind the splash screen. When the screen lifted, all
- * headings were already at their natural state and no animation played.
+ * Words previously animated via a CSS transition on inline transform
+ * (translateY(120%) -> ""). iOS Safari's GPU compositor cached the
+ * primed transform and ignored the cascade when the inline style was
+ * cleared, leaving words stuck below the mask (invisible) until tapped.
  *
- * With the timer gone the rAF poll (getBoundingClientRect, visual
- * position) is the sole trigger. Headings animate exactly when they
- * enter the visible viewport after the loading screen dismisses.
+ * This version uses a CSS @keyframes animation with
+ * animation-fill-mode:both. Each word gets the same animation with a
+ * staggered animation-delay. The compositor holds the `to` state
+ * (transform:none) forever after completion — no cascade fallback,
+ * no stale GPU layer possible.
  */
+
+function ensureKeyframes() {
+  if (typeof document === "undefined") return;
+  if (document.getElementById("kt-keyframes")) return;
+  const s = document.createElement("style");
+  s.id = "kt-keyframes";
+  s.textContent =
+    "@keyframes kt-rise{from{transform:translateY(120%)}to{transform:none}}";
+  document.head.appendChild(s);
+}
+
 export default function KineticText({
   text,
   className = "",
@@ -46,6 +59,7 @@ export default function KineticText({
       : text;
 
   useEffect(() => {
+    ensureKeyframes();
     const root = rootRef.current;
     if (!root || typeof window === "undefined") return;
 
@@ -57,16 +71,6 @@ export default function KineticText({
     const words = Array.from(root.querySelectorAll<HTMLSpanElement>(".kt-word"));
     if (!words.length) return;
 
-    const clearAll = () => {
-      words.forEach((w) => {
-        w.style.transition = "";
-        w.style.transitionDelay = "";
-        w.style.transform = "";
-        w.style.willChange = "";
-      });
-    };
-    clearAll(); // wipe any stale styles from previous interrupted run
-
     if (
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -75,18 +79,23 @@ export default function KineticText({
       return;
     }
 
+    // Already in view on mount — skip animation, keep words at natural state.
     const initialRect = root.getBoundingClientRect();
     if (initialRect.top < window.innerHeight) {
       ktRevealed.add(root);
       return;
     }
 
+    // Prime words to off-screen below mask. Inline transform here will
+    // be overridden by the animation once it starts (animations have
+    // higher precedence than inline styles for animated properties).
     words.forEach((w) => {
       w.style.transform = "translateY(120%)";
-      w.style.willChange = "transform";
     });
 
     let triggered = false;
+    let active = true;
+    let rafId = 0;
 
     const trigger = () => {
       if (triggered) return;
@@ -94,26 +103,18 @@ export default function KineticText({
       ktRevealed.add(root);
 
       words.forEach((w, i) => {
-        w.style.transition =
-          "transform 0.45s cubic-bezier(0.25,0.4,0.25,1)";
         const d = delay + i * stagger;
-        if (d > 0) w.style.transitionDelay = `${d}s`;
-      });
-
-      const totalMs = (delay + (words.length - 1) * stagger + 0.45) * 1000 + 250;
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          words.forEach((w) => {
-            w.style.transform = "";
-          });
-          window.setTimeout(clearAll, totalMs);
-        });
+        // animation-fill-mode:both holds `from` during the delay phase
+        // and `to` (transform:none) forever after completion. The
+        // compositor tracks the animation lifecycle — no opportunity
+        // to revert to a cached stale layer.
+        w.style.animation = `kt-rise 0.45s cubic-bezier(0.25,0.4,0.25,1) ${d}s both`;
+        // Clear the primed inline transform so the animation has full
+        // control. (Animations override inline styles, so this just
+        // avoids leaving stale inline styles around.)
+        w.style.transform = "";
       });
     };
-
-    // rAF poll — no safety timer (see class doc above).
-    let active = true;
-    let rafId = 0;
 
     const poll = () => {
       if (!active) return;
@@ -129,7 +130,12 @@ export default function KineticText({
     return () => {
       active = false;
       cancelAnimationFrame(rafId);
-      if (!triggered) clearAll(); // only reset if anim never fired (avoid rescroll-vanish flash)
+      if (!triggered) {
+        // Reset primed styles so element is visible at natural state.
+        words.forEach((w) => {
+          w.style.transform = "";
+        });
+      }
     };
   }, [value, delay, stagger]);
 
