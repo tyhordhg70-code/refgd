@@ -1,25 +1,26 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { isMobileLike } from "@/lib/iosCheck";
 
 type Props = {
   children: React.ReactNode;
-  /** Translation axis — kept for API compat, no longer used. */
   axis?: "x" | "y" | "both";
-  /** Pixel amount of entrance drift. */
   amount?: number;
-  /** Degrees of 3D rotation on entrance. */
   rotate?: number;
-  /** Z-depth shift in pixels on entrance. */
   depth?: number;
   className?: string;
 };
 
 /**
  * Section wrapper that wraps its content in a one-shot 3D parallax
- * entrance — translate + rotate + Z-depth, all completing once on
- * viewport entry. No scroll-linked transforms (which were laggy and
- * froze mid-scroll).
+ * entrance — translate + rotate + Z-depth, completing once on
+ * viewport entry. On mobile we bypass the 3D context entirely
+ * (perspective + preserve-3d) because Chrome Android intermittently
+ * drops frames on 3D-context children during scroll-back, painting
+ * the section blank for one frame and exposing the page bg as a
+ * "black bar" (user-reported v25).
  */
 export default function CubicParallax({
   children,
@@ -30,8 +31,10 @@ export default function CubicParallax({
   className = "",
 }: Props) {
   const reduce = useReducedMotion();
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => { setMobile(isMobileLike()); }, []);
 
-  if (reduce) {
+  if (reduce || mobile) {
     return (
       <div className={className} data-testid="cubic-parallax">
         {children}
@@ -62,12 +65,6 @@ export default function CubicParallax({
           z: 0,
           opacity: 1,
         }}
-        // v23 — once:true. With once:false the entire parallax section
-        // re-fades from opacity:0 every time you scroll back into it,
-        // momentarily exposing the page background (#04030f) where the
-        // section content normally paints — the user-reported "black bar
-        // on first scroll where parallax scroll is". One-shot keeps the
-        // cinematic 3D entrance but the content stays mounted afterward.
         viewport={{ once: true, margin: "-80px" }}
         transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
         style={{

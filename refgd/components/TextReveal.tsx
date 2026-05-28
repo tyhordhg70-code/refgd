@@ -1,9 +1,10 @@
 "use client";
 
 import { motion, useReducedMotion, type Variants } from "framer-motion";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
+import { isMobileLike } from "@/lib/iosCheck";
 
 type Variant =
   | "wordFade"
@@ -45,6 +46,8 @@ export default function TextReveal({
   editId,
 }: Props) {
   const reduce = useReducedMotion();
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => { setMobile(isMobileLike()); }, []);
   const ctx = useEditContext();
   const editing = !!editId && ctx.isAdmin && ctx.editMode;
   const text = editId ? ctx.getValue(editId, children) : children;
@@ -76,6 +79,30 @@ export default function TextReveal({
       <Plain className={composedClassName} style={style}>
         {text}
       </Plain>
+    );
+  }
+
+  // v25 — on mobile, render the entire paragraph as ONE motion
+  // element. The per-word / per-char span paths below create
+  // hundreds of GPU layers per long paragraph and Chrome Android
+  // intermittently drops them on scroll-back, surfacing as the
+  // user-reported "text vanishes on rescroll". Single-layer opacity
+  // fade composites cleanly and never goes blank. Desktop keeps the
+  // variant-specific stagger effects.
+  if (mobile) {
+    const Tag = motion[as as "p"] as typeof motion.p;
+    return (
+      <Tag
+        className={composedClassName}
+        style={style}
+        initial={{ opacity: 0, y: 16 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.15 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        suppressHydrationWarning
+      >
+        {text}
+      </Tag>
     );
   }
 
