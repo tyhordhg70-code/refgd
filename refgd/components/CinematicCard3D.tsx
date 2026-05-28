@@ -23,11 +23,17 @@ import { useEntranceReady } from "@/lib/loading-screen-gate";
  * styles are dropped so the card is a zero-cost static element
  * for any subsequent interaction.
  *
- * Trigger: IntersectionObserver, single-shot. Reduced-motion
- * users see the final state. Gated on `useEntranceReady` so cards
- * above the loading splash hold their initial state until the
- * splash lifts (otherwise the entrance plays silently behind the
- * overlay).
+ * Trigger: rAF poll (replaces IntersectionObserver). The previous
+ * IO used threshold:0.18 + rootMargin "-6% bottom" — on iOS Safari
+ * this threshold was too strict and the IO callback never fired,
+ * leaving cards permanently invisible (inner opacity:0). The rAF
+ * poll fires the moment the card's top enters window.innerHeight,
+ * which is identical to SafeReveal v13 / Reveal v7 / LedTicker v2
+ * and is reliable across all mobile browsers.
+ *
+ * Gated on useEntranceReady so cards above the loading splash
+ * hold their initial state until the splash lifts (otherwise the
+ * entrance plays silently behind the overlay).
  */
 export type CinematicAccent =
   | "amber"
@@ -144,34 +150,34 @@ export default function CinematicCard3D({
       raf = requestAnimationFrame(tick);
     };
 
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting && !played) {
-            played = true;
-            io.disconnect();
-            play();
-            break;
-          }
-        }
-      },
-      { threshold: 0.18, rootMargin: "0px 0px -6% 0px" },
-    );
-    io.observe(wrap);
+    // rAF poll: fires when card top enters viewport.
+    // Replaces IntersectionObserver (threshold:0.18) which failed
+    // to fire on iOS Safari, leaving cards permanently invisible.
+    let pollActive = true;
+    let pollRaf = 0;
 
-    const r = wrap.getBoundingClientRect();
-    if (
-      r.top < (window.innerHeight || 0) * 0.95 &&
-      r.bottom > 0 &&
-      !played
-    ) {
+    // Immediate check — above-fold cards play without polling.
+    const r0 = wrap.getBoundingClientRect();
+    if (r0.top < (window.innerHeight || 0) * 0.95 && r0.bottom > 0) {
       played = true;
-      io.disconnect();
       play();
+    } else {
+      const poll = () => {
+        if (!pollActive || played) return;
+        const r = wrap.getBoundingClientRect();
+        if (r.top < window.innerHeight) {
+          played = true;
+          play();
+        } else {
+          pollRaf = requestAnimationFrame(poll);
+        }
+      };
+      pollRaf = requestAnimationFrame(poll);
     }
 
     return () => {
-      io.disconnect();
+      pollActive = false;
+      cancelAnimationFrame(pollRaf);
       if (raf) cancelAnimationFrame(raf);
     };
   }, [delay, duration, variant, entranceReady]);
