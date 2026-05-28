@@ -1,37 +1,29 @@
 "use client";
 import { motion, useReducedMotion } from "framer-motion";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
- * Reveal (glass-card-reveal pattern — iOS-eviction-safe).
+ * Reveal — React-state-driven className (GlassCard pattern).
  *
- * Adopts the same pattern proven on .glass-card-reveal in globals.css
- * to defeat the iOS Safari "compositing-memory pressure animation
- * eviction" bug. Three earlier approaches (CSS transition, keyframes
- * + fill-mode:both, IntersectionObserver replay) all failed because
- * when iOS evicts the animation, the element falls back to its CSS
- * cascade — and if the base style doesn't EXPLICITLY declare
- * opacity:1 / transform:none, the previously-applied FROM keyframe
- * state (opacity:0, transform:translateY(...)) lingers.
+ * Previous versions added the .rv-go / .rv-pending classes imperatively
+ * via classList.add/remove in useEffect. The bug: when React re-renders
+ * the component (parent state change, scroll-driven state, Lenis tick,
+ * etc.), React's reconciler resets className to the value in JSX and
+ * wipes out the imperatively-added classes — leaving the element with
+ * only .rv-base, or worse, with the stale .rv-pending lingering and
+ * the iOS compositor caching the hidden state.
  *
- * Strategy:
- *   • `.rv-base` always present — declares opacity:1 / transform:none
- *     so iOS-evicted animations fall back to a visible state.
- *   • `.rv-pending` applied if element is off-screen on mount — sets
- *     opacity:0 so the element doesn't flash before IO triggers.
- *   • On IntersectionObserver fire, swap `.rv-pending` → `.rv-go`.
- *   • `.rv-go` uses `animation-fill-mode: backwards` — holds `from`
- *     during delay, animates, then DROPS the state on completion so
- *     the visible base CSS takes over.
+ * This version drives the className from React state (useState), so
+ * every re-render outputs the correct class string declaratively.
+ * Matches the proven GlassCard / glass-card-reveal pattern.
  */
-
 function ensureCSS() {
   if (typeof document === "undefined") return;
   if (document.getElementById("rv-css")) return;
   const s = document.createElement("style");
   s.id = "rv-css";
   s.textContent = `
-.rv-base{opacity:1;transform:none}
+.rv-base{opacity:1;transform:none;will-change:transform,opacity}
 .rv-pending{opacity:0;transform:translate3d(0,20px,0)}
 @keyframes rv-lift{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
 .rv-go{animation:rv-lift 0.52s cubic-bezier(0.22,1,0.36,1) backwards}
@@ -52,50 +44,44 @@ export function Reveal({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     ensureCSS();
     const el = ref.current;
     if (!el || typeof window === "undefined") return;
 
-    const done: WeakSet<Element> =
-      (window as any).__rvDone ??
-      ((window as any).__rvDone = new WeakSet());
-    if (done.has(el)) return;
-
-    const initialRect = el.getBoundingClientRect();
-    const inViewOnMount =
-      initialRect.top < window.innerHeight && initialRect.bottom > 0;
-
-    if (inViewOnMount) {
-      // Already visible — no animation, base CSS keeps it visible.
-      done.add(el);
+    const r = el.getBoundingClientRect();
+    const inView =
+      r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0;
+    if (inView) {
+      setRevealed(true);
       return;
     }
 
-    el.classList.add("rv-pending");
-
-    const observer = new IntersectionObserver(
+    const io = new IntersectionObserver(
       (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            done.add(el);
-            if (delay > 0) el.style.animationDelay = `${delay}s`;
-            el.classList.remove("rv-pending");
-            el.classList.add("rv-go");
-            observer.disconnect();
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            setRevealed(true);
+            io.disconnect();
+            break;
           }
         }
       },
-      { threshold: 0.01 },
+      { rootMargin: "0px 0px -5% 0px", threshold: 0.05 },
     );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [delay]);
-
+  const stateCls = revealed ? "rv-go" : "rv-pending";
   return (
-    <div ref={ref} className={`rv-base ${className}`}>
+    <div
+      ref={ref}
+      className={`rv-base ${stateCls} ${className}`}
+      style={{ animationDelay: delay ? `${delay}s` : undefined }}
+    >
       {children}
     </div>
   );

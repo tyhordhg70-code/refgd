@@ -1,12 +1,12 @@
 "use client";
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 
 /**
- * KineticText (glass-card-reveal pattern — iOS-eviction-safe).
- * See Reveal.tsx for full strategy. Per-word stagger via inline
- * animation-delay on each .kt-word.
+ * KineticText — React-state-driven className (GlassCard pattern).
+ * See Reveal.tsx for full doc. Per-word stagger via animation-delay
+ * computed inline per word in the JSX, not mutated imperatively.
  */
 
 function ensureCSS() {
@@ -15,7 +15,7 @@ function ensureCSS() {
   const s = document.createElement("style");
   s.id = "kt-css";
   s.textContent = `
-.kt-word{transform:none}
+.kt-word{transform:none;will-change:transform}
 .kt-word.kt-pending{transform:translate3d(0,120%,0)}
 @keyframes kt-rise{from{transform:translateY(120%)}to{transform:none}}
 .kt-word.kt-go{animation:kt-rise 0.45s cubic-bezier(0.25,0.4,0.25,1) backwards}
@@ -47,6 +47,7 @@ export default function KineticText({
   const ctx = useEditContext();
   const editing = !!editId && ctx.isAdmin && ctx.editMode;
   const rootRef = useRef<HTMLElement | null>(null);
+  const [revealed, setRevealed] = useState(false);
 
   const rawValue = editId ? ctx.getValue(editId, text) : text;
   const value: string =
@@ -59,48 +60,29 @@ export default function KineticText({
     const root = rootRef.current;
     if (!root || typeof window === "undefined") return;
 
-    const done: WeakSet<Element> =
-      (window as any).__ktDone ??
-      ((window as any).__ktDone = new WeakSet());
-    if (done.has(root)) return;
-
-    const words = Array.from(
-      root.querySelectorAll<HTMLSpanElement>(".kt-word"),
-    );
-    if (!words.length) return;
-
-    const initialRect = root.getBoundingClientRect();
-    const inViewOnMount =
-      initialRect.top < window.innerHeight && initialRect.bottom > 0;
-
-    if (inViewOnMount) {
-      done.add(root);
+    const r = root.getBoundingClientRect();
+    const inView =
+      r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0;
+    if (inView) {
+      setRevealed(true);
       return;
     }
 
-    words.forEach((w) => w.classList.add("kt-pending"));
-
-    const observer = new IntersectionObserver(
+    const io = new IntersectionObserver(
       (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            done.add(root);
-            words.forEach((w, i) => {
-              const d = delay + i * stagger;
-              if (d > 0) w.style.animationDelay = `${d}s`;
-              w.classList.remove("kt-pending");
-              w.classList.add("kt-go");
-            });
-            observer.disconnect();
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            setRevealed(true);
+            io.disconnect();
+            break;
           }
         }
       },
-      { threshold: 0.01 },
+      { rootMargin: "0px 0px -5% 0px", threshold: 0.05 },
     );
-
-    observer.observe(root);
-    return () => observer.disconnect();
-  }, [value, delay, stagger]);
+    io.observe(root);
+    return () => io.disconnect();
+  }, [value]);
 
   if (editing) {
     return (
@@ -115,6 +97,7 @@ export default function KineticText({
 
   const words = value.split(" ");
   const Tg = Tag as any;
+  const wordCls = revealed ? "kt-word kt-go inline-block" : "kt-word kt-pending inline-block";
 
   return (
     <Tg
@@ -124,26 +107,32 @@ export default function KineticText({
       aria-label={value}
       suppressHydrationWarning
     >
-      {words.map((w: string, i: number) => (
-        <span
-          key={i}
-          className="kt-mask inline-block overflow-hidden align-bottom"
-          style={{
-            paddingBottom: "0.18em",
-            paddingTop: "0.06em",
-            paddingLeft: "0.05em",
-            paddingRight: "0.05em",
-            marginLeft: "-0.05em",
-            marginRight: "-0.05em",
-          }}
-          aria-hidden="true"
-        >
-          <span className="kt-word inline-block">
-            {w}
-            {i < words.length - 1 ? "\u00A0" : ""}
+      {words.map((w: string, i: number) => {
+        const d = delay + i * stagger;
+        return (
+          <span
+            key={i}
+            className="kt-mask inline-block overflow-hidden align-bottom"
+            style={{
+              paddingBottom: "0.18em",
+              paddingTop: "0.06em",
+              paddingLeft: "0.05em",
+              paddingRight: "0.05em",
+              marginLeft: "-0.05em",
+              marginRight: "-0.05em",
+            }}
+            aria-hidden="true"
+          >
+            <span
+              className={wordCls}
+              style={revealed && d > 0 ? { animationDelay: `${d}s` } : undefined}
+            >
+              {w}
+              {i < words.length - 1 ? "\u00A0" : ""}
+            </span>
           </span>
-        </span>
-      ))}
+        );
+      })}
     </Tg>
   );
 }

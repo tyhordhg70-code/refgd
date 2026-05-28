@@ -2,6 +2,7 @@
 import {
   useEffect,
   useRef,
+  useState,
   type ReactNode,
   type CSSProperties,
 } from "react";
@@ -23,9 +24,10 @@ export type RevealKind =
   | "twist";
 
 /**
- * SafeReveal (glass-card-reveal pattern — iOS-eviction-safe).
- * See Reveal.tsx for full strategy doc. Uses a CSS custom property
- * `--sr-from` to share one keyframe/class across all 14 kinds.
+ * SafeReveal — React-state-driven className (GlassCard pattern).
+ * See Reveal.tsx for full doc on why imperative classList mutation
+ * doesn't survive React re-renders. Uses CSS custom property
+ * --sr-from set via React's style prop (also declarative).
  */
 
 function fromTransformFor(kind: RevealKind): string {
@@ -53,11 +55,8 @@ function ensureCSS() {
   if (document.getElementById("sr-css")) return;
   const s = document.createElement("style");
   s.id = "sr-css";
-  // Single keyframe and class via CSS custom property --sr-from.
-  // Variable resolves at the from-keyframe's concrete value, then
-  // interpolates to none. Browser support: all modern browsers.
   s.textContent = `
-.sr-base{opacity:1;transform:none}
+.sr-base{opacity:1;transform:none;will-change:transform,opacity}
 .sr-pending{opacity:0;transform:var(--sr-from, translateY(20px))}
 @keyframes sr-go{from{opacity:0;transform:var(--sr-from, translateY(20px))}to{opacity:1;transform:none}}
 .sr-go{animation:sr-go var(--sr-dur, 0.95s) cubic-bezier(0.22,1,0.36,1) backwards}
@@ -87,54 +86,52 @@ export default function SafeReveal({
   as?: "div" | "section" | "article" | "li";
 }) {
   const ref = useRef<HTMLElement | null>(null);
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     ensureCSS();
     const el = ref.current;
     if (!el || typeof window === "undefined") return;
 
-    const done: WeakSet<Element> =
-      (window as any).__srDone ??
-      ((window as any).__srDone = new WeakSet());
-    if (done.has(el)) return;
-
-    // Set the per-element variables so keyframe + pending use this kind.
-    el.style.setProperty("--sr-from", fromTransformFor(kind));
-    el.style.setProperty("--sr-dur", `${duration}s`);
-
-    const initialRect = el.getBoundingClientRect();
-    const inViewOnMount =
-      initialRect.top < window.innerHeight && initialRect.bottom > 0;
-
-    if (inViewOnMount) {
-      done.add(el);
+    const r = el.getBoundingClientRect();
+    const inView =
+      r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0;
+    if (inView) {
+      setRevealed(true);
       return;
     }
 
-    el.classList.add("sr-pending");
-
-    const observer = new IntersectionObserver(
+    const io = new IntersectionObserver(
       (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            done.add(el);
-            if (delay > 0) el.style.animationDelay = `${delay}s`;
-            el.classList.remove("sr-pending");
-            el.classList.add("sr-go");
-            observer.disconnect();
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            setRevealed(true);
+            io.disconnect();
+            break;
           }
         }
       },
-      { threshold: 0.01 },
+      { rootMargin: "0px 0px -5% 0px", threshold: 0.05 },
     );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [kind, duration, delay]);
+  const stateCls = revealed ? "sr-go" : "sr-pending";
+  const mergedStyle: CSSProperties = {
+    ...(style || {}),
+    ["--sr-from" as any]: fromTransformFor(kind),
+    ["--sr-dur" as any]: `${duration}s`,
+    animationDelay: delay ? `${delay}s` : undefined,
+  };
 
   const Comp = Tag as any;
   return (
-    <Comp ref={ref} className={`sr-base ${className}`} style={style}>
+    <Comp
+      ref={ref}
+      className={`sr-base ${stateCls} ${className}`}
+      style={mergedStyle}
+    >
       {children}
     </Comp>
   );

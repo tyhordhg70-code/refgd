@@ -1,11 +1,9 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
- * LedTicker — fly-in entry + marquee scroll.
- * Entry animation follows the glass-card-reveal pattern: base CSS
- * keeps the ticker visible if iOS evicts the animation. Marquee
- * inside .led-ticker-track is pure CSS, always running.
+ * LedTicker — React-state-driven className (GlassCard pattern).
+ * See Reveal.tsx for full doc. Marquee inside is unchanged pure-CSS.
  */
 
 function ensureCSS() {
@@ -14,7 +12,7 @@ function ensureCSS() {
   const s = document.createElement("style");
   s.id = "lt-css";
   s.textContent = `
-.lt-base{opacity:1;transform:none}
+.lt-base{opacity:1;transform:none;will-change:transform,opacity}
 .lt-pending{opacity:0;transform:translate3d(80px,0,0) scaleX(0.92)}
 @keyframes lt-fly{from{opacity:0;transform:translateX(80px) scaleX(0.92)}to{opacity:1;transform:none}}
 .lt-go{animation:lt-fly 0.85s cubic-bezier(0.22,1.2,0.36,1) backwards;transform-origin:right center}
@@ -38,6 +36,7 @@ export default function LedTicker({
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     const el = trackRef.current;
@@ -52,44 +51,36 @@ export default function LedTicker({
     const el = wrapRef.current;
     if (!el || typeof window === "undefined") return;
 
-    const done: WeakSet<Element> =
-      (window as any).__ltDone ??
-      ((window as any).__ltDone = new WeakSet());
-    if (done.has(el)) return;
-
-    const initialRect = el.getBoundingClientRect();
-    const inViewOnMount =
-      initialRect.top < window.innerHeight && initialRect.bottom > 0;
-
-    if (inViewOnMount) {
-      done.add(el);
+    const r = el.getBoundingClientRect();
+    const inView =
+      r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0;
+    if (inView) {
+      setRevealed(true);
       return;
     }
 
-    el.classList.add("lt-pending");
-
-    const observer = new IntersectionObserver(
+    const io = new IntersectionObserver(
       (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            done.add(el);
-            el.classList.remove("lt-pending");
-            el.classList.add("lt-go");
-            observer.disconnect();
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            setRevealed(true);
+            io.disconnect();
+            break;
           }
         }
       },
-      { threshold: 0.05 },
+      { rootMargin: "0px 0px -5% 0px", threshold: 0.05 },
     );
-
-    observer.observe(el);
-    return () => observer.disconnect();
+    io.observe(el);
+    return () => io.disconnect();
   }, []);
+
+  const stateCls = revealed ? "lt-go" : "lt-pending";
 
   return (
     <div
       ref={wrapRef}
-      className={`led-ticker lt-base relative w-full overflow-hidden border-y border-white/[0.07] ${className}`}
+      className={`led-ticker lt-base ${stateCls} relative w-full overflow-hidden border-y border-white/[0.07] ${className}`}
       style={{ ["--led-accent" as string]: accent }}
     >
       <div className="led-ticker-mask">
