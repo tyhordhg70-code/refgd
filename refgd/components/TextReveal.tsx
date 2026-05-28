@@ -92,7 +92,10 @@ export default function TextReveal({
         style={style}
         initial={{ opacity: 0, filter: "blur(6px)", y: 24 }}
         whileInView={{ opacity: 1, filter: "blur(0px)", y: 0 }}
-        viewport={{ once: false, amount: 0.15 }}
+        // v21 — once:true so paragraphs don't fade back out when scrolled
+        // past and re-entered (user-reported "chapter 01 text goes missing
+        // on scroll" on /exclusive-mentorships).
+        viewport={{ once: true, amount: 0.15 }}
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         suppressHydrationWarning
       >
@@ -118,7 +121,8 @@ export default function TextReveal({
       variants={container}
       initial="hidden"
       whileInView="show"
-      viewport={{ once: false, amount: 0.15 }}
+      // v21 — once:true (see comment above on the simple path).
+      viewport={{ once: true, amount: 0.15 }}
       suppressHydrationWarning
     >
       {variant === "charBounce" || variant === "charGlitch"

@@ -157,21 +157,31 @@ function Row({
   // the detail is editable.
   const elastic = !!detail && !editing && !detailEditing;
   const showDetail = !!detail && (elastic || detailEditing);
-  // v20 — bypass framer-motion entrance on mobile-like devices. On
-  // Chrome Android, simultaneous transform/opacity keyframes across
-  // many staggered cards + backdrop-blur dropped frames and surfaced
-  // as the glass-card "vanishes mid appearance and reappears" flicker.
-  // On mobile we just render the <li> at final state immediately —
-  // no entrance, no flicker. Desktop keeps the bounce.
-  const [enableMotion, setEnableMotion] = useState(false);
-  useEffect(() => {
-    if (!isMobileLike()) setEnableMotion(true);
-  }, []);
-  const useMotion = enableMotion && !reduce;
-  const rowProps = useMotion
-    ? {
-        initial: { opacity: 0.001, y: 24, scale: 0.97 },
-        whileInView: {
+  // v21 — keep the entrance but DOWNGRADE to opacity-only on mobile.
+  // Full bounce (y + scale + opacity keyframes, staggered across many
+  // cards, on top of backdrop-blur) was overwhelming Chrome Android's
+  // compositor and producing the "vanishes mid appearance and reappears"
+  // flicker. Opacity-only fades cheaply and composites cleanly; desktop
+  // keeps the punchy bounce path.
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => { setMobile(isMobileLike()); }, []);
+  const initial = reduce
+    ? { opacity: 0 }
+    : mobile
+      ? { opacity: 0 }
+      : { opacity: 0.001, y: 24, scale: 0.97 };
+  const whileInView = reduce
+    ? { opacity: 1 }
+    : mobile
+      ? {
+          opacity: 1,
+          transition: {
+            duration: 0.45,
+            delay: Math.min(index * 0.04, 0.18),
+            ease: [0.22, 1, 0.36, 1],
+          },
+        }
+      : {
           opacity: 1,
           y: [24, -6, 0],
           scale: [0.97, 1.015, 1],
@@ -181,19 +191,16 @@ function Row({
             times: [0, 0.6, 1],
             ease: [0.22, 1, 0.36, 1],
           },
-        },
-        viewport: { once: true, margin: "0px 0px -10% 0px" },
-      }
-    : {};
-  const Tag = useMotion ? motion.li : "li";
+        };
   return (
     <>
-      <Tag
-        {...(rowProps as Record<string, unknown>)}
+      <motion.li
+        initial={initial}
+        whileInView={whileInView}
+        viewport={{ once: true, margin: "0px 0px -10% 0px" }}
         className="group relative isolate"
         suppressHydrationWarning
         data-testid={`bounce-list-item-${index}`}
-        data-bounce-bypass={useMotion ? undefined : "mobile"}
       >
         {/* Holographic rim glow */}
         <div
@@ -296,7 +303,7 @@ function Row({
             </div>
           ) : null}
         </div>
-      </Tag>
+      </motion.li>
       {afterNode ? (
         <li
           aria-hidden="true"
