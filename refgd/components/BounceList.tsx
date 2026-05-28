@@ -1,7 +1,8 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { isMobileLike } from "@/lib/iosCheck";
 import EditableText from "./EditableText";
 import { useEditContext } from "@/lib/edit-context";
 
@@ -156,37 +157,43 @@ function Row({
   // the detail is editable.
   const elastic = !!detail && !editing && !detailEditing;
   const showDetail = !!detail && (elastic || detailEditing);
+  // v20 — bypass framer-motion entrance on mobile-like devices. On
+  // Chrome Android, simultaneous transform/opacity keyframes across
+  // many staggered cards + backdrop-blur dropped frames and surfaced
+  // as the glass-card "vanishes mid appearance and reappears" flicker.
+  // On mobile we just render the <li> at final state immediately —
+  // no entrance, no flicker. Desktop keeps the bounce.
+  const [enableMotion, setEnableMotion] = useState(false);
+  useEffect(() => {
+    if (!isMobileLike()) setEnableMotion(true);
+  }, []);
+  const useMotion = enableMotion && !reduce;
+  const rowProps = useMotion
+    ? {
+        initial: { opacity: 0.001, y: 24, scale: 0.97 },
+        whileInView: {
+          opacity: 1,
+          y: [24, -6, 0],
+          scale: [0.97, 1.015, 1],
+          transition: {
+            duration: 0.55,
+            delay: Math.min(index * 0.04, 0.18),
+            times: [0, 0.6, 1],
+            ease: [0.22, 1, 0.36, 1],
+          },
+        },
+        viewport: { once: true, margin: "0px 0px -10% 0px" },
+      }
+    : {};
+  const Tag = useMotion ? motion.li : "li";
   return (
     <>
-      <motion.li
-        initial={
-          reduce
-            ? { opacity: 0 }
-            : { opacity: 0.001, y: 24, scale: 0.97 }
-        }
-        whileInView={
-          reduce
-            ? { opacity: 1 }
-            : {
-                opacity: 1,
-                y: [24, -6, 0],
-                scale: [0.97, 1.015, 1],
-                transition: {
-                  duration: 0.55,
-                  delay: Math.min(index * 0.04, 0.18),
-                  times: [0, 0.6, 1],
-                  ease: [0.22, 1, 0.36, 1],
-                },
-              }
-        }
-        // v18 — once: true so each card runs its entrance ONCE and stays
-        // visible; once:false was retriggering the fly-up + bounce every
-        // time the row crossed the viewport edge, which read as the
-        // glass cards flickering on rescroll.
-        viewport={{ once: true, margin: "0px 0px -10% 0px" }}
+      <Tag
+        {...(rowProps as Record<string, unknown>)}
         className="group relative isolate"
         suppressHydrationWarning
         data-testid={`bounce-list-item-${index}`}
+        data-bounce-bypass={useMotion ? undefined : "mobile"}
       >
         {/* Holographic rim glow */}
         <div
@@ -289,7 +296,7 @@ function Row({
             </div>
           ) : null}
         </div>
-      </motion.li>
+      </Tag>
       {afterNode ? (
         <li
           aria-hidden="true"

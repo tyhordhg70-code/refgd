@@ -1,24 +1,21 @@
 "use client";
 import { motion, useReducedMotion } from "framer-motion";
-import { type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useEntranceReady } from "@/lib/loading-screen-gate";
+import { isMobileLike } from "@/lib/iosCheck";
 
 /**
- * VanishWrapper — wraps a block of cards / content with a one-shot
- * scroll-into-view ENTRANCE only.
+ * VanishWrapper — one-shot scroll-into-view ENTRANCE only.
  *
- * Earlier versions of this wrapper were tied to scroll progress and
- * faded the wrapped block back OUT once the section scrolled past
- * mid-screen. That caused the "What's Included" boxcards on the
- * mentorship page to vanish + reappear every time the user scrolled
- * past the section, which the user explicitly does not want — they
- * want the entrance only. Now this is a thin wrapper around a single
- * `whileInView` fade-in: the cards slide / fade in once and stay put
- * forever after.
- *
- * `drift` and `minScale` are kept in the API for backwards-compat with
- * existing callers (`drift={50} minScale={0.92}`) so the props don't
- * have to be removed everywhere.
+ * v20 — bypass framer-motion entirely on mobile-like devices
+ * (Chrome Android, etc.). The fade+scale+y entrance was producing
+ * the "glass cards animation flickers and vanishes mid appearance
+ * and reappears" report on Refund + SE mentorship sections — the
+ * mobile compositor was dropping frames during the simultaneous
+ * VanishWrapper transform AND staggered BounceList Row transforms
+ * AND backdrop-blur recomposite, surfacing as visible re-paints.
+ * Matches the v12 pattern already applied to Reveal / SafeReveal /
+ * KineticText / LedTicker (see lib/iosCheck.ts).
  */
 export default function VanishWrapper({
   children,
@@ -32,16 +29,22 @@ export default function VanishWrapper({
   minScale?: number;
 }) {
   const reduce = useReducedMotion();
-  // Defer the whileInView trigger until the loading splash has lifted
-  // so above-the-fold blocks don't burn their entrance fade behind
-  // the splash overlay (the user-visible bug: "page load animation
-  // for home page is not visible after loading screen").
   const entranceReady = useEntranceReady();
+  // v20 — SSR + mobile: stays at `enableMotion=false` so the wrapper
+  // renders as a plain visible <div>. useEffect upgrades to motion
+  // ONLY on desktop after mount. drift / minScale kept in API for
+  // backwards-compat with existing callers (`drift={50} minScale={0.92}`).
+  const [enableMotion, setEnableMotion] = useState(false);
+  useEffect(() => {
+    if (!isMobileLike()) setEnableMotion(true);
+  }, []);
 
-  if (reduce) {
-    return <div className={className}>{children}</div>;
+  if (reduce || !enableMotion) {
+    return <div className={className} data-vanish-bypass={enableMotion ? undefined : "mobile"}>{children}</div>;
   }
 
+  // ignore-unused: kept so the surface area matches the previous prop
+  void drift; void minScale;
   return (
     <motion.div
       className={className}
@@ -49,11 +52,6 @@ export default function VanishWrapper({
       {...(entranceReady
         ? {
             whileInView: { opacity: 1, y: 0, scale: 1 },
-            // v18 — once: true so cards do NOT fade back to opacity:0 when
-            // the wrapper exits viewport on rescroll. Previous once:false
-            // contradicted this component's own docstring and produced the
-            // "glass cards animation flickers and vanishes mid appearance
-            // and reappears" report on Refund/SE mentorship sections.
             viewport: { once: true, margin: "0px 0px -10% 0px" },
           }
         : {})}
