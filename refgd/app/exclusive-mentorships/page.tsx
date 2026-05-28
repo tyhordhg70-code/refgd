@@ -676,7 +676,7 @@ export default function MentorshipsPage() {
                   editId="ment.se.included.title"
                   className="editorial-display mt-4 text-white text-[clamp(1.7rem,4.5vw,3.8rem)] uppercase sm:mt-5"
                   stagger={0.05}
-                  style={{ textShadow: "0 4px 30px rgba(0,0,0,0.9)", letterSpacing: "-0.025em" }}
+                  style={{ textShadow: "0 4px 30px rgba(0,0,0,0.9)", letterSpacing: "0" }}
                 />
               </Reveal>
 

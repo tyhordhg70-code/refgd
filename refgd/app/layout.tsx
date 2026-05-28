@@ -29,7 +29,8 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import Nav from "@/components/Nav";
-import Footer from "@/components/Footer";
+// v18 — Footer removed from all pages per user request. Import + mount
+// dropped here; components/Footer.tsx left in repo unused.
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import CustomCursor from "@/components/CustomCursor";
 import MusicPlayer from "@/components/MusicPlayer";
@@ -165,7 +166,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <AutoEditWrapper>
             <main className="relative z-[2]">{children}</main>
           </AutoEditWrapper>
-          <Footer />
+          {/* v18 — Footer unmounted per user request */}
           <CustomCursor />
           {/* Persistent background music — lives here so it survives
               navigation between pages. Close button lets users hide it. */}

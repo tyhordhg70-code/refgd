@@ -49,7 +49,12 @@ export default function VanishWrapper({
       {...(entranceReady
         ? {
             whileInView: { opacity: 1, y: 0, scale: 1 },
-            viewport: { once: false, margin: "0px 0px -10% 0px" },
+            // v18 — once: true so cards do NOT fade back to opacity:0 when
+            // the wrapper exits viewport on rescroll. Previous once:false
+            // contradicted this component's own docstring and produced the
+            // "glass cards animation flickers and vanishes mid appearance
+            // and reappears" report on Refund/SE mentorship sections.
+            viewport: { once: true, margin: "0px 0px -10% 0px" },
           }
         : {})}
       transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}

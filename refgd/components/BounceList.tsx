@@ -179,7 +179,11 @@ function Row({
                 },
               }
         }
-        viewport={{ once: false, margin: "0px 0px -10% 0px" }}
+        // v18 — once: true so each card runs its entrance ONCE and stays
+        // visible; once:false was retriggering the fly-up + bounce every
+        // time the row crossed the viewport edge, which read as the
+        // glass cards flickering on rescroll.
+        viewport={{ once: true, margin: "0px 0px -10% 0px" }}
         className="group relative isolate"
         suppressHydrationWarning
         data-testid={`bounce-list-item-${index}`}

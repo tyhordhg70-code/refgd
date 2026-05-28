@@ -41,8 +41,12 @@ export default function ImpactHeadline({
   // read as a hammer-drop quote). 950 weight, thicker text-stroke,
   // brighter violet glow + double drop-shadow so the line is
   // instantly the loudest element on the page.
+  // v18 — explicit letterSpacing: 0 overrides .editorial-display's
+  // -0.045em tracking which combined with weight 950 + italic was
+  // making the "Stop paying for other BS..." headline glyphs collide.
   const baseStyle: CSSProperties = {
     fontWeight: 950,
+    letterSpacing: "0",
     WebkitTextStroke: "1.6px rgba(0,0,0,0.7)",
     textShadow:
       "0 6px 32px rgba(0,0,0,0.98), 0 2px 8px rgba(0,0,0,0.98), 0 0 56px rgba(167,139,250,0.55)",
