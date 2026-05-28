@@ -19,11 +19,9 @@ type Props = {
   children: string;
   className?: string;
   as?: "p" | "h1" | "h2" | "h3" | "h4" | "div" | "span";
-  /** Kept for API compatibility — no longer drives scroll progress. */
   spread?: number;
   style?: React.CSSProperties;
   variant?: Variant;
-  /** Stable content-id; when set the block becomes editable in admin edit mode. */
   editId?: string;
 };
 
@@ -61,30 +59,8 @@ export default function TextReveal({
 
   const composedClassName = `${className} whitespace-pre-line`.trim();
 
-  // v28 — SSR + pre-hydration paint is ALWAYS plain visible text.
-  // The mobile/desktop animation branches below only run after the
-  // useEffect resolves what device this is. This eliminates two
-  // user-visible bugs from v25:
-  //   1. The desktop "lineMask" branch's `initial={filter:blur(6px)}`
-  //      was being SSR'd to mobile devices, leaving paragraphs
-  //      blurred on first paint and stranding them blurred whenever
-  //      the IntersectionObserver flake fired late (or at all).
-  //   2. Hydration mismatch between server (always desktop variant
-  //      tree) and client (mobile variant tree) was unmounting one
-  //      motion subtree and remounting the other, occasionally
-  //      losing the animation entirely.
   if (!mounted || reduce) {
     const Plain = as as keyof JSX.IntrinsicElements;
-    if (reduce) {
-      return (
-        <Plain className={composedClassName} style={style}>
-          {text}
-        </Plain>
-      );
-    }
-    // Pre-hydration: render the *visible* end state so nothing
-    // can possibly be stranded blurred or transparent. After
-    // mount we will replace this with the animated motion tree.
     return (
       <Plain className={composedClassName} style={style} suppressHydrationWarning>
         {text}
@@ -92,26 +68,59 @@ export default function TextReveal({
     );
   }
 
-  // v28 — on mobile, use `animate` (plays on mount) instead of
-  // `whileInView` (IntersectionObserver-driven). The IO path was
-  // intermittently failing on Chrome Android — same root cause that
-  // forced isMobileLike() to be used by Reveal/SafeReveal/KineticText/
-  // LedTicker. Mount-tween animations never strand content invisible
-  // because they don't depend on any observer firing. Below-fold
-  // paragraphs animate by the time the user scrolls there and just
-  // appear naturally, which is the expected mobile experience.
+  // v29 — mobile text animation. Per-word stagger so the user can
+  // actually SEE the animation happen (v28's single-element fade
+  // was so brief and undifferentiated that the user perceived it
+  // as "no animation"). Critical design choices for mobile safety:
+  //
+  //   • opacity-only (no transform, no blur, no filter). Plain
+  //     opacity transitions on inline spans do NOT promote those
+  //     spans to GPU layers, so we don't recreate the v25 problem
+  //     of "200+ GPU layers per paragraph evicted by Chrome Android".
+  //   • display: inline (not inline-block). inline-block forces
+  //     each span into its own box and tempts the compositor to
+  //     layer-promote it.
+  //   • NO will-change set on the spans.
+  //   • animate (not whileInView) — mount-tween entrance, no
+  //     IntersectionObserver that could fail and strand the text
+  //     invisible. Each paragraph animates as soon as it mounts,
+  //     so by the time the user scrolls to below-fold content it
+  //     is already visible.
+  //   • Container stagger of 0.03s per word produces a clear
+  //     left-to-right reveal "wave" that reads unmistakably as
+  //     an animation.
   if (mobile) {
     const Tag = motion[as as "p"] as typeof motion.p;
+    const mobileContainer: Variants = {
+      hidden: {},
+      show: {
+        transition: { staggerChildren: 0.03, delayChildren: 0.05 },
+      },
+    };
+    const mobileWord: Variants = {
+      hidden: { opacity: 0 },
+      show: {
+        opacity: 1,
+        transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+      },
+    };
     return (
       <Tag
         className={composedClassName}
         style={style}
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        variants={mobileContainer}
+        initial="hidden"
+        animate="show"
         suppressHydrationWarning
       >
-        {text}
+        {tokens.map((token, i) => {
+          if (/^\s+$/.test(token)) return token;
+          return (
+            <motion.span key={i} variants={mobileWord} style={{ display: "inline" }}>
+              {token}
+            </motion.span>
+          );
+        })}
       </Tag>
     );
   }
