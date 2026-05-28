@@ -12,6 +12,7 @@ import KineticText from "@/components/KineticText";
 import ParallaxChapter from "@/components/ParallaxChapter";
 import { Reveal } from "@/components/Reveal";
 import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
+import IOSHide from "@/components/IOSHide";
 import EditableText from "@/components/EditableText";
 import ChapterPill from "@/components/ChapterPill";
 import LedTicker from "@/components/LedTicker";
@@ -221,6 +222,7 @@ export default async function StoreListPage() {
           page lengths with headroom; spots and particles below are
           re-distributed across the full range so the colour pulses
           stay visible everywhere on the page. */}
+      <IOSHide>
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 -z-[1] overflow-hidden"
@@ -349,6 +351,7 @@ export default async function StoreListPage() {
           );
         })}
       </div>
+      </IOSHide>
 
       {/* v6.13.34 — Skip-to-storelist button. Visibility is now
           gated by an IntersectionObserver on the get-rewarded
@@ -379,7 +382,7 @@ export default async function StoreListPage() {
         </ReorderableSection>
 
         {/* Acts 2-5 + Lock centerpiece — "Stop wasting time" → "How it
-            works" → "Why choose us" → Lock → Awarded CTA. */}
+            works" → "Why choose us" ��� Lock → Awarded CTA. */}
         <ReorderableSection sectionId="service-intro-rest">
           <ServiceSection slice="rest" noBg />
         </ReorderableSection>
