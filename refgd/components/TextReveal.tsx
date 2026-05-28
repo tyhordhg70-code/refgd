@@ -218,7 +218,8 @@ function DesktopProgressive({
   // Listener: convert scroll progress into a count of revealed units.
   // Latches via monotonic max — count can only go up.
   useMotionValueEvent(scrollYProgress, "change", (v) => {
-    const ratio = Math.min(1, Math.max(0, v / spread));
+    const safeSpread = spread > 0 ? spread : 0.6;
+    const ratio = Math.min(1, Math.max(0, v / safeSpread));
     const next = Math.min(visibleUnitCount, Math.ceil(ratio * visibleUnitCount));
     setRevealedCount((prev) => (next > prev ? next : prev));
   });
@@ -227,7 +228,8 @@ function DesktopProgressive({
   // element (e.g. anchor link, back navigation), reveal immediately.
   useEffect(() => {
     const v = scrollYProgress.get();
-    const ratio = Math.min(1, Math.max(0, v / spread));
+    const safeSpread = spread > 0 ? spread : 0.6;
+    const ratio = Math.min(1, Math.max(0, v / safeSpread));
     const next = Math.min(visibleUnitCount, Math.ceil(ratio * visibleUnitCount));
     if (next > 0) setRevealedCount((prev) => (next > prev ? next : prev));
     // eslint-disable-next-line react-hooks/exhaustive-deps
