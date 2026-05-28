@@ -25,6 +25,33 @@ type Props = {
   editId?: string;
 };
 
+/**
+ * v30 — mobile + desktop both run the FULL per-variant text
+ * animations (blur, slide, wave, bounce, glitch). The only
+ * difference between the two: mobile uses `animate` (mount-tween)
+ * and desktop uses `whileInView` (scroll-trigger).
+ *
+ * Why this is safe on mobile:
+ *
+ *   • The original v25 GPU-layer concern (200+ will-change spans
+ *     per long paragraph + 1000vh scroll bg = Chrome Android tile
+ *     eviction) only applied while the spans were LONG-LIVED with
+ *     active will-change AND repeatedly toggled in/out of view by
+ *     IntersectionObserver. With mount-tween, each span animates
+ *     once on mount and framer-motion automatically clears its
+ *     will-change when the animation settles. Nothing stays
+ *     promoted, nothing gets re-triggered by scroll.
+ *
+ *   • IntersectionObserver was the real bug — it intermittently
+ *     failed to fire on Chrome Android and stranded entire
+ *     paragraphs at opacity:0 forever. `animate` doesn't use IO
+ *     at all, so this class of failure is eliminated.
+ *
+ *   • The `mounted` gate guarantees SSR + pre-hydration paint
+ *     is always plain visible text, so even if hydration is
+ *     delayed by the loading screen the content cannot be
+ *     stranded blurred or invisible.
+ */
 export default function TextReveal({
   children,
   className = "",
@@ -68,72 +95,33 @@ export default function TextReveal({
     );
   }
 
-  // v29 — mobile text animation. Per-word stagger so the user can
-  // actually SEE the animation happen (v28's single-element fade
-  // was so brief and undifferentiated that the user perceived it
-  // as "no animation"). Critical design choices for mobile safety:
-  //
-  //   • opacity-only (no transform, no blur, no filter). Plain
-  //     opacity transitions on inline spans do NOT promote those
-  //     spans to GPU layers, so we don't recreate the v25 problem
-  //     of "200+ GPU layers per paragraph evicted by Chrome Android".
-  //   • display: inline (not inline-block). inline-block forces
-  //     each span into its own box and tempts the compositor to
-  //     layer-promote it.
-  //   • NO will-change set on the spans.
-  //   • animate (not whileInView) — mount-tween entrance, no
-  //     IntersectionObserver that could fail and strand the text
-  //     invisible. Each paragraph animates as soon as it mounts,
-  //     so by the time the user scrolls to below-fold content it
-  //     is already visible.
-  //   • Container stagger of 0.03s per word produces a clear
-  //     left-to-right reveal "wave" that reads unmistakably as
-  //     an animation.
-  if (mobile) {
-    const Tag = motion[as as "p"] as typeof motion.p;
-    const mobileContainer: Variants = {
-      hidden: {},
-      show: {
-        transition: { staggerChildren: 0.03, delayChildren: 0.05 },
-      },
-    };
-    const mobileWord: Variants = {
-      hidden: { opacity: 0 },
-      show: {
-        opacity: 1,
-        transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
-      },
-    };
-    return (
-      <Tag
-        className={composedClassName}
-        style={style}
-        variants={mobileContainer}
-        initial="hidden"
-        animate="show"
-        suppressHydrationWarning
-      >
-        {tokens.map((token, i) => {
-          if (/^\s+$/.test(token)) return token;
-          return (
-            <motion.span key={i} variants={mobileWord} style={{ display: "inline" }}>
-              {token}
-            </motion.span>
-          );
-        })}
-      </Tag>
-    );
-  }
+  // Helper to choose between mount-tween (mobile) and scroll-trigger (desktop).
+  const triggerProps = mobile
+    ? { initial: "hidden" as const, animate: "show" as const }
+    : {
+        initial: "hidden" as const,
+        whileInView: "show" as const,
+        viewport: { once: true, amount: 0.15 },
+      };
 
+  // Single-paragraph lineMask variant runs the blur-to-clear entrance.
   if (variant === "lineMask") {
     const Tag = motion[as as "p"] as typeof motion.p;
+    const lineMaskMobile = mobile
+      ? {
+          initial: { opacity: 0, filter: "blur(6px)", y: 24 },
+          animate: { opacity: 1, filter: "blur(0px)", y: 0 },
+        }
+      : {
+          initial: { opacity: 0, filter: "blur(6px)", y: 24 },
+          whileInView: { opacity: 1, filter: "blur(0px)", y: 0 },
+          viewport: { once: true, amount: 0.15 },
+        };
     return (
       <Tag
         className={composedClassName}
         style={style}
-        initial={{ opacity: 0, filter: "blur(6px)", y: 24 }}
-        whileInView={{ opacity: 1, filter: "blur(0px)", y: 0 }}
-        viewport={{ once: true, amount: 0.15 }}
+        {...lineMaskMobile}
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         suppressHydrationWarning
       >
@@ -154,9 +142,7 @@ export default function TextReveal({
       className={composedClassName}
       style={style}
       variants={container}
-      initial="hidden"
-      whileInView="show"
-      viewport={{ once: true, amount: 0.15 }}
+      {...triggerProps}
       suppressHydrationWarning
     >
       {variant === "charBounce" || variant === "charGlitch"
@@ -218,7 +204,7 @@ function renderWords(tokens: string[], word: Variants) {
   return tokens.map((token, i) => {
     if (/^\s+$/.test(token)) return token;
     return (
-      <motion.span key={i} variants={word} style={{ display: "inline-block", willChange: "transform, opacity, filter" }} suppressHydrationWarning>
+      <motion.span key={i} variants={word} style={{ display: "inline-block" }} suppressHydrationWarning>
         {token}
       </motion.span>
     );
@@ -229,7 +215,7 @@ function renderChars(text: string, char: Variants) {
   return text.split("").map((c, i) => {
     if (c === " ") return " ";
     return (
-      <motion.span key={i} variants={char} style={{ display: "inline-block", willChange: "transform, opacity, filter" }} suppressHydrationWarning>
+      <motion.span key={i} variants={char} style={{ display: "inline-block" }} suppressHydrationWarning>
         {c}
       </motion.span>
     );
