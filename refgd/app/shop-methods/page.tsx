@@ -5,7 +5,6 @@ import ShopMethodsGrid from "@/components/shop/ShopMethodsGrid";
 import ShopFeatures from "@/components/shop/ShopFeatures";
 import ShopFAQ from "@/components/shop/ShopFAQ";
 import ShopVouchesModal from "@/components/shop/ShopVouchesModal";
-import ShopReviewsFab from "@/components/shop/ShopReviewsFab";
 import ShopLiquidParticles from "@/components/shop/ShopLiquidParticles";
 import { getShopCatalog } from "@/lib/shop-catalog";
 
@@ -25,7 +24,6 @@ export default async function ShopMethodsPage() {
       <ShopFeatures />
       <ShopFAQ />
       <ShopVouchesModal />
-      <ShopReviewsFab />
     </main>
   );
 }

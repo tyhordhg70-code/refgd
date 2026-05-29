@@ -10,8 +10,9 @@ import type { ShopCategory as Category } from "@/lib/shop-catalog";
 
 /**
  * ShopMethodsGrid — category card grid.
- *   • Unified entrance animation: all cards use the same rotateX sweep,
- *     staggered by index (per user request: "same animation as insert aged orders").
+ *   • Unified entrance animation: all cards use the same simple 2D fade + slide-up,
+ *     staggered by index. No 3D transforms (perspective / preserve-3d / rotateX) —
+ *     those broke cards on smooth scroll (tearing / vanishing).
  *   • Layered radial-gradient card background: dual corner accent glows on a
  *     dark glass base — more depth than a flat directional gradient.
  *   • Dark image area with generous padding (p-9) so category images aren't
@@ -81,7 +82,6 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
         {/* Category card grid */}
         <div
           className="relative mt-10 sm:mt-12 grid gap-5 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-7"
-          style={{ perspective: 1400 }}
         >
           {categories.map((c, i) => {
             const count = c.products?.length ?? 0;
@@ -100,14 +100,16 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
             return (
               <motion.div
                 key={c.slug}
-                /* All cards use the same entrance animation (straight-on rotateX sweep,
-                   no per-index rotateY variation), staggered by delay. */
-                initial={reduced ? {} : { opacity: 0, y: 60, rotateX: 10, scale: 0.9 }}
-                whileInView={reduced ? undefined : { opacity: 1, y: 0, rotateX: 0, scale: 1 }}
+                /* All cards share the same simple 2D entrance (opacity + slide-up),
+                   staggered by index. No 3D rotateX / preserve-3d / perspective —
+                   those promote each card to a 3D compositor layer that the browser
+                   mis-paints during smooth (Lenis) scrolling, which is what caused
+                   the cards to "break in half / vanish on scroll". */
+                initial={reduced ? {} : { opacity: 0, y: 48 }}
+                whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.12, margin: "0px 0px -10% 0px" }}
-                transition={{ duration: 1.0, delay: 0.08 + i * 0.12, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 0.8, delay: 0.06 + i * 0.1, ease: [0.22, 1, 0.36, 1] }}
                 className="group relative"
-                style={{ transformStyle: "preserve-3d" }}
               >
                 <Link href={`/shop-methods/${c.slug}`} className="block h-full" aria-label={`View ${c.title}`}>
                   <div
