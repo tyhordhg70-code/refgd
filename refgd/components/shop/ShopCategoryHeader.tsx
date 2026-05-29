@@ -10,8 +10,9 @@
   /**
    * ShopCategoryHeader — compact header for /shop-methods/[slug].
    *
-   * Deliberately slim: a breadcrumb, the category quick-switcher chip row, and
-   * a tight title + tagline. The previous version wrapped everything in a tall
+   * Deliberately slim: a breadcrumb plus a tight title + readable description.
+   * The quick-switcher category chip row was removed (it didn't belong on the
+   * product list page). The previous version also wrapped everything in a tall
    * gradient "hero card" with a large image plate, which pushed the product
    * grid a full screen down — users had to scroll far to reach the products.
    * Removing that box card lets the product list sit right under the header.
