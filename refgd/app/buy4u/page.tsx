@@ -758,11 +758,67 @@ const CARDS_PER_PAGE = 24;
   }
 
   function SectionPillNav() {
+  // Which section the reader is currently on. Highlights ("lights up") the
+  // matching pill. Driven by an IntersectionObserver scroll-spy, but a
+  // manual click wins for a short window so it doesn't flicker mid-scroll.
+  const [active, setActive] = useState<string>(SECTIONS[0]?.id ?? "");
+  const navRef = useRef<HTMLElement>(null);
+  const manualUntil = useRef<number>(0);
+
+  // Scroll-spy: mark the section nearest the top of the viewport active.
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (Date.now() < manualUntil.current) return; // let a click settle
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length) {
+          setActive(visible[0].target.id.replace(/^buy4u-/, ""));
+        }
+      },
+      // Active band sits just below the sticky nav, ~upper third of screen.
+      { rootMargin: "-30% 0px -60% 0px", threshold: 0 },
+    );
+    SECTIONS.forEach((s) => {
+      const el = document.getElementById(`buy4u-${s.id}`);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  // Keep the active pill scrolled into view inside the horizontal bar.
+  useEffect(() => {
+    const el = navRef.current?.querySelector(
+      `[data-pill="${active}"]`,
+    ) as HTMLElement | null;
+    el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [active]);
+
   return (
-    <nav aria-label="Buy4U sections" className="sticky top-16 z-20 -mx-4 mb-8 border-y border-white/10 bg-ink-950/90 backdrop-blur-xl">
+    <nav ref={navRef} aria-label="Buy4U sections" className="sticky top-16 z-20 -mx-4 mb-8 border-y border-white/10 bg-ink-950/90 backdrop-blur-xl">
         <div className="relative">
           <ul className="flex items-center gap-2 overflow-x-auto px-4 py-3 snap-x scroll-px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {SECTIONS.map(s => <li key={s.id} className="snap-start shrink-0"><a href={`#buy4u-${s.id}`} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/90 transition active:scale-95 active:bg-amber-400/20 hover:border-amber-300/60 hover:bg-amber-400/10 hover:text-white"><span aria-hidden="true">{s.icon}</span><span>{s.label}</span></a></li>)}
+            {SECTIONS.map(s => {
+              const on = s.id === active;
+              return (
+                <li key={s.id} className="snap-start shrink-0">
+                  <a
+                    href={`#buy4u-${s.id}`}
+                    data-pill={s.id}
+                    aria-current={on ? "true" : undefined}
+                    onClick={() => { manualUntil.current = Date.now() + 900; setActive(s.id); }}
+                    className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition active:scale-95 ${
+                      on
+                        ? "border-amber-300/70 bg-amber-400/20 text-white shadow-[0_0_22px_-6px_rgba(245,185,69,0.75)]"
+                        : "border-white/10 bg-white/[0.06] text-white/90 hover:border-amber-300/60 hover:bg-amber-400/10 hover:text-white"
+                    }`}
+                  >
+                    <span aria-hidden="true">{s.icon}</span><span>{s.label}</span>
+                  </a>
+                </li>
+              );
+            })}
           </ul>
           {/* Mobile scroll hints — visible fades + arrow so users know the bar scrolls */}
           <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-ink-950 to-transparent md:hidden" />
