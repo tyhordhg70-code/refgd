@@ -1261,6 +1261,24 @@ html, body { overscroll-behavior-y: none; }
     transform: none !important;
     transform-style: flat !important;
     will-change: auto !important;
+    /* v44 — THE remaining cause of "glass cards STILL vanish on mobile".
+       v43 killed the perpetual GPU promotions but LEFT backdrop-filter in
+       place on these surfaces. (The existing .paths-intro/.glass-strong
+       backdrop-filter:none rule above only covers the HOME path cards, not
+       the .liquid-glass-3d GlassCard / ChapterHeader used on the mentorship
+       and cancellation pages — so those still ran a live backdrop blur.)
+       backdrop-filter is the well-known Chrome-Android bug where the
+       element paints BLANK/black while scrolling and never repaints — the
+       exact "cards vanish" report. Drop it on touch and lean on a solid,
+       more-opaque background instead. The `!important` also beats the
+       GlassCard inline `background-color: rgba(8,6,18,0.62)` and the
+       Tailwind `backdrop-blur-2xl` utility, so each glass surface becomes a
+       plain opaque painted card that physically cannot blank out.
+       (ChapterHeader paints its own opaque gradient on top, so this color
+       layer is invisible there — no visual regression.) */
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-color: rgba(8, 6, 18, 0.9) !important;
   }
   .liquid-glass-3d:hover {
     transform: none;

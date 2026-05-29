@@ -105,14 +105,17 @@ export default function MentorshipsPage() {
 
       {/* Inline CTA */}
       <section className="relative z-10 pb-8 pt-12 text-center">
-        <Reveal>
+        {/* v44 — Buy Now now FLIES IN with the parallax entrance (3D
+            translate + rotate + Z-depth, one-shot once:true so it never
+            vanishes on backscroll) instead of the plain fade Reveal. */}
+        <CubicParallax axis="y" amount={70} rotate={10} depth={160}>
           <MagneticButton href="https://refundgod.bgng.io/" external variant="primary">
             Buy Now
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
             </svg>
           </MagneticButton>
-        </Reveal>
+        </CubicParallax>
       </section>
 
       {/* ─── Act 2a — Refunding chapter 01 ────────────────────────── */}
@@ -139,13 +142,20 @@ export default function MentorshipsPage() {
                   accent="violet"
                   size="sm"
                 />
-                <KineticText
+                {/* v44 — was a KineticText, which is bypassed entirely on
+                    mobile (it renders static there), so this heading never
+                    animated on phones. Switched to TextReveal (v39 staggered
+                    whileInView, once:true) so each word flips up on scroll-in
+                    reliably on BOTH mobile and desktop, and latches visible. */}
+                <TextReveal
                   as="h2"
-                  text="What is this Refunding Mentorship about?"
+                  variant="wordWave"
                   editId="ment.refund.title"
                   className="editorial-display mt-4 text-white text-[clamp(1.7rem,4.5vw,4rem)] uppercase sm:mt-5"
                   style={{ textShadow: "0 4px 30px rgba(0,0,0,0.9), 0 2px 6px rgba(0,0,0,0.95)" }}
-                />
+                >
+                  What is this Refunding Mentorship about?
+                </TextReveal>
               </Reveal>
 
               <div className="mt-8 space-y-6 text-base leading-relaxed text-white/85 sm:text-lg">
@@ -403,7 +413,7 @@ export default function MentorshipsPage() {
         </div>
       </section>
 
-      {/* ─── Act 5 — What's included (Refund) — bounce list ───────── */}
+      {/* ─── Act 5 — What's included (Refund) — bounce list ────────��� */}
       <section className="relative py-20 sm:py-24">
         <div className="container-wide">
           <div className="grid items-start gap-10 lg:grid-cols-12 lg:gap-14">
@@ -798,16 +808,18 @@ export default function MentorshipsPage() {
                 "0 4px 24px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.95), 0 0 50px rgba(167,139,250,0.45)",
             }}
           />
-          <Reveal delay={0.5}>
-            <div className="mt-5 sm:mt-6">
+          {/* v44 — final CTA Buy Now also flies in with the parallax
+              entrance (one-shot, latches visible — no backscroll vanish). */}
+          <div className="mt-5 sm:mt-6">
+            <CubicParallax axis="y" amount={70} rotate={10} depth={160}>
               <MagneticButton href="https://refundgod.bgng.io/" external variant="primary">
                 Buy Now
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                   <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
                 </svg>
               </MagneticButton>
-            </div>
-          </Reveal>
+            </CubicParallax>
+          </div>
         </div>
       </section>
     </div>
