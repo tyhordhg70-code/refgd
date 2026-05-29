@@ -194,11 +194,22 @@ function ForumPost({
           </div>
 
           {review.quote && (
-            <div className="mb-4 rounded-lg border-l-2 border-violet-500/50 bg-violet-950/20 px-3 py-3 sm:px-4">
-              <p className="mb-1 text-[11px] font-semibold text-slate-500">
-                Originally Posted by {review.quote.author}
-              </p>
-              <p className="line-clamp-3 break-words text-xs italic leading-relaxed text-slate-400">
+            <div className="mb-4 overflow-hidden rounded-lg border border-violet-500/25 bg-violet-500/[0.06]">
+              <div className="flex items-center gap-1.5 border-b border-violet-500/20 bg-violet-500/10 px-3 py-1.5">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-3 w-3 shrink-0 text-violet-400/80"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path d="M7.17 6A5.17 5.17 0 0 0 2 11.17V18h6.83v-6.83H5.5A3.67 3.67 0 0 1 9.17 7.5V6H7.17Zm10 0A5.17 5.17 0 0 0 12 11.17V18h6.83v-6.83H15.5a3.67 3.67 0 0 1 3.67-3.67V6h-2Z" />
+                </svg>
+                <span className="text-[11px] font-semibold text-violet-300/90">
+                  Originally Posted by{" "}
+                  <span className="text-violet-200">{review.quote.author}</span>
+                </span>
+              </div>
+              <p className="whitespace-pre-wrap break-words px-3 py-2.5 text-xs italic leading-relaxed text-slate-400">
                 {review.quote.text}
               </p>
             </div>
