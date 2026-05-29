@@ -22,8 +22,9 @@ type CheckoutState =
  * Clicking "View product" opens a full product detail popup (Billgang-style):
  * large product image on a clean white plate, the full markdown description,
  * the product's checkout custom-fields and a pay-with-crypto flow. Paying
- * POSTs to /api/checkout (mints a NowPayments invoice) and embeds the
- * invoice in an iframe so the buyer pays without leaving refgd.
+ * POSTs to /api/checkout (mints a NowPayments invoice) and surfaces a secure
+ * "Open payment page" link the buyer follows to complete payment (the invoice
+ * page refuses iframe embedding, so we link out in a new tab instead).
  */
 export default function ShopProductList({ category: c }: { category: Category }) {
   const reduced = useReducedMotion();
@@ -261,19 +262,29 @@ export default function ShopProductList({ category: c }: { category: Category })
                                   Start over
                                 </button>
                               </div>
-                              <iframe
-                                src={checkout.url}
-                                title={`NowPayments checkout for ${p.title}`}
-                                className="block h-[560px] w-full rounded-xl border border-white/10 bg-white sm:h-[640px]"
-                                allow="payment *; clipboard-write"
-                                referrerPolicy="no-referrer"
-                              />
-                              <p className="mt-3 text-center text-[11px] uppercase tracking-[0.2em] text-white/45">
-                                Having trouble?{" "}
-                                <a className="text-amber-300 underline" href={checkout.url} target="_blank" rel="noopener noreferrer">
-                                  Open in new tab
+                              <div className="rounded-xl border border-white/10 bg-black/30 px-5 py-8 text-center">
+                                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-white/5 text-2xl">
+                                  🔒
+                                </div>
+                                <p className="mb-1 text-sm font-semibold text-white">Your invoice is ready</p>
+                                <p className="mx-auto mb-5 max-w-sm text-xs leading-relaxed text-white/55">
+                                  For your security, our crypto payment processor opens in a new tab.
+                                  Complete the payment there, then come back to this page.
+                                </p>
+                                <a
+                                  href={checkout.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/25 bg-white/10 px-6 py-3 text-sm font-bold uppercase tracking-[0.16em] text-white transition hover:bg-white/20"
+                                  style={{ boxShadow: `0 0 36px -8px rgba(${c.rgb},0.7)` }}
+                                >
+                                  Open secure payment page →
                                 </a>
-                              </p>
+                                <p className="mt-4 break-all text-[10px] leading-relaxed text-white/35">
+                                  If the button doesn&apos;t work, copy this link:{" "}
+                                  <span className="text-white/55">{checkout.url}</span>
+                                </p>
+                              </div>
                             </div>
                           ) : (
                             <>
