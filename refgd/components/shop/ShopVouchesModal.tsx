@@ -22,6 +22,7 @@ type Review = {
   title?: string | null;
   quote?: { author: string; text: string } | null;
   body: string;
+  avatar?: string | null;
 };
 
 const VOUCHES_EVENT = "open-vouches";
@@ -70,17 +71,26 @@ function rankColor(rank: string) {
 }
 
 /**
- * Real profile picture per post. Original MyBB avatars couldn't be
- * imported, so we deterministically generate a stable, unique avatar
- * per username (DiceBear) and gracefully fall back to a gradient
- * monogram if the image ever fails to load.
+ * Real profile picture per post. We use the genuine forum avatar
+ * imported from the original thread (review.avatar) when available,
+ * then fall back to a stable generated avatar per username (DiceBear),
+ * and finally to a gradient monogram if both images fail to load.
  */
-function PostAvatar({ author, small = false }: { author: string; small?: boolean }) {
-  const [failed, setFailed] = useState(false);
+function PostAvatar({
+  author,
+  src,
+  small = false,
+}: {
+  author: string;
+  src?: string | null;
+  small?: boolean;
+}) {
+  // stage 0: real forum avatar, 1: generated avatar, 2: monogram
+  const [stage, setStage] = useState<0 | 1 | 2>(src ? 0 : 1);
   const clean = author.replace(/^@/, "");
   const dim = small ? "h-10 w-10 text-xs" : "h-12 w-12 text-sm";
 
-  if (failed) {
+  if (stage === 2) {
     const [a, b] = avatarGradient(clean);
     return (
       <div
@@ -92,17 +102,20 @@ function PostAvatar({ author, small = false }: { author: string; small?: boolean
     );
   }
 
-  const url = `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
-    clean,
-  )}&radius=14&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf,d0f4de,fff4d6`;
+  const imgSrc =
+    stage === 0 && src
+      ? src
+      : `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
+          clean,
+        )}&radius=14&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf,d0f4de,fff4d6`;
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={url}
+      src={imgSrc}
       alt={`${clean} avatar`}
       loading="lazy"
-      onError={() => setFailed(true)}
+      onError={() => setStage((s) => (s === 0 ? 1 : 2))}
       className={`${dim} shrink-0 rounded-xl border border-white/15 bg-white/10 object-cover shadow-lg`}
     />
   );
@@ -142,7 +155,7 @@ function ForumPost({
       <div className="flex gap-0">
         {/* Desktop postbit sidebar — MyBB layout, modernised */}
         <div className="hidden w-[150px] shrink-0 flex-col items-center gap-2 border-r border-white/[0.06] bg-white/[0.02] px-4 py-4 md:flex">
-          <PostAvatar author={review.author} />
+          <PostAvatar author={review.author} src={review.avatar} />
           <div className="mt-1 w-full min-w-0 text-center">
             <p className="break-all text-sm font-bold leading-tight text-white">{review.author}</p>
             <p className="mt-0.5 text-lg leading-none">{review.country}</p>
@@ -168,7 +181,7 @@ function ForumPost({
         <div className="min-w-0 flex-1 px-4 py-4 sm:px-5">
           {/* Mobile author strip */}
           <div className="mb-3 flex min-w-0 items-center gap-3 md:hidden">
-            <PostAvatar author={review.author} small />
+            <PostAvatar author={review.author} src={review.avatar} small />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-white">
                 {review.author}
