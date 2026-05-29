@@ -41,13 +41,17 @@
                   aria-current={active ? "page" : undefined}
                   className={`group inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] transition ${
                     active
-                      ? "border-white/50 bg-white/15 text-white"
-                      : "border-white/15 bg-white/[0.04] text-white/70 hover:border-white/35 hover:bg-white/10 hover:text-white"
+                      ? "border-white/70 bg-white/15 text-white"
+                      : "border-white/30 bg-white/[0.04] text-white/80 hover:border-white/60 hover:bg-white/10 hover:text-white"
                   }`}
                   style={
                     active
-                      ? { boxShadow: `0 0 28px -6px rgba(${cat.rgb},0.7)` }
-                      : undefined
+                      ? {
+                          boxShadow: `0 0 0 1px rgba(255,255,255,0.85), 0 0 18px rgba(255,255,255,0.55), 0 0 30px -6px rgba(${cat.rgb},0.75)`,
+                        }
+                      : {
+                          boxShadow: `0 0 0 1px rgba(255,255,255,0.45), 0 0 14px -1px rgba(255,255,255,0.40)`,
+                        }
                   }
                 >
                   <span

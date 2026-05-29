@@ -45,35 +45,34 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
           className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-white/75"
         />
 
-        {/* Floating transparent hero illustration above the grid.
-            mix-blend-mode:screen makes the light areas glow into the dark page
-            while dark areas vanish — creating an ethereal transparency effect. */}
+        {/* Floating transparent hero illustration, sitting ABOVE the category
+            cards. Background removed (transparent PNG) so it blends cleanly;
+            entrance fade-up + perpetual gentle float. */}
         <motion.div
-          initial={reduced ? {} : { opacity: 0, y: 28 }}
-          whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
+          initial={reduced ? {} : { opacity: 0, y: 40, scale: 0.94 }}
+          whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
           viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
-          className="pointer-events-none relative mx-auto mt-10 max-w-xl select-none"
+          transition={{ duration: 1.3, ease: [0.22, 1, 0.36, 1] }}
+          className="pointer-events-none relative mx-auto mt-12 max-w-xl select-none"
           aria-hidden="true"
         >
           <motion.div
             animate={reduced ? {} : {
-              y: [0, -16, 0],
-              scale: [1, 1.022, 1],
-              opacity: [0.15, 0.21, 0.15],
+              y: [0, -18, 0],
+              scale: [1, 1.03, 1],
+              opacity: [0.72, 0.92, 0.72],
             }}
             transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+            style={{
+              filter: "drop-shadow(0 26px 60px rgba(124,58,237,0.45)) saturate(1.15)",
+            }}
           >
             <Image
-              src="/shop-images/crypto-academy.jpg"
+              src="/shop-images/crypto-academy.png"
               alt=""
               width={740}
               height={493}
               className="w-full"
-              style={{
-                mixBlendMode: "screen",
-                filter: "saturate(1.7) brightness(1.2) hue-rotate(18deg)",
-              }}
               unoptimized
             />
           </motion.div>
@@ -112,105 +111,36 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
               >
                 <Link href={`/shop-methods/${c.slug}`} className="block h-full" aria-label={`View ${c.title}`}>
                   <div
-                    className="relative flex h-full flex-col overflow-hidden rounded-[1.75rem] transition-all duration-500 group-hover:scale-[1.025]"
+                    className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-white/15 transition-all duration-500 group-hover:scale-[1.02] group-hover:border-white/30"
                     style={{
-                      /* Layered radial gradients: accent corner glows (top-right + bottom-left)
-                         on a very dark indigo base — much more depth than a flat linear gradient. */
-                      background: `
-                        radial-gradient(ellipse 80% 55% at 96% 4%,  rgba(${c.rgb},0.26) 0%, transparent 62%),
-                        radial-gradient(ellipse 55% 42% at 4%  96%, rgba(${c.rgb},0.12) 0%, transparent 58%),
-                        radial-gradient(ellipse 40% 28% at 50% 50%, rgba(${c.rgb},0.05) 0%, transparent 68%),
-                        linear-gradient(170deg, rgba(14,11,32,0.97) 0%, rgba(8,7,18,0.99) 100%)
-                      `,
-                      /* Colored outline via box-shadow (avoids Tailwind border opacity limits) */
-                      boxShadow: `
-                        0 44px 110px -28px rgba(0,0,0,0.92),
-                        0 0 0 1.5px rgba(${c.rgb},0.24),
-                        0 0 90px -32px rgba(${c.rgb},0.55),
-                        inset 0 1px 0 rgba(255,255,255,0.10),
-                        inset 0 -1px 0 rgba(${c.rgb},0.07)
-                      `,
-                      backdropFilter: "blur(14px)",
-                      WebkitBackdropFilter: "blur(14px)",
+                      background: `linear-gradient(165deg, rgba(${c.rgb},0.20) 0%, rgba(10,8,22,0.94) 60%)`,
                     }}
                   >
-                    {/* Top accent shimmer */}
-                    <span
-                      aria-hidden
-                      className="pointer-events-none absolute inset-x-0 top-0 h-px"
-                      style={{
-                        background: `linear-gradient(90deg, transparent 0%, rgba(${c.rgb},0.65) 50%, transparent 100%)`,
-                      }}
-                    />
-
-                    {/* Accent badge — accent-colour pill in top-left */}
-                    <div className="absolute left-5 top-5 z-10 flex items-center gap-1.5">
-                      <span
-                        className="h-2 w-2 shrink-0 rounded-full"
-                        aria-hidden
-                        style={{
-                          background: `rgb(${c.rgb})`,
-                          boxShadow: `0 0 12px 3px rgba(${c.rgb},0.90)`,
-                        }}
-                      />
-                      <span
-                        className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.20em]"
-                        style={{
-                          border: `1px solid rgba(${c.rgb},0.38)`,
-                          color: `rgb(${c.rgb})`,
-                          background: `rgba(${c.rgb},0.10)`,
-                          backdropFilter: "blur(8px)",
-                          textShadow: `0 0 10px rgba(${c.rgb},0.8)`,
-                        }}
-                      >
-                        {c.accent}
-                      </span>
-                    </div>
-
-                    {/* Image area — dark gradient bg, extra padding (p-9) to reduce zoom */}
-                    <div
-                      className="relative h-56 w-full overflow-hidden"
-                      style={{
-                        background: `linear-gradient(180deg, rgba(${c.rgb},0.08) 0%, rgba(8,7,18,0.55) 100%)`,
-                      }}
-                    >
+                    {/* Image plate — white background, generous padding so the
+                        category artwork isn't over-cropped (keeps the zoom fix). */}
+                    <div className="relative h-56 w-full overflow-hidden bg-white">
                       <EditableImage
                         id={`shop.cat.${c.slug}.image`}
                         defaultSrc={c.image}
                         alt={c.title}
                         wrapperClassName="block h-full w-full"
-                        className="block h-full w-full object-contain p-9 transition-transform duration-700 group-hover:scale-[1.05]"
+                        className="block h-full w-full object-contain p-8 transition-transform duration-700 group-hover:scale-[1.04]"
                       />
 
                       {/* Count + price chips */}
                       {count > 0 && (
                         <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-2">
-                          <span
-                            className="rounded-full border border-white/20 bg-black/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-md"
-                            style={{ boxShadow: `0 0 20px -6px rgba(${c.rgb},0.6)` }}
-                          >
+                          <span className="rounded-full border border-white/20 bg-black/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-md">
                             {countLabel}
                           </span>
                           {priceLabel && (
-                            <span
-                              className="rounded-full border border-white/20 bg-black/60 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-md"
-                              style={{ boxShadow: `0 0 20px -6px rgba(${c.rgb},0.6)` }}
-                            >
+                            <span className="rounded-full border border-white/20 bg-black/60 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-md">
                               {priceLabel}
                             </span>
                           )}
                         </div>
                       )}
                     </div>
-
-                    {/* Accent divider */}
-                    <span
-                      aria-hidden
-                      className="block h-px w-full"
-                      style={{
-                        background: `linear-gradient(90deg, transparent 0%, rgba(${c.rgb},0.32) 50%, transparent 100%)`,
-                      }}
-                    />
 
                     <div className="relative flex flex-1 flex-col p-6 sm:p-7">
                       <EditableText

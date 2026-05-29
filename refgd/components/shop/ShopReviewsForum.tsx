@@ -22,15 +22,91 @@
       body: string;
     };
 
-    function seededShuffle<T>(arr: T[], seed: number): T[] {
-      const out = [...arr];
-      let s = seed;
-      for (let i = out.length - 1; i > 0; i--) {
-        s = (s * 9301 + 49297) % 233280;
-        const j = Math.floor((s / 233280) * (i + 1));
-        [out[i], out[j]] = [out[j], out[i]];
+    /* ---- Ordering --------------------------------------------------------
+       Reviews are no longer shuffled. They render as a proper in-order
+       discussion thread (chronological by postNum). To keep the opening of
+       the thread focused on genuine vouches/feedback (not random Q&A), posts
+       that read like positive testimonials are floated to the front while
+       still being internally chronological. */
+    const POSITIVE = [
+      "thank", "worth", "recommend", "amazing", "awesome", "best", "love",
+      "grateful", "legit", "happy", "glad", "excellent", "highly", "great book",
+      "life saver", "lifesaver", "game changer", "incredible", "perfect",
+      "satisfied", "blessing", "worth it", "well worth", "a++", "5 star",
+      "five star", "real deal",
+    ];
+    function vouchScore(body: string): number {
+      const b = body.toLowerCase();
+      let s = 0;
+      for (const w of POSITIVE) if (b.includes(w)) s++;
+      if (/anyone know|how do i|how can i|need help|any advice|having (a |an )?(problem|issue)|not sure if|does anyone/.test(b)) s -= 2;
+      return s;
+    }
+    function orderReviews(arr: Review[]): Review[] {
+      return [...arr].sort((a, b) => {
+        const av = vouchScore(a.body) >= 1 ? 1 : 0;
+        const bv = vouchScore(b.body) >= 1 ? 1 : 0;
+        if (av !== bv) return bv - av; // vouches first
+        return a.postNum - b.postNum; // chronological within each group
+      });
+    }
+
+    /* Deterministic "thanked by" usernames for the forum-style thanks box. */
+    const THANKERS = [
+      "@stealthking", "@ebayqueen", "@flipmaster", "@nova_seller", "@reseller_j",
+      "@silentbuyer", "@goldchain", "@phantom", "@retailninja", "@boxbreaker",
+      "@aged_orders", "@vccguru", "@dropking", "@refund_rick", "@opsec_owl",
+      "@graymarket", "@payday", "@anon_77", "@swiftship", "@evader",
+      "@coldstorage", "@hustle_hank", "@lowkey", "@bankroll", "@ghostbuyer",
+      "@profit_pat", "@stackz", "@quietmoney", "@thereup", "@comebackkid",
+    ];
+    function thankers(seed: number, count: number): string[] {
+      const out: string[] = [];
+      let s = (seed * 2654435761) >>> 0;
+      const used = new Set<number>();
+      while (out.length < count) {
+        s = (s * 1103515245 + 12345) >>> 0;
+        const idx = s % THANKERS.length;
+        if (used.has(idx)) continue;
+        used.add(idx);
+        out.push(THANKERS[idx]);
+        if (used.size >= THANKERS.length) break;
       }
       return out;
+    }
+
+    function ThanksBox({ author, count, seed }: { author: string; count: number; seed: number }) {
+      if (!count || count < 1) return null;
+      const shown = Math.min(count, 6);
+      const names = thankers(seed, shown);
+      const extra = count - names.length;
+      return (
+        <div className="mt-4 overflow-hidden rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06]">
+          <p className="border-b border-emerald-500/15 bg-emerald-500/10 px-3 py-1.5 text-[11px] text-emerald-200/90">
+            The Following{" "}
+            <span className="font-semibold text-emerald-100">
+              {count === 1 ? "User Says" : `${count.toLocaleString()} Users Say`}
+            </span>{" "}
+            Thank You to <span className="font-semibold text-emerald-100">{author}</span> For This Useful Post:
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5 px-3 py-2">
+            {names.map((n) => (
+              <span
+                key={n}
+                className="inline-flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/[0.08] py-0.5 pl-0.5 pr-2"
+              >
+                <PostAvatar author={n} tiny />
+                <span className="text-[11px] font-medium text-emerald-200/90">{n}</span>
+              </span>
+            ))}
+            {extra > 0 && (
+              <span className="text-[11px] font-medium text-emerald-300/70">
+                and {extra.toLocaleString()} others
+              </span>
+            )}
+          </div>
+        </div>
+      );
     }
 
     const AVATAR_GRADIENTS = [
@@ -104,7 +180,7 @@
               )}
             </div>
             {review.date && (
-              <span className="text-[10px] sm:text-xs text-slate-600 font-mono flex-shrink-0">{review.date}</span>
+              <span className="text-[10px] sm:text-xs text-white font-mono flex-shrink-0">{review.date}</span>
             )}
           </div>
 
@@ -185,6 +261,9 @@
                   </p>
                 ))}
               </div>
+
+              {/* Forum-style "Thank You" box */}
+              <ThanksBox author={review.author} count={review.thanks} seed={review.postNum} />
             </div>
           </div>
         </motion.article>
@@ -203,7 +282,7 @@
       const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
       const [collapsed, setCollapsed] = useState(false);
 
-      const all: Review[] = useMemo(() => seededShuffle(reviewsData as Review[], 42), []);
+      const all: Review[] = useMemo(() => orderReviews(reviewsData as Review[]), []);
       const visible = collapsed ? [] : all.slice(0, visibleCount);
       const hasMore = !collapsed && visibleCount < all.length;
 

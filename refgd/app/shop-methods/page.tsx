@@ -7,7 +7,6 @@ import ShopFAQ from "@/components/shop/ShopFAQ";
 import ShopVouchesModal from "@/components/shop/ShopVouchesModal";
 import ShopReviewsFab from "@/components/shop/ShopReviewsFab";
 import ShopLiquidParticles from "@/components/shop/ShopLiquidParticles";
-import EvadeImmersiveBg from "@/components/EvadeImmersiveBg";
 import { getShopCatalog } from "@/lib/shop-catalog";
 
 export const metadata = {
@@ -21,7 +20,6 @@ export default async function ShopMethodsPage() {
   return (
     <main className="relative">
       <ShopLiquidParticles />
-      <EvadeImmersiveBg />
       <ShopMethodsHero hero={catalog.hero} />
       <ShopMethodsGrid categories={catalog.categories} />
       <ShopFeatures />
