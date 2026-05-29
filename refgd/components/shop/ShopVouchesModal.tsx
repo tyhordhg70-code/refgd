@@ -23,6 +23,8 @@ type Review = {
   quote?: { author: string; text: string } | null;
   body: string;
   avatar?: string | null;
+  thankers?: string[] | null;
+  lastEdited?: string | null;
 };
 
 const VOUCHES_EVENT = "open-vouches";
@@ -84,11 +86,30 @@ function thankers(seed: number, count: number): string[] {
   return out;
 }
 
-function ThanksBox({ author, count, seed }: { author: string; count: number; seed: number }) {
+const THANKS_COLLAPSED = 6;
+
+function ThanksBox({
+  author,
+  count,
+  seed,
+  realThankers,
+}: {
+  author: string;
+  count: number;
+  seed: number;
+  realThankers?: string[] | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
   if (!count || count < 1) return null;
-  const shown = Math.min(count, 6);
-  const names = thankers(seed, shown);
-  const extra = count - names.length;
+
+  // Prefer the genuine thanker usernames imported from the thread; otherwise
+  // fall back to the deterministic generated pool.
+  const pool =
+    realThankers && realThankers.length > 0 ? realThankers : thankers(seed, count);
+  const shownNames = expanded ? pool : pool.slice(0, THANKS_COLLAPSED);
+  const canExpand = pool.length > THANKS_COLLAPSED;
+  const unknownRemainder = Math.max(0, count - pool.length);
+
   return (
     <div className="mt-4 overflow-hidden rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06]">
       <p className="border-b border-emerald-500/15 bg-emerald-500/10 px-3 py-1.5 text-[11px] text-emerald-200/90">
@@ -99,19 +120,49 @@ function ThanksBox({ author, count, seed }: { author: string; count: number; see
         Thank You to <span className="font-semibold text-emerald-100">{author}</span> For This Useful Post:
       </p>
       <div className="flex flex-wrap items-center gap-1.5 px-3 py-2">
-        {names.map((n) => (
+        {shownNames.map((n, i) => (
           <span
-            key={n}
+            key={`${n}-${i}`}
             className="inline-flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/[0.08] py-0.5 pl-0.5 pr-2"
           >
             <PostAvatar author={n} tiny />
             <span className="text-[11px] font-medium text-emerald-200/90">{n}</span>
           </span>
         ))}
-        {extra > 0 && (
+
+        {!expanded && canExpand && (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="rounded-full border border-emerald-400/30 bg-emerald-500/[0.12] px-2 py-0.5 text-[11px] font-semibold text-emerald-200/90 transition hover:bg-emerald-500/20"
+          >
+            + {(count - THANKS_COLLAPSED).toLocaleString()} more
+          </button>
+        )}
+
+        {!expanded && !canExpand && unknownRemainder > 0 && (
           <span className="text-[11px] font-medium text-emerald-300/70">
-            and {extra.toLocaleString()} others
+            and {unknownRemainder.toLocaleString()} others
           </span>
+        )}
+
+        {expanded && (
+          <>
+            {unknownRemainder > 0 && (
+              <span className="text-[11px] font-medium text-emerald-300/70">
+                and {unknownRemainder.toLocaleString()} others
+              </span>
+            )}
+            {canExpand && (
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                className="rounded-full border border-emerald-400/30 bg-emerald-500/[0.12] px-2 py-0.5 text-[11px] font-semibold text-emerald-200/90 transition hover:bg-emerald-500/20"
+              >
+                Show less
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -314,8 +365,19 @@ function ForumPost({
             ))}
           </div>
 
+          {review.lastEdited && (
+            <p className="mt-3 text-[11px] italic text-slate-500">
+              Last edited by {review.lastEdited}
+            </p>
+          )}
+
           {/* Forum-style "Thank You" box */}
-          <ThanksBox author={review.author} count={review.thanks} seed={review.postNum} />
+          <ThanksBox
+            author={review.author}
+            count={review.thanks}
+            seed={review.postNum}
+            realThankers={review.thankers}
+          />
         </div>
       </div>
     </motion.article>
