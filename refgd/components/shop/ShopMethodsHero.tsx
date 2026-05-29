@@ -5,6 +5,7 @@
   import EditableText from "@/components/EditableText";
   import ChapterPill from "@/components/ChapterPill";
   import KineticText from "@/components/KineticText";
+  import { openVouches } from "@/components/shop/ShopVouchesModal";
 
   import type { ShopHero as Hero } from "@/lib/shop-catalog";
 
@@ -88,6 +89,37 @@
               className="mx-auto mt-6 max-w-2xl text-base leading-[1.7] text-white/85 sm:text-lg"
               style={{ textShadow: "0 2px 12px rgba(0,0,0,0.6)" }}
             />
+
+            <div className="mt-8 flex justify-center">
+              <motion.button
+                type="button"
+                onClick={() => openVouches()}
+                initial={false}
+                whileHover={reduced ? {} : { scale: 1.04 }}
+                whileTap={reduced ? {} : { scale: 0.97 }}
+                animate={
+                  reduced
+                    ? {}
+                    : {
+                        boxShadow: [
+                          "0 0 22px -4px rgba(167,139,250,0.55), 0 0 50px -10px rgba(34,211,238,0.45)",
+                          "0 0 40px 2px rgba(167,139,250,0.85), 0 0 80px -4px rgba(34,211,238,0.7)",
+                          "0 0 22px -4px rgba(167,139,250,0.55), 0 0 50px -10px rgba(34,211,238,0.45)",
+                        ],
+                      }
+                }
+                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+                className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-full border border-violet-300/50 bg-gradient-to-r from-violet-600 via-fuchsia-500 to-cyan-500 px-8 py-4 text-sm font-bold uppercase tracking-[0.18em] text-white"
+              >
+                <span
+                  aria-hidden
+                  className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 group-hover:translate-x-full"
+                />
+                <span aria-hidden className="relative text-amber-200 drop-shadow-[0_0_6px_rgba(252,211,77,0.9)]">★</span>
+                <span className="relative">Read community vouches</span>
+                <span aria-hidden className="relative transition-transform duration-300 group-hover:translate-x-1">→</span>
+              </motion.button>
+            </div>
           </motion.div>
         </div>
       </section>

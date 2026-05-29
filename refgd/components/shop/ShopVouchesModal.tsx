@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import EditableText from "@/components/EditableText";
@@ -134,15 +134,26 @@ function ForumPost({
 }) {
   const rankCls = rankColor(review.rank);
   const lines = review.body.split("\n").filter(Boolean);
+  const isAdmin = review.rank === "Administrator";
 
   return (
     <motion.article
       initial={reduced ? false : { opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: Math.min(index * 0.03, 0.25), ease: "easeOut" }}
-      className="overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02] transition-colors hover:bg-white/[0.04]"
+      className={
+        isAdmin
+          ? "overflow-hidden rounded-2xl border border-violet-400/50 bg-violet-500/[0.12] shadow-[0_0_40px_-12px_rgba(167,139,250,0.65)] transition-colors hover:bg-violet-500/[0.16]"
+          : "overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02] transition-colors hover:bg-white/[0.04]"
+      }
     >
-      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] bg-white/[0.03] px-3 py-2 sm:px-4">
+      <div
+        className={
+          isAdmin
+            ? "flex items-center justify-between gap-2 border-b border-violet-400/30 bg-violet-500/15 px-3 py-2 sm:px-4"
+            : "flex items-center justify-between gap-2 border-b border-white/[0.06] bg-white/[0.03] px-3 py-2 sm:px-4"
+        }
+      >
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <span className="shrink-0 font-mono text-xs text-slate-500">#{review.postNum}</span>
           {review.title && (
@@ -235,8 +246,20 @@ function ForumPost({
   );
 }
 
-const INITIAL_VISIBLE = 8;
-const STEP = 20;
+const PAGE_SIZE = 8;
+
+/** Build a compact, windowed list of page tokens like [1, "…", 4, 5, 6, "…", 46]. */
+function pageWindow(current: number, total: number): (number | "…")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const out: (number | "…")[] = [1];
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  if (start > 2) out.push("…");
+  for (let p = start; p <= end; p++) out.push(p);
+  if (end < total - 1) out.push("…");
+  out.push(total);
+  return out;
+}
 
 /**
  * ShopVouchesModal — the imported community vouches thread, rendered as a
@@ -254,16 +277,27 @@ export default function ShopVouchesModal({
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+  const [page, setPage] = useState(1);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const all: Review[] = useMemo(() => seededShuffle(reviewsData as Review[], 42), []);
-  const visible = collapsed ? [] : all.slice(0, visibleCount);
-  const hasMore = !collapsed && visibleCount < all.length;
+  const totalPages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const visible = collapsed ? [] : all.slice(pageStart, pageStart + PAGE_SIZE);
+
+  const goToPage = (p: number) => {
+    setPage(Math.min(Math.max(1, p), totalPages));
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
-    const onOpen = () => setOpen(true);
+    const onOpen = () => {
+      setOpen(true);
+      setPage(1);
+    };
     window.addEventListener(VOUCHES_EVENT, onOpen as EventListener);
     return () => window.removeEventListener(VOUCHES_EVENT, onOpen as EventListener);
   }, []);
@@ -317,7 +351,9 @@ export default function ShopVouchesModal({
                 />
                 <div className="truncate font-mono text-[11px] text-violet-200/80">
                   <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-violet-400 align-middle" />
-                  {collapsed ? 0 : Math.min(visibleCount, all.length)} / {all.length} vouches
+                  {collapsed
+                    ? `0 / ${all.length} vouches`
+                    : `Page ${safePage} / ${totalPages} · ${all.length} vouches`}
                 </div>
               </div>
               <button
@@ -337,7 +373,7 @@ export default function ShopVouchesModal({
             </div>
 
             {/* Scrollable thread body */}
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5">
+            <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5">
               <EditableText
                 id={`${editIdPrefix}.subtitle`}
                 defaultValue="Real, unfiltered feedback from operators running our methods, mentorships and books — imported straight from the original community thread."
@@ -358,21 +394,44 @@ export default function ShopVouchesModal({
                     ))}
                   </div>
 
-                  {hasMore && (
-                    <div className="mt-6 flex flex-wrap justify-center gap-3">
+                  {totalPages > 1 && (
+                    <nav
+                      aria-label="Vouches pages"
+                      className="mt-6 flex flex-wrap items-center justify-center gap-1.5"
+                    >
                       <button
-                        onClick={() => setVisibleCount((v) => Math.min(v + STEP, all.length))}
-                        className="rounded-xl border border-violet-500/30 bg-violet-500/5 px-5 py-2.5 text-sm font-semibold text-violet-300 transition hover:border-violet-400/50 hover:bg-violet-500/10"
+                        onClick={() => goToPage(safePage - 1)}
+                        disabled={safePage === 1}
+                        className="rounded-lg border border-white/10 px-3 py-1.5 text-sm font-semibold text-slate-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        Load {Math.min(STEP, all.length - visibleCount)} more ↓
+                        ‹ Prev
                       </button>
+                      {pageWindow(safePage, totalPages).map((tok, i) =>
+                        tok === "…" ? (
+                          <span key={`e${i}`} className="px-2 text-sm text-slate-600">…</span>
+                        ) : (
+                          <button
+                            key={tok}
+                            onClick={() => goToPage(tok)}
+                            aria-current={tok === safePage ? "page" : undefined}
+                            className={
+                              tok === safePage
+                                ? "min-w-[2.25rem] rounded-lg border border-violet-400/60 bg-violet-500/20 px-3 py-1.5 text-sm font-bold text-white shadow-[0_0_18px_-6px_rgba(167,139,250,0.8)]"
+                                : "min-w-[2.25rem] rounded-lg border border-white/10 px-3 py-1.5 text-sm font-semibold text-slate-300 transition hover:border-white/25 hover:text-white"
+                            }
+                          >
+                            {tok}
+                          </button>
+                        ),
+                      )}
                       <button
-                        onClick={() => setVisibleCount(all.length)}
-                        className="rounded-xl border border-white/10 px-5 py-2.5 text-sm font-semibold text-slate-400 transition hover:border-white/20 hover:text-slate-200"
+                        onClick={() => goToPage(safePage + 1)}
+                        disabled={safePage === totalPages}
+                        className="rounded-lg border border-white/10 px-3 py-1.5 text-sm font-semibold text-slate-300 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        Show all {all.length}
+                        Next ›
                       </button>
-                    </div>
+                    </nav>
                   )}
                 </>
               )}
