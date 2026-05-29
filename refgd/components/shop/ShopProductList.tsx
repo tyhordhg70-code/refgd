@@ -112,13 +112,18 @@ export default function ShopProductList({ category: c }: { category: Category })
                 />
 
                 {p.image && (
-                  <div className="relative h-44 w-full overflow-hidden bg-ink-950">
+                  <div
+                    className="relative h-48 w-full overflow-hidden"
+                    style={{
+                      background: `radial-gradient(circle at 50% 30%, rgba(${c.rgb},0.14), rgba(8,6,18,0.92) 72%)`,
+                    }}
+                  >
                     <EditableImage
                       id={`shop.prod.${p.id}.image`}
                       defaultSrc={p.image}
                       alt={p.title}
                       wrapperClassName="block h-full w-full"
-                      className="block h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                      className="block h-full w-full object-contain p-5 transition-transform duration-500 group-hover:scale-[1.05]"
                     />
                   </div>
                 )}

@@ -54,18 +54,17 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
           whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
           viewport={{ once: true, amount: 0.2 }}
           transition={{ duration: 1.3, ease: [0.22, 1, 0.36, 1] }}
-          className="pointer-events-none relative mx-auto mt-12 max-w-xl select-none"
+          className="pointer-events-none relative mx-auto mt-12 max-w-2xl select-none"
           aria-hidden="true"
         >
           <motion.div
             animate={reduced ? {} : {
-              y: [0, -18, 0],
-              scale: [1, 1.03, 1],
-              opacity: [0.72, 0.92, 0.72],
+              y: [0, -16, 0],
+              scale: [1, 1.025, 1],
             }}
             transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
             style={{
-              filter: "drop-shadow(0 26px 60px rgba(124,58,237,0.45)) saturate(1.15)",
+              filter: "drop-shadow(0 30px 70px rgba(124,58,237,0.5)) saturate(1.15)",
             }}
           >
             <Image
@@ -113,66 +112,92 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
               >
                 <Link href={`/shop-methods/${c.slug}`} className="block h-full" aria-label={`View ${c.title}`}>
                   <div
-                    className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-white/15 transition-all duration-500 group-hover:scale-[1.02] group-hover:border-white/30"
+                    className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0d0a1c]/85 backdrop-blur-sm transition-all duration-300 group-hover:-translate-y-1 group-hover:border-white/25"
                     style={{
-                      background: `linear-gradient(165deg, rgba(${c.rgb},0.20) 0%, rgba(10,8,22,0.94) 60%)`,
+                      boxShadow:
+                        "0 24px 60px -30px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.05)",
                     }}
                   >
-                    {/* Image plate — Billgang-style full-bleed: the artwork
-                        fills the frame edge-to-edge (object-cover) at a uniform
-                        zoom, matching the product cards. */}
-                    <div className="relative h-56 w-full overflow-hidden bg-ink-950">
+                    {/* Thin accent bar in the category colour */}
+                    <span
+                      aria-hidden
+                      className="absolute inset-x-0 top-0 z-20 h-[3px]"
+                      style={{
+                        background: `linear-gradient(90deg, transparent, rgb(${c.rgb}), transparent)`,
+                        opacity: 0.75,
+                      }}
+                    />
+
+                    {/* Image — object-contain so the full artwork shows (not zoomed/cropped) */}
+                    <div
+                      className="relative h-52 w-full overflow-hidden"
+                      style={{
+                        background: `radial-gradient(circle at 50% 30%, rgba(${c.rgb},0.16), rgba(8,6,18,0.92) 72%)`,
+                      }}
+                    >
                       <EditableImage
                         id={`shop.cat.${c.slug}.image`}
                         defaultSrc={c.image}
                         alt={c.title}
                         wrapperClassName="block h-full w-full"
-                        className="block h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
+                        className="block h-full w-full object-contain p-6 transition-transform duration-700 group-hover:scale-[1.05]"
                       />
-
-                      {/* Count + price chips */}
-                      {count > 0 && (
-                        <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-2">
-                          <span className="rounded-full border border-white/20 bg-black/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-md">
-                            {countLabel}
-                          </span>
-                          {priceLabel && (
-                            <span className="rounded-full border border-white/20 bg-black/60 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-md">
-                              {priceLabel}
-                            </span>
-                          )}
-                        </div>
-                      )}
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-b from-transparent to-[#0d0a1c]"
+                      />
                     </div>
 
-                    <div className="relative flex flex-1 flex-col p-6 sm:p-7">
+                    {/* Body */}
+                    <div className="relative flex flex-1 flex-col p-6">
+                      {/* eyebrow: count + price */}
+                      <div className="mb-3 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.18em]">
+                        <span className="inline-flex items-center gap-1.5 text-white/55">
+                          <span
+                            aria-hidden
+                            className="h-1.5 w-1.5 rounded-full"
+                            style={{
+                              background: `rgb(${c.rgb})`,
+                              boxShadow: `0 0 10px rgba(${c.rgb},0.9)`,
+                            }}
+                          />
+                          {countLabel}
+                        </span>
+                        {priceLabel && (
+                          <span className="ml-auto rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-white/80">
+                            {priceLabel}
+                          </span>
+                        )}
+                      </div>
+
                       <EditableText
                         id={`shop.cat.${c.slug}.title`}
                         defaultValue={c.title}
                         as="h3"
-                        className="editorial-display text-xl uppercase text-white sm:text-2xl"
-                        style={{ letterSpacing: "-0.02em", lineHeight: 1.2 }}
+                        className="editorial-display text-xl uppercase text-white sm:text-[1.6rem]"
+                        style={{ letterSpacing: "-0.02em", lineHeight: 1.15 }}
                       />
                       <EditableText
                         id={`shop.cat.${c.slug}.tagline`}
                         defaultValue={c.tagline}
                         as="p"
                         multiline
-                        className="mt-3 flex-1 text-sm leading-[1.65] text-white/70"
+                        className="mt-3 flex-1 text-sm leading-[1.7] text-white/65"
                       />
 
-                      <div
-                        className="mt-6 inline-flex items-center gap-2 self-start rounded-full px-5 py-2.5 text-xs font-bold uppercase tracking-[0.18em] text-white transition-all duration-300 group-hover:brightness-125"
-                        style={{
-                          background: `linear-gradient(135deg, rgba(${c.rgb},0.22) 0%, rgba(${c.rgb},0.08) 100%)`,
-                          border: `1px solid rgba(${c.rgb},0.38)`,
-                          boxShadow: `0 0 28px -8px rgba(${c.rgb},0.62), inset 0 1px 0 rgba(255,255,255,0.08)`,
-                        }}
-                      >
-                        View products
+                      {/* CTA: clean underline-arrow link */}
+                      <div className="mt-6 inline-flex items-center gap-2 self-start text-xs font-bold uppercase tracking-[0.2em] text-white">
+                        <span className="relative">
+                          View products
+                          <span
+                            aria-hidden
+                            className="absolute -bottom-1 left-0 h-px w-full origin-left scale-x-0 bg-white/70 transition-transform duration-300 group-hover:scale-x-100"
+                          />
+                        </span>
                         <span
                           aria-hidden
                           className="transition-transform duration-300 group-hover:translate-x-1"
+                          style={{ color: `rgb(${c.rgb})` }}
                         >
                           →
                         </span>

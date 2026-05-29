@@ -26,7 +26,7 @@ export default async function CategoryPage({ params }: Props) {
   return (
     <main className="relative">
       <EvadeImmersiveBg />
-      <ShopCategoryHeader category={category} allCategories={catalog.categories} />
+      <ShopCategoryHeader category={category} />
       <ShopProductList category={category} />
       <div className="container-wide relative z-10 pb-20 pt-2">
         <Link
