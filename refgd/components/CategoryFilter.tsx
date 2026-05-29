@@ -235,10 +235,10 @@ export default function CategoryFilter({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className={`group flex w-full items-center justify-between gap-3 rounded-full border px-5 py-3 text-sm transition sm:w-auto sm:min-w-[260px] ${
+        className={`group flex w-full items-center justify-between gap-3 rounded-full border px-5 py-3 text-sm backdrop-blur-md transition sm:w-auto sm:min-w-[260px] ${
           allActive
-            ? "border-white/10 bg-white/5 text-white/80 hover:border-white/20 hover:bg-white/10"
-            : "border-amber-300/50 bg-amber-400/10 text-amber-100 shadow-[0_0_30px_-12px_rgba(245,185,69,0.55)]"
+            ? "border-white/15 bg-gradient-to-r from-white/[0.12] via-white/[0.06] to-white/[0.12] text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-amber-300/40 hover:from-white/[0.16] hover:to-white/[0.16]"
+            : "border-amber-300/50 bg-gradient-to-r from-amber-400/20 via-amber-400/10 to-orange-500/15 text-amber-100 shadow-[0_0_30px_-12px_rgba(245,185,69,0.55)]"
         }`}
       >
         <span className="flex items-center gap-2.5">
@@ -279,7 +279,7 @@ export default function CategoryFilter({
           ref={panelRef}
           role="listbox"
           aria-multiselectable="true"
-          className="absolute left-0 right-0 sm:right-auto z-30 mt-2 w-full sm:w-[360px] origin-top rounded-2xl border border-white/10 bg-ink-900/95 p-3 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-xl"
+          className="absolute left-0 right-0 sm:right-auto z-30 mt-2 w-full sm:w-[360px] origin-top rounded-2xl border border-white/15 bg-gradient-to-b from-ink-800/85 via-ink-900/90 to-ink-950/95 p-3 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.85)] ring-1 ring-inset ring-white/5 backdrop-blur-2xl"
         >
           <div className="mb-2 flex items-center justify-between px-2 pt-1">
             <span className="text-[10px] font-semibold uppercase tracking-widest text-white/50">
@@ -299,6 +299,7 @@ export default function CategoryFilter({
               Drag the ⋮⋮ handle to reorder {savingOrder ? "· saving…" : ""}
             </p>
           )}
+          <div className="relative">
           <div className="max-h-[340px] overflow-y-auto pr-1">
             {localOrder.length === 0 ? (
               <p className="px-2 py-3 text-xs text-white/50">
@@ -394,6 +395,12 @@ export default function CategoryFilter({
                 })}
               </ul>
             )}
+          </div>
+          {localOrder.length > 7 && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-8 items-end justify-center rounded-b-md bg-gradient-to-t from-ink-950/95 via-ink-950/60 to-transparent">
+              <span className="mb-0.5 animate-bounce text-[10px] leading-none text-white/45">⌄</span>
+            </div>
+          )}
           </div>
 
           {isAdmin && editMode && (

@@ -40,7 +40,8 @@ const LOGO_SRC: Record<string, string> = {
   "avis.com": "https://upload.wikimedia.org/wikipedia/commons/f/fd/Avis_logo.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
   "budget.com": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Budget_logo.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
   "dominos.com": "https://upload.wikimedia.org/wikipedia/commons/7/74/Dominos_pizza_logo.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
-  "popeyes.com": "https://upload.wikimedia.org/wikipedia/commons/7/73/Popeyes_logo.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original"
+  "popeyes.com": "https://upload.wikimedia.org/wikipedia/commons/7/73/Popeyes_logo.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",
+  "roundtablepizza.com": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Original_Round_Table_Pizza_Logo.jpg/250px-Original_Round_Table_Pizza_Logo.jpg"
 };
 
 const SECTIONS: Section[] = [
@@ -346,7 +347,14 @@ function CardGrid({ secId, mode, cards, wide }: { secId: string; mode: "buy4u"|"
     });
 
     const visible = [...cards.filter(c => !deleted.includes(c.key)), ...extra]
-      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+      .sort((a, b) => {
+        // "+ Any Other …" catch-all cards always sort to the END of the
+        // section, even after admins add new cards (mirrors handleAdd).
+        const ap = a.name.trim().startsWith("+") ? 1 : 0;
+        const bp = b.name.trim().startsWith("+") ? 1 : 0;
+        if (ap !== bp) return ap - bp;
+        return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      });
 
     const handleDelete = (key: string) => {
       const isExtraCard = extra.some(c => c.key === key);

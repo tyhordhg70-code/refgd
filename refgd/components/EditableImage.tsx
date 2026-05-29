@@ -34,6 +34,22 @@ import { useEditableImageGroup } from "./EditableImageGroup";
 import { ANIMATION_TEMPLATES } from "@/lib/image-presets";
 import MoveHandle, { useMoveOffset as useMoveOffsetEditable } from "@/components/MoveHandle";
 
+/**
+ * v6.14 — Route remote images through the on-server cache proxy
+ * (`/api/img`) on the PUBLIC render path. This gives every admin-pasted
+ * image long-lived browser + CDN caching (so attraction / brand photos
+ * stop reloading on every visit) AND fixes images whose host blocks
+ * hot-linking by Referer (the proxy fetches server-side with no browser
+ * Referer). Deterministic on server & client (no `window`) to avoid
+ * hydration mismatch. Left untouched: data:/blob:/relative URLs and
+ * anything already pointing at our own image routes.
+ */
+function cachedSrc(u: string): string {
+  if (!u || !/^https?:\/\//i.test(u)) return u;
+  if (/^https?:\/\/[^/]+\/(api\/img|gc-img|_next)/i.test(u)) return u;
+  return `/api/img?u=${encodeURIComponent(u)}`;
+}
+
 type Props = {
   id: string;
   defaultSrc: string;
@@ -375,7 +391,7 @@ function EditableImageInner({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           ref={imgRef}
-          src={src || defaultSrc}
+          src={editing ? (src || defaultSrc) : cachedSrc(src || defaultSrc)}
           alt={alt}
           className={
             (anim ? `${anim} ` : "") +
