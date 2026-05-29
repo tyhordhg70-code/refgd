@@ -11,28 +11,24 @@ import { openVouches } from "@/components/shop/ShopVouchesModal";
  */
 const FAQS = [
   {
-    q: "How do I receive my purchase?",
-    a: "As soon as your crypto payment confirms on-chain, your product unlocks automatically and a copy is delivered to the email you enter at checkout. Most payments confirm within minutes.",
+    q: "I'm not from USA, will the mentorship/bypass methods work for me?",
+    a: "Yes. Most of our methods and mentorships are built around the platforms themselves — Amazon, Walmart, Target, Apple and more — so they apply no matter where you're based, and plenty of our members are outside the USA. A few store-specific methods do depend on your region, so message us before you buy and we'll confirm exactly what works for your country.",
   },
   {
-    q: "Which payment methods do you accept?",
-    a: "We accept all major cryptocurrencies — BTC, ETH, LTC, USDT and more — through our automated checkout. No cards, no bank details, no middlemen.",
+    q: "Amazon keeps asking me to verify documents, does the Evasion Book help with this?",
+    a: "Yes. The Evasion Book breaks down how each store's anti-fraud system works and how to get around it — including how to handle document and verification requests — so your orders stop getting flagged and canceled.",
   },
   {
-    q: "Are the methods kept up to date?",
-    a: "Yes. When a method changes or gets patched we update the product and you receive the new version free for life. You never pay twice for the same method.",
+    q: "What's the difference between Evasion Book Level 1 and Level 2?",
+    a: "Level 1 teaches the fundamentals: how a store's anti-fraud system and fraud score work, and how to place orders that don't get canceled — even if you're not banned. Level 2 is the advanced follow-up for when you've exhausted your stores or one specific store (Walmart, Amazon, Target, Apple…) keeps canceling on you, going deeper into store-specific evasion.",
   },
   {
-    q: "Is buying from you anonymous?",
-    a: "Completely. We never ask for ID, real names or accounts. The only optional field is an email for your receipt — and even that you can skip.",
+    q: "What's the difference between Mentorship Level 1 and Level 2?",
+    a: "Level 1 is our private mentorship covering all the fundamentals of refunding and social engineering, plus the most up-to-date top-tier methods — no filler like boxing, DNA or FTID. Level 2 builds directly on it (read Level 1 first) with more specific, proven store methods and how to handle advanced scenarios and investigations.",
   },
   {
-    q: "Do you offer refunds?",
-    a: "Because every product is digital and delivered instantly, all sales are final. Read the full description and ask us anything before you buy — we're happy to help.",
-  },
-  {
-    q: "How do I get support?",
-    a: "Join our Telegram group chat (linked in the top menu). Real operators are on hand 24/7 to walk you through any method, book or mentorship.",
+    q: "How do I get started to use your service?",
+    a: "Pick a category, open a product to read the full details, then check out paying with crypto. Delivery is instant — your product unlocks to your email and dashboard the moment payment confirms — and every purchase includes lifetime 24/7 support through our Telegram.",
   },
 ];
 
@@ -58,7 +54,7 @@ export default function ShopFAQ() {
         />
         <EditableText
           id="shop.faq.subtitle"
-          defaultValue="Everything you need to know before you buy. Still unsure? Our Telegram is one tap away."
+          defaultValue="Frequently asked customer questions we've answered. Still unsure? Our Telegram is one tap away."
           as="p"
           multiline
           className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-white/75"

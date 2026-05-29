@@ -24,7 +24,7 @@
     const nodes: InlineNode[] = [];
     // pattern order matters: link first, then bold, code, italic
     const re =
-      /(\[[^\]]+\]\([^)]+\))|(\*\*[^*\n]+\*\*)|(`[^`\n]+`)|(_[^_\n]+_)/g;
+      /(!\[[^\]]*\]\([^)]+\))|(\[[^\]]+\]\([^)]+\))|(\*\*[^*\n]+\*\*)|(`[^`\n]+`)|(_[^_\n]+_)/g;
     let last = 0;
     let i = 0;
     let m: RegExpExecArray | null;
@@ -32,7 +32,23 @@
       if (m.index > last) nodes.push(text.slice(last, m.index));
       const tok = m[0];
       const k = `${keyPrefix}-i${i++}`;
-      if (tok.startsWith("[")) {
+      if (tok.startsWith("![")) {
+        const im = tok.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+        if (im) {
+          nodes.push(
+            <img
+              key={k}
+              src={im[2]}
+              alt={im[1]}
+              loading="lazy"
+              className="my-3 block max-h-[360px] w-auto max-w-full rounded-xl border border-white/10"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+            />,
+          );
+        }
+      } else if (tok.startsWith("[")) {
         const lm = tok.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
         if (lm) {
           nodes.push(

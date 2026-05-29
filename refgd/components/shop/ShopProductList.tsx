@@ -94,11 +94,12 @@ export default function ShopProductList({ category: c }: { category: Category })
             return (
               <motion.article
                 key={p.id}
-                initial={reduced ? {} : { opacity: 0, y: 40, scale: 0.96 }}
-                whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
+                initial={reduced ? {} : { opacity: 0, y: 24 }}
+                whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
+                whileHover={reduced ? undefined : { y: -4 }}
                 viewport={{ once: true, amount: 0.15 }}
-                transition={{ duration: 0.6, delay: 0.05 + i * 0.05, ease: [0.22, 1, 0.36, 1] }}
-                className="group relative flex flex-col overflow-hidden rounded-[1.5rem] border border-white/15 transition-all duration-300 hover:-translate-y-1 hover:border-white/30"
+                transition={{ duration: 0.5, delay: 0.04 + i * 0.04, ease: [0.22, 1, 0.36, 1] }}
+                className="group relative flex flex-col overflow-hidden rounded-[1.5rem] border border-white/15 transition-colors duration-300 hover:border-white/30"
                 style={{
                   background: `linear-gradient(165deg, rgba(${c.rgb},0.16), rgba(10,8,22,0.94) 60%)`,
                   boxShadow: `0 30px 80px -25px rgba(0,0,0,0.85), 0 0 60px -25px rgba(${c.rgb},0.4), inset 0 1px 0 rgba(255,255,255,0.06)`,
