@@ -764,6 +764,10 @@ const CARDS_PER_PAGE = 24;
   const [active, setActive] = useState<string>(SECTIONS[0]?.id ?? "");
   const navRef = useRef<HTMLElement>(null);
   const manualUntil = useRef<number>(0);
+  // True when `active` last changed because the user tapped a pill. In that
+  // case we leave the bar where it is — only natural page-scrolling should
+  // auto-advance it to reveal upcoming sections.
+  const lastWasManual = useRef<boolean>(false);
 
   // Scroll-spy: mark the section nearest the top of the viewport active.
   useEffect(() => {
@@ -787,12 +791,29 @@ const CARDS_PER_PAGE = 24;
     return () => observer.disconnect();
   }, []);
 
-  // Keep the active pill scrolled into view inside the horizontal bar.
+  // When the reader scrolls the page (NOT after a manual tap), auto-advance
+  // the horizontal bar so the next sections — which would otherwise sit off
+  // screen — come into view. We only nudge when the active pill has drifted
+  // past either edge, so the bar stays put while the active pill is still
+  // comfortably visible.
   useEffect(() => {
+    if (lastWasManual.current) {
+      lastWasManual.current = false;
+      return;
+    }
+    const ul = navRef.current?.querySelector("ul");
     const el = navRef.current?.querySelector(
       `[data-pill="${active}"]`,
     ) as HTMLElement | null;
-    el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+    if (!ul || !el) return;
+    const pad = 28;
+    const ulRect = ul.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    if (elRect.right > ulRect.right - pad) {
+      ul.scrollBy({ left: elRect.right - ulRect.right + pad, behavior: "smooth" });
+    } else if (elRect.left < ulRect.left + pad) {
+      ul.scrollBy({ left: elRect.left - ulRect.left - pad, behavior: "smooth" });
+    }
   }, [active]);
 
   return (
@@ -807,7 +828,7 @@ const CARDS_PER_PAGE = 24;
                     href={`#buy4u-${s.id}`}
                     data-pill={s.id}
                     aria-current={on ? "true" : undefined}
-                    onClick={() => { manualUntil.current = Date.now() + 900; setActive(s.id); }}
+                    onClick={() => { manualUntil.current = Date.now() + 900; lastWasManual.current = true; setActive(s.id); }}
                     className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition active:scale-95 ${
                       on
                         ? "border-amber-300/70 bg-amber-400/20 text-white shadow-[0_0_22px_-6px_rgba(245,185,69,0.75)]"
