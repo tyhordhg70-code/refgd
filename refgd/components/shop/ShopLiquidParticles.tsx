@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 
 /**
@@ -62,6 +63,17 @@ const PARTICLES: Array<{
 
 export default function ShopLiquidParticles() {
   const reduced = useReducedMotion();
+  // Pause every animated layer while the vouches modal is open. A full-screen
+  // overlay sitting over ~26 perpetually-animating blurred layers otherwise
+  // pins the GPU compositor and makes the whole page feel frozen.
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    const onVis = (e: Event) =>
+      setPaused(!!(e as CustomEvent<{ open: boolean }>).detail?.open);
+    window.addEventListener("vouches:visibility", onVis as EventListener);
+    return () =>
+      window.removeEventListener("vouches:visibility", onVis as EventListener);
+  }, []);
 
   return (
     <div
@@ -70,10 +82,13 @@ export default function ShopLiquidParticles() {
       style={{ zIndex: 0 }}
     >
       {/* 1. Animated opaque liquid gradient base. */}
-      <div className="shop-liquid-base absolute inset-0" />
+      <div
+        className="shop-liquid-base absolute inset-0"
+        style={{ animationPlayState: paused ? "paused" : "running" }}
+      />
 
       {/* 2. A few dim ambient orbs. */}
-      {ORBS.map((o, i) => (
+      {!paused && ORBS.map((o, i) => (
         <motion.div
           key={`orb-${i}`}
           className="absolute rounded-full"
@@ -105,7 +120,7 @@ export default function ShopLiquidParticles() {
       ))}
 
       {/* 3. Bright floating liquid droplets — the visible particles. */}
-      {PARTICLES.map((p, i) => (
+      {!paused && PARTICLES.map((p, i) => (
         <motion.span
           key={`p-${i}`}
           className="absolute rounded-full"

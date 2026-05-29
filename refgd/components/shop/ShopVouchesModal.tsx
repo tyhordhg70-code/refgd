@@ -431,6 +431,13 @@ export default function ShopVouchesModal({
 
   useEffect(() => setMounted(true), []);
 
+  // Tell the page background (ShopLiquidParticles) to pause its animations
+  // while the modal is open — a full-screen overlay over ~26 continuously
+  // animating layers otherwise pegs the compositor and freezes the page.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("vouches:visibility", { detail: { open } }));
+  }, [open]);
+
   useEffect(() => {
     const onOpen = () => {
       setOpen(true);
@@ -466,7 +473,7 @@ export default function ShopVouchesModal({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <div className="absolute inset-0 bg-black/90" onClick={() => setOpen(false)} />
 
           <motion.div
             initial={reduced ? {} : { y: 40, scale: 0.98, opacity: 0 }}
@@ -511,7 +518,7 @@ export default function ShopVouchesModal({
             </div>
 
             {/* Scrollable thread body */}
-            <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5">
+            <div ref={scrollRef} data-lenis-prevent className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5">
               <EditableText
                 id={`${editIdPrefix}.subtitle`}
                 defaultValue="Real, unfiltered feedback from operators running our methods, mentorships and books — imported straight from the original community thread."
