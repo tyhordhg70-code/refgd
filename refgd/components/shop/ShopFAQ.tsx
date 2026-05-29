@@ -213,14 +213,35 @@ export default function ShopFAQ() {
           </div>
         )}
 
-        <div className="mt-10 text-center">
-          <button
+        <div className="mt-12 flex justify-center">
+          <motion.button
             type="button"
             onClick={() => openVouches()}
-            className="inline-flex items-center gap-2 rounded-full border border-violet-400/30 bg-violet-500/10 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-violet-100 transition hover:border-violet-300/50 hover:bg-violet-500/20"
+            initial={false}
+            whileHover={reduced ? {} : { scale: 1.04 }}
+            whileTap={reduced ? {} : { scale: 0.97 }}
+            animate={
+              reduced
+                ? {}
+                : {
+                    boxShadow: [
+                      "0 0 22px -4px rgba(167,139,250,0.55), 0 0 50px -10px rgba(34,211,238,0.45)",
+                      "0 0 40px 2px rgba(167,139,250,0.85), 0 0 80px -4px rgba(34,211,238,0.7)",
+                      "0 0 22px -4px rgba(167,139,250,0.55), 0 0 50px -10px rgba(34,211,238,0.45)",
+                    ],
+                  }
+            }
+            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+            className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-full border border-violet-300/50 bg-gradient-to-r from-violet-600 via-fuchsia-500 to-cyan-500 px-8 py-4 text-sm font-bold uppercase tracking-[0.18em] text-white"
           >
-            ★ Read community vouches
-          </button>
+            <span
+              aria-hidden
+              className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 group-hover:translate-x-full"
+            />
+            <span aria-hidden className="relative text-amber-200 drop-shadow-[0_0_6px_rgba(252,211,77,0.9)]">★</span>
+            <span className="relative">Read community vouches</span>
+            <span aria-hidden className="relative transition-transform duration-300 group-hover:translate-x-1">→</span>
+          </motion.button>
         </div>
       </div>
     </section>

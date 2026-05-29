@@ -80,15 +80,17 @@ function PostAvatar({
   author,
   src,
   small = false,
+  tiny = false,
 }: {
   author: string;
   src?: string | null;
   small?: boolean;
+  tiny?: boolean;
 }) {
   // stage 0: real forum avatar, 1: generated avatar, 2: monogram
   const [stage, setStage] = useState<0 | 1 | 2>(src ? 0 : 1);
   const clean = author.replace(/^@/, "");
-  const dim = small ? "h-10 w-10 text-xs" : "h-12 w-12 text-sm";
+  const dim = tiny ? "h-7 w-7 text-[10px]" : small ? "h-10 w-10 text-xs" : "h-12 w-12 text-sm";
 
   if (stage === 2) {
     const [a, b] = avatarGradient(clean);
@@ -195,19 +197,24 @@ function ForumPost({
 
           {review.quote && (
             <div className="mb-4 overflow-hidden rounded-lg border border-violet-500/25 bg-violet-500/[0.06]">
-              <div className="flex items-center gap-1.5 border-b border-violet-500/20 bg-violet-500/10 px-3 py-1.5">
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-3 w-3 shrink-0 text-violet-400/80"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path d="M7.17 6A5.17 5.17 0 0 0 2 11.17V18h6.83v-6.83H5.5A3.67 3.67 0 0 1 9.17 7.5V6H7.17Zm10 0A5.17 5.17 0 0 0 12 11.17V18h6.83v-6.83H15.5a3.67 3.67 0 0 1 3.67-3.67V6h-2Z" />
-                </svg>
-                <span className="text-[11px] font-semibold text-violet-300/90">
-                  Originally Posted by{" "}
-                  <span className="text-violet-200">{review.quote.author}</span>
-                </span>
+              <div className="flex items-center gap-2 border-b border-violet-500/20 bg-violet-500/10 px-3 py-2">
+                <PostAvatar author={review.quote.author} tiny />
+                <div className="flex min-w-0 flex-col leading-tight">
+                  <span className="truncate text-sm font-bold text-violet-100">
+                    {review.quote.author}
+                  </span>
+                  <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-violet-300/70">
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-2.5 w-2.5 shrink-0"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path d="M7.17 6A5.17 5.17 0 0 0 2 11.17V18h6.83v-6.83H5.5A3.67 3.67 0 0 1 9.17 7.5V6H7.17Zm10 0A5.17 5.17 0 0 0 12 11.17V18h6.83v-6.83H15.5a3.67 3.67 0 0 1 3.67-3.67V6h-2Z" />
+                    </svg>
+                    Originally posted
+                  </span>
+                </div>
               </div>
               <p className="whitespace-pre-wrap break-words px-3 py-2.5 text-xs italic leading-relaxed text-slate-400">
                 {review.quote.text}

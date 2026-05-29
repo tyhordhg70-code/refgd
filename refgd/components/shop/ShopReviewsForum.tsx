@@ -58,10 +58,10 @@
       return "text-slate-400 border-slate-600/40 bg-slate-700/20";
     }
 
-    function PostAvatar({ author, small = false }: { author: string; small?: boolean }) {
+    function PostAvatar({ author, small = false, tiny = false }: { author: string; small?: boolean; tiny?: boolean }) {
       const [a, b] = avatarGradient(author);
       const initials = author.replace("@", "").slice(0, 2).toUpperCase();
-      const size = small ? "w-10 h-10 text-xs" : "w-12 h-12 text-sm";
+      const size = tiny ? "w-7 h-7 text-[10px]" : small ? "w-10 h-10 text-xs" : "w-12 h-12 text-sm";
       return (
         <div
           className={`${size} rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0 shadow-lg`}
@@ -157,13 +157,21 @@
                 </div>
               </div>
 
-              {/* Quote block */}
+              {/* Quote block — show the original poster (avatar + name) before the reply */}
               {review.quote && (
-                <div className="mb-4 rounded-lg border-l-2 border-violet-500/50 bg-violet-950/20 px-3 sm:px-4 py-3">
-                  <p className="text-[11px] text-slate-500 mb-1 font-semibold">
-                    Originally Posted by {review.quote.author}
-                  </p>
-                  <p className="text-xs text-slate-400 italic leading-relaxed line-clamp-3 break-words">
+                <div className="mb-4 overflow-hidden rounded-lg border border-violet-500/30 bg-violet-950/20">
+                  <div className="flex items-center gap-2 border-b border-violet-500/20 bg-violet-500/10 px-3 py-2">
+                    <PostAvatar author={review.quote.author} tiny />
+                    <div className="flex min-w-0 flex-col leading-tight">
+                      <span className="truncate text-sm font-bold text-violet-100">
+                        {review.quote.author}
+                      </span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-violet-300/70">
+                        Originally posted
+                      </span>
+                    </div>
+                  </div>
+                  <p className="px-3 sm:px-4 py-2.5 text-xs text-slate-400 italic leading-relaxed line-clamp-3 break-words">
                     {review.quote.text}
                   </p>
                 </div>
