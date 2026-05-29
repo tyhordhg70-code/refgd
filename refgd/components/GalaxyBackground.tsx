@@ -69,7 +69,7 @@ export default function GalaxyBackground() {
   }, []);
 
   return (
-    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0">
+    <div aria-hidden="true" className="rg-ambient-bg pointer-events-none fixed inset-0 z-0">
       {/* WebGL canvas — control is transferred to the Web Worker */}
       <canvas
         ref={canvasRef}

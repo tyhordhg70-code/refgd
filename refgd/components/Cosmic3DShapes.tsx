@@ -51,7 +51,7 @@
       <div
         aria-hidden="true"
         data-testid="cosmic-3d-shapes"
-        className="pointer-events-none fixed inset-0 z-[1] overflow-hidden"
+        className="rg-ambient-bg pointer-events-none fixed inset-0 z-[1] overflow-hidden"
         style={{ contain: "layout paint" }}
       >
         {/* Cube — top-right. On mobile: shrunk (56 px), dimmed (0.38),

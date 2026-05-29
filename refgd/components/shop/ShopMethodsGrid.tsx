@@ -118,15 +118,16 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
                       background: `linear-gradient(165deg, rgba(${c.rgb},0.20) 0%, rgba(10,8,22,0.94) 60%)`,
                     }}
                   >
-                    {/* Image plate — white background, generous padding so the
-                        category artwork isn't over-cropped (keeps the zoom fix). */}
-                    <div className="relative h-56 w-full overflow-hidden bg-white">
+                    {/* Image plate — Billgang-style full-bleed: the artwork
+                        fills the frame edge-to-edge (object-cover) at a uniform
+                        zoom, matching the product cards. */}
+                    <div className="relative h-56 w-full overflow-hidden bg-ink-950">
                       <EditableImage
                         id={`shop.cat.${c.slug}.image`}
                         defaultSrc={c.image}
                         alt={c.title}
                         wrapperClassName="block h-full w-full"
-                        className="block h-full w-full object-contain p-8 transition-transform duration-700 group-hover:scale-[1.04]"
+                        className="block h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
                       />
 
                       {/* Count + price chips */}
