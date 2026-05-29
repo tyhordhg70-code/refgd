@@ -80,16 +80,14 @@
                     >
                       <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
 
-                      <div className="relative h-56 w-full overflow-hidden">
+                      <div className="relative h-56 w-full overflow-hidden bg-white">
                         <EditableImage
                           id={`shop.cat.${c.slug}.image`}
                           defaultSrc={c.image}
                           alt={c.title}
                           wrapperClassName="block h-full w-full"
-                          className="block h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+                          className="block h-full w-full object-contain p-5 transition-transform duration-700 group-hover:scale-[1.04]"
                         />
-                        <span aria-hidden className="pointer-events-none absolute inset-0"
-                          style={{ background: "linear-gradient(180deg, transparent 50%, rgba(10,8,22,0.85) 100%)" }} />
 
                         {/* count + price-range chip overlay */}
                         {count > 0 && (

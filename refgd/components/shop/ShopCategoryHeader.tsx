@@ -135,13 +135,15 @@
               >
                 <span aria-hidden className="pointer-events-none absolute inset-x-6 -bottom-2 h-8 rounded-[100%]"
                   style={{ background: `radial-gradient(ellipse 60% 100% at 50% 0%, rgba(${c.rgb},0.55), transparent 70%)`, filter: "blur(14px)" }} />
-                <EditableImage
-                  id={`shop.cat.${c.slug}.image.large`}
-                  defaultSrc={c.image}
-                  alt={c.title}
-                  wrapperClassName="relative z-10 block w-full"
-                  className="block h-auto w-full rounded-2xl drop-shadow-[0_30px_60px_rgba(0,0,0,0.7)]"
-                />
+                <div className="relative z-10 overflow-hidden rounded-2xl bg-white p-5 drop-shadow-[0_30px_60px_rgba(0,0,0,0.7)]">
+                  <EditableImage
+                    id={`shop.cat.${c.slug}.image.large`}
+                    defaultSrc={c.image}
+                    alt={c.title}
+                    wrapperClassName="block w-full"
+                    className="mx-auto block h-auto max-h-[360px] w-auto max-w-full object-contain"
+                  />
+                </div>
               </motion.div>
             </div>
           </motion.div>
