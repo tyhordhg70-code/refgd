@@ -76,8 +76,16 @@ export default function ShopFAQ() {
     try {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed)) {
-        const ids = parsed.filter((x): x is string => typeof x === "string");
-        return ids.length ? ids : DEFAULT_IDS;
+        const seen = new Set<string>();
+        const clean: string[] = [];
+        for (const x of parsed) {
+          if (typeof x !== "string") continue;
+          const t = x.trim();
+          if (!t || !/^[A-Za-z0-9_-]+$/.test(t) || seen.has(t)) continue;
+          seen.add(t);
+          clean.push(t);
+        }
+        return clean.length ? clean : DEFAULT_IDS;
       }
     } catch {
       /* fall through to defaults */
@@ -86,7 +94,7 @@ export default function ShopFAQ() {
   }, [stored]);
 
   const addItem = () => {
-    const newId = `f${Date.now().toString(36)}`;
+    const newId = `f${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     setValue(ITEMS_ID, JSON.stringify([...items, newId]));
     // Seed the q/a so they enter the pending queue and persist on Save.
     setValue(`shop.faq.${newId}.q`, "New question?");
