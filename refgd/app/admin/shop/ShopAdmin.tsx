@@ -327,6 +327,12 @@
               <input className={inputCls} value={p.currency} onChange={(e) => setP({ ...p, currency: e.target.value })} />
             </Field>
           </div>
+          <Field label="Charge type">
+            <select className={inputCls} value={p.chargeType} onChange={(e) => setP({ ...p, chargeType: e.target.value })}>
+              <option value="ONE_TIME">One-time payment</option>
+              <option value="RECURRING">Recurring / subscription</option>
+            </select>
+          </Field>
           <Field label="Image">
             <ImageUploader value={p.image ?? ""} onChange={(url) => setP({ ...p, image: url || null })} />
           </Field>
