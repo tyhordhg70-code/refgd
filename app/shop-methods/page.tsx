@@ -1,0 +1,31 @@
+export const dynamic = "force-dynamic";
+
+import ShopMethodsHero from "@/components/shop/ShopMethodsHero";
+import ShopMethodsGrid from "@/components/shop/ShopMethodsGrid";
+import ShopFeatures from "@/components/shop/ShopFeatures";
+import ShopFAQ from "@/components/shop/ShopFAQ";
+import ShopVouchesModal from "@/components/shop/ShopVouchesModal";
+import ShopReviewsFab from "@/components/shop/ShopReviewsFab";
+import ShopLiquidParticles from "@/components/shop/ShopLiquidParticles";
+import { getShopCatalog } from "@/lib/shop-catalog";
+
+export const metadata = {
+  title: "Shop Methods — RefundGod",
+  description:
+    "Books, exclusive mentorships, aged-order inserts, refund / SE methods and stealth / OPSec — the full RefundGod catalog.",
+};
+
+export default async function ShopMethodsPage() {
+  const catalog = await getShopCatalog();
+  return (
+    <main className="relative">
+      <ShopLiquidParticles />
+      <ShopMethodsHero hero={catalog.hero} />
+      <ShopMethodsGrid categories={catalog.categories} />
+      <ShopFeatures />
+      <ShopFAQ />
+      <ShopVouchesModal />
+      <ShopReviewsFab />
+    </main>
+  );
+}
