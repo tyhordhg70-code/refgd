@@ -31,8 +31,6 @@ export default function ShopProductList({ category: c }: { category: Category })
   const [mounted, setMounted] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [fieldValues, setFieldValues] = useState<Record<string, Record<string, string>>>({});
-  const [emailById, setEmailById] = useState<Record<string, string>>({});
-  const [channelById, setChannelById] = useState<Record<string, "email" | "telegram">>({});
   const [checkoutById, setCheckoutById] = useState<Record<string, CheckoutState>>({});
 
   useEffect(() => setMounted(true), []);
@@ -62,8 +60,6 @@ export default function ShopProductList({ category: c }: { category: Category })
         body: JSON.stringify({
           productId: p.id,
           customFields: fieldValues[p.id] ?? {},
-          channel: channelById[p.id] ?? "email",
-          email: emailById[p.id],
         }),
       });
       const data = (await res.json()) as { ok: boolean; invoiceUrl?: string; orderId?: string; error?: string };
@@ -165,14 +161,10 @@ export default function ShopProductList({ category: c }: { category: Category })
                 const p = openProduct;
                 const priceLabel = `$${p.price}${p.currency && p.currency !== "USD" ? " " + p.currency : ""}`;
                 const checkout: CheckoutState = checkoutById[p.id] ?? { phase: "idle" };
-                const channel = channelById[p.id] ?? "email";
-                const emailVal = emailById[p.id] ?? "";
-                const emailMissing =
-                  channel === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal.trim());
                 const missingRequired =
                   (p.customFields ?? []).some(
                     (cf) => cf.required && !fieldValues[p.id]?.[cf.name]?.trim(),
-                  ) || emailMissing;
+                  );
 
                 return (
                   <motion.div
@@ -303,51 +295,9 @@ export default function ShopProductList({ category: c }: { category: Category })
                                   ))}
                                 </div>
                               )}
-                              <div className="mb-4">
-                                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-gray-700">
-                                  How should we deliver your product?
-                                </span>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {(["email", "telegram"] as const).map((ch) => {
-                                    const active = channel === ch;
-                                    return (
-                                      <button
-                                        key={ch}
-                                        type="button"
-                                        onClick={() => setChannelById((s) => ({ ...s, [p.id]: ch }))}
-                                        className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
-                                          active
-                                            ? "border-violet-400 bg-violet-50 text-violet-700"
-                                            : "border-gray-300 bg-white text-gray-600 hover:border-gray-400"
-                                        }`}
-                                      >
-                                        {ch === "email" ? "✉️ Email" : "✈️ Telegram"}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-
-                              {channel === "email" ? (
-                                <label className="mb-4 block">
-                                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-gray-700">
-                                    Email <span className="ml-1 text-rose-500">*</span>
-                                  </span>
-                                  <input
-                                    type="email"
-                                    placeholder="you@example.com"
-                                    value={emailById[p.id] ?? ""}
-                                    onChange={(e) => setEmailById((s) => ({ ...s, [p.id]: e.target.value }))}
-                                    className="block w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-violet-400 focus:outline-none"
-                                  />
-                                </label>
-                              ) : (
-                                <p className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs leading-relaxed text-sky-700">
-                                  After payment, you&apos;ll get a button to open Telegram and tap{" "}
-                                  <strong>Start</strong> — your product is delivered straight to your chat.
-                                  No email needed.
-                                </p>
-                              )}
+                              <p className="mb-4 rounded-xl border border-gray-200 bg-gray-100/60 px-4 py-3 text-xs leading-relaxed text-gray-600">
+                                After payment you&apos;ll land on your private delivery page — bookmark it. You can also save a copy to Telegram from there.
+                              </p>
 
                               <button
                                 type="button"

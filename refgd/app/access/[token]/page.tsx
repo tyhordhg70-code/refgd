@@ -30,9 +30,9 @@ export default async function AccessPage({
   const destination = linkMode ? config!.content.trim() : null;
   const buttonLabel = config?.buttonLabel || "Access your product";
 
-  // Telegram buyer who paid but hasn't connected their chat yet → deep link.
+  // Optional Telegram backup — shown on all paid orders so any buyer can save a copy.
   let tgDeepLink: string | null = null;
-  if (order.channel === "telegram" && paid && !order.telegramChatId) {
+  if (paid) {
     const bot = await getBotUsername();
     if (bot) tgDeepLink = `https://t.me/${bot}?start=${order.deliveryToken}`;
   }
@@ -136,19 +136,19 @@ export default async function AccessPage({
                 )}
 
                 {tgDeepLink && (
-                  <a
-                    href={tgDeepLink}
-                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border border-sky-400/40 bg-sky-500/10 px-6 py-3.5 text-sm font-bold text-sky-200 transition hover:bg-sky-500/20"
-                  >
-                    Receive on Telegram →
-                  </a>
+                  <div className="mt-5 border-t border-white/10 pt-5">
+                    <p className="mb-3 text-center text-xs text-white/45">
+                      Want a backup copy in Telegram? Tap below — the bot sends it the moment you press Start.
+                    </p>
+                    <a
+                      href={tgDeepLink}
+                      className="flex w-full items-center justify-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/[0.08] px-6 py-3 text-sm font-semibold text-sky-300 transition hover:bg-sky-500/15"
+                    >
+                      ✈️ Save a copy to Telegram
+                    </a>
+                  </div>
                 )}
 
-                {order.channel === "email" && order.email && (
-                  <p className="mt-5 text-center text-xs text-white/45">
-                    A copy has also been sent to {order.email}.
-                  </p>
-                )}
               </>
             ) : (
               <>
@@ -156,18 +156,9 @@ export default async function AccessPage({
                   <span className="h-2 w-2 animate-ping rounded-full bg-amber-400" />
                   Checking payment status…
                 </div>
-                {order.channel === "email" && order.email && (
-                  <p className="mt-4 text-center text-xs text-white/45">
-                    Once confirmed, your product is delivered here and emailed to{" "}
-                    {order.email}.
-                  </p>
-                )}
-                {order.channel === "telegram" && (
-                  <p className="mt-4 text-center text-xs text-white/45">
-                    Once confirmed, you&apos;ll be able to receive it on Telegram and
-                    right here on this page.
-                  </p>
-                )}
+                <p className="mt-4 text-center text-xs text-white/45">
+                  Once confirmed your product will be ready right here — bookmark this page.
+                </p>
               </>
             )}
           </div>

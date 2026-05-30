@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getProduct } from "@/lib/shop-catalog";
-import { createOrder, newDeliveryToken, type OrderChannel } from "@/lib/delivery";
+import { createOrder, newDeliveryToken } from "@/lib/delivery";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,9 +8,6 @@ export const dynamic = "force-dynamic";
 type Body = {
   productId: string;
   customFields?: Record<string, string>;
-  channel?: OrderChannel;
-  email?: string;
-  telegram?: string;
 };
 
 /**
@@ -54,15 +51,6 @@ export async function POST(req: Request) {
     }
   }
 
-  const channel: OrderChannel = body.channel === "telegram" ? "telegram" : "email";
-  const email = body.email?.trim() || null;
-  if (channel === "email" && (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))) {
-    return NextResponse.json(
-      { ok: false, error: "A valid email is required to receive your delivery." },
-      { status: 400 },
-    );
-  }
-
   const orderId = `refgd_${product.id}_${Date.now().toString(36)}`;
   const token = newDeliveryToken();
 
@@ -86,9 +74,9 @@ export async function POST(req: Request) {
       price: product.price,
       currency: product.currency ?? "USD",
       customFields: body.customFields ?? {},
-      channel,
-      email,
-      telegramHandle: channel === "telegram" ? (body.telegram?.trim() || null) : null,
+      channel: "email",
+      email: null,
+      telegramHandle: null,
       deliveryToken: token,
       invoiceId: null,
     });
@@ -109,7 +97,6 @@ export async function POST(req: Request) {
     cancel_url: `${origin}/shop-methods?checkout=cancel&order=${orderId}`,
     is_fee_paid_by_user: false,
     is_fixed_rate: false,
-    ...(email ? { customer_email: email } : {}),
   };
 
   let npRes: Response;
