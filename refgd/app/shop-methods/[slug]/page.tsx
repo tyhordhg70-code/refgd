@@ -30,7 +30,7 @@ export default async function CategoryPage({ params }: Props) {
       <ShopProductList category={category} />
       <div className="container-wide relative z-10 pb-20 pt-2">
         <Link
-          href="/shop-methods"
+          href="/shop-methods#categories"
           className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition hover:border-white/50 hover:bg-white/10"
         >
           <span aria-hidden>←</span> Back to all categories

@@ -96,6 +96,19 @@ function thankers(seed: number, count: number): string[] {
   return idx.slice(0, target).map((i) => THANKERS[i]);
 }
 
+// Build a username → real avatar URL lookup from the imported reviews so that
+// when a review author (e.g. "refundgod") appears as a thanker chip, we can
+// show their actual forum profile picture instead of a generated DiceBear one.
+const AUTHOR_AVATAR_MAP: Record<string, string> = {};
+for (const r of reviewsData as Review[]) {
+  if (r.author && r.avatar) {
+    AUTHOR_AVATAR_MAP[r.author.replace(/^@/, "").toLowerCase()] = r.avatar;
+  }
+}
+function getAuthorAvatar(name: string): string | undefined {
+  return AUTHOR_AVATAR_MAP[name.replace(/^@/, "").toLowerCase()];
+}
+
 const THANKS_COLLAPSED = 6;
 
 function ThanksBox({
@@ -135,7 +148,7 @@ function ThanksBox({
             key={`${n}-${i}`}
             className="inline-flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/[0.08] py-0.5 pl-0.5 pr-2"
           >
-            <PostAvatar author={n} tiny />
+            <PostAvatar author={n} src={getAuthorAvatar(n)} tiny />
             <span className="text-[11px] font-medium text-emerald-200/90">{n}</span>
           </span>
         ))}

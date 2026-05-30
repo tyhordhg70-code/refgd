@@ -100,30 +100,17 @@ export default function ShopProductList({ category: c }: { category: Category })
                 whileHover={reduced ? undefined : { y: -4 }}
                 viewport={{ once: true, amount: 0.15 }}
                 transition={{ duration: 0.5, delay: 0.04 + i * 0.04, ease: [0.22, 1, 0.36, 1] }}
-                className="group relative flex flex-col overflow-hidden rounded-[1.5rem] border border-white/15 transition-colors duration-300 hover:border-white/30"
-                style={{
-                  background: `linear-gradient(165deg, rgba(${c.rgb},0.16), rgba(10,8,22,0.94) 60%)`,
-                  boxShadow: `0 30px 80px -25px rgba(0,0,0,0.85), 0 0 60px -25px rgba(${c.rgb},0.4), inset 0 1px 0 rgba(255,255,255,0.06)`,
-                }}
+                className="group relative flex flex-col overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-[0_8px_32px_-8px_rgba(0,0,0,0.10),0_2px_8px_-2px_rgba(0,0,0,0.06)] transition-all duration-300 hover:border-violet-200 hover:shadow-[0_16px_48px_-12px_rgba(109,40,217,0.14)]"
               >
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent"
-                />
-
                 {p.image && (
-                  <div
-                    className="relative h-48 w-full overflow-hidden"
-                    style={{
-                      background: `radial-gradient(circle at 50% 30%, rgba(${c.rgb},0.14), rgba(8,6,18,0.92) 72%)`,
-                    }}
-                  >
+                  <div className="relative w-full overflow-hidden rounded-t-[1.5rem] bg-gray-50 aspect-[4/3]">
                     <EditableImage
                       id={`shop.prod.${p.id}.image`}
                       defaultSrc={p.image}
                       alt={p.title}
-                      wrapperClassName="block h-full w-full"
-                      className="block h-full w-full object-contain p-5 transition-transform duration-500 group-hover:scale-[1.05]"
+                      eager
+                      wrapperClassName="block h-full w-full absolute inset-0"
+                      className="block h-full w-full object-contain p-4 transition-transform duration-500 group-hover:scale-[1.04]"
                     />
                   </div>
                 )}
@@ -134,13 +121,10 @@ export default function ShopProductList({ category: c }: { category: Category })
                       id={`shop.prod.${p.id}.title`}
                       defaultValue={p.title}
                       as="h3"
-                      className="editorial-display min-w-0 break-words text-base uppercase text-white sm:text-lg"
+                      className="editorial-display min-w-0 break-words text-base uppercase text-gray-900 sm:text-lg"
                       style={{ letterSpacing: "-0.02em", lineHeight: 1.2 }}
                     />
-                    <span
-                      className="shrink-0 rounded-full border border-white/20 px-3 py-1 text-sm font-bold text-white"
-                      style={{ boxShadow: `0 0 30px -10px rgba(${c.rgb},0.7)` }}
-                    >
+                    <span className="shrink-0 rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm font-bold text-gray-800">
                       <EditableText id={`shop.prod.${p.id}.price`} defaultValue={priceLabel} as="span" />
                     </span>
                   </div>
@@ -151,15 +135,14 @@ export default function ShopProductList({ category: c }: { category: Category })
                       defaultValue={p.summary}
                       as="p"
                       multiline
-                      className="mt-2 line-clamp-3 flex-1 text-sm leading-[1.6] text-white/70"
+                      className="mt-2 line-clamp-3 flex-1 text-sm leading-[1.6] text-gray-500"
                     />
                   )}
 
                   <button
                     type="button"
                     onClick={() => setOpenId(p.id)}
-                    className="mt-5 inline-flex items-center justify-center gap-2 self-start rounded-full border border-white/25 bg-white/5 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-white transition hover:border-white/50 hover:bg-white/10"
-                    style={{ boxShadow: `0 0 32px -8px rgba(${c.rgb},0.6)` }}
+                    className="mt-5 inline-flex items-center justify-center gap-2 self-start rounded-full border border-gray-300 bg-gray-50 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-gray-800 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700"
                   >
                     View product
                     <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>

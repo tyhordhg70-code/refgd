@@ -12,43 +12,34 @@ import type { ShopCategory as Category } from "@/lib/shop-catalog";
 /**
  * ShopMethodsGrid — category card grid.
  *
- * Billgang-parity cards: a LARGE, full (uncropped) illustration on a light
- * panel, then the category title and a short description below — rendered on a
- * white card so the mirrored Billgang illustrations read exactly like the
- * source store. Only the cards are light; they sit on the dark shop page.
+ * Billgang-parity cards: white panel, full uncropped illustration, title and
+ * description below — rendered on a clean white card over the light liquid
+ * particles background.
  *
  * Entrance is a simple 2D fade + slide-up staggered by index. No 3D transforms
  * (perspective / preserve-3d / rotateX) — those promote each card to its own 3D
- * compositor layer that the browser mis-paints during Lenis smooth scrolling,
- * which previously made cards "break in half / vanish on scroll".
+ * compositor layer that the browser mis-paints during Lenis smooth scrolling.
  */
 export default function ShopMethodsGrid({ categories }: { categories: Category[] }) {
   const reduced = useReducedMotion();
-  // On mobile (iOS Safari especially) the whileInView/IntersectionObserver
-  // reveal frequently never fires — URL-bar collapse, late layout shifts and
-  // ancestor transforms all break IO root math — stranding cards at opacity:0
-  // forever (the "all categories missing after the first card" report). This
-  // is the same failure documented in lib/iosCheck.ts that every other reveal
-  // in the app already bypasses on mobile. So on mobile we skip the hidden
-  // initial entirely and render the cards visible, no scroll dependency.
   const [mobile, setMobile] = useState(false);
   useEffect(() => setMobile(isMobileLike()), []);
   const noAnim = reduced || mobile;
 
   return (
-    <section className="relative z-10 py-16 sm:py-24 overflow-x-clip">
+    <section id="categories" className="relative z-10 py-16 sm:py-24 overflow-x-clip">
       <div className="container-wide relative">
         <EditableText
           id="shop.grid.eyebrow"
           defaultValue="OUR PRODUCTS"
           as="div"
-          className="text-center text-xs font-bold uppercase tracking-[0.32em] text-violet-300"
+          className="text-center text-xs font-bold uppercase tracking-[0.32em] text-violet-600"
         />
         <EditableText
           id="shop.grid.title"
           defaultValue="Pick a category."
           as="h2"
-          className="editorial-display mx-auto mt-4 max-w-3xl text-balance text-center uppercase text-white text-[clamp(1.8rem,4.5vw,3.4rem)]"
+          className="editorial-display mx-auto mt-4 max-w-3xl text-balance text-center uppercase text-gray-900 text-[clamp(1.8rem,4.5vw,3.4rem)]"
           style={{ letterSpacing: "-0.025em", lineHeight: 1.15 }}
         />
         <EditableText
@@ -56,7 +47,7 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
           defaultValue="A wide range of products organized into carefully curated categories. Pick the one you're interested in — each opens into the full product list."
           as="p"
           multiline
-          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-white/75"
+          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-500"
         />
 
         {/* Category cards — big full illustration + title + description (Billgang layout) */}
@@ -76,10 +67,9 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
                 className="block h-full"
                 aria-label={`View ${c.title}`}
               >
-                <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#17171c] shadow-[0_24px_60px_-30px_rgba(0,0,0,0.9)] transition-all duration-300 group-hover:-translate-y-1 group-hover:border-white/20">
-                  {/* Big, full (uncropped) illustration —
-                      object-contain so the whole artwork shows (never zoomed/cropped). */}
-                  <div className="w-full overflow-hidden bg-[#0f0f14]">
+                <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-[0_8px_32px_-8px_rgba(0,0,0,0.10),0_2px_8px_-2px_rgba(0,0,0,0.06)] transition-all duration-300 group-hover:-translate-y-1 group-hover:border-violet-200 group-hover:shadow-[0_16px_48px_-12px_rgba(109,40,217,0.15),0_4px_12px_-4px_rgba(0,0,0,0.08)]">
+                  {/* Big, full (uncropped) illustration */}
+                  <div className="w-full overflow-hidden bg-gray-50">
                     <EditableImage
                       id={`shop.cat.${c.slug}.image`}
                       defaultSrc={c.image}
@@ -96,16 +86,16 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
                       id={`shop.cat.${c.slug}.title`}
                       defaultValue={c.title}
                       as="h3"
-                      className="text-xl font-extrabold tracking-tight text-white sm:text-2xl"
+                      className="text-xl font-extrabold tracking-tight text-gray-900 sm:text-2xl"
                     />
                     <EditableText
                       id={`shop.cat.${c.slug}.tagline`}
                       defaultValue={c.tagline}
                       as="p"
                       multiline
-                      className="mt-2 flex-1 text-sm leading-[1.7] text-slate-300 sm:text-base"
+                      className="mt-2 flex-1 text-sm leading-[1.7] text-gray-500 sm:text-base"
                     />
-                    <span className="mt-5 inline-flex items-center gap-1.5 self-start text-sm font-bold uppercase tracking-[0.14em] text-red-400">
+                    <span className="mt-5 inline-flex items-center gap-1.5 self-start text-sm font-bold uppercase tracking-[0.14em] text-red-600">
                       View products
                       <span
                         aria-hidden

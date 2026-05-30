@@ -4,7 +4,6 @@
   import Image from "next/image";
   import EditableImage from "@/components/EditableImage";
   import EditableText from "@/components/EditableText";
-  import ChapterPill from "@/components/ChapterPill";
   import KineticText from "@/components/KineticText";
   import { openVouches } from "@/components/shop/ShopVouchesModal";
 
@@ -15,12 +14,13 @@
    *   • clip-path wipe reveal on the framed banner
    *   • spring scale-in on the title block
    *   • all text fields admin-editable
+   *   • ChapterPill removed (user request); title block has violet glow
    */
   export default function ShopMethodsHero({ hero }: { hero: Hero }) {
     const reduced = useReducedMotion();
 
     return (
-      <section className="relative z-10 pt-12 pb-10 sm:pt-24 sm:pb-16 overflow-x-clip">
+      <section className="relative z-10 pt-4 pb-10 sm:pt-10 sm:pb-16 overflow-x-clip">
         <div className="container-wide relative">
           {/* Framed banner */}
           <motion.div
@@ -58,14 +58,13 @@
             whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ type: "spring", stiffness: 80, damping: 16, delay: 0.45 }}
-            className="relative z-10 mx-auto -mt-16 max-w-4xl rounded-[1.75rem] border border-white/10 bg-[rgba(10,8,22,0.78)] p-6 text-center backdrop-blur-md sm:-mt-28 sm:p-12"
+            className="relative z-10 mx-auto -mt-20 max-w-4xl rounded-[1.75rem] border border-white/10 bg-[rgba(10,8,22,0.82)] p-6 text-center backdrop-blur-md sm:-mt-36 sm:p-12"
             style={{
               boxShadow:
-                "0 40px 100px -30px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06)",
+                "0 40px 100px -30px rgba(0,0,0,0.9), 0 0 80px -15px rgba(167,139,250,0.55), 0 0 140px -35px rgba(167,139,250,0.28), inset 0 1px 0 rgba(255,255,255,0.08)",
             }}
           >
-            {/* Crypto illustration — now part of the SHOP METHODS box card,
-                sitting at the top of the box above the title. */}
+            {/* Crypto illustration */}
             <motion.div
               initial={reduced ? {} : { opacity: 0, y: 20 }}
               whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
@@ -85,17 +84,11 @@
                 unoptimized
               />
             </motion.div>
-            <ChapterPill
-              editId="shop.hero.eyebrow"
-              defaultValue={hero.eyebrow}
-              accent="violet"
-              size="md"
-            />
             <KineticText
               as="h1"
               text={hero.title}
               editId="shop.hero.title"
-              className="editorial-display mt-6 text-balance uppercase text-white text-[clamp(2.4rem,6.5vw,5rem)]"
+              className="editorial-display mt-2 text-balance uppercase text-white text-[clamp(2.4rem,6.5vw,5rem)]"
               style={{
                 textShadow:
                   "0 6px 36px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.95)",
@@ -152,4 +145,3 @@
       </section>
     );
   }
-  
