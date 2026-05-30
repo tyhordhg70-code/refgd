@@ -477,18 +477,22 @@ export default function ShopVouchesModal({
         <motion.div
           key="vouches-overlay"
           className="fixed inset-0 z-[120] flex items-end justify-center sm:items-center sm:p-6"
-          initial={{ opacity: 0 }}
+          // Start fully opaque on OPEN (no fade-in) so the opaque backdrop can
+          // occlusion-cull the animated layers behind it from the very first
+          // frame — a fade-in would keep the overlay translucent for ~200ms and
+          // re-introduce the compositor stall. The panel still animates in via
+          // its own spring below; exit keeps a fade so the close still plays.
+          initial={{ opacity: 1 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
           {/* FULLY OPAQUE backdrop (no alpha). A translucent overlay forces the
-              browser to keep compositing every animated layer behind it every
-              frame — the always-mounted mix-blend ShopReviewsFab, the liquid
-              particles and any section animations — which pegs the GPU
-              compositor and freezes the page. A fully opaque cover lets the
-              browser occlusion-cull all of it, so nothing behind is composited
-              while the modal is open. */}
+              browser to keep compositing every layer behind it every frame —
+              the still-mounted liquid-particles base and the whole page's
+              animated sections — which pegs the GPU compositor and freezes the
+              page. A fully opaque cover lets the browser occlusion-cull all of
+              it, so nothing behind is composited while the modal is open. */}
           <div className="absolute inset-0 bg-[#06030f]" onClick={() => setOpen(false)} />
 
           <motion.div
