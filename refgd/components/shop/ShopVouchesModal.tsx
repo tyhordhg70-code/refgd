@@ -221,15 +221,14 @@ function PostAvatar({
   small?: boolean;
   tiny?: boolean;
 }) {
-  // stage 0: real forum avatar, 1: generated avatar, 2: monogram
-  // On mobile (iOS Safari) opening the modal otherwise kicks off ~50 external
-  // DiceBear avatar SVG fetches + decodes at once (8 posts × up to 6 thanker
-  // avatars), which pins the GPU/network and freezes the tab so hard it can't
-  // even be refreshed. Skip every remote avatar on mobile and render the cheap
-  // CSS monogram (stage 2) directly — no network, no decode storm.
-  const [stage, setStage] = useState<0 | 1 | 2>(() =>
-    isMobileLike() ? 2 : src ? 0 : 1,
-  );
+  // stage 0: real forum avatar, 1: generated avatar, 2: monogram.
+  // We previously forced mobile straight to the CSS monogram on the theory
+  // that the avatar image fetches were what froze the tab on open. The real
+  // cause was an infinite loop in thankers() (since fixed), so real photos are
+  // restored on every device: real forum avatar when present, DiceBear
+  // fallback otherwise, monogram only if both images fail to load. Images are
+  // lazy-loaded and decoded off the main thread, so they don't block the page.
+  const [stage, setStage] = useState<0 | 1 | 2>(() => (src ? 0 : 1));
   const clean = author.replace(/^@/, "");
   const dim = tiny ? "h-7 w-7 text-[10px]" : small ? "h-10 w-10 text-xs" : "h-12 w-12 text-sm";
 
