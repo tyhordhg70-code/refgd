@@ -65,13 +65,13 @@
                 "0 0 0 1px rgba(139,92,246,0.35), 0 0 32px 6px rgba(139,92,246,0.55), 0 0 90px 24px rgba(139,92,246,0.22), 0 30px 80px -20px rgba(0,0,0,0.8)",
             }}
           >
-            {/* Crypto illustration — compact on mobile */}
+            {/* Crypto illustration — full original size (user request) */}
             <motion.div
               initial={reduced ? {} : { opacity: 0, y: 16 }}
               whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.4 }}
               transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-              className="mx-auto mb-4 w-full max-w-[160px] select-none sm:mb-6 sm:max-w-xs"
+              className="mx-auto mb-6 w-full max-w-md select-none sm:mb-8"
               aria-hidden="true"
             >
               <Image

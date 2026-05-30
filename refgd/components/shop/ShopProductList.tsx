@@ -177,7 +177,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                     transition={{ duration: 0.2 }}
                   >
                     <div
-                      className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                      className="absolute inset-0 bg-black/85"
                       onClick={() => setOpenId(null)}
                     />
 

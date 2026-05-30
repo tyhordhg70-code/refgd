@@ -105,8 +105,31 @@ for (const r of reviewsData as Review[]) {
     AUTHOR_AVATAR_MAP[r.author.replace(/^@/, "").toLowerCase()] = r.avatar;
   }
 }
+
+// Pool of every genuine forum avatar referenced anywhere in the reviews data.
+// Thanker chips are mostly forum users who never authored a review, so they
+// have no direct avatar match — instead of falling back to a cartoon DiceBear
+// face we assign each one a real forum photo deterministically (by username
+// hash), so every chip shows an authentic-looking profile picture.
+const REAL_AVATAR_POOL: string[] = Array.from(
+  new Set(
+    (reviewsData as Review[])
+      .map((r) => r.avatar)
+      .filter((a): a is string => typeof a === "string" && a.length > 0),
+  ),
+);
+function hashUsername(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
 function getAuthorAvatar(name: string): string | undefined {
-  return AUTHOR_AVATAR_MAP[name.replace(/^@/, "").toLowerCase()];
+  const key = name.replace(/^@/, "").toLowerCase();
+  if (AUTHOR_AVATAR_MAP[key]) return AUTHOR_AVATAR_MAP[key];
+  if (REAL_AVATAR_POOL.length > 0) {
+    return REAL_AVATAR_POOL[hashUsername(key) % REAL_AVATAR_POOL.length];
+  }
+  return undefined;
 }
 
 const THANKS_COLLAPSED = 6;

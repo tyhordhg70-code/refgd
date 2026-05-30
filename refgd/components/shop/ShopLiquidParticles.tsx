@@ -1,23 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
-
 /**
- * ShopLiquidParticles — full-page ambient background for the shop-methods page.
+ * ShopLiquidParticles — full-page ambient background for every shop page.
  *
- * Billgang-style: pure white base + 5 large vivid "liquid glass" blobs.
- * Each blob looks 3-dimensional via:
- *   • bright white specular highlight at top-left (radial-gradient)
- *   • saturated colour body fading to transparent at edges
- *   • coloured box-shadow glow (inner + outer halo)
- *   • slow organic borderRadius morph → the "liquid" motion
- *   • gentle float (translate x/y)
+ * PERFORMANCE-FIRST rewrite. The previous version animated `borderRadius`
+ * and carried large blurred `box-shadow`s, animated by framer-motion on the
+ * MAIN THREAD. Both force a full repaint every frame, which made scrolling
+ * and the product-modal transition janky on mobile.
  *
- * No blur on the blobs themselves — blur kills the glassy sharpness.
- * The background is opaque white so the global dark galaxy is hidden.
+ * This version is GPU/compositor-only:
+ *   • Each blob is a soft radial-gradient disc with `filter: blur()` for the
+ *     glow (no box-shadow, no per-frame repaint).
+ *   • Only `transform` (translate3d + rotate + scale) is animated, via pure
+ *     CSS @keyframes — these run on the compositor thread and never block
+ *     scrolling. Rotating an asymmetric border-radius gives the "liquid"
+ *     morph illusion for free.
+ *   • A soft tinted gradient base fills the page so it never looks blankly
+ *     white, while the blobs add vivid colour.
  *
- * Scroll safety: only transform / opacity / borderRadius animate.
+ * `prefers-reduced-motion` users get the static composition (no animation).
  */
 
 type Blob = {
@@ -25,122 +26,93 @@ type Blob = {
   left: string;
   top: string;
   rgb: [number, number, number];
-  dx: number[];
-  dy: number[];
+  radius: string;
+  blur: number;
+  /** keyframe transform path */
+  kf: string;
   dur: number;
-  delay: number;
-  r0: string;
-  r1: string;
 };
 
 const BLOBS: Blob[] = [
   {
-    size: 480,
-    left: "-8%", top: "-4%",
-    rgb: [130, 60, 255],
-    dx: [0, 32, -12, 0], dy: [0, 24, -18, 0],
-    dur: 22, delay: 0,
-    r0: "62% 38% 56% 44% / 54% 46% 54% 46%",
-    r1: "40% 60% 42% 58% / 46% 54% 46% 54%",
+    size: 540, left: "-10%", top: "-6%", rgb: [130, 60, 255],
+    radius: "62% 38% 56% 44% / 54% 46% 54% 46%", blur: 44, dur: 26,
+    kf: `0%,100%{transform:translate3d(0,0,0) rotate(0deg) scale(1)}
+         33%{transform:translate3d(40px,30px,0) rotate(120deg) scale(1.08)}
+         66%{transform:translate3d(-18px,46px,0) rotate(240deg) scale(0.94)}`,
   },
   {
-    size: 440,
-    left: "70%", top: "-6%",
-    rgb: [20, 170, 245],
-    dx: [0, -28, 18, 0], dy: [0, 28, 8, 0],
-    dur: 26, delay: 4,
-    r0: "44% 56% 62% 38% / 58% 42% 58% 42%",
-    r1: "60% 40% 44% 56% / 44% 56% 40% 60%",
+    size: 500, left: "68%", top: "-8%", rgb: [20, 170, 245],
+    radius: "44% 56% 62% 38% / 58% 42% 58% 42%", blur: 46, dur: 30,
+    kf: `0%,100%{transform:translate3d(0,0,0) rotate(0deg) scale(1)}
+         33%{transform:translate3d(-36px,34px,0) rotate(-130deg) scale(1.06)}
+         66%{transform:translate3d(22px,18px,0) rotate(-250deg) scale(0.96)}`,
   },
   {
-    size: 420,
-    left: "62%", top: "62%",
-    rgb: [220, 55, 200],
-    dx: [0, 22, -24, 0], dy: [0, -22, 14, 0],
-    dur: 24, delay: 8,
-    r0: "54% 46% 48% 52% / 42% 58% 48% 52%",
-    r1: "36% 64% 58% 42% / 56% 44% 60% 40%",
+    size: 480, left: "60%", top: "58%", rgb: [220, 55, 200],
+    radius: "54% 46% 48% 52% / 42% 58% 48% 52%", blur: 48, dur: 28,
+    kf: `0%,100%{transform:translate3d(0,0,0) rotate(0deg) scale(1)}
+         33%{transform:translate3d(30px,-28px,0) rotate(140deg) scale(1.05)}
+         66%{transform:translate3d(-26px,16px,0) rotate(250deg) scale(0.93)}`,
   },
   {
-    size: 400,
-    left: "-5%", top: "65%",
-    rgb: [10, 195, 135],
-    dx: [0, 28, -10, 0], dy: [0, -20, 14, 0],
-    dur: 28, delay: 12,
-    r0: "50% 50% 58% 42% / 60% 40% 50% 50%",
-    r1: "44% 56% 42% 58% / 40% 60% 58% 42%",
+    size: 460, left: "-8%", top: "62%", rgb: [10, 195, 135],
+    radius: "50% 50% 58% 42% / 60% 40% 50% 50%", blur: 50, dur: 34,
+    kf: `0%,100%{transform:translate3d(0,0,0) rotate(0deg) scale(1)}
+         33%{transform:translate3d(36px,-24px,0) rotate(-120deg) scale(1.07)}
+         66%{transform:translate3d(14px,22px,0) rotate(-240deg) scale(0.95)}`,
   },
   {
-    size: 350,
-    left: "33%", top: "40%",
-    rgb: [255, 110, 40],
-    dx: [0, -20, 26, 0], dy: [0, -26, 10, 0],
-    dur: 30, delay: 16,
-    r0: "46% 54% 60% 40% / 52% 48% 46% 54%",
-    r1: "58% 42% 46% 54% / 38% 62% 56% 44%",
+    size: 400, left: "32%", top: "36%", rgb: [255, 120, 40],
+    radius: "46% 54% 60% 40% / 52% 48% 46% 54%", blur: 52, dur: 32,
+    kf: `0%,100%{transform:translate3d(0,0,0) rotate(0deg) scale(1)}
+         33%{transform:translate3d(-24px,-30px,0) rotate(130deg) scale(1.06)}
+         66%{transform:translate3d(28px,12px,0) rotate(250deg) scale(0.92)}`,
   },
 ];
 
-function LiquidBlob({ b, reduced, paused }: { b: Blob; reduced: boolean | null; paused: boolean }) {
-  const [r, g, bl] = b.rgb;
-  const main  = `rgba(${r},${g},${bl},0.88)`;
-  const mid   = `rgba(${r},${g},${bl},0.68)`;
-  const edge  = `rgba(${r},${g},${bl},0.22)`;
-  const glow1 = `rgba(${r},${g},${bl},0.50)`;
-  const glow2 = `rgba(${r},${g},${bl},0.20)`;
-
-  return (
-    <motion.div
-      style={{
-        position: "absolute",
-        width: b.size,
-        height: b.size,
-        left: b.left,
-        top: b.top,
-        background: `radial-gradient(circle at 30% 28%, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.72) 7%, ${main} 20%, ${mid} 46%, ${edge} 74%, transparent 100%)`,
-        boxShadow: `0 0 55px 18px ${glow1}, 0 0 100px 45px ${glow2}, inset 0 0 35px rgba(255,255,255,0.28)`,
-        willChange: "transform, border-radius",
-      }}
-      animate={
-        reduced || paused
-          ? { borderRadius: b.r0 }
-          : {
-              x: b.dx,
-              y: b.dy,
-              scale: [1, 1.06, 0.97, 1.03, 1],
-              borderRadius: [b.r0, b.r1, b.r0],
-            }
-      }
-      transition={{
-        duration: b.dur,
-        delay: b.delay,
-        repeat: Infinity,
-        ease: "easeInOut",
-      }}
-    />
-  );
+function blobCss(i: number, b: Blob): string {
+  return `@keyframes shopBlob${i}{${b.kf}}`;
 }
 
 export default function ShopLiquidParticles() {
-  const reduced = useReducedMotion();
-  const [paused, setPaused] = useState(false);
-  useEffect(() => {
-    const onVis = (e: Event) =>
-      setPaused(!!(e as CustomEvent<{ open: boolean }>).detail?.open);
-    window.addEventListener("vouches:visibility", onVis as EventListener);
-    return () =>
-      window.removeEventListener("vouches:visibility", onVis as EventListener);
-  }, []);
+  const css =
+    BLOBS.map((b, i) => blobCss(i, b)).join("\n") +
+    `\n@media (prefers-reduced-motion: reduce){.shop-blob{animation:none !important}}`;
 
   return (
     <div
       aria-hidden="true"
       className="pointer-events-none fixed inset-0 overflow-hidden"
-      style={{ zIndex: 0, background: "#ffffff" }}
+      style={{
+        zIndex: 0,
+        background:
+          "linear-gradient(165deg, #ece9ff 0%, #f1ecfb 24%, #fdeef8 52%, #ebf2ff 80%, #eef0ff 100%)",
+      }}
     >
-      {BLOBS.map((b, i) => (
-        <LiquidBlob key={i} b={b} reduced={reduced} paused={paused} />
-      ))}
+      <style dangerouslySetInnerHTML={{ __html: css }} />
+      {BLOBS.map((b, i) => {
+        const [r, g, bl] = b.rgb;
+        return (
+          <div
+            key={i}
+            className="shop-blob"
+            style={{
+              position: "absolute",
+              width: b.size,
+              height: b.size,
+              left: b.left,
+              top: b.top,
+              borderRadius: b.radius,
+              background: `radial-gradient(circle at 32% 30%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.55) 9%, rgba(${r},${g},${bl},0.72) 26%, rgba(${r},${g},${bl},0.5) 52%, rgba(${r},${g},${bl},0.12) 78%, transparent 100%)`,
+              filter: `blur(${b.blur}px)`,
+              willChange: "transform",
+              transform: "translateZ(0)",
+              animation: `shopBlob${i} ${b.dur}s ease-in-out infinite`,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }

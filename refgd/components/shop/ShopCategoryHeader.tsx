@@ -2,7 +2,6 @@
 
   import Link from "next/link";
   import EditableText from "@/components/EditableText";
-  import ChapterPill from "@/components/ChapterPill";
   import KineticText from "@/components/KineticText";
 
   import type { ShopCategory as Category } from "@/lib/shop-catalog";
@@ -19,17 +18,28 @@
         <div className="container-wide relative">
           <Link
             href="/shop-methods#categories"
-            className="mb-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-gray-400 transition hover:text-gray-700"
+            className="mb-5 inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-gray-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700"
           >
             <span aria-hidden>←</span> All Categories
           </Link>
 
-          <ChapterPill
-            editId={`shop.cat.${c.slug}.eyebrow`}
-            defaultValue={`category / ${c.slug.replace(/-/g, " ")}`}
-            accent="violet"
-            size="md"
-          />
+          <div className="mt-1">
+            <span
+              className="inline-flex items-center gap-2 rounded-full border border-violet-300/70 bg-violet-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.35em] text-violet-700 sm:text-xs"
+              style={{ boxShadow: `0 0 24px -10px rgba(${c.rgb},0.45)` }}
+            >
+              <span
+                aria-hidden
+                className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ background: `rgb(${c.rgb})` }}
+              />
+              <EditableText
+                id={`shop.cat.${c.slug}.eyebrow`}
+                defaultValue={`category / ${c.slug.replace(/-/g, " ")}`}
+                as="span"
+              />
+            </span>
+          </div>
           <KineticText
             as="h1"
             text={c.title}
