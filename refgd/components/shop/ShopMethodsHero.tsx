@@ -1,6 +1,7 @@
 "use client";
 
   import { motion, useReducedMotion } from "framer-motion";
+  import Image from "next/image";
   import EditableImage from "@/components/EditableImage";
   import EditableText from "@/components/EditableText";
   import ChapterPill from "@/components/ChapterPill";
@@ -21,6 +22,35 @@
     return (
       <section className="relative z-10 pt-12 pb-10 sm:pt-24 sm:pb-16 overflow-x-clip">
         <div className="container-wide relative">
+          {/* Floating transparent crypto illustration — sits ABOVE the
+              "SHOP METHODS" box, at the very top of the page. Background
+              removed (transparent PNG); entrance fade-up + gentle float. */}
+          <motion.div
+            initial={reduced ? {} : { opacity: 0, y: 40, scale: 0.94 }}
+            whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 1.3, ease: [0.22, 1, 0.36, 1] }}
+            className="pointer-events-none relative mx-auto mb-8 max-w-2xl select-none sm:mb-10"
+            aria-hidden="true"
+          >
+            <motion.div
+              animate={reduced ? {} : { y: [0, -16, 0], scale: [1, 1.025, 1] }}
+              transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+              style={{
+                filter: "drop-shadow(0 30px 70px rgba(124,58,237,0.5)) saturate(1.15)",
+              }}
+            >
+              <Image
+                src="/shop-images/crypto-academy.png"
+                alt=""
+                width={740}
+                height={493}
+                className="w-full"
+                unoptimized
+              />
+            </motion.div>
+          </motion.div>
+
           {/* Framed banner */}
           <motion.div
             initial={reduced ? {} : { clipPath: "inset(100% 0 0 0 round 2rem)", opacity: 0 }}

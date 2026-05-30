@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import EditableImage from "@/components/EditableImage";
@@ -17,7 +16,6 @@ import type { ShopCategory as Category } from "@/lib/shop-catalog";
  *     dark glass base — more depth than a flat directional gradient.
  *   • Dark image area with generous padding (p-9) so category images aren't
  *     over-cropped (fixes Refund/SE and Insert Aged Orders zoom complaints).
- *   • Floating semi-transparent crypto illustration above the grid.
  */
 export default function ShopMethodsGrid({ categories }: { categories: Category[] }) {
   const reduced = useReducedMotion();
@@ -45,38 +43,6 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
           multiline
           className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-white/75"
         />
-
-        {/* Floating transparent hero illustration, sitting ABOVE the category
-            cards. Background removed (transparent PNG) so it blends cleanly;
-            entrance fade-up + perpetual gentle float. */}
-        <motion.div
-          initial={reduced ? {} : { opacity: 0, y: 40, scale: 0.94 }}
-          whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
-          viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 1.3, ease: [0.22, 1, 0.36, 1] }}
-          className="pointer-events-none relative mx-auto mt-12 max-w-2xl select-none"
-          aria-hidden="true"
-        >
-          <motion.div
-            animate={reduced ? {} : {
-              y: [0, -16, 0],
-              scale: [1, 1.025, 1],
-            }}
-            transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
-            style={{
-              filter: "drop-shadow(0 30px 70px rgba(124,58,237,0.5)) saturate(1.15)",
-            }}
-          >
-            <Image
-              src="/shop-images/crypto-academy.png"
-              alt=""
-              width={740}
-              height={493}
-              className="w-full"
-              unoptimized
-            />
-          </motion.div>
-        </motion.div>
 
         {/* Category card grid */}
         <div
