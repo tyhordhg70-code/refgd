@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { ProductDelivery, Order, DeliveryType } from "@/lib/delivery";
 
 type ProductLite = { id: string; title: string; image: string | null };
@@ -353,7 +353,7 @@ export default function DeliveriesAdmin({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="mb-4 block">
       <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-white/50">
