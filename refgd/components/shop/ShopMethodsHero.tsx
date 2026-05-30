@@ -116,11 +116,14 @@
               <motion.button
                 type="button"
                 onClick={() => openVouches()}
+                onTap={() => openVouches()}
                 initial={false}
                 whileHover={reduced ? {} : { scale: 1.03 }}
                 whileTap={reduced ? {} : { scale: 0.97 }}
                 className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full border border-white/15 bg-white/[0.05] px-7 py-3.5 text-sm font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-md transition-colors duration-300 hover:border-white/30 hover:bg-white/[0.09]"
                 style={{
+                  touchAction: "manipulation",
+                  WebkitTapHighlightColor: "transparent",
                   boxShadow:
                     "inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 50px -24px rgba(0,0,0,0.9)",
                 }}

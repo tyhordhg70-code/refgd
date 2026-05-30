@@ -217,7 +217,9 @@ export default function ShopFAQ() {
           <motion.button
             type="button"
             onClick={() => openVouches()}
+            onTap={() => openVouches()}
             initial={false}
+            style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             whileHover={reduced ? {} : { scale: 1.04 }}
             whileTap={reduced ? {} : { scale: 0.97 }}
             animate={
