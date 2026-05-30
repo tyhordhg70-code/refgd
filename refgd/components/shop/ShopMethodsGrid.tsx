@@ -24,7 +24,35 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
   const reduced = useReducedMotion();
   const [mobile, setMobile] = useState(false);
   useEffect(() => setMobile(isMobileLike()), []);
-  const noAnim = reduced || mobile;
+
+  /**
+   * Per-card entrance motion.
+   *
+   *   reduced-motion → no animation, instantly visible.
+   *   mobile / narrow viewport → MOUNT-driven fade+slide (`animate`, not
+   *     `whileInView`). This still animates the cards in, but because it does
+   *     NOT depend on an IntersectionObserver firing it can never strand a card
+   *     at opacity:0 the way a scroll-reveal can on mobile (URL-bar collapse,
+   *     late layout shift, etc.) — which is why these used to be killed
+   *     entirely. Mount-based animation is the safe way to keep the motion.
+   *   desktop → scroll-triggered staggered reveal.
+   */
+  const cardMotion = (i: number) => {
+    if (reduced) return { initial: false as const };
+    if (mobile) {
+      return {
+        initial: { opacity: 0, y: 28 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.6, delay: 0.05 + i * 0.08, ease: [0.22, 1, 0.36, 1] as const },
+      };
+    }
+    return {
+      initial: { opacity: 0, y: 48 },
+      whileInView: { opacity: 1, y: 0 },
+      viewport: { once: true, amount: 0.12, margin: "0px 0px -10% 0px" },
+      transition: { duration: 0.8, delay: 0.06 + i * 0.1, ease: [0.22, 1, 0.36, 1] as const },
+    };
+  };
 
   return (
     <section id="categories" className="relative z-10 py-16 sm:py-24 overflow-x-clip">
@@ -55,11 +83,7 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
           {categories.map((c, i) => (
             <motion.div
               key={c.slug}
-              initial={noAnim ? false : { opacity: 0, y: 48 }}
-              animate={noAnim ? { opacity: 1, y: 0 } : undefined}
-              whileInView={noAnim ? undefined : { opacity: 1, y: 0 }}
-              viewport={noAnim ? undefined : { once: true, amount: 0.12, margin: "0px 0px -10% 0px" }}
-              transition={noAnim ? { duration: 0 } : { duration: 0.8, delay: 0.06 + i * 0.1, ease: [0.22, 1, 0.36, 1] }}
+              {...cardMotion(i)}
               className="group"
             >
               <Link
