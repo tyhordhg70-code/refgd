@@ -7,7 +7,6 @@ import EditableText from "@/components/EditableText";
 import reviewsData from "@/data/shop-reviews.json";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
 import { isMobileLike } from "@/lib/iosCheck";
-import { bc } from "@/lib/freeze-debug";
 
 type Review = {
   id: string;
@@ -34,9 +33,7 @@ const VOUCHES_EVENT = "open-vouches";
 /** Fire from anywhere (FAB, buttons, nav) to pop the vouches thread. */
 export function openVouches() {
   if (typeof window !== "undefined") {
-    bc("1:openVouches:dispatch");
     window.dispatchEvent(new CustomEvent(VOUCHES_EVENT));
-    bc("1b:openVouches:dispatched");
   }
 }
 
@@ -76,18 +73,27 @@ const THANKERS = [
   "@profit_pat", "@stackz", "@quietmoney", "@thereup", "@comebackkid",
 ];
 function thankers(seed: number, count: number): string[] {
-  const out: string[] = [];
+  // Deterministic per-seed selection of up to `count` distinct usernames.
+  //
+  // This used to use rejection sampling: repeatedly draw `lcg() % N` and skip
+  // duplicates until `count` unique names were collected. That could spin
+  // FOREVER: the LCG `s*1103515245+12345 (mod 2^32)` has a very short period
+  // in its low bits, so `s % 30` only ever reaches a SUBSET of the 30 indices.
+  // When a post's `thanks` exceeded that reachable subset (and it had no real
+  // thankers list), the loop could never collect `count` names nor reach all
+  // 30 to break — an infinite loop that froze the whole tab on open.
+  //
+  // A seeded Fisher-Yates shuffle is deterministic, preserves the per-post
+  // "random" look, and is guaranteed to terminate.
+  const target = Math.min(Math.max(0, count), THANKERS.length);
+  const idx = Array.from({ length: THANKERS.length }, (_, i) => i);
   let s = (seed * 2654435761) >>> 0;
-  const used = new Set<number>();
-  while (out.length < count) {
+  for (let i = idx.length - 1; i > 0; i--) {
     s = (s * 1103515245 + 12345) >>> 0;
-    const idx = s % THANKERS.length;
-    if (used.has(idx)) continue;
-    used.add(idx);
-    out.push(THANKERS[idx]);
-    if (used.size >= THANKERS.length) break;
+    const j = s % (i + 1);
+    [idx[i], idx[j]] = [idx[j], idx[i]];
   }
-  return out;
+  return idx.slice(0, target).map((i) => THANKERS[i]);
 }
 
 const THANKS_COLLAPSED = 6;
@@ -267,7 +273,6 @@ function ForumPost({
   index: number;
   reduced: boolean | null;
 }) {
-  bc("4:post:" + index + ":" + review.id);
   const rankCls = rankColor(review.rank);
   const lines = review.body.split("\n").filter(Boolean);
   const isAdmin = review.rank === "Administrator";
@@ -458,9 +463,7 @@ export default function ShopVouchesModal({
   // while the modal is open — a full-screen overlay over ~26 continuously
   // animating layers otherwise pegs the compositor and freezes the page.
   useEffect(() => {
-    bc("7:vis:before:" + open);
     window.dispatchEvent(new CustomEvent("vouches:visibility", { detail: { open } }));
-    bc("8:vis:after:" + open);
     // Safety net: if this component unmounts while the modal is open (e.g. a
     // route change), tell the background to resume so the particle layer can
     // never get stuck paused.
@@ -474,7 +477,6 @@ export default function ShopVouchesModal({
 
   useEffect(() => {
     const onOpen = () => {
-      bc("2:onOpen:setState");
       openedAtRef.current = Date.now();
       setOpen(true);
       setPage(1);
@@ -485,9 +487,7 @@ export default function ShopVouchesModal({
 
   useEffect(() => {
     if (!open) return;
-    bc("5:lockScroll:before");
     lockScroll();
-    bc("6:lockScroll:after");
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
@@ -499,8 +499,6 @@ export default function ShopVouchesModal({
   }, [open]);
 
   if (!mounted) return null;
-
-  if (open) bc("3:render:open:mobile=" + mobile);
 
   return createPortal(
     <AnimatePresence>
