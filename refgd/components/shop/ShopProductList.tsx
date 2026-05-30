@@ -344,8 +344,14 @@ export default function ShopProductList({ category: c }: { category: Category })
 
                                 {/* Cross-device options */}
                                 <div className="mt-4 space-y-2">
+                                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5">
+                                    <span className="mt-px shrink-0 text-blue-500" aria-hidden>💻</span>
+                                    <p className="text-[11px] leading-relaxed text-blue-700">
+                                      <strong>Must be completed on desktop</strong> — paying via Telegram Desktop avoids the 25% Apple/Google platform fee.
+                                    </p>
+                                  </div>
                                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
-                                    Open on Telegram Desktop to pay
+                                    Get the link on Telegram Desktop
                                   </p>
 
                                   {/* Send to Telegram Saved Messages */}
@@ -361,7 +367,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                                     </svg>
                                     <div className="flex-1">
                                       <p className="font-semibold text-gray-800">Send to my Telegram</p>
-                                      <p className="text-[10px] text-gray-500">Select <strong>Saved Messages</strong> → open on Telegram Desktop → tap to pay</p>
+                                      <p className="text-[10px] text-gray-500">Select <strong>Saved Messages</strong>, then find the link in Saved Messages on Telegram Desktop</p>
                                     </div>
                                     <span className="text-gray-400">→</span>
                                   </a>
@@ -378,7 +384,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                                     </svg>
                                     <div className="flex-1">
                                       <p className="font-semibold text-gray-800">Email to myself</p>
-                                      <p className="text-[10px] text-gray-500">Opens your mail app · click the link on Telegram Desktop</p>
+                                      <p className="text-[10px] text-gray-500">Opens your mail app · open the link on your desktop</p>
                                     </div>
                                     <span className="text-gray-400">→</span>
                                   </a>
