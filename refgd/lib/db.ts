@@ -110,6 +110,41 @@
           created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+
+        CREATE TABLE IF NOT EXISTS product_delivery (
+          product_id    TEXT PRIMARY KEY,
+          enabled       BOOLEAN NOT NULL DEFAULT FALSE,
+          type          TEXT NOT NULL DEFAULT 'link',
+          content       TEXT NOT NULL DEFAULT '',
+          button_label  TEXT NOT NULL DEFAULT 'Access your product',
+          message       TEXT NOT NULL DEFAULT '',
+          delivery_time TEXT NOT NULL DEFAULT 'Instant',
+          updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS orders (
+          id               TEXT PRIMARY KEY,
+          product_id       TEXT NOT NULL,
+          product_title    TEXT NOT NULL DEFAULT '',
+          price            NUMERIC NOT NULL DEFAULT 0,
+          currency         TEXT NOT NULL DEFAULT 'USD',
+          custom_fields    JSONB NOT NULL DEFAULT '{}',
+          channel          TEXT NOT NULL DEFAULT 'email',
+          email            TEXT,
+          telegram_chat_id TEXT,
+          telegram_handle  TEXT,
+          delivery_token   TEXT NOT NULL,
+          status           TEXT NOT NULL DEFAULT 'pending',
+          payment_status   TEXT,
+          invoice_id       TEXT,
+          delivered_via    TEXT,
+          delivered_at     TIMESTAMPTZ,
+          created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS orders_token_idx ON orders (delivery_token);
+        CREATE INDEX IF NOT EXISTS orders_created_idx ON orders (created_at DESC);
       `)
       .then(async () => {
         // v6.13.60 — One-time migration: clear known-bad saved admin-drag

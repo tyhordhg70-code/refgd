@@ -66,6 +66,15 @@ export default async function AdminDashboard() {
               Create, edit, delete products and categories. Upload images, set prices, configure checkout fields.
             </p>
           </Link>
+        <Link
+            href="/admin/deliveries"
+            className="group rounded-2xl border border-white/10 bg-gradient-to-br from-emerald-500/15 to-transparent p-6 transition hover:border-emerald-300/40"
+          >
+            <h2 className="heading-display text-xl font-bold text-white">Auto-delivery →</h2>
+            <p className="mt-2 text-sm text-white/65">
+              Set what each product delivers after payment. Auto-send the buyer their link or content by email or Telegram. View orders.
+            </p>
+          </Link>
           {/* v6.13.67 — Direct shortcut to the bulk-import flow so the
             admin can paste a long store list in one click without
             having to first open Manage Stores and hunt for the button.
