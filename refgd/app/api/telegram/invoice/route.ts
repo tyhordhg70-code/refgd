@@ -9,21 +9,25 @@ export const dynamic = "force-dynamic";
  * POST /api/telegram/invoice
  *
  * Creates a pending order and a Telegram Stars invoice link (currency XTR).
- * The client immediately redirects the buyer to the returned t.me/$ URL.
- * After the buyer pays inside Telegram, the bot webhook receives
- * successful_payment, marks the order paid, and auto-delivers the product.
  *
- * Stars pricing: ~50 Stars ≈ $1 USD (Telegram's standard retail rate).
- * Note: Telegram takes a 30% cut of Stars revenue.
+ * markupPct (optional, 0–1): fractional markup applied on top of the Stars
+ * price. Pass 0.25 for Apple/Google Pay (25% platform commission) or 0 for
+ * card payments via Telegram Web (no app-store fee).
+ *
+ * Stars base rate: 50 Stars ≈ $1 USD.
+ * After markup: stars = ceil(price × 50 × (1 + markupPct)).
  *
  * Required env: TELEGRAM_BOT_TOKEN
- * Bot must have Stars payments enabled (enable via @BotFather → /mybots →
- * Payments → Telegram Stars if prompted, though most bots support it by default).
  */
 
 const STARS_PER_USD = 50;
 
-type Body = { productId: string; customFields?: Record<string, string> };
+type Body = {
+  productId: string;
+  customFields?: Record<string, string>;
+  /** Fractional markup, e.g. 0.25 = 25 %. Clamped 0–1. Defaults to 0. */
+  markupPct?: number;
+};
 
 export async function POST(req: Request) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -55,9 +59,10 @@ export async function POST(req: Request) {
     }
   }
 
+  const markupPct = Math.max(0, Math.min(1, body.markupPct ?? 0));
   const orderId = `refgd_${product.id}_xtr_${Date.now().toString(36)}`;
   const token = newDeliveryToken();
-  const stars = Math.max(1, Math.ceil(product.price * STARS_PER_USD));
+  const stars = Math.max(1, Math.ceil(product.price * STARS_PER_USD * (1 + markupPct)));
 
   const fieldLines = Object.entries(body.customFields ?? {})
     .filter(([, v]) => v?.trim())
@@ -127,6 +132,7 @@ export async function POST(req: Request) {
     invoiceUrl: tgJson.result,
     orderId,
     stars,
+    markupPct,
     accessUrl: `${origin}/access/${token}`,
   });
 }
