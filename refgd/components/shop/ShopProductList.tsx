@@ -345,7 +345,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                                 {/* Cross-device options */}
                                 <div className="mt-4 space-y-2">
                                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
-                                    Need to pay from another device?
+                                    Open on Telegram Desktop to pay
                                   </p>
 
                                   {/* Send to Telegram Saved Messages */}
@@ -361,7 +361,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                                     </svg>
                                     <div className="flex-1">
                                       <p className="font-semibold text-gray-800">Send to my Telegram</p>
-                                      <p className="text-[10px] text-gray-500">Forward to Saved Messages → open on desktop</p>
+                                      <p className="text-[10px] text-gray-500">Select <strong>Saved Messages</strong> → open on Telegram Desktop → tap to pay</p>
                                     </div>
                                     <span className="text-gray-400">→</span>
                                   </a>
@@ -378,7 +378,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                                     </svg>
                                     <div className="flex-1">
                                       <p className="font-semibold text-gray-800">Email to myself</p>
-                                      <p className="text-[10px] text-gray-500">Opens your mail app · open the link on any device</p>
+                                      <p className="text-[10px] text-gray-500">Opens your mail app · click the link on Telegram Desktop</p>
                                     </div>
                                     <span className="text-gray-400">→</span>
                                   </a>
