@@ -7,29 +7,12 @@ import { useEditContext } from "@/lib/edit-context";
 import { openVouches } from "@/components/shop/ShopVouchesModal";
 
 /**
- * ShopFAQ — accordion FAQ band that sits on the shop landing page before the
- * vouches popup trigger.
- *
- * Admin editing model
- * ───────────────────
- * Every question and answer is admin-editable inline via <EditableText>.
- * The LIST of FAQ items (not just their text) is also admin-editable: the
- * ordered list of item ids is persisted as a JSON content block under
- * `shop.faq.items`, and each item stores its question/answer under
- * `shop.faq.<itemId>.q` / `shop.faq.<itemId>.a`.
- *
- * Adding a question appends a new unique id to the list AND seeds its q/a
- * content blocks, so all three values enter the pending edit queue and are
- * persisted together on the global Save (flush → PUT /api/admin/content).
- * That guarantees newly-added FAQs survive a reload instead of vanishing.
- * Removing a question drops its id from the list (its orphaned q/a blocks
- * are simply no longer rendered).
+ * ShopFAQ — accordion FAQ band.
+ * Light-background version: white accordion items, dark text.
  */
 
 const ITEMS_ID = "shop.faq.items";
 
-// Seed FAQ items. Their ids ("0".."4") match the historical content-block
-// keys so any previously-saved edits keep resolving.
 const SEED: { id: string; q: string; a: string }[] = [
   {
     id: "0",
@@ -96,7 +79,6 @@ export default function ShopFAQ() {
   const addItem = () => {
     const newId = `f${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     setValue(ITEMS_ID, JSON.stringify([...items, newId]));
-    // Seed the q/a so they enter the pending queue and persist on Save.
     setValue(`shop.faq.${newId}.q`, "New question?");
     setValue(`shop.faq.${newId}.a`, "Answer goes here.");
     setOpen(newId);
@@ -114,13 +96,13 @@ export default function ShopFAQ() {
           id="shop.faq.eyebrow"
           defaultValue="QUESTIONS"
           as="div"
-          className="text-center text-xs font-bold uppercase tracking-[0.32em] text-cyan-300"
+          className="text-center text-xs font-bold uppercase tracking-[0.32em] text-cyan-600"
         />
         <EditableText
           id="shop.faq.title"
           defaultValue="Frequently asked."
           as="h2"
-          className="editorial-display mx-auto mt-4 max-w-3xl text-balance text-center uppercase text-white text-[clamp(1.8rem,4.5vw,3.4rem)]"
+          className="editorial-display mx-auto mt-4 max-w-3xl text-balance text-center uppercase text-gray-900 text-[clamp(1.8rem,4.5vw,3.4rem)]"
           style={{ letterSpacing: "-0.025em", lineHeight: 1.15 }}
         />
         <EditableText
@@ -128,7 +110,7 @@ export default function ShopFAQ() {
           defaultValue="Frequently asked customer questions we've answered. Still unsure? Our Telegram is one tap away."
           as="p"
           multiline
-          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-white/75"
+          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-500"
         />
 
         <div className="mx-auto mt-12 max-w-3xl space-y-3 sm:mt-14">
@@ -141,7 +123,7 @@ export default function ShopFAQ() {
             return (
               <div
                 key={id}
-                className="relative overflow-hidden rounded-2xl border border-white/12 bg-white/[0.03]"
+                className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.07)] transition-shadow hover:shadow-[0_4px_20px_-6px_rgba(0,0,0,0.10)]"
               >
                 {canEdit && (
                   <button
@@ -149,7 +131,7 @@ export default function ShopFAQ() {
                     onClick={() => removeItem(id)}
                     aria-label="Remove this question"
                     title="Remove this question"
-                    className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-red-400/40 bg-red-500/15 text-sm text-red-200 transition hover:border-red-300/70 hover:bg-red-500/30"
+                    className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-red-300/60 bg-red-50 text-sm text-red-500 transition hover:border-red-400 hover:bg-red-100"
                   >
                     ✕
                   </button>
@@ -158,17 +140,17 @@ export default function ShopFAQ() {
                   type="button"
                   onClick={() => setOpen(isOpen ? null : id)}
                   aria-expanded={isOpen}
-                  className={`flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.04] ${canEdit ? "pr-14" : ""}`}
+                  className={`flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-gray-50 ${canEdit ? "pr-14" : ""}`}
                 >
                   <EditableText
                     id={`shop.faq.${id}.q`}
                     defaultValue={seed.q}
                     as="span"
-                    className="text-sm font-semibold text-white sm:text-base"
+                    className="text-sm font-semibold text-gray-900 sm:text-base"
                   />
                   <span
                     aria-hidden
-                    className={`shrink-0 text-lg text-cyan-300 transition-transform duration-300 ${isOpen ? "rotate-45" : ""}`}
+                    className={`shrink-0 text-lg text-cyan-600 transition-transform duration-300 ${isOpen ? "rotate-45" : ""}`}
                   >
                     ＋
                   </span>
@@ -188,7 +170,7 @@ export default function ShopFAQ() {
                         defaultValue={seed.a}
                         as="p"
                         multiline
-                        className="border-t border-white/[0.06] px-5 py-4 text-sm leading-[1.7] text-white/70"
+                        className="border-t border-gray-100 px-5 py-4 text-sm leading-[1.7] text-gray-600"
                       />
                     </motion.div>
                   )}
@@ -203,11 +185,11 @@ export default function ShopFAQ() {
             <button
               type="button"
               onClick={addItem}
-              className="inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100 transition hover:border-cyan-300/70 hover:bg-cyan-500/20"
+              className="inline-flex items-center gap-2 rounded-full border border-cyan-400/60 bg-cyan-50 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700 transition hover:border-cyan-500 hover:bg-cyan-100"
             >
               ＋ Add question
             </button>
-            <p className="mt-2 text-xs text-white/40">
+            <p className="mt-2 text-xs text-gray-400">
               New questions save with the rest of your edits when you press Save.
             </p>
           </div>
@@ -227,9 +209,9 @@ export default function ShopFAQ() {
                 ? {}
                 : {
                     boxShadow: [
-                      "0 0 22px -4px rgba(167,139,250,0.55), 0 0 50px -10px rgba(34,211,238,0.45)",
-                      "0 0 40px 2px rgba(167,139,250,0.85), 0 0 80px -4px rgba(34,211,238,0.7)",
-                      "0 0 22px -4px rgba(167,139,250,0.55), 0 0 50px -10px rgba(34,211,238,0.45)",
+                      "0 0 22px -4px rgba(109,40,217,0.55), 0 0 50px -10px rgba(20,170,245,0.45)",
+                      "0 0 40px 2px rgba(109,40,217,0.80), 0 0 80px -4px rgba(20,170,245,0.65)",
+                      "0 0 22px -4px rgba(109,40,217,0.55), 0 0 50px -10px rgba(20,170,245,0.45)",
                     ],
                   }
             }

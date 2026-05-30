@@ -4,9 +4,8 @@ import { motion, useReducedMotion } from "framer-motion";
 import EditableText from "@/components/EditableText";
 
 /**
- * ShopFeatures — the "why buy here" value-prop grid that sits on the shop
- * landing page (before the vouches popup trigger). Matches the source store's
- * features band; every string is admin-editable.
+ * ShopFeatures — the "why buy here" value-prop grid.
+ * Light-background version: white cards, dark text, violet icon wells.
  */
 const FEATURES = [
   {
@@ -51,13 +50,13 @@ export default function ShopFeatures() {
           id="shop.features.eyebrow"
           defaultValue="WHY REFUNDGOD"
           as="div"
-          className="text-center text-xs font-bold uppercase tracking-[0.32em] text-violet-300"
+          className="text-center text-xs font-bold uppercase tracking-[0.32em] text-violet-600"
         />
         <EditableText
           id="shop.features.title"
           defaultValue="Built for operators."
           as="h2"
-          className="editorial-display mx-auto mt-4 max-w-3xl text-balance text-center uppercase text-white text-[clamp(1.8rem,4.5vw,3.4rem)]"
+          className="editorial-display mx-auto mt-4 max-w-3xl text-balance text-center uppercase text-gray-900 text-[clamp(1.8rem,4.5vw,3.4rem)]"
           style={{ letterSpacing: "-0.025em", lineHeight: 1.15 }}
         />
         <EditableText
@@ -65,7 +64,7 @@ export default function ShopFeatures() {
           defaultValue="Every product on this store ships with the same standard — fast, private and backed by a community that actually runs what it sells."
           as="p"
           multiline
-          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-white/75"
+          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-500"
         />
 
         <div className="mt-12 grid gap-5 sm:mt-14 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
@@ -76,21 +75,16 @@ export default function ShopFeatures() {
               whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
               viewport={{ once: true, amount: 0.2 }}
               transition={{ duration: 0.6, delay: 0.05 + i * 0.06, ease: [0.22, 1, 0.36, 1] }}
-              className="group relative overflow-hidden rounded-2xl border border-white/12 bg-white/[0.03] p-6 transition-colors hover:border-white/25 hover:bg-white/[0.05]"
-              style={{ boxShadow: "0 24px 60px -30px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.05)" }}
+              className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-[0_4px_20px_-6px_rgba(0,0,0,0.08)] transition-all duration-300 hover:border-violet-200 hover:shadow-[0_8px_32px_-8px_rgba(109,40,217,0.14)]"
             >
-              <span
-                aria-hidden
-                className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent"
-              />
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/12 bg-gradient-to-br from-violet-500/25 to-blue-500/15 text-2xl">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-violet-200 bg-gradient-to-br from-violet-100 to-blue-50 text-2xl">
                 {f.icon}
               </div>
               <EditableText
                 id={`shop.features.${i}.title`}
                 defaultValue={f.title}
                 as="h3"
-                className="editorial-display mt-5 text-lg uppercase text-white"
+                className="editorial-display mt-5 text-lg uppercase text-gray-900"
                 style={{ letterSpacing: "-0.01em" }}
               />
               <EditableText
@@ -98,7 +92,7 @@ export default function ShopFeatures() {
                 defaultValue={f.body}
                 as="p"
                 multiline
-                className="mt-2.5 text-sm leading-[1.65] text-white/70"
+                className="mt-2.5 text-sm leading-[1.65] text-gray-500"
               />
             </motion.div>
           ))}
