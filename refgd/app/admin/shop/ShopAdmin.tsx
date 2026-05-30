@@ -1,7 +1,8 @@
 "use client";
 
-  import { useCallback, useMemo, useState } from "react";
+  import { useCallback, useMemo, useRef, useState } from "react";
   import type { ShopCategory, ShopProduct, ShopCustomField } from "@/lib/shop-catalog";
+  import ShopMarkdown from "@/components/shop/ShopMarkdown";
 
   type Tab = "products" | "categories";
 
@@ -265,8 +266,8 @@
           <Field label="Tagline">
             <input className={inputCls} value={c.tagline} onChange={(e) => setC({ ...c, tagline: e.target.value })} />
           </Field>
-          <Field label="Long description">
-            <textarea rows={3} className={inputCls} value={c.longDescription} onChange={(e) => setC({ ...c, longDescription: e.target.value })} />
+          <Field label="Long description (markdown)">
+            <MarkdownEditor value={c.longDescription} onChange={(v) => setC({ ...c, longDescription: v })} rows={5} />
           </Field>
           <Field label="Cover image">
             <ImageUploader value={c.image} onChange={(url) => setC({ ...c, image: url })} />
@@ -339,8 +340,8 @@
           <Field label="Summary (short)">
             <input className={inputCls} value={p.summary} onChange={(e) => setP({ ...p, summary: e.target.value })} />
           </Field>
-          <Field label="Description (markdown supported)">
-            <textarea rows={10} className={inputCls + " font-mono text-xs"} value={p.description} onChange={(e) => setP({ ...p, description: e.target.value })} />
+          <Field label="Description (markdown)">
+            <MarkdownEditor value={p.description} onChange={(v) => setP({ ...p, description: v })} rows={12} />
           </Field>
           <Field label="Categories (a product may belong to several)">
             <div className="flex flex-wrap gap-2">
@@ -457,6 +458,129 @@
             {err && <div className="text-xs text-rose-300">{err}</div>}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  function MarkdownEditor({
+    value,
+    onChange,
+    rows = 12,
+  }: {
+    value: string;
+    onChange: (val: string) => void;
+    rows?: number;
+  }) {
+    const ref = useRef<HTMLTextAreaElement>(null);
+    const [preview, setPreview] = useState(false);
+
+    /** Run a transformation against the current textarea selection, then restore focus + cursor. */
+    const apply = (
+      fn: (start: number, end: number, sel: string) => { text: string; selStart: number; selEnd: number },
+    ) => {
+      const ta = ref.current;
+      if (!ta) return;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const sel = value.slice(start, end);
+      const result = fn(start, end, sel);
+      onChange(result.text);
+      requestAnimationFrame(() => {
+        ta.focus();
+        ta.setSelectionRange(result.selStart, result.selEnd);
+      });
+    };
+
+    /** Wrap selected text (or a placeholder) in prefix + suffix. */
+    const wrap = (prefix: string, suffix: string, placeholder = "text") =>
+      apply((start, end, sel) => {
+        const content = sel || placeholder;
+        const text = value.slice(0, start) + prefix + content + suffix + value.slice(end);
+        return { text, selStart: start + prefix.length, selEnd: start + prefix.length + content.length };
+      });
+
+    /** Prefix each selected line (or a placeholder "item") with a string. */
+    const prefixLines = (makePrefix: (lineIndex: number) => string) =>
+      apply((start, end, sel) => {
+        const lines = (sel || "item").split("\n");
+        const prefixed = lines.map((l, i) => makePrefix(i) + l).join("\n");
+        const text = value.slice(0, start) + prefixed + value.slice(end);
+        return { text, selStart: start, selEnd: start + prefixed.length };
+      });
+
+    /** Insert a snippet at the cursor (replaces any selection). */
+    const insert = (snippet: string) =>
+      apply((start, end) => {
+        const text = value.slice(0, start) + snippet + value.slice(end);
+        return { text, selStart: start + snippet.length, selEnd: start + snippet.length };
+      });
+
+    type ToolBtn = { label: string; title: string; bold?: boolean; action: () => void };
+    const TOOLS: Array<ToolBtn | "sep"> = [
+      { label: "B",   title: "Bold",            bold: true, action: () => wrap("**", "**") },
+      { label: "I",   title: "Italic",                      action: () => wrap("_", "_") },
+      { label: "S",   title: "Strikethrough",               action: () => wrap("~~", "~~") },
+      "sep",
+      { label: "H",   title: "Heading (## …)",              action: () => prefixLines(() => "## ") },
+      { label: "—",   title: "Horizontal rule",             action: () => insert("\n\n---\n\n") },
+      "sep",
+      { label: "❝",   title: "Blockquote",                  action: () => prefixLines(() => "> ") },
+      { label: "</>", title: "Inline code",                  action: () => wrap("`", "`", "code") },
+      { label: "```", title: "Code block",                   action: () => wrap("```\n", "\n```", "code here") },
+      "sep",
+      { label: "🔗",  title: "Link",                         action: () => wrap("[", "](url)", "link text") },
+      { label: "🖼",  title: "Image",                        action: () => insert("![alt text](url)") },
+      "sep",
+      { label: "•≡",  title: "Bullet list",                  action: () => prefixLines(() => "- ") },
+      { label: "1≡",  title: "Ordered list",                 action: () => prefixLines((i) => `${i + 1}. `) },
+    ];
+
+    return (
+      <div className="overflow-hidden rounded-lg border border-white/15 transition-colors focus-within:border-amber-300">
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center gap-0.5 border-b border-white/10 bg-white/[0.04] px-2 py-1.5">
+          {TOOLS.map((t, i) =>
+            t === "sep" ? (
+              <span key={`sep${i}`} className="mx-1 h-4 w-px shrink-0 bg-white/15" />
+            ) : (
+              <button
+                key={t.title}
+                type="button"
+                title={t.title}
+                onMouseDown={(e) => { e.preventDefault(); t.action(); }}
+                className={`min-w-[26px] rounded px-1.5 py-0.5 text-xs text-white/60 transition hover:bg-white/10 hover:text-white ${t.bold ? "font-bold" : "font-mono"}`}
+              >
+                {t.label}
+              </button>
+            ),
+          )}
+          <span className="flex-1" />
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); setPreview((v) => !v); }}
+            className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition ${preview ? "bg-amber-400/20 text-amber-300" : "text-white/35 hover:text-white/60"}`}
+          >
+            {preview ? "← Edit" : "Preview"}
+          </button>
+        </div>
+
+        {/* Editor / Preview pane */}
+        {preview ? (
+          <div className="min-h-[180px] overflow-y-auto bg-white px-4 py-4">
+            <ShopMarkdown source={value} className="text-sm" />
+            {!value.trim() && <p className="text-xs italic text-gray-400">Nothing to preview yet.</p>}
+          </div>
+        ) : (
+          <textarea
+            ref={ref}
+            rows={rows}
+            className="block w-full resize-y bg-black/30 px-3 py-3 font-mono text-sm text-white placeholder:text-white/30 focus:outline-none"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Write your description here — markdown is supported"
+            spellCheck={false}
+          />
+        )}
       </div>
     );
   }
