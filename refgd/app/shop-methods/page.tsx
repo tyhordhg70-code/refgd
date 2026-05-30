@@ -6,6 +6,7 @@ import ShopFeatures from "@/components/shop/ShopFeatures";
 import ShopFAQ from "@/components/shop/ShopFAQ";
 import ShopVouchesModal from "@/components/shop/ShopVouchesModal";
 import ShopLiquidParticles from "@/components/shop/ShopLiquidParticles";
+import FreezeDebugPanel from "@/components/shop/FreezeDebugPanel";
 import { getShopCatalog } from "@/lib/shop-catalog";
 
 export const metadata = {
@@ -27,6 +28,7 @@ export default async function ShopMethodsPage() {
           that redundant compositing and fixes the scroll breakage. The rule
           only exists while this page is mounted, so other pages keep them. */}
       <style dangerouslySetInnerHTML={{ __html: ".rg-ambient-bg{display:none !important}" }} />
+      <FreezeDebugPanel />
       <ShopLiquidParticles />
       <ShopMethodsHero hero={catalog.hero} />
       <ShopMethodsGrid categories={catalog.categories} />
