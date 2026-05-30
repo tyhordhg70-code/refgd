@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import EditableImage from "@/components/EditableImage";
 import EditableText from "@/components/EditableText";
+import { isMobileLike } from "@/lib/iosCheck";
 
 import type { ShopCategory as Category } from "@/lib/shop-catalog";
 
@@ -22,6 +24,16 @@ import type { ShopCategory as Category } from "@/lib/shop-catalog";
  */
 export default function ShopMethodsGrid({ categories }: { categories: Category[] }) {
   const reduced = useReducedMotion();
+  // On mobile (iOS Safari especially) the whileInView/IntersectionObserver
+  // reveal frequently never fires — URL-bar collapse, late layout shifts and
+  // ancestor transforms all break IO root math — stranding cards at opacity:0
+  // forever (the "all categories missing after the first card" report). This
+  // is the same failure documented in lib/iosCheck.ts that every other reveal
+  // in the app already bypasses on mobile. So on mobile we skip the hidden
+  // initial entirely and render the cards visible, no scroll dependency.
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => setMobile(isMobileLike()), []);
+  const noAnim = reduced || mobile;
 
   return (
     <section className="relative z-10 py-16 sm:py-24 overflow-x-clip">
@@ -52,10 +64,11 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
           {categories.map((c, i) => (
             <motion.div
               key={c.slug}
-              initial={reduced ? {} : { opacity: 0, y: 48 }}
-              whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.12, margin: "0px 0px -10% 0px" }}
-              transition={{ duration: 0.8, delay: 0.06 + i * 0.1, ease: [0.22, 1, 0.36, 1] }}
+              initial={noAnim ? false : { opacity: 0, y: 48 }}
+              animate={noAnim ? { opacity: 1, y: 0 } : undefined}
+              whileInView={noAnim ? undefined : { opacity: 1, y: 0 }}
+              viewport={noAnim ? undefined : { once: true, amount: 0.12, margin: "0px 0px -10% 0px" }}
+              transition={noAnim ? { duration: 0 } : { duration: 0.8, delay: 0.06 + i * 0.1, ease: [0.22, 1, 0.36, 1] }}
               className="group"
             >
               <Link

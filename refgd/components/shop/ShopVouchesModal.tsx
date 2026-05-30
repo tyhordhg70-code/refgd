@@ -6,6 +6,7 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import EditableText from "@/components/EditableText";
 import reviewsData from "@/data/shop-reviews.json";
 import { lockScroll, unlockScroll } from "@/lib/scroll-lock";
+import { isMobileLike } from "@/lib/iosCheck";
 
 type Review = {
   id: string;
@@ -212,7 +213,14 @@ function PostAvatar({
   tiny?: boolean;
 }) {
   // stage 0: real forum avatar, 1: generated avatar, 2: monogram
-  const [stage, setStage] = useState<0 | 1 | 2>(src ? 0 : 1);
+  // On mobile (iOS Safari) opening the modal otherwise kicks off ~50 external
+  // DiceBear avatar SVG fetches + decodes at once (8 posts × up to 6 thanker
+  // avatars), which pins the GPU/network and freezes the tab so hard it can't
+  // even be refreshed. Skip every remote avatar on mobile and render the cheap
+  // CSS monogram (stage 2) directly — no network, no decode storm.
+  const [stage, setStage] = useState<0 | 1 | 2>(() =>
+    isMobileLike() ? 2 : src ? 0 : 1,
+  );
   const clean = author.replace(/^@/, "");
   const dim = tiny ? "h-7 w-7 text-[10px]" : small ? "h-10 w-10 text-xs" : "h-12 w-12 text-sm";
 
@@ -414,6 +422,7 @@ export default function ShopVouchesModal({
   const reduced = useReducedMotion();
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
+  const [mobile, setMobile] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [page, setPage] = useState(1);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -436,7 +445,10 @@ export default function ShopVouchesModal({
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+    setMobile(isMobileLike());
+  }, []);
 
   // Tell the page background (ShopLiquidParticles) to pause its animations
   // while the modal is open — a full-screen overlay over ~26 continuously
@@ -569,7 +581,7 @@ export default function ShopVouchesModal({
                 <>
                   <div className="space-y-3">
                     {visible.map((r, i) => (
-                      <ForumPost key={r.id} review={r} index={i} reduced={reduced} />
+                      <ForumPost key={r.id} review={r} index={i} reduced={reduced || mobile} />
                     ))}
                   </div>
 
