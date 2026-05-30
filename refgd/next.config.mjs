@@ -16,6 +16,14 @@ const nextConfig = {
   // it from lockfile locations (avoids the "multiple lockfiles" warning
   // when Render builds from the repo root).
   outputFileTracingRoot: path.join(__dirname, ".."),
+  // Keep recently-visited pages in the client-side router cache so that going
+  // back (e.g. tapping "All categories" after viewing a category) restores the
+  // previous page instantly from cache instead of re-fetching the server
+  // component — which is what made that navigation feel laggy. force-dynamic
+  // pages still re-render fresh on a hard load / after this short window.
+  experimental: {
+    staleTimes: { dynamic: 120, static: 300 },
+  },
   images: {
       // v6.13.65 — Enable Next.js image optimization for all external image hosts
       // we reference. Images get resized to the requested width, converted to

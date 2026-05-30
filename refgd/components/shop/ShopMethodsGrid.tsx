@@ -41,16 +41,16 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
     if (reduced) return { initial: false as const };
     if (mobile) {
       return {
-        initial: { opacity: 0, y: 28 },
+        initial: { opacity: 0, y: 20 },
         animate: { opacity: 1, y: 0 },
-        transition: { duration: 0.6, delay: 0.05 + i * 0.08, ease: [0.22, 1, 0.36, 1] as const },
+        transition: { duration: 0.45, delay: 0.04 + i * 0.06, ease: [0.22, 1, 0.36, 1] as const },
       };
     }
     return {
-      initial: { opacity: 0, y: 48 },
+      initial: { opacity: 0, y: 28 },
       whileInView: { opacity: 1, y: 0 },
       viewport: { once: true, amount: 0.12, margin: "0px 0px -10% 0px" },
-      transition: { duration: 0.8, delay: 0.06 + i * 0.1, ease: [0.22, 1, 0.36, 1] as const },
+      transition: { duration: 0.5, delay: 0.04 + i * 0.07, ease: [0.22, 1, 0.36, 1] as const },
     };
   };
 
@@ -75,7 +75,7 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
           defaultValue="A wide range of products organized into carefully curated categories. Pick the one you're interested in — each opens into the full product list."
           as="p"
           multiline
-          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-500"
+          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-700"
         />
 
         {/* Category cards — big full illustration + title + description (Billgang layout) */}

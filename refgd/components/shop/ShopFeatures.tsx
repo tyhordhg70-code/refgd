@@ -64,7 +64,7 @@ export default function ShopFeatures() {
           defaultValue="Every product on this store ships with the same standard — fast, private and backed by a community that actually runs what it sells."
           as="p"
           multiline
-          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-500"
+          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-700"
         />
 
         <div className="mt-12 grid gap-5 sm:mt-14 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
@@ -92,7 +92,7 @@ export default function ShopFeatures() {
                 defaultValue={f.body}
                 as="p"
                 multiline
-                className="mt-2.5 text-sm leading-[1.65] text-gray-500"
+                className="mt-2.5 text-sm leading-[1.65] text-gray-600"
               />
             </motion.div>
           ))}

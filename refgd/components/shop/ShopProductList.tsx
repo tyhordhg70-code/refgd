@@ -135,7 +135,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                       defaultValue={p.summary}
                       as="p"
                       multiline
-                      className="mt-2 line-clamp-3 flex-1 text-sm leading-[1.6] text-gray-500"
+                      className="mt-2 line-clamp-3 flex-1 text-sm leading-[1.6] text-gray-700"
                     />
                   )}
 
@@ -177,7 +177,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                     transition={{ duration: 0.2 }}
                   >
                     <div
-                      className="absolute inset-0 bg-black/85"
+                      className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
                       onClick={() => setOpenId(null)}
                     />
 
@@ -186,24 +186,24 @@ export default function ShopProductList({ category: c }: { category: Category })
                       animate={{ y: 0, scale: 1, opacity: 1 }}
                       exit={reduced ? {} : { y: 40, scale: 0.98, opacity: 0 }}
                       transition={{ type: "spring", stiffness: 220, damping: 26 }}
-                      className="relative flex max-h-[94vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[1.5rem] border border-white/12 bg-[#0b0918] shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)] sm:max-h-[90vh] sm:rounded-[1.5rem]"
+                      className="relative flex max-h-[94vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[1.5rem] border border-gray-200 bg-white shadow-[0_40px_120px_-20px_rgba(0,0,0,0.45)] sm:max-h-[90vh] sm:rounded-[1.5rem]"
                     >
                       {/* Pinned header */}
                       <div
-                        className="flex shrink-0 items-center gap-3 border-b border-white/10 px-4 py-3 sm:px-5"
-                        style={{ background: `linear-gradient(90deg, rgba(${c.rgb},0.18), rgba(10,8,22,0.6))` }}
+                        className="flex shrink-0 items-center gap-3 border-b border-gray-200 px-4 py-3 sm:px-5"
+                        style={{ background: `linear-gradient(90deg, rgba(${c.rgb},0.12), rgba(255,255,255,0))` }}
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-bold uppercase text-white sm:text-base">{p.title}</div>
-                          <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">{c.title}</div>
+                          <div className="truncate text-sm font-bold uppercase text-gray-900 sm:text-base">{p.title}</div>
+                          <div className="text-[11px] uppercase tracking-[0.2em] text-gray-500">{c.title}</div>
                         </div>
-                        <span className="shrink-0 rounded-full border border-white/20 px-3 py-1 text-sm font-bold text-white">
+                        <span className="shrink-0 rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm font-bold text-gray-900">
                           {priceLabel}
                         </span>
                         <button
                           onClick={() => setOpenId(null)}
                           aria-label="Close product"
-                          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/15 bg-white/5 text-white/80 transition hover:bg-white/10 hover:text-white"
+                          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-gray-300 bg-gray-100 text-gray-600 transition hover:bg-gray-200 hover:text-gray-900"
                         >
                           ✕
                         </button>
@@ -212,7 +212,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                       {/* Scrollable body */}
                       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
                         {p.image && (
-                          <div className="mb-5 overflow-hidden rounded-2xl bg-white p-5">
+                          <div className="mb-5 overflow-hidden rounded-2xl border border-gray-100 bg-gray-50 p-5">
                             <EditableImage
                               id={`shop.prod.${p.id}.image.large`}
                               defaultSrc={p.image}
@@ -224,38 +224,38 @@ export default function ShopProductList({ category: c }: { category: Category })
                         )}
 
                         {p.summary && (
-                          <p className="mb-5 text-base leading-[1.6] text-white/80">{p.summary}</p>
+                          <p className="mb-5 text-base leading-[1.6] text-gray-700">{p.summary}</p>
                         )}
 
-                        <div className="mb-3 text-xs font-bold uppercase tracking-[0.32em] text-white/50">
+                        <div className="mb-3 text-xs font-bold uppercase tracking-[0.32em] text-gray-500">
                           What&apos;s included
                         </div>
                         <ShopMarkdown source={p.description} className="text-sm" />
 
                         {/* Checkout block */}
-                        <div className="mt-7 rounded-2xl border border-white/15 bg-black/30 p-4 sm:p-5">
-                          <div className="mb-4 text-xs font-bold uppercase tracking-[0.32em] text-white/60">
+                        <div className="mt-7 rounded-2xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
+                          <div className="mb-4 text-xs font-bold uppercase tracking-[0.32em] text-gray-500">
                             Checkout · Pay with crypto
                           </div>
 
                           {checkout.phase === "ready" ? (
                             <div>
-                              <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.18em] text-white/60">
+                              <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.18em] text-gray-500">
                                 <span>Order {checkout.orderId}</span>
                                 <button
                                   type="button"
                                   onClick={() => resetCheckout(p.id)}
-                                  className="rounded-full border border-white/20 px-3 py-1 hover:bg-white/10"
+                                  className="rounded-full border border-gray-300 px-3 py-1 text-gray-600 hover:bg-gray-100"
                                 >
                                   Start over
                                 </button>
                               </div>
-                              <div className="rounded-xl border border-white/10 bg-black/30 px-5 py-8 text-center">
-                                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-white/5 text-2xl">
+                              <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center">
+                                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-gray-300 bg-gray-50 text-2xl">
                                   🔒
                                 </div>
-                                <p className="mb-1 text-sm font-semibold text-white">Your invoice is ready</p>
-                                <p className="mx-auto mb-5 max-w-sm text-xs leading-relaxed text-white/55">
+                                <p className="mb-1 text-sm font-semibold text-gray-900">Your invoice is ready</p>
+                                <p className="mx-auto mb-5 max-w-sm text-xs leading-relaxed text-gray-500">
                                   For your security, our crypto payment processor opens in a new tab.
                                   Complete the payment there, then come back to this page.
                                 </p>
@@ -263,14 +263,14 @@ export default function ShopProductList({ category: c }: { category: Category })
                                   href={checkout.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/25 bg-white/10 px-6 py-3 text-sm font-bold uppercase tracking-[0.16em] text-white transition hover:bg-white/20"
+                                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-gray-900 px-6 py-3 text-sm font-bold uppercase tracking-[0.16em] text-white transition hover:bg-black"
                                   style={{ boxShadow: `0 0 36px -8px rgba(${c.rgb},0.7)` }}
                                 >
                                   Open secure payment page →
                                 </a>
-                                <p className="mt-4 break-all text-[10px] leading-relaxed text-white/35">
+                                <p className="mt-4 break-all text-[10px] leading-relaxed text-gray-400">
                                   If the button doesn&apos;t work, copy this link:{" "}
-                                  <span className="text-white/55">{checkout.url}</span>
+                                  <span className="text-gray-600">{checkout.url}</span>
                                 </p>
                               </div>
                             </div>
@@ -280,31 +280,31 @@ export default function ShopProductList({ category: c }: { category: Category })
                                 <div className="mb-4 space-y-3">
                                   {p.customFields.map((cf) => (
                                     <label key={cf.name} className="block">
-                                      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/70">
+                                      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-gray-700">
                                         {cf.name}
-                                        {cf.required && <span className="ml-1 text-amber-300">*</span>}
+                                        {cf.required && <span className="ml-1 text-rose-500">*</span>}
                                       </span>
                                       <input
                                         type="text"
                                         placeholder={cf.placeholder || cf.defaultValue || ""}
                                         value={fieldValues[p.id]?.[cf.name] ?? ""}
                                         onChange={(e) => setFieldVal(p.id, cf.name, e.target.value)}
-                                        className="block w-full rounded-xl border border-white/15 bg-black/40 px-4 py-2.5 text-sm text-white placeholder:text-white/35 focus:border-white/40 focus:outline-none"
+                                        className="block w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-violet-400 focus:outline-none"
                                       />
                                     </label>
                                   ))}
                                 </div>
                               )}
                               <label className="mb-4 block">
-                                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/70">
-                                  Email <span className="normal-case text-white/40">(optional, for receipt)</span>
+                                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-gray-700">
+                                  Email <span className="normal-case text-gray-400">(optional, for receipt)</span>
                                 </span>
                                 <input
                                   type="email"
                                   placeholder="you@example.com"
                                   value={emailById[p.id] ?? ""}
                                   onChange={(e) => setEmailById((s) => ({ ...s, [p.id]: e.target.value }))}
-                                  className="block w-full rounded-xl border border-white/15 bg-black/40 px-4 py-2.5 text-sm text-white placeholder:text-white/35 focus:border-white/40 focus:outline-none"
+                                  className="block w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-violet-400 focus:outline-none"
                                 />
                               </label>
 
@@ -312,7 +312,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                                 type="button"
                                 disabled={checkout.phase === "loading" || missingRequired}
                                 onClick={() => startCheckout(p)}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/25 bg-white/10 px-6 py-3 text-sm font-bold uppercase tracking-[0.16em] text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-gray-900 px-6 py-3 text-sm font-bold uppercase tracking-[0.16em] text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
                                 style={{ boxShadow: `0 0 36px -8px rgba(${c.rgb},0.7)` }}
                               >
                                 {checkout.phase === "loading"
@@ -323,7 +323,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                               </button>
 
                               {checkout.phase === "error" && (
-                                <p className="mt-3 rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                                <p className="mt-3 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-600">
                                   {checkout.message}
                                 </p>
                               )}

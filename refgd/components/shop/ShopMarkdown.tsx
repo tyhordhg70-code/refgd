@@ -41,7 +41,7 @@
               src={im[2]}
               alt={im[1]}
               loading="lazy"
-              className="my-3 block max-h-[360px] w-auto max-w-full rounded-xl border border-white/10"
+              className="my-3 block max-h-[360px] w-auto max-w-full rounded-xl border border-gray-200"
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).style.display = "none";
               }}
@@ -57,18 +57,18 @@
               href={lm[2]}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-amber-300 underline underline-offset-2 hover:text-amber-200"
+              className="text-violet-700 underline underline-offset-2 hover:text-violet-800"
             >
               {lm[1]}
             </a>,
           );
         }
       } else if (tok.startsWith("**")) {
-        nodes.push(<strong key={k} className="font-semibold text-white">{tok.slice(2, -2)}</strong>);
+        nodes.push(<strong key={k} className="font-semibold text-gray-900">{tok.slice(2, -2)}</strong>);
       } else if (tok.startsWith("`")) {
-        nodes.push(<code key={k} className="rounded bg-white/10 px-1.5 py-0.5 text-[0.85em] text-amber-200">{tok.slice(1, -1)}</code>);
+        nodes.push(<code key={k} className="rounded bg-gray-100 px-1.5 py-0.5 text-[0.85em] text-violet-700">{tok.slice(1, -1)}</code>);
       } else if (tok.startsWith("_")) {
-        nodes.push(<em key={k} className="italic text-white/90">{tok.slice(1, -1)}</em>);
+        nodes.push(<em key={k} className="italic text-gray-700">{tok.slice(1, -1)}</em>);
       }
       last = m.index + tok.length;
     }
@@ -113,11 +113,11 @@
         const level = hm[1].length;
         const inner = renderInline(hm[2], key);
         if (level === 1)
-          elements.push(<h2 key={key} className="editorial-display mt-6 mb-3 text-xl uppercase text-white">{inner}</h2>);
+          elements.push(<h2 key={key} className="editorial-display mt-6 mb-3 text-xl uppercase text-gray-900">{inner}</h2>);
         else if (level === 2)
-          elements.push(<h3 key={key} className="editorial-display mt-5 mb-2 text-lg uppercase text-white">{inner}</h3>);
+          elements.push(<h3 key={key} className="editorial-display mt-5 mb-2 text-lg uppercase text-gray-900">{inner}</h3>);
         else
-          elements.push(<h4 key={key} className="mt-4 mb-2 text-sm font-bold uppercase tracking-[0.18em] text-amber-300">{inner}</h4>);
+          elements.push(<h4 key={key} className="mt-4 mb-2 text-sm font-bold uppercase tracking-[0.18em] text-violet-700">{inner}</h4>);
         return;
       }
 
@@ -125,7 +125,7 @@
       const lines = block.split("\n");
       if (lines.every((l) => /^\s*[-*]\s+/.test(l))) {
         elements.push(
-          <ul key={key} className="my-3 space-y-1.5 pl-5 text-white/85 marker:text-amber-300/80 list-disc">
+          <ul key={key} className="my-3 space-y-1.5 pl-5 text-gray-700 marker:text-violet-500 list-disc">
             {lines.map((l, li) => (
               <li key={`${key}-l${li}`}>{renderInline(l.replace(/^\s*[-*]\s+/, ""), `${key}-l${li}`)}</li>
             ))}
@@ -136,7 +136,7 @@
       // Ordered list
       if (lines.every((l) => /^\s*\d+\.\s+/.test(l))) {
         elements.push(
-          <ol key={key} className="my-3 space-y-1.5 pl-5 text-white/85 marker:text-amber-300/80 list-decimal">
+          <ol key={key} className="my-3 space-y-1.5 pl-5 text-gray-700 marker:text-violet-500 list-decimal">
             {lines.map((l, li) => (
               <li key={`${key}-l${li}`}>{renderInline(l.replace(/^\s*\d+\.\s+/, ""), `${key}-l${li}`)}</li>
             ))}
@@ -147,7 +147,7 @@
 
       // Default paragraph
       elements.push(
-        <p key={key} className="my-3 leading-[1.75] text-white/85">
+        <p key={key} className="my-3 leading-[1.75] text-gray-700">
           {renderInline(block, key)}
         </p>,
       );

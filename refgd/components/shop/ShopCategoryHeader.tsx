@@ -66,7 +66,7 @@
               defaultValue={c.longDescription}
               as="p"
               multiline
-              className="mt-4 text-base leading-[1.8] text-gray-500"
+              className="mt-4 text-base leading-[1.8] text-gray-700"
             />
           </div>
         </div>

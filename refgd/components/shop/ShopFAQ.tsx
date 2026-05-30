@@ -110,7 +110,7 @@ export default function ShopFAQ() {
           defaultValue="Frequently asked customer questions we've answered. Still unsure? Our Telegram is one tap away."
           as="p"
           multiline
-          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-500"
+          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-700"
         />
 
         <div className="mx-auto mt-12 max-w-3xl space-y-3 sm:mt-14">
@@ -170,7 +170,7 @@ export default function ShopFAQ() {
                         defaultValue={seed.a}
                         as="p"
                         multiline
-                        className="border-t border-gray-100 px-5 py-4 text-sm leading-[1.7] text-gray-600"
+                        className="border-t border-gray-100 px-5 py-4 text-sm leading-[1.7] text-gray-700"
                       />
                     </motion.div>
                   )}
