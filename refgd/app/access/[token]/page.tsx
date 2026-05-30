@@ -23,6 +23,15 @@ export default async function AccessPage({
   const config = await getProductDelivery(order.productId);
   const paid = order.status === "paid" || order.status === "delivered";
 
+  // Links expire 24 h after payment confirmation (updatedAt ≈ when status flipped to paid).
+  const EXPIRY_MS = 24 * 60 * 60 * 1000;
+  const expiresAt = paid ? new Date(order.updatedAt).getTime() + EXPIRY_MS : null;
+  const now = Date.now();
+  const expired = expiresAt !== null && now > expiresAt;
+  const msLeft = expiresAt !== null ? Math.max(0, expiresAt - now) : null;
+  const hoursLeft = msLeft !== null ? Math.floor(msLeft / 3600000) : null;
+  const minLeft = msLeft !== null ? Math.floor((msLeft % 3600000) / 60000) : null;
+
   const linkMode =
     !!config && config.enabled && config.type === "link" && isUrl(config.content);
   const textMode =
@@ -30,11 +39,15 @@ export default async function AccessPage({
   const destination = linkMode ? config!.content.trim() : null;
   const buttonLabel = config?.buttonLabel || "Access your product";
 
-  // Optional Telegram backup — shown on all paid orders so any buyer can save a copy.
+  // Telegram: deep link (with token) only while active; generic bot link for expired page.
   let tgDeepLink: string | null = null;
+  let tgBotLink: string | null = null;
   if (paid) {
     const bot = await getBotUsername();
-    if (bot) tgDeepLink = `https://t.me/${bot}?start=${order.deliveryToken}`;
+    if (bot) {
+      tgBotLink = `https://t.me/${bot}`;
+      if (!expired) tgDeepLink = `https://t.me/${bot}?start=${order.deliveryToken}`;
+    }
   }
 
   const priceLabel = `$${order.price}${order.currency && order.currency !== "USD" ? " " + order.currency : ""}`;
@@ -55,7 +68,19 @@ export default async function AccessPage({
               RefundGod
             </p>
 
-            {paid ? (
+            {expired ? (
+              <>
+                <div className="mx-auto mt-5 grid h-16 w-16 place-items-center rounded-full bg-rose-500/15 text-3xl ring-1 ring-rose-400/30">
+                  🔒
+                </div>
+                <h1 className="heading-display mt-5 text-2xl font-extrabold sm:text-3xl">
+                  This link has expired
+                </h1>
+                <p className="mt-2 text-sm leading-relaxed text-white/65">
+                  Delivery links are active for 24 hours after payment.
+                </p>
+              </>
+            ) : paid ? (
               <>
                 <div className="mx-auto mt-5 grid h-16 w-16 place-items-center rounded-full bg-emerald-500/15 text-3xl ring-1 ring-emerald-400/30">
                   ✅
@@ -64,7 +89,8 @@ export default async function AccessPage({
                   Thank you for your purchase
                 </h1>
                 <p className="mt-2 text-sm leading-relaxed text-white/65">
-                  Your payment is confirmed. Your product is ready below.
+                  Your product is below. Save it to Telegram — this link expires in{" "}
+                  {hoursLeft}h {minLeft}m.
                 </p>
               </>
             ) : (
@@ -97,8 +123,39 @@ export default async function AccessPage({
 
           {/* Delivery body */}
           <div className="px-7 pb-9 pt-6 sm:px-9">
-            {paid ? (
+            {expired ? (
+              <div className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.06] p-5 text-center">
+                <p className="text-sm leading-relaxed text-white/70">
+                  This delivery link was only active for 24 hours after your payment.
+                </p>
+                {tgBotLink ? (
+                  <p className="mt-3 text-sm text-white/50">
+                    If you saved your delivery to Telegram, it&apos;s waiting in your{" "}
+                    <a href={tgBotLink} className="text-sky-400 underline">bot chat</a>.
+                    Otherwise contact support.
+                  </p>
+                ) : (
+                  <p className="mt-3 text-sm text-white/50">
+                    Contact support if you need help recovering your delivery.
+                  </p>
+                )}
+              </div>
+            ) : paid ? (
               <>
+                {tgDeepLink && (
+                  <div className="mb-5 rounded-2xl border border-amber-400/25 bg-amber-500/[0.07] p-4">
+                    <p className="mb-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-300">
+                      ⏰ {hoursLeft}h {minLeft}m left — save now for permanent access
+                    </p>
+                    <a
+                      href={tgDeepLink}
+                      className="flex w-full items-center justify-center gap-2 rounded-full border border-sky-400/35 bg-sky-500/15 px-6 py-3 text-sm font-bold text-sky-200 transition hover:bg-sky-500/25"
+                    >
+                      ✈️ Save to Telegram (permanent copy)
+                    </a>
+                  </div>
+                )}
+
                 {config?.message?.trim() && (
                   <p className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-relaxed text-white/80">
                     {config.message.trim()}
@@ -130,25 +187,9 @@ export default async function AccessPage({
 
                 {!config?.enabled && (
                   <p className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center text-sm text-white/70">
-                    Your payment is confirmed. Your product will be delivered to you
-                    shortly{order.channel === "email" && order.email ? ` at ${order.email}` : ""}.
+                    Your payment is confirmed. Your product will be delivered to you shortly.
                   </p>
                 )}
-
-                {tgDeepLink && (
-                  <div className="mt-5 border-t border-white/10 pt-5">
-                    <p className="mb-3 text-center text-xs text-white/45">
-                      Want a backup copy in Telegram? Tap below — the bot sends it the moment you press Start.
-                    </p>
-                    <a
-                      href={tgDeepLink}
-                      className="flex w-full items-center justify-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/[0.08] px-6 py-3 text-sm font-semibold text-sky-300 transition hover:bg-sky-500/15"
-                    >
-                      ✈️ Save a copy to Telegram
-                    </a>
-                  </div>
-                )}
-
               </>
             ) : (
               <>
@@ -157,16 +198,13 @@ export default async function AccessPage({
                   Checking payment status…
                 </div>
                 <p className="mt-4 text-center text-xs text-white/45">
-                  Once confirmed your product will be ready right here — bookmark this page.
+                  Once confirmed your product will be ready right here — save the URL of this page.
                 </p>
               </>
             )}
           </div>
         </div>
 
-        <p className="mt-6 text-center text-[11px] text-white/35">
-          Keep this link private — anyone with it can view your delivery.
-        </p>
       </div>
     </main>
   );
