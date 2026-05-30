@@ -18,18 +18,19 @@ type CheckoutState =
 
 type StarsState =
   | { phase: "idle" }
-  | { phase: "loading" }
+  | { phase: "loading"; method: "app" | "card" }
+  | { phase: "card_ready"; invoiceUrl: string; orderId: string }
   | { phase: "error"; message: string };
 
 /**
  * ShopProductList — product grid for one category.
  *
- * Clicking "View product" opens a full product detail popup (Billgang-style):
- * large product image on a clean white plate, the full markdown description,
- * the product's checkout custom-fields and a pay-with-crypto flow. Paying
- * POSTs to /api/checkout (mints a NowPayments invoice) and surfaces a secure
- * "Open payment page" link the buyer follows to complete payment (the invoice
- * page refuses iframe embedding, so we link out in a new tab instead).
+ * Three payment paths in the popup:
+ *  1. Crypto (NOWPayments) — opens invoice in new tab.
+ *  2. Apple Pay / Google Pay — Telegram Stars via app (25 % platform markup).
+ *  3. Credit / Debit Card — Telegram Stars via Telegram Web (no markup).
+ *     Shows a "card_ready" panel with an Open Telegram Web link and a
+ *     copy-link fallback so the buyer can continue on any device.
  */
 export default function ShopProductList({ category: c }: { category: Category }) {
   const reduced = useReducedMotion();
@@ -38,6 +39,7 @@ export default function ShopProductList({ category: c }: { category: Category })
   const [fieldValues, setFieldValues] = useState<Record<string, Record<string, string>>>({});
   const [checkoutById, setCheckoutById] = useState<Record<string, CheckoutState>>({});
   const [starsById, setStarsById] = useState<Record<string, StarsState>>({});
+  const [copiedPid, setCopiedPid] = useState<string | null>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -57,18 +59,21 @@ export default function ShopProductList({ category: c }: { category: Category })
   const setFieldVal = (pid: string, name: string, val: string) =>
     setFieldValues((s) => ({ ...s, [pid]: { ...(s[pid] ?? {}), [name]: val } }));
 
+  // ── Crypto checkout (NOWPayments) ─────────────────────────────────────────
   const startCheckout = async (p: Product) => {
     setCheckoutById((s) => ({ ...s, [p.id]: { phase: "loading" } }));
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId: p.id,
-          customFields: fieldValues[p.id] ?? {},
-        }),
+        body: JSON.stringify({ productId: p.id, customFields: fieldValues[p.id] ?? {} }),
       });
-      const data = (await res.json()) as { ok: boolean; invoiceUrl?: string; orderId?: string; error?: string };
+      const data = (await res.json()) as {
+        ok: boolean;
+        invoiceUrl?: string;
+        orderId?: string;
+        error?: string;
+      };
       if (!res.ok || !data.ok || !data.invoiceUrl) {
         setCheckoutById((s) => ({
           ...s,
@@ -88,28 +93,67 @@ export default function ShopProductList({ category: c }: { category: Category })
   const resetCheckout = (pid: string) =>
     setCheckoutById((s) => ({ ...s, [pid]: { phase: "idle" } }));
 
-  const startStarsCheckout = async (p: Product) => {
-    setStarsById((s) => ({ ...s, [p.id]: { phase: "loading" } }));
+  // ── Telegram Stars checkout ───────────────────────────────────────────────
+  /**
+   * method "app"  → Apple / Google Pay: 25 % markup, redirects immediately.
+   * method "card" → Credit / Debit Card: no markup, shows card_ready panel
+   *                 so buyer can open Telegram Web (any device / browser).
+   */
+  const startStarsCheckout = async (p: Product, method: "app" | "card") => {
+    setStarsById((s) => ({ ...s, [p.id]: { phase: "loading", method } }));
     try {
       const res = await fetch("/api/telegram/invoice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: p.id, customFields: fieldValues[p.id] ?? {} }),
+        body: JSON.stringify({
+          productId: p.id,
+          customFields: fieldValues[p.id] ?? {},
+          markupPct: method === "app" ? 0.25 : 0,
+        }),
       });
-      const data = (await res.json()) as { ok: boolean; invoiceUrl?: string; error?: string };
+      const data = (await res.json()) as {
+        ok: boolean;
+        invoiceUrl?: string;
+        orderId?: string;
+        error?: string;
+      };
       if (!res.ok || !data.ok || !data.invoiceUrl) {
         setStarsById((s) => ({
           ...s,
-          [p.id]: { phase: "error", message: data.error ?? "Failed to open Telegram payment" },
+          [p.id]: { phase: "error", message: data.error ?? "Failed to create payment link" },
         }));
         return;
       }
-      // Redirect to the Telegram Stars invoice — opens Telegram app on mobile,
-      // Telegram Web on desktop. Payment confirmation fires via the bot webhook.
-      window.location.href = data.invoiceUrl;
-      setTimeout(() => setStarsById((s) => ({ ...s, [p.id]: { phase: "idle" } })), 5000);
+      if (method === "app") {
+        // Redirect immediately — opens Telegram app on mobile, Telegram Web on desktop.
+        window.location.href = data.invoiceUrl;
+        setTimeout(() => setStarsById((s) => ({ ...s, [p.id]: { phase: "idle" } })), 5000);
+      } else {
+        // Show the card-ready panel so the buyer can open Telegram Web themselves.
+        setStarsById((s) => ({
+          ...s,
+          [p.id]: {
+            phase: "card_ready",
+            invoiceUrl: data.invoiceUrl!,
+            orderId: data.orderId ?? "",
+          },
+        }));
+      }
     } catch (e) {
       setStarsById((s) => ({ ...s, [p.id]: { phase: "error", message: String(e) } }));
+    }
+  };
+
+  const resetStars = (pid: string) =>
+    setStarsById((s) => ({ ...s, [pid]: { phase: "idle" } }));
+
+  const copyInvoiceLink = async (pid: string, url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedPid(pid);
+      setTimeout(() => setCopiedPid((cur) => (cur === pid ? null : cur)), 2000);
+    } catch {
+      /* clipboard unavailable — link is still visible for manual copy */
     }
   };
 
@@ -193,10 +237,11 @@ export default function ShopProductList({ category: c }: { category: Category })
                 const priceLabel = `$${p.price}${p.currency && p.currency !== "USD" ? " " + p.currency : ""}`;
                 const checkout: CheckoutState = checkoutById[p.id] ?? { phase: "idle" };
                 const stars: StarsState = starsById[p.id] ?? { phase: "idle" };
-                const missingRequired =
-                  (p.customFields ?? []).some(
-                    (cf) => cf.required && !fieldValues[p.id]?.[cf.name]?.trim(),
-                  );
+                const missingRequired = (p.customFields ?? []).some(
+                  (cf) => cf.required && !fieldValues[p.id]?.[cf.name]?.trim(),
+                );
+                const appLoading = stars.phase === "loading" && stars.method === "app";
+                const cardLoading = stars.phase === "loading" && stars.method === "card";
 
                 return (
                   <motion.div
@@ -264,13 +309,76 @@ export default function ShopProductList({ category: c }: { category: Category })
                         </div>
                         <ShopMarkdown source={p.description} className="text-sm" />
 
-                        {/* Checkout block */}
+                        {/* ── Checkout block ─────────────────────────────── */}
                         <div className="mt-7 rounded-2xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
                           <div className="mb-4 text-xs font-bold uppercase tracking-[0.32em] text-gray-500">
                             Checkout
                           </div>
 
-                          {checkout.phase === "ready" ? (
+                          {/* ── Card-ready panel ─── */}
+                          {stars.phase === "card_ready" ? (
+                            <div>
+                              <div className="mb-4 flex items-center justify-between gap-3">
+                                <span className="text-xs uppercase tracking-[0.18em] text-gray-500">
+                                  Order {stars.orderId}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => resetStars(p.id)}
+                                  className="rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                                >
+                                  ← Back
+                                </button>
+                              </div>
+
+                              <div className="rounded-xl border border-gray-200 bg-white px-5 py-6">
+                                <div className="mb-1 flex items-center gap-2">
+                                  <svg className="h-5 w-5 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                    <line x1="1" y1="10" x2="23" y2="10"/>
+                                  </svg>
+                                  <p className="text-sm font-semibold text-gray-900">Pay with your card via Telegram Web</p>
+                                </div>
+                                <p className="mb-5 text-xs leading-relaxed text-gray-500">
+                                  Telegram lets you buy Stars with any credit or debit card — no app-store fees.
+                                  Sign in to Telegram Web and your invoice appears automatically.
+                                </p>
+
+                                <a
+                                  href={stars.invoiceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mb-4 flex w-full items-center justify-center gap-2 rounded-full bg-indigo-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                                >
+                                  Open Telegram Web →
+                                </a>
+
+                                {/* Cross-device copy section */}
+                                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-3.5">
+                                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+                                    Paying from another device?
+                                  </p>
+                                  <p className="mb-3 text-[11px] leading-relaxed text-gray-500">
+                                    Copy this link and open it in <strong>any browser</strong> on any device — desktop, laptop, or another phone. Sign in to Telegram Web and your payment form will appear right away.
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <code className="min-w-0 flex-1 truncate rounded-lg border border-gray-200 bg-white px-3 py-2 text-[11px] text-gray-600 select-all">
+                                      {stars.invoiceUrl}
+                                    </code>
+                                    <button
+                                      type="button"
+                                      onClick={() => copyInvoiceLink(p.id, stars.invoiceUrl)}
+                                      className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-[11px] font-semibold text-gray-700 transition hover:bg-gray-100"
+                                    >
+                                      {copiedPid === p.id ? "Copied ✓" : "Copy"}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                          ) : checkout.phase === "ready" ? (
+                            /* ── Crypto invoice ready ─── */
                             <div>
                               <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.18em] text-gray-500">
                                 <span>Order {checkout.orderId}</span>
@@ -306,7 +414,9 @@ export default function ShopProductList({ category: c }: { category: Category })
                                 </p>
                               </div>
                             </div>
+
                           ) : (
+                            /* ── Payment method selection ─── */
                             <>
                               {p.customFields && p.customFields.length > 0 && (
                                 <div className="mb-4 space-y-3">
@@ -327,10 +437,12 @@ export default function ShopProductList({ category: c }: { category: Category })
                                   ))}
                                 </div>
                               )}
+
                               <p className="mb-4 rounded-xl border border-gray-200 bg-gray-100/60 px-4 py-3 text-xs leading-relaxed text-gray-600">
                                 After payment you&apos;ll land on your private delivery page — bookmark it. You can also save a copy to Telegram from there.
                               </p>
 
+                              {/* Crypto */}
                               <button
                                 type="button"
                                 disabled={checkout.phase === "loading" || missingRequired}
@@ -346,25 +458,34 @@ export default function ShopProductList({ category: c }: { category: Category })
                               </button>
 
                               {checkout.phase === "error" && (
-                                <p className="mt-3 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                                <p className="mt-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-600">
                                   {checkout.message}
                                 </p>
                               )}
 
-                              {/* ── Apple Pay / Google Pay (Telegram Stars) ── */}
+                              {/* ── OR separator ── */}
                               <div className="relative my-4 flex items-center gap-3">
                                 <div className="h-px flex-1 bg-gray-200" />
                                 <span className="text-[11px] font-medium text-gray-400">or</span>
                                 <div className="h-px flex-1 bg-gray-200" />
                               </div>
 
+                              {/* Commission notice for Apple / Google Pay */}
+                              <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                                <span className="mt-px shrink-0 text-amber-500" aria-hidden>⚠</span>
+                                <p className="text-[11px] leading-relaxed text-amber-700">
+                                  <strong>Apple Pay &amp; Google Pay include a 25 % platform fee</strong> charged by Apple/Google. The fee is added to your Stars total at checkout.
+                                </p>
+                              </div>
+
+                              {/* Apple Pay */}
                               <button
                                 type="button"
                                 disabled={stars.phase === "loading" || missingRequired}
-                                onClick={() => startStarsCheckout(p)}
+                                onClick={() => startStarsCheckout(p, "app")}
                                 className="mb-2.5 flex w-full items-center justify-center gap-2.5 rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
                               >
-                                {stars.phase === "loading" ? (
+                                {appLoading ? (
                                   "Opening Telegram…"
                                 ) : (
                                   <>
@@ -376,13 +497,14 @@ export default function ShopProductList({ category: c }: { category: Category })
                                 )}
                               </button>
 
+                              {/* Google Pay */}
                               <button
                                 type="button"
                                 disabled={stars.phase === "loading" || missingRequired}
-                                onClick={() => startStarsCheckout(p)}
+                                onClick={() => startStarsCheckout(p, "app")}
                                 className="flex w-full items-center justify-center gap-2.5 rounded-full border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                               >
-                                {stars.phase === "loading" ? (
+                                {appLoading ? (
                                   "Opening Telegram…"
                                 ) : (
                                   <>
@@ -397,15 +519,46 @@ export default function ShopProductList({ category: c }: { category: Category })
                                 )}
                               </button>
 
+                              <p className="mb-1 mt-2 text-center text-[10px] text-gray-400">
+                                ⭐ Powered by Telegram Stars
+                              </p>
+
+                              {/* ── OR separator ── */}
+                              <div className="relative my-4 flex items-center gap-3">
+                                <div className="h-px flex-1 bg-gray-200" />
+                                <span className="text-[11px] font-medium text-gray-400">or</span>
+                                <div className="h-px flex-1 bg-gray-200" />
+                              </div>
+
+                              {/* Credit / Debit Card */}
+                              <button
+                                type="button"
+                                disabled={stars.phase === "loading" || missingRequired}
+                                onClick={() => startStarsCheckout(p, "card")}
+                                className="flex w-full items-center justify-center gap-2.5 rounded-full bg-indigo-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {cardLoading ? (
+                                  "Generating payment link…"
+                                ) : (
+                                  <>
+                                    <svg className="h-[17px] w-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                      <line x1="1" y1="10" x2="23" y2="10"/>
+                                    </svg>
+                                    Credit / Debit Card
+                                  </>
+                                )}
+                              </button>
+
+                              <p className="mt-2 text-center text-[10px] text-gray-400">
+                                No platform fee · via Telegram Web
+                              </p>
+
                               {stars.phase === "error" && (
-                                <p className="mt-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                                <p className="mt-3 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-600">
                                   {stars.message}
                                 </p>
                               )}
-
-                              <p className="mt-3 text-center text-[10px] text-gray-400">
-                                ⭐ Apple Pay &amp; Google Pay are processed via Telegram Stars
-                              </p>
                             </>
                           )}
                         </div>
