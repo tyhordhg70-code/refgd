@@ -10,67 +10,68 @@
   import type { ShopHero as Hero } from "@/lib/shop-catalog";
 
   /**
-   * ShopMethodsHero — full-bleed hero, matches evade-page editorial language.
-   *   • clip-path wipe reveal on the framed banner
-   *   • spring scale-in on the title block
-   *   • all text fields admin-editable
-   *   • ChapterPill removed (user request); title block has violet glow
+   * ShopMethodsHero — tight hero designed to keep the entire boxcard visible
+   * on first page load with no scrolling:
+   *
+   *   • Banner height shortened (180px mobile / 260px desktop) so it doesn't
+   *     push the title block below the fold.
+   *   • Title block pulls up hard with negative margin (-mt-32 mobile / -mt-52
+   *     desktop) so most of the banner is hidden behind the card.
+   *   • Compact title-block padding (p-4 / sm:p-8) and smaller crypto image
+   *     (max-w-[160px]) so the whole card + button fits a 667px viewport.
+   *   • Glow uses OUTWARD positive box-shadow spread — visible against the
+   *     white background. Border also changed to violet so the ring reads.
    */
   export default function ShopMethodsHero({ hero }: { hero: Hero }) {
     const reduced = useReducedMotion();
 
     return (
-      <section className="relative z-10 pt-4 pb-10 sm:pt-10 sm:pb-16 overflow-x-clip">
+      <section className="relative z-10 pt-0 pb-8 sm:pt-4 sm:pb-12 overflow-x-clip">
         <div className="container-wide relative">
-          {/* Framed banner */}
+          {/* Framed banner — shorter so it clears quicker */}
           <motion.div
             initial={reduced ? {} : { clipPath: "inset(100% 0 0 0 round 2rem)", opacity: 0 }}
             whileInView={reduced ? undefined : { clipPath: "inset(0% 0 0 0 round 2rem)", opacity: 1 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.95, ease: [0.76, 0, 0.24, 1] }}
-            className="relative overflow-hidden rounded-[2rem] border border-violet-400/25"
-            style={{
-              boxShadow:
-                "0 60px 140px -30px rgba(0,0,0,0.85), 0 0 90px -25px rgba(167,139,250,0.40), inset 0 1px 0 rgba(255,255,255,0.08)",
-            }}
+            className="relative overflow-hidden rounded-[2rem]"
           >
             <EditableImage
               id="shop.hero.banner"
               defaultSrc={hero.image}
               alt="Shop Methods hero banner"
               wrapperClassName="relative z-0 block w-full"
-              className="block h-[260px] w-full object-cover sm:h-[380px] lg:h-[460px]"
+              className="block h-[180px] w-full object-cover sm:h-[260px]"
             />
-            {/* dark gradient overlay so text reads on any banner */}
             <span
               aria-hidden
               className="pointer-events-none absolute inset-0"
               style={{
                 background:
-                  "linear-gradient(180deg, rgba(10,8,22,0.25) 0%, rgba(10,8,22,0.55) 55%, rgba(10,8,22,0.92) 100%)",
+                  "linear-gradient(180deg, rgba(10,8,22,0.20) 0%, rgba(10,8,22,0.50) 55%, rgba(10,8,22,0.95) 100%)",
               }}
             />
           </motion.div>
 
-          {/* Title block — overlapping the banner */}
+          {/* Title block — pulled up hard; glows outward against white page */}
           <motion.div
-            initial={reduced ? {} : { opacity: 0, y: 40, scale: 0.96 }}
+            initial={reduced ? {} : { opacity: 0, y: 30, scale: 0.97 }}
             whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
             viewport={{ once: true, amount: 0.3 }}
-            transition={{ type: "spring", stiffness: 80, damping: 16, delay: 0.45 }}
-            className="relative z-10 mx-auto -mt-20 max-w-4xl rounded-[1.75rem] border border-white/10 bg-[rgba(10,8,22,0.82)] p-6 text-center backdrop-blur-md sm:-mt-36 sm:p-12"
+            transition={{ type: "spring", stiffness: 90, damping: 18, delay: 0.3 }}
+            className="relative z-10 mx-auto -mt-32 max-w-4xl rounded-[1.75rem] border border-violet-400/60 bg-[rgba(8,6,20,0.90)] p-4 text-center backdrop-blur-md sm:-mt-52 sm:p-8"
             style={{
               boxShadow:
-                "0 40px 100px -30px rgba(0,0,0,0.9), 0 0 80px -15px rgba(167,139,250,0.55), 0 0 140px -35px rgba(167,139,250,0.28), inset 0 1px 0 rgba(255,255,255,0.08)",
+                "0 0 0 1px rgba(139,92,246,0.35), 0 0 32px 6px rgba(139,92,246,0.55), 0 0 90px 24px rgba(139,92,246,0.22), 0 30px 80px -20px rgba(0,0,0,0.8)",
             }}
           >
-            {/* Crypto illustration */}
+            {/* Crypto illustration — compact on mobile */}
             <motion.div
-              initial={reduced ? {} : { opacity: 0, y: 20 }}
+              initial={reduced ? {} : { opacity: 0, y: 16 }}
               whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.4 }}
-              transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-              className="mx-auto mb-6 w-full max-w-md select-none sm:mb-8"
+              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+              className="mx-auto mb-4 w-full max-w-[160px] select-none sm:mb-6 sm:max-w-xs"
               aria-hidden="true"
             >
               <Image
@@ -79,19 +80,19 @@
                 width={740}
                 height={493}
                 className="w-full"
-                style={{ filter: "drop-shadow(0 18px 50px rgba(124,58,237,0.45))" }}
+                style={{ filter: "drop-shadow(0 12px 36px rgba(139,92,246,0.55))" }}
                 priority
                 unoptimized
               />
             </motion.div>
+
             <KineticText
               as="h1"
               text={hero.title}
               editId="shop.hero.title"
-              className="editorial-display mt-2 text-balance uppercase text-white text-[clamp(2.4rem,6.5vw,5rem)]"
+              className="editorial-display mt-1 text-balance uppercase text-white text-[clamp(2rem,5.5vw,4.5rem)]"
               style={{
-                textShadow:
-                  "0 6px 36px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.95)",
+                textShadow: "0 4px 24px rgba(0,0,0,0.95), 0 1px 4px rgba(0,0,0,0.95)",
                 letterSpacing: "-0.025em",
                 lineHeight: 1.1,
               }}
@@ -101,11 +102,11 @@
               defaultValue={hero.subtitle}
               as="p"
               multiline
-              className="mx-auto mt-6 max-w-2xl text-base leading-[1.7] text-white/85 sm:text-lg"
-              style={{ textShadow: "0 2px 12px rgba(0,0,0,0.6)" }}
+              className="mx-auto mt-4 max-w-2xl text-sm leading-[1.65] text-white/80 sm:mt-5 sm:text-base sm:leading-[1.7]"
+              style={{ textShadow: "0 2px 10px rgba(0,0,0,0.6)" }}
             />
 
-            <div className="mt-8 flex justify-center">
+            <div className="mt-6 flex justify-center">
               <motion.button
                 type="button"
                 onClick={() => openVouches()}
@@ -113,12 +114,11 @@
                 initial={false}
                 whileHover={reduced ? {} : { scale: 1.03 }}
                 whileTap={reduced ? {} : { scale: 0.97 }}
-                className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full border border-white/15 bg-white/[0.05] px-7 py-3.5 text-sm font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-md transition-colors duration-300 hover:border-white/30 hover:bg-white/[0.09]"
+                className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full border border-white/20 bg-white/[0.07] px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-md transition-colors duration-300 hover:border-white/35 hover:bg-white/[0.12]"
                 style={{
                   touchAction: "manipulation",
                   WebkitTapHighlightColor: "transparent",
-                  boxShadow:
-                    "inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 50px -24px rgba(0,0,0,0.9)",
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
                 }}
               >
                 <span

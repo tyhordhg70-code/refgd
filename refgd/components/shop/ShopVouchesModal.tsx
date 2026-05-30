@@ -157,9 +157,11 @@ function ThanksBox({
           <button
             type="button"
             onClick={() => setExpanded(true)}
+            style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             className="rounded-full border border-emerald-400/30 bg-emerald-500/[0.12] px-2 py-0.5 text-[11px] font-semibold text-emerald-200/90 transition hover:bg-emerald-500/20"
           >
-            + {(count - THANKS_COLLAPSED).toLocaleString()} more
+            + {(pool.length - THANKS_COLLAPSED).toLocaleString()} more
+            {unknownRemainder > 0 && ` (+${unknownRemainder.toLocaleString()} others)`}
           </button>
         )}
 
@@ -176,15 +178,14 @@ function ThanksBox({
                 and {unknownRemainder.toLocaleString()} others
               </span>
             )}
-            {canExpand && (
-              <button
-                type="button"
-                onClick={() => setExpanded(false)}
-                className="rounded-full border border-emerald-400/30 bg-emerald-500/[0.12] px-2 py-0.5 text-[11px] font-semibold text-emerald-200/90 transition hover:bg-emerald-500/20"
-              >
-                Show less
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
+              className="rounded-full border border-emerald-400/30 bg-emerald-500/[0.12] px-2 py-0.5 text-[11px] font-semibold text-emerald-200/90 transition hover:bg-emerald-500/20"
+            >
+              Show less
+            </button>
           </>
         )}
       </div>
@@ -269,7 +270,7 @@ function PostAvatar({
     <img
       src={imgSrc}
       alt={`${clean} avatar`}
-      loading="lazy"
+      loading={tiny ? "eager" : "lazy"}
       onError={() => setStage((s) => (s === 0 ? 1 : 2))}
       className={`${dim} shrink-0 rounded-xl border border-white/15 bg-white/10 object-cover shadow-lg`}
     />
