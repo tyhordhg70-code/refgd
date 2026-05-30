@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import ShopCategoryHeader from "@/components/shop/ShopCategoryHeader";
 import ShopProductList from "@/components/shop/ShopProductList";
-import ShopLiquidParticles from "@/components/shop/ShopLiquidParticles";
 import { getShopCatalog } from "@/lib/shop-catalog";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -25,11 +24,9 @@ export default async function CategoryPage({ params }: Props) {
 
   return (
     <main className="relative">
-      {/* Same ambient-bg suppression as the main shop page — the liquid blobs
-          provide the full background so the dark global galaxy beneath must be
-          hidden to stop scroll-tear and colour clash. */}
-      <style dangerouslySetInnerHTML={{ __html: ".rg-ambient-bg{display:none !important}" }} />
-      <ShopLiquidParticles />
+      {/* The animated background + ambient-bg suppression are provided by the
+          shared app/shop-methods/layout.tsx, so they stay mounted across
+          navigation between the category list and these product pages. */}
       <ShopCategoryHeader category={category} />
       <ShopProductList category={category} />
       <div className="container-wide relative z-10 pb-20 pt-2">
