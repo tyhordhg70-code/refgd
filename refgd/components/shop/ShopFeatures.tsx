@@ -50,13 +50,13 @@ export default function ShopFeatures() {
           id="shop.features.eyebrow"
           defaultValue="WHY REFUNDGOD"
           as="div"
-          className="text-center text-xs font-bold uppercase tracking-[0.32em] text-violet-600"
+          className="text-center text-xs font-bold uppercase tracking-[0.32em] text-violet-700 txt-on-light"
         />
         <EditableText
           id="shop.features.title"
           defaultValue="Built for operators."
           as="h2"
-          className="editorial-display mx-auto mt-4 max-w-3xl text-balance text-center uppercase text-gray-900 text-[clamp(1.8rem,4.5vw,3.4rem)]"
+          className="editorial-display mx-auto mt-4 max-w-3xl text-balance text-center uppercase text-gray-900 text-[clamp(1.8rem,4.5vw,3.4rem)] txt-on-light"
           style={{ letterSpacing: "-0.025em", lineHeight: 1.15 }}
         />
         <EditableText
@@ -64,7 +64,7 @@ export default function ShopFeatures() {
           defaultValue="Every product on this store ships with the same standard — fast, private and backed by a community that actually runs what it sells."
           as="p"
           multiline
-          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-700"
+          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-800 txt-on-light"
         />
 
         <div className="mt-12 grid gap-5 sm:mt-14 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
@@ -92,7 +92,7 @@ export default function ShopFeatures() {
                 defaultValue={f.body}
                 as="p"
                 multiline
-                className="mt-2.5 text-sm leading-[1.65] text-gray-600"
+                className="mt-2.5 text-sm leading-[1.65] text-gray-700"
               />
             </motion.div>
           ))}

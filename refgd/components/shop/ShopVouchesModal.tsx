@@ -64,36 +64,67 @@ function orderReviews(arr: Review[]): Review[] {
   });
 }
 
-const THANKERS = [
-  "@stealthking", "@ebayqueen", "@flipmaster", "@nova_seller", "@reseller_j",
-  "@silentbuyer", "@goldchain", "@phantom", "@retailninja", "@boxbreaker",
-  "@aged_orders", "@vccguru", "@dropking", "@refund_rick", "@opsec_owl",
-  "@graymarket", "@payday", "@anon_77", "@swiftship", "@evader",
-  "@coldstorage", "@hustle_hank", "@lowkey", "@bankroll", "@ghostbuyer",
-  "@profit_pat", "@stackz", "@quietmoney", "@thereup", "@comebackkid",
+// Two word pools that combine into NAME_A.length × NAME_B.length distinct
+// handles. The old design used a fixed list of 30 names, so once a post's
+// thank count exceeded 30 the chip list dead-ended on a static, unclickable
+// "and N others". With ~1,500 generatable combos the list can keep expanding
+// to cover any realistic thank count, so every remaining thanker is reachable
+// through a clickable "+ N more" button instead.
+const NAME_A = [
+  "stealth", "ebay", "flip", "nova", "silent", "gold", "phantom", "retail",
+  "box", "aged", "vcc", "drop", "refund", "opsec", "gray", "pay", "anon",
+  "swift", "cold", "hustle", "lowkey", "bank", "ghost", "profit", "quiet",
+  "comeback", "shadow", "rapid", "prime", "vault", "cyber", "night", "apex",
+  "zen", "iron", "lucky", "turbo", "mega", "ultra", "slick", "crimson",
+  "frost", "onyx", "echo", "drift", "blaze", "probe", "stackz", "fade", "wire",
 ];
-function thankers(seed: number, count: number): string[] {
-  // Deterministic per-seed selection of up to `count` distinct usernames.
-  //
-  // This used to use rejection sampling: repeatedly draw `lcg() % N` and skip
-  // duplicates until `count` unique names were collected. That could spin
-  // FOREVER: the LCG `s*1103515245+12345 (mod 2^32)` has a very short period
-  // in its low bits, so `s % 30` only ever reaches a SUBSET of the 30 indices.
-  // When a post's `thanks` exceeded that reachable subset (and it had no real
-  // thankers list), the loop could never collect `count` names nor reach all
-  // 30 to break — an infinite loop that froze the whole tab on open.
-  //
-  // A seeded Fisher-Yates shuffle is deterministic, preserves the per-post
-  // "random" look, and is guaranteed to terminate.
-  const target = Math.min(Math.max(0, count), THANKERS.length);
-  const idx = Array.from({ length: THANKERS.length }, (_, i) => i);
-  let s = (seed * 2654435761) >>> 0;
-  for (let i = idx.length - 1; i > 0; i--) {
-    s = (s * 1103515245 + 12345) >>> 0;
-    const j = s % (i + 1);
-    [idx[i], idx[j]] = [idx[j], idx[i]];
+const NAME_B = [
+  "king", "queen", "master", "seller", "buyer", "ninja", "guru", "owl",
+  "money", "ship", "storage", "roll", "fox", "wolf", "hawk", "ace", "pro",
+  "jr", "hd", "tx", "x", "z", "99", "77", "io", "hq", "2k", "zero", "labs",
+  "club",
+];
+// Hard cap on rendered chips so a post with a huge thank count can never try
+// to materialise thousands of DOM nodes.
+const MAX_THANKERS = 300;
+
+/**
+ * Deterministic, guaranteed-terminating list of named thankers covering up to
+ * `count` handles (capped at MAX_THANKERS). Genuine usernames from the thread
+ * come first, then a seeded Fisher-Yates walk over the NAME_A×NAME_B combo
+ * space fills the remainder, deduped. Because the pool can reach `count`, the
+ * UI no longer strands users behind an unclickable "and N others".
+ */
+function buildThankers(seed: number, count: number, real?: string[] | null): string[] {
+  const target = Math.min(Math.max(0, count), MAX_THANKERS);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: string) => {
+    if (out.length >= target) return;
+    const name = raw.startsWith("@") ? raw : `@${raw}`;
+    const k = name.toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push(name);
+  };
+  if (real) for (const r of real) push(r);
+  if (out.length < target) {
+    const total = NAME_A.length * NAME_B.length;
+    const order = Array.from({ length: total }, (_, i) => i);
+    let s = (seed * 2654435761) >>> 0;
+    for (let i = order.length - 1; i > 0; i--) {
+      s = (s * 1103515245 + 12345) >>> 0;
+      const j = s % (i + 1);
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    for (const combo of order) {
+      if (out.length >= target) break;
+      const a = NAME_A[combo % NAME_A.length];
+      const b = NAME_B[Math.floor(combo / NAME_A.length) % NAME_B.length];
+      push(`${a}${b}`);
+    }
   }
-  return idx.slice(0, target).map((i) => THANKERS[i]);
+  return out;
 }
 
 // Build a username → real avatar URL lookup from the imported reviews so that
@@ -133,6 +164,7 @@ function getAuthorAvatar(name: string): string | undefined {
 }
 
 const THANKS_COLLAPSED = 6;
+const THANKS_STEP = 60;
 
 function ThanksBox({
   author,
@@ -145,16 +177,24 @@ function ThanksBox({
   seed: number;
   realThankers?: string[] | null;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [shown, setShown] = useState(THANKS_COLLAPSED);
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => setMobile(isMobileLike()), []);
+
+  // Pool covers the full `count` (capped). Real thread usernames first, then a
+  // deterministic generated remainder so the list keeps expanding chunk by
+  // chunk instead of dead-ending on an unclickable "and N others".
+  const pool = useMemo(
+    () => buildThankers(seed, count, realThankers),
+    [seed, count, realThankers],
+  );
+
   if (!count || count < 1) return null;
 
-  // Prefer the genuine thanker usernames imported from the thread; otherwise
-  // fall back to the deterministic generated pool.
-  const pool =
-    realThankers && realThankers.length > 0 ? realThankers : thankers(seed, count);
-  const shownNames = expanded ? pool : pool.slice(0, THANKS_COLLAPSED);
-  const canExpand = pool.length > THANKS_COLLAPSED;
+  const shownNames = pool.slice(0, shown);
+  const remaining = pool.length - shownNames.length;
   const unknownRemainder = Math.max(0, count - pool.length);
+  const expanded = shown > THANKS_COLLAPSED;
 
   return (
     <div className="mt-4 overflow-hidden rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06]">
@@ -171,45 +211,38 @@ function ThanksBox({
             key={`${n}-${i}`}
             className="inline-flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/[0.08] py-0.5 pl-0.5 pr-2"
           >
-            <PostAvatar author={n} src={getAuthorAvatar(n)} tiny />
+            <PostAvatar author={n} src={getAuthorAvatar(n)} tiny forceMono={mobile} />
             <span className="text-[11px] font-medium text-emerald-200/90">{n}</span>
           </span>
         ))}
 
-        {!expanded && canExpand && (
+        {remaining > 0 && (
           <button
             type="button"
-            onClick={() => setExpanded(true)}
+            onClick={() => setShown((s) => Math.min(pool.length, s + THANKS_STEP))}
             style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             className="rounded-full border border-emerald-400/30 bg-emerald-500/[0.12] px-2 py-0.5 text-[11px] font-semibold text-emerald-200/90 transition hover:bg-emerald-500/20"
           >
-            + {(pool.length - THANKS_COLLAPSED).toLocaleString()} more
-            {unknownRemainder > 0 && ` (+${unknownRemainder.toLocaleString()} others)`}
+            + {Math.min(THANKS_STEP, remaining).toLocaleString()} more
+            <span className="text-emerald-300/70"> ({remaining.toLocaleString()} left)</span>
           </button>
         )}
 
-        {!expanded && !canExpand && unknownRemainder > 0 && (
+        {remaining <= 0 && unknownRemainder > 0 && (
           <span className="text-[11px] font-medium text-emerald-300/70">
             and {unknownRemainder.toLocaleString()} others
           </span>
         )}
 
         {expanded && (
-          <>
-            {unknownRemainder > 0 && (
-              <span className="text-[11px] font-medium text-emerald-300/70">
-                and {unknownRemainder.toLocaleString()} others
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => setExpanded(false)}
-              style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
-              className="rounded-full border border-emerald-400/30 bg-emerald-500/[0.12] px-2 py-0.5 text-[11px] font-semibold text-emerald-200/90 transition hover:bg-emerald-500/20"
-            >
-              Show less
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={() => setShown(THANKS_COLLAPSED)}
+            style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
+            className="rounded-full border border-emerald-400/30 bg-emerald-500/[0.12] px-2 py-0.5 text-[11px] font-semibold text-emerald-200/90 transition hover:bg-emerald-500/20"
+          >
+            Show less
+          </button>
         )}
       </div>
     </div>
@@ -252,11 +285,13 @@ function PostAvatar({
   src,
   small = false,
   tiny = false,
+  forceMono = false,
 }: {
   author: string;
   src?: string | null;
   small?: boolean;
   tiny?: boolean;
+  forceMono?: boolean;
 }) {
   // stage 0: real forum avatar, 1: generated avatar, 2: monogram.
   // We previously forced mobile straight to the CSS monogram on the theory
@@ -265,7 +300,10 @@ function PostAvatar({
   // restored on every device: real forum avatar when present, DiceBear
   // fallback otherwise, monogram only if both images fail to load. Images are
   // lazy-loaded and decoded off the main thread, so they don't block the page.
-  const [stage, setStage] = useState<0 | 1 | 2>(() => (src ? 0 : 1));
+  // `forceMono` renders the lightweight gradient monogram with no network
+  // request — used for the many tiny thanker chips on mobile so expanding to
+  // dozens of names never fires a burst of avatar image fetches.
+  const [stage, setStage] = useState<0 | 1 | 2>(() => (forceMono ? 2 : src ? 0 : 1));
   const clean = author.replace(/^@/, "");
   const dim = tiny ? "h-7 w-7 text-[10px]" : small ? "h-10 w-10 text-xs" : "h-12 w-12 text-sm";
 
@@ -293,7 +331,7 @@ function PostAvatar({
     <img
       src={imgSrc}
       alt={`${clean} avatar`}
-      loading={tiny ? "eager" : "lazy"}
+      loading="lazy"
       onError={() => setStage((s) => (s === 0 ? 1 : 2))}
       className={`${dim} shrink-0 rounded-xl border border-white/15 bg-white/10 object-cover shadow-lg`}
     />

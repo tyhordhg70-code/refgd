@@ -96,13 +96,13 @@ export default function ShopFAQ() {
           id="shop.faq.eyebrow"
           defaultValue="QUESTIONS"
           as="div"
-          className="text-center text-xs font-bold uppercase tracking-[0.32em] text-cyan-600"
+          className="text-center text-xs font-bold uppercase tracking-[0.32em] text-cyan-700 txt-on-light"
         />
         <EditableText
           id="shop.faq.title"
           defaultValue="Frequently asked."
           as="h2"
-          className="editorial-display mx-auto mt-4 max-w-3xl text-balance text-center uppercase text-gray-900 text-[clamp(1.8rem,4.5vw,3.4rem)]"
+          className="editorial-display mx-auto mt-4 max-w-3xl text-balance text-center uppercase text-gray-900 text-[clamp(1.8rem,4.5vw,3.4rem)] txt-on-light"
           style={{ letterSpacing: "-0.025em", lineHeight: 1.15 }}
         />
         <EditableText
@@ -110,7 +110,7 @@ export default function ShopFAQ() {
           defaultValue="Frequently asked customer questions we've answered. Still unsure? Our Telegram is one tap away."
           as="p"
           multiline
-          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-700"
+          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-800 txt-on-light"
         />
 
         <div className="mx-auto mt-12 max-w-3xl space-y-3 sm:mt-14">
@@ -170,7 +170,7 @@ export default function ShopFAQ() {
                         defaultValue={seed.a}
                         as="p"
                         multiline
-                        className="border-t border-gray-100 px-5 py-4 text-sm leading-[1.7] text-gray-700"
+                        className="border-t border-gray-100 px-5 py-4 text-sm leading-[1.7] text-gray-800"
                       />
                     </motion.div>
                   )}

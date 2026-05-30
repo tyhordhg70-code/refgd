@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import EditableImage from "@/components/EditableImage";
 import EditableText from "@/components/EditableText";
-import { isMobileLike } from "@/lib/iosCheck";
 
 import type { ShopCategory as Category } from "@/lib/shop-catalog";
 
@@ -22,34 +20,22 @@ import type { ShopCategory as Category } from "@/lib/shop-catalog";
  */
 export default function ShopMethodsGrid({ categories }: { categories: Category[] }) {
   const reduced = useReducedMotion();
-  const [mobile, setMobile] = useState(false);
-  useEffect(() => setMobile(isMobileLike()), []);
 
   /**
    * Per-card entrance motion.
    *
-   *   reduced-motion → no animation, instantly visible.
-   *   mobile / narrow viewport → MOUNT-driven fade+slide (`animate`, not
-   *     `whileInView`). This still animates the cards in, but because it does
-   *     NOT depend on an IntersectionObserver firing it can never strand a card
-   *     at opacity:0 the way a scroll-reveal can on mobile (URL-bar collapse,
-   *     late layout shift, etc.) — which is why these used to be killed
-   *     entirely. Mount-based animation is the safe way to keep the motion.
-   *   desktop → scroll-triggered staggered reveal.
+   * MOUNT-driven fade + slide (`animate`, not `whileInView`) on every
+   * viewport. A scroll-reveal here kept stranding the cards static: after
+   * client navigation the cards were already in view at mount, so the
+   * IntersectionObserver never refired and the entrance never played — the
+   * "category boxes no longer animate" report. Mount-based animation always
+   * plays the entrance and can never leave a card stuck at opacity:0.
    */
   const cardMotion = (i: number) => {
     if (reduced) return { initial: false as const };
-    if (mobile) {
-      return {
-        initial: { opacity: 0, y: 20 },
-        animate: { opacity: 1, y: 0 },
-        transition: { duration: 0.45, delay: 0.04 + i * 0.06, ease: [0.22, 1, 0.36, 1] as const },
-      };
-    }
     return {
-      initial: { opacity: 0, y: 28 },
-      whileInView: { opacity: 1, y: 0 },
-      viewport: { once: true, amount: 0.12, margin: "0px 0px -10% 0px" },
+      initial: { opacity: 0, y: 24 },
+      animate: { opacity: 1, y: 0 },
       transition: { duration: 0.5, delay: 0.04 + i * 0.07, ease: [0.22, 1, 0.36, 1] as const },
     };
   };
@@ -61,13 +47,13 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
           id="shop.grid.eyebrow"
           defaultValue="OUR PRODUCTS"
           as="div"
-          className="text-center text-xs font-bold uppercase tracking-[0.32em] text-violet-600"
+          className="text-center text-xs font-bold uppercase tracking-[0.32em] text-violet-700 txt-on-light"
         />
         <EditableText
           id="shop.grid.title"
           defaultValue="Pick a category."
           as="h2"
-          className="editorial-display mx-auto mt-4 max-w-3xl text-balance text-center uppercase text-gray-900 text-[clamp(1.8rem,4.5vw,3.4rem)]"
+          className="editorial-display mx-auto mt-4 max-w-3xl text-balance text-center uppercase text-gray-900 text-[clamp(1.8rem,4.5vw,3.4rem)] txt-on-light"
           style={{ letterSpacing: "-0.025em", lineHeight: 1.15 }}
         />
         <EditableText
@@ -75,7 +61,7 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
           defaultValue="A wide range of products organized into carefully curated categories. Pick the one you're interested in — each opens into the full product list."
           as="p"
           multiline
-          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-700"
+          className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-gray-800 txt-on-light"
         />
 
         {/* Category cards — big full illustration + title + description (Billgang layout) */}
@@ -117,7 +103,7 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
                       defaultValue={c.tagline}
                       as="p"
                       multiline
-                      className="mt-2 flex-1 text-sm leading-[1.7] text-gray-500 sm:text-base"
+                      className="mt-2 flex-1 text-sm leading-[1.7] text-gray-700 sm:text-base"
                     />
                     <span className="mt-5 inline-flex items-center gap-1.5 self-start text-sm font-bold uppercase tracking-[0.14em] text-red-600">
                       View products

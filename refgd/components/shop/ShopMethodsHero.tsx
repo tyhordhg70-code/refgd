@@ -31,8 +31,7 @@
           {/* Framed banner — shorter so it clears quicker */}
           <motion.div
             initial={reduced ? {} : { clipPath: "inset(100% 0 0 0 round 2rem)", opacity: 0 }}
-            whileInView={reduced ? undefined : { clipPath: "inset(0% 0 0 0 round 2rem)", opacity: 1 }}
-            viewport={{ once: true, amount: 0.2 }}
+            animate={reduced ? undefined : { clipPath: "inset(0% 0 0 0 round 2rem)", opacity: 1 }}
             transition={{ duration: 0.95, ease: [0.76, 0, 0.24, 1] }}
             className="relative overflow-hidden rounded-[2rem]"
           >
@@ -56,8 +55,7 @@
           {/* Title block — pulled up hard; glows outward against white page */}
           <motion.div
             initial={reduced ? {} : { opacity: 0, y: 30, scale: 0.97 }}
-            whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
-            viewport={{ once: true, amount: 0.3 }}
+            animate={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
             transition={{ type: "spring", stiffness: 90, damping: 18, delay: 0.3 }}
             className="relative z-10 mx-auto -mt-32 max-w-4xl rounded-[1.75rem] border border-violet-400/60 bg-[rgba(8,6,20,0.90)] p-4 text-center backdrop-blur-md sm:-mt-52 sm:p-8"
             style={{
@@ -68,9 +66,8 @@
             {/* Crypto illustration — full original size (user request) */}
             <motion.div
               initial={reduced ? {} : { opacity: 0, y: 16 }}
-              whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.4 }}
-              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+              animate={reduced ? undefined : { opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.55, ease: [0.22, 1, 0.36, 1] }}
               className="mx-auto mb-6 w-full max-w-md select-none sm:mb-8"
               aria-hidden="true"
             >
@@ -114,11 +111,22 @@
                 initial={false}
                 whileHover={reduced ? {} : { scale: 1.03 }}
                 whileTap={reduced ? {} : { scale: 0.97 }}
-                className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full border border-white/20 bg-white/[0.07] px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-md transition-colors duration-300 hover:border-white/35 hover:bg-white/[0.12]"
+                animate={
+                  reduced
+                    ? {}
+                    : {
+                        boxShadow: [
+                          "inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(139,92,246,0.45), 0 0 22px -4px rgba(139,92,246,0.55), 0 0 48px -10px rgba(20,170,245,0.40)",
+                          "inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(139,92,246,0.80), 0 0 40px 2px rgba(139,92,246,0.85), 0 0 80px -4px rgba(20,170,245,0.60)",
+                          "inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(139,92,246,0.45), 0 0 22px -4px rgba(139,92,246,0.55), 0 0 48px -10px rgba(20,170,245,0.40)",
+                        ],
+                        transition: { duration: 2.4, repeat: Infinity, ease: "easeInOut" },
+                      }
+                }
+                className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full border border-violet-300/40 bg-white/[0.07] px-6 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-md transition-colors duration-300 hover:border-white/45 hover:bg-white/[0.12]"
                 style={{
                   touchAction: "manipulation",
                   WebkitTapHighlightColor: "transparent",
-                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
                 }}
               >
                 <span

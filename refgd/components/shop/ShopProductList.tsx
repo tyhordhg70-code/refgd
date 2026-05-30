@@ -137,7 +137,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                       defaultValue={p.summary}
                       as="p"
                       multiline
-                      className="mt-2 line-clamp-3 flex-1 text-sm leading-[1.6] text-gray-700"
+                      className="mt-2 line-clamp-3 flex-1 text-sm leading-[1.6] text-gray-800"
                     />
                   )}
 
@@ -224,6 +224,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                               id={`shop.prod.${p.id}.image.large`}
                               defaultSrc={p.image}
                               alt={p.title}
+                              eager
                               wrapperClassName="block w-full"
                               className="mx-auto block h-auto max-h-[300px] w-auto max-w-full object-contain"
                             />
@@ -231,10 +232,10 @@ export default function ShopProductList({ category: c }: { category: Category })
                         )}
 
                         {p.summary && (
-                          <p className="mb-5 text-base leading-[1.6] text-gray-700">{p.summary}</p>
+                          <p className="mb-5 text-base leading-[1.6] text-gray-800">{p.summary}</p>
                         )}
 
-                        <div className="mb-3 text-xs font-bold uppercase tracking-[0.32em] text-gray-500">
+                        <div className="mb-3 text-xs font-bold uppercase tracking-[0.32em] text-gray-600">
                           What&apos;s included
                         </div>
                         <ShopMarkdown source={p.description} className="text-sm" />

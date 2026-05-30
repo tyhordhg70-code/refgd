@@ -44,7 +44,7 @@
             as="h1"
             text={c.title}
             editId={`shop.cat.${c.slug}.heading`}
-            className="editorial-display mt-4 max-w-3xl text-balance uppercase text-gray-900 text-[clamp(1.7rem,4vw,2.8rem)]"
+            className="editorial-display mt-4 max-w-3xl text-balance uppercase text-gray-900 text-[clamp(1.7rem,4vw,2.8rem)] txt-on-light"
             style={{
               letterSpacing: "-0.025em",
               lineHeight: 1.15,
@@ -59,14 +59,14 @@
               defaultValue={c.tagline}
               as="p"
               multiline
-              className="text-lg leading-[1.75] text-gray-800 sm:text-xl"
+              className="text-lg leading-[1.75] text-gray-800 txt-on-light sm:text-xl"
             />
             <EditableText
               id={`shop.cat.${c.slug}.longDescription`}
               defaultValue={c.longDescription}
               as="p"
               multiline
-              className="mt-4 text-base leading-[1.8] text-gray-700"
+              className="mt-4 text-base leading-[1.8] text-gray-800 txt-on-light"
             />
           </div>
         </div>
