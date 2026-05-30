@@ -482,7 +482,14 @@ export default function ShopVouchesModal({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          <div className="absolute inset-0 bg-black/90" onClick={() => setOpen(false)} />
+          {/* FULLY OPAQUE backdrop (no alpha). A translucent overlay forces the
+              browser to keep compositing every animated layer behind it every
+              frame — the always-mounted mix-blend ShopReviewsFab, the liquid
+              particles and any section animations — which pegs the GPU
+              compositor and freezes the page. A fully opaque cover lets the
+              browser occlusion-cull all of it, so nothing behind is composited
+              while the modal is open. */}
+          <div className="absolute inset-0 bg-[#06030f]" onClick={() => setOpen(false)} />
 
           <motion.div
             initial={reduced ? {} : { y: 40, scale: 0.98, opacity: 0 }}

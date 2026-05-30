@@ -63,17 +63,17 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
                 className="block h-full"
                 aria-label={`View ${c.title}`}
               >
-                <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-black/10 bg-white shadow-[0_20px_60px_-25px_rgba(0,0,0,0.7)] transition-transform duration-300 group-hover:-translate-y-1">
-                  {/* Big, full (uncropped) illustration on a light panel —
+                <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#17171c] shadow-[0_24px_60px_-30px_rgba(0,0,0,0.9)] transition-all duration-300 group-hover:-translate-y-1 group-hover:border-white/20">
+                  {/* Big, full (uncropped) illustration —
                       object-contain so the whole artwork shows (never zoomed/cropped). */}
-                  <div className="w-full overflow-hidden bg-white">
+                  <div className="w-full overflow-hidden bg-[#0f0f14]">
                     <EditableImage
                       id={`shop.cat.${c.slug}.image`}
                       defaultSrc={c.image}
                       alt={c.title}
                       eager
                       wrapperClassName="block w-full"
-                      className="block aspect-[16/10] w-full object-contain transition-transform duration-700 group-hover:scale-[1.03]"
+                      className="block aspect-[16/10] w-full object-contain p-4 transition-transform duration-700 group-hover:scale-[1.03]"
                     />
                   </div>
 
@@ -83,16 +83,16 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
                       id={`shop.cat.${c.slug}.title`}
                       defaultValue={c.title}
                       as="h3"
-                      className="text-xl font-extrabold tracking-tight text-gray-900 sm:text-2xl"
+                      className="text-xl font-extrabold tracking-tight text-white sm:text-2xl"
                     />
                     <EditableText
                       id={`shop.cat.${c.slug}.tagline`}
                       defaultValue={c.tagline}
                       as="p"
                       multiline
-                      className="mt-2 flex-1 text-sm leading-[1.7] text-gray-600 sm:text-base"
+                      className="mt-2 flex-1 text-sm leading-[1.7] text-slate-300 sm:text-base"
                     />
-                    <span className="mt-5 inline-flex items-center gap-1.5 self-start text-sm font-bold uppercase tracking-[0.14em] text-red-600">
+                    <span className="mt-5 inline-flex items-center gap-1.5 self-start text-sm font-bold uppercase tracking-[0.14em] text-red-400">
                       View products
                       <span
                         aria-hidden
