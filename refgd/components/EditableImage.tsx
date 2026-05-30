@@ -59,6 +59,8 @@ type Props = {
   wrapperClassName?: string;
   /** Optional inline style for the wrapper (e.g. fixed sizing). */
   wrapperStyle?: CSSProperties;
+  /** Load eagerly (above-the-fold images) instead of the default lazy. */
+  eager?: boolean;
 };
 
 function EditableImageInner({
@@ -68,6 +70,7 @@ function EditableImageInner({
   className = "",
   wrapperClassName = "inline-block",
   wrapperStyle,
+  eager = false,
 }: Props) {
   const { isAdmin, editMode, getValue, setValue } = useEditContext();
   const group = useEditableImageGroup();
@@ -406,7 +409,7 @@ function EditableImageInner({
             e.stopPropagation();
             setPopOpen((o) => !o);
           }}
-          loading="lazy"
+          loading={eager ? "eager" : "lazy"}
           decoding="async"
           draggable={false}
         />

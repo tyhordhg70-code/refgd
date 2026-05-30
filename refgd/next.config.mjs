@@ -34,6 +34,26 @@ const nextConfig = {
       formats: ["image/avif", "image/webp"],
       minimumCacheTTL: 604800,
     },
+      async headers() {
+        // Long-lived immutable caching for the mirrored shop illustrations and
+        // any admin uploads. These files are content-addressed / stable, so the
+        // browser (and Render's CDN) can cache them for a year instead of
+        // re-fetching on every visit — fixes "images take a while to load in".
+        return [
+          {
+            source: "/shop-images/:path*",
+            headers: [
+              { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+            ],
+          },
+          {
+            source: "/uploads/:path*",
+            headers: [
+              { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+            ],
+          },
+        ];
+      },
       async redirects() {
         return [
           {

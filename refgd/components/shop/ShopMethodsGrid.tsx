@@ -9,13 +9,16 @@ import type { ShopCategory as Category } from "@/lib/shop-catalog";
 
 /**
  * ShopMethodsGrid — category card grid.
- *   • Unified entrance animation: all cards use the same simple 2D fade + slide-up,
- *     staggered by index. No 3D transforms (perspective / preserve-3d / rotateX) —
- *     those broke cards on smooth scroll (tearing / vanishing).
- *   • Layered radial-gradient card background: dual corner accent glows on a
- *     dark glass base — more depth than a flat directional gradient.
- *   • Dark image area with generous padding (p-9) so category images aren't
- *     over-cropped (fixes Refund/SE and Insert Aged Orders zoom complaints).
+ *
+ * Billgang-parity cards: a LARGE, full (uncropped) illustration on a light
+ * panel, then the category title and a short description below — rendered on a
+ * white card so the mirrored Billgang illustrations read exactly like the
+ * source store. Only the cards are light; they sit on the dark shop page.
+ *
+ * Entrance is a simple 2D fade + slide-up staggered by index. No 3D transforms
+ * (perspective / preserve-3d / rotateX) — those promote each card to its own 3D
+ * compositor layer that the browser mis-paints during Lenis smooth scrolling,
+ * which previously made cards "break in half / vanish on scroll".
  */
 export default function ShopMethodsGrid({ categories }: { categories: Category[] }) {
   const reduced = useReducedMotion();
@@ -44,136 +47,65 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
           className="mx-auto mt-5 max-w-2xl text-center text-base leading-[1.7] text-white/75"
         />
 
-        {/* Category card grid */}
-        <div
-          className="relative mt-10 sm:mt-12 grid gap-5 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-7"
-        >
-          {categories.map((c, i) => {
-            const count = c.products?.length ?? 0;
-            const prices = (c.products ?? [])
-              .map((p) => p.price)
-              .filter((n): n is number => typeof n === "number");
-            const min = prices.length ? Math.min(...prices) : 0;
-            const max = prices.length ? Math.max(...prices) : 0;
-            const priceLabel = !prices.length
-              ? null
-              : min === max
-              ? `$${min}`
-              : `$${min}–$${max}`;
-            const countLabel = count === 1 ? "1 product" : `${count} products`;
-
-            return (
-              <motion.div
-                key={c.slug}
-                /* All cards share the same simple 2D entrance (opacity + slide-up),
-                   staggered by index. No 3D rotateX / preserve-3d / perspective —
-                   those promote each card to a 3D compositor layer that the browser
-                   mis-paints during smooth (Lenis) scrolling, which is what caused
-                   the cards to "break in half / vanish on scroll". */
-                initial={reduced ? {} : { opacity: 0, y: 48 }}
-                whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.12, margin: "0px 0px -10% 0px" }}
-                transition={{ duration: 0.8, delay: 0.06 + i * 0.1, ease: [0.22, 1, 0.36, 1] }}
-                className="group relative"
+        {/* Category cards — big full illustration + title + description (Billgang layout) */}
+        <div className="relative mt-12 grid gap-6 sm:gap-8 lg:grid-cols-2">
+          {categories.map((c, i) => (
+            <motion.div
+              key={c.slug}
+              initial={reduced ? {} : { opacity: 0, y: 48 }}
+              whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.12, margin: "0px 0px -10% 0px" }}
+              transition={{ duration: 0.8, delay: 0.06 + i * 0.1, ease: [0.22, 1, 0.36, 1] }}
+              className="group"
+            >
+              <Link
+                href={`/shop-methods/${c.slug}`}
+                className="block h-full"
+                aria-label={`View ${c.title}`}
               >
-                <Link href={`/shop-methods/${c.slug}`} className="block h-full" aria-label={`View ${c.title}`}>
-                  <div
-                    className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0d0a1c]/85 backdrop-blur-sm transition-all duration-300 group-hover:-translate-y-1 group-hover:border-white/25"
-                    style={{
-                      boxShadow:
-                        "0 24px 60px -30px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.05)",
-                    }}
-                  >
-                    {/* Thin accent bar in the category colour */}
-                    <span
-                      aria-hidden
-                      className="absolute inset-x-0 top-0 z-20 h-[3px]"
-                      style={{
-                        background: `linear-gradient(90deg, transparent, rgb(${c.rgb}), transparent)`,
-                        opacity: 0.75,
-                      }}
+                <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-black/10 bg-white shadow-[0_20px_60px_-25px_rgba(0,0,0,0.7)] transition-transform duration-300 group-hover:-translate-y-1">
+                  {/* Big, full (uncropped) illustration on a light panel —
+                      object-contain so the whole artwork shows (never zoomed/cropped). */}
+                  <div className="w-full overflow-hidden bg-white">
+                    <EditableImage
+                      id={`shop.cat.${c.slug}.image`}
+                      defaultSrc={c.image}
+                      alt={c.title}
+                      eager
+                      wrapperClassName="block w-full"
+                      className="block aspect-[16/10] w-full object-contain transition-transform duration-700 group-hover:scale-[1.03]"
                     />
+                  </div>
 
-                    {/* Image — object-contain so the full artwork shows (not zoomed/cropped) */}
-                    <div
-                      className="relative h-52 w-full overflow-hidden"
-                      style={{
-                        background: `radial-gradient(circle at 50% 30%, rgba(${c.rgb},0.16), rgba(8,6,18,0.92) 72%)`,
-                      }}
-                    >
-                      <EditableImage
-                        id={`shop.cat.${c.slug}.image`}
-                        defaultSrc={c.image}
-                        alt={c.title}
-                        wrapperClassName="block h-full w-full"
-                        className="block h-full w-full object-contain p-6 transition-transform duration-700 group-hover:scale-[1.05]"
-                      />
+                  {/* Body */}
+                  <div className="flex flex-1 flex-col p-6 sm:p-8">
+                    <EditableText
+                      id={`shop.cat.${c.slug}.title`}
+                      defaultValue={c.title}
+                      as="h3"
+                      className="text-xl font-extrabold tracking-tight text-gray-900 sm:text-2xl"
+                    />
+                    <EditableText
+                      id={`shop.cat.${c.slug}.tagline`}
+                      defaultValue={c.tagline}
+                      as="p"
+                      multiline
+                      className="mt-2 flex-1 text-sm leading-[1.7] text-gray-600 sm:text-base"
+                    />
+                    <span className="mt-5 inline-flex items-center gap-1.5 self-start text-sm font-bold uppercase tracking-[0.14em] text-red-600">
+                      View products
                       <span
                         aria-hidden
-                        className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-b from-transparent to-[#0d0a1c]"
-                      />
-                    </div>
-
-                    {/* Body */}
-                    <div className="relative flex flex-1 flex-col p-6">
-                      {/* eyebrow: count + price */}
-                      <div className="mb-3 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.18em]">
-                        <span className="inline-flex items-center gap-1.5 text-white/55">
-                          <span
-                            aria-hidden
-                            className="h-1.5 w-1.5 rounded-full"
-                            style={{
-                              background: `rgb(${c.rgb})`,
-                              boxShadow: `0 0 10px rgba(${c.rgb},0.9)`,
-                            }}
-                          />
-                          {countLabel}
-                        </span>
-                        {priceLabel && (
-                          <span className="ml-auto rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-white/80">
-                            {priceLabel}
-                          </span>
-                        )}
-                      </div>
-
-                      <EditableText
-                        id={`shop.cat.${c.slug}.title`}
-                        defaultValue={c.title}
-                        as="h3"
-                        className="editorial-display text-xl uppercase text-white sm:text-[1.6rem]"
-                        style={{ letterSpacing: "-0.02em", lineHeight: 1.15 }}
-                      />
-                      <EditableText
-                        id={`shop.cat.${c.slug}.tagline`}
-                        defaultValue={c.tagline}
-                        as="p"
-                        multiline
-                        className="mt-3 flex-1 text-sm leading-[1.7] text-white/65"
-                      />
-
-                      {/* CTA: clean underline-arrow link */}
-                      <div className="mt-6 inline-flex items-center gap-2 self-start text-xs font-bold uppercase tracking-[0.2em] text-white">
-                        <span className="relative">
-                          View products
-                          <span
-                            aria-hidden
-                            className="absolute -bottom-1 left-0 h-px w-full origin-left scale-x-0 bg-white/70 transition-transform duration-300 group-hover:scale-x-100"
-                          />
-                        </span>
-                        <span
-                          aria-hidden
-                          className="transition-transform duration-300 group-hover:translate-x-1"
-                          style={{ color: `rgb(${c.rgb})` }}
-                        >
-                          →
-                        </span>
-                      </div>
-                    </div>
+                        className="transition-transform duration-300 group-hover:translate-x-1"
+                      >
+                        →
+                      </span>
+                    </span>
                   </div>
-                </Link>
-              </motion.div>
-            );
-          })}
+                </div>
+              </Link>
+            </motion.div>
+          ))}
         </div>
       </div>
     </section>
