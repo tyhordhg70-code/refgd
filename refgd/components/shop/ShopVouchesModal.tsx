@@ -417,6 +417,13 @@ export default function ShopVouchesModal({
   const [collapsed, setCollapsed] = useState(false);
   const [page, setPage] = useState(1);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Timestamp of the most recent open. On touch devices the tap that opens
+  // the modal (handled on pointer-up via the trigger's onTap) is followed
+  // ~300ms later by a synthetic "ghost" click at the same screen coords —
+  // which now lands on the freshly-mounted opaque backdrop and would close
+  // the modal instantly ("nothing happens"). We ignore backdrop closes that
+  // arrive within a short window after opening to swallow that ghost click.
+  const openedAtRef = useRef(0);
 
   const all: Review[] = useMemo(() => orderReviews(reviewsData as Review[]), []);
   const totalPages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
@@ -449,6 +456,7 @@ export default function ShopVouchesModal({
 
   useEffect(() => {
     const onOpen = () => {
+      openedAtRef.current = Date.now();
       setOpen(true);
       setPage(1);
     };
@@ -493,7 +501,13 @@ export default function ShopVouchesModal({
               animated sections — which pegs the GPU compositor and freezes the
               page. A fully opaque cover lets the browser occlusion-cull all of
               it, so nothing behind is composited while the modal is open. */}
-          <div className="absolute inset-0 bg-[#06030f]" onClick={() => setOpen(false)} />
+          <div
+            className="absolute inset-0 bg-[#06030f]"
+            onClick={() => {
+              if (Date.now() - openedAtRef.current < 400) return;
+              setOpen(false);
+            }}
+          />
 
           <motion.div
             initial={reduced ? {} : { y: 40, scale: 0.98, opacity: 0 }}
