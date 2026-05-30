@@ -436,6 +436,15 @@ export default function ShopVouchesModal({
   // animating layers otherwise pegs the compositor and freezes the page.
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("vouches:visibility", { detail: { open } }));
+    // Safety net: if this component unmounts while the modal is open (e.g. a
+    // route change), tell the background to resume so the particle layer can
+    // never get stuck paused.
+    return () => {
+      if (open)
+        window.dispatchEvent(
+          new CustomEvent("vouches:visibility", { detail: { open: false } }),
+        );
+    };
   }, [open]);
 
   useEffect(() => {
