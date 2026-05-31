@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 type Body = {
   productId: string;
   customFields?: Record<string, string>;
+  channel?: "email" | "telegram";
+  email?: string;
 };
 
 /**
@@ -66,6 +68,9 @@ export async function POST(req: Request) {
     req.headers.get("origin") ??
     `https://${req.headers.get("host") ?? "refgd.onrender.com"}`;
 
+  const channel = body.channel === "telegram" ? "telegram" : "email";
+  const email = channel === "email" ? (body.email?.trim() || null) : null;
+
   try {
     await createOrder({
       id: orderId,
@@ -74,8 +79,8 @@ export async function POST(req: Request) {
       price: product.price,
       currency: product.currency ?? "USD",
       customFields: body.customFields ?? {},
-      channel: "email",
-      email: null,
+      channel,
+      email,
       telegramHandle: null,
       deliveryToken: token,
       invoiceId: null,
