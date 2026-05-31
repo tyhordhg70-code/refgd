@@ -104,6 +104,7 @@ export async function POST(req: Request) {
         title: product.title.slice(0, 32),
         description: (description || product.title).slice(0, 255),
         payload: orderId,
+        provider_token: "",
         currency: "XTR",
         prices: [{ label: product.title.slice(0, 32), amount: stars }],
       }),
