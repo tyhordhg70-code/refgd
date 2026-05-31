@@ -42,6 +42,20 @@ export default function ShopProductList({ category: c }: { category: Category })
 
   useEffect(() => setMounted(true), []);
 
+  // Preload all product images immediately on mount so they're in the browser
+  // cache by the time the cards animate into view — Billgang-style zero-wait images.
+  useEffect(() => {
+    c.products.forEach((p) => {
+      if (!p.image) return;
+      const src = /^https?:\/\//i.test(p.image)
+        ? `/api/img?u=${encodeURIComponent(p.image)}`
+        : p.image;
+      const img = new window.Image();
+      img.src = src;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!openId) return;
     lockScroll();
@@ -157,11 +171,10 @@ export default function ShopProductList({ category: c }: { category: Category })
             return (
               <motion.article
                 key={p.id}
-                initial={reduced ? {} : { opacity: 0, y: 24 }}
-                whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
+                initial={reduced ? false : { opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
                 whileHover={reduced ? undefined : { y: -4 }}
-                viewport={{ once: true, amount: 0.15 }}
-                transition={{ duration: 0.5, delay: 0.04 + i * 0.04, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 0.5, delay: 0.08 + i * 0.06, ease: [0.22, 1, 0.36, 1] }}
                 className="group relative flex flex-col overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-[0_8px_32px_-8px_rgba(0,0,0,0.10),0_2px_8px_-2px_rgba(0,0,0,0.06)] transition-all duration-300 hover:border-violet-200 hover:shadow-[0_16px_48px_-12px_rgba(109,40,217,0.14)]"
               >
                 {p.image && (
