@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import EditableImage from "@/components/EditableImage";
@@ -22,17 +23,27 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
   const reduced = useReducedMotion();
 
   /**
+   * Skip entrance animation on return visits so images don't flash/fade-in
+   * when the user navigates back from a category page. sessionStorage is
+   * read synchronously in the lazy useState initialiser (runs client-side
+   * after hydration) so there's no flicker between the SSR pass and mount.
+   */
+  const [returnVisit] = useState<boolean>(() => {
+    if (typeof sessionStorage === "undefined") return false;
+    const seen = sessionStorage.getItem("shop.grid.visited") === "1";
+    sessionStorage.setItem("shop.grid.visited", "1");
+    return seen;
+  });
+
+  /**
    * Per-card entrance motion.
    *
-   * MOUNT-driven fade + slide (`animate`, not `whileInView`) on every
-   * viewport. A scroll-reveal here kept stranding the cards static: after
-   * client navigation the cards were already in view at mount, so the
-   * IntersectionObserver never refired and the entrance never played — the
-   * "category boxes no longer animate" report. Mount-based animation always
-   * plays the entrance and can never leave a card stuck at opacity:0.
+   * MOUNT-driven fade + slide (`animate`, not `whileInView`) on first visit.
+   * On return visits (back-navigation) the cards instantly appear at their
+   * final state — no re-animation, so images look cached and smooth.
    */
   const cardMotion = (i: number) => {
-    if (reduced) return { initial: false as const };
+    if (reduced || returnVisit) return { initial: false as const };
     return {
       initial: { opacity: 0, y: 24 },
       animate: { opacity: 1, y: 0 },
@@ -79,7 +90,7 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
               >
                 <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-[0_8px_32px_-8px_rgba(0,0,0,0.10),0_2px_8px_-2px_rgba(0,0,0,0.06)] transition-all duration-300 group-hover:-translate-y-1 group-hover:border-violet-200 group-hover:shadow-[0_16px_48px_-12px_rgba(109,40,217,0.15),0_4px_12px_-4px_rgba(0,0,0,0.08)]">
                   {/* Big, full (uncropped) illustration */}
-                  <div className="w-full overflow-hidden bg-gray-50">
+                  <div className="w-full overflow-hidden bg-white">
                     <EditableImage
                       id={`shop.cat.${c.slug}.image`}
                       defaultSrc={c.image}
