@@ -165,7 +165,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                 className="group relative flex flex-col overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-[0_8px_32px_-8px_rgba(0,0,0,0.10),0_2px_8px_-2px_rgba(0,0,0,0.06)] transition-all duration-300 hover:border-violet-200 hover:shadow-[0_16px_48px_-12px_rgba(109,40,217,0.14)]"
               >
                 {p.image && (
-                  <div className="relative w-full overflow-hidden rounded-t-[1.5rem] bg-gray-50 aspect-[4/3]">
+                  <div className="relative w-full overflow-hidden rounded-t-[1.5rem] bg-white aspect-[4/3]">
                     <EditableImage
                       id={`shop.prod.${p.id}.image`}
                       defaultSrc={p.image}
@@ -275,7 +275,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                       </div>
 
                       {/* Scrollable body */}
-                      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-5 sm:px-6">
                         {p.image && (
                           <div className="mb-5 overflow-hidden rounded-2xl border border-gray-100 bg-gray-50 p-5">
                             <EditableImage
@@ -521,7 +521,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                               </button>
 
                               <p className="mb-1 mt-2 text-center text-[10px] text-gray-400">
-                                ⭐ Powered by Telegram Stars
+                                ⭐ {Math.ceil(p.price * 50 * 1.25)} Stars ≈ ${(p.price * 1.25).toFixed(2)} (incl. 25% platform fee)
                               </p>
 
                               {/* ── OR separator ── */}
@@ -552,7 +552,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                               </button>
 
                               <p className="mt-2 text-center text-[10px] text-gray-400">
-                                No platform fee · via Telegram Web
+                                ⭐ {Math.ceil(p.price * 50)} Stars ≈ ${p.price.toFixed(2)} · No platform fee · via Telegram Web
                               </p>
 
                               {stars.phase === "error" && (
