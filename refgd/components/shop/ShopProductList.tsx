@@ -39,6 +39,8 @@ export default function ShopProductList({ category: c }: { category: Category })
   const [fieldValues, setFieldValues] = useState<Record<string, Record<string, string>>>({});
   const [checkoutById, setCheckoutById] = useState<Record<string, CheckoutState>>({});
   const [starsById, setStarsById] = useState<Record<string, StarsState>>({});
+  const [channelById, setChannelById] = useState<Record<string, "email" | "telegram">>({});
+  const [emailById, setEmailById] = useState<Record<string, string>>({});
 
   useEffect(() => setMounted(true), []);
 
@@ -75,11 +77,18 @@ export default function ShopProductList({ category: c }: { category: Category })
   // ── Crypto checkout (NOWPayments) ─────────────────────────────────────────
   const startCheckout = async (p: Product) => {
     setCheckoutById((s) => ({ ...s, [p.id]: { phase: "loading" } }));
+    const channel = channelById[p.id] ?? "email";
+    const email = emailById[p.id]?.trim() || null;
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: p.id, customFields: fieldValues[p.id] ?? {} }),
+        body: JSON.stringify({
+          productId: p.id,
+          customFields: fieldValues[p.id] ?? {},
+          channel,
+          email: channel === "email" ? email : undefined,
+        }),
       });
       const data = (await res.json()) as {
         ok: boolean;
@@ -466,9 +475,50 @@ export default function ShopProductList({ category: c }: { category: Category })
                                 </div>
                               )}
 
-                              <p className="mb-4 rounded-xl border border-gray-200 bg-gray-100/60 px-4 py-3 text-xs leading-relaxed text-gray-600">
-                                After payment you&apos;ll land on your private delivery page — bookmark it. You can also save a copy to Telegram from there.
-                              </p>
+                              {/* ── Delivery channel selector ── */}
+                              {(() => {
+                                const ch = channelById[p.id] ?? "email";
+                                return (
+                                  <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+                                    <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+                                      Deliver my order via
+                                    </p>
+                                    <div className="mb-3 flex gap-2">
+                                      {(["email", "telegram"] as const).map((opt) => (
+                                        <button
+                                          key={opt}
+                                          type="button"
+                                          onClick={() =>
+                                            setChannelById((s) => ({ ...s, [p.id]: opt }))
+                                          }
+                                          className={`flex-1 rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                                            ch === opt
+                                              ? "border-violet-400 bg-violet-100 text-violet-700"
+                                              : "border-gray-300 bg-white text-gray-600 hover:bg-gray-100"
+                                          }`}
+                                        >
+                                          {opt === "email" ? "📧 Email" : "✈️ Telegram"}
+                                        </button>
+                                      ))}
+                                    </div>
+                                    {ch === "email" ? (
+                                      <input
+                                        type="email"
+                                        placeholder="your@email.com"
+                                        value={emailById[p.id] ?? ""}
+                                        onChange={(e) =>
+                                          setEmailById((s) => ({ ...s, [p.id]: e.target.value }))
+                                        }
+                                        className="block w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-violet-400 focus:outline-none"
+                                      />
+                                    ) : (
+                                      <p className="text-[11px] leading-relaxed text-gray-500">
+                                        After payment, message our Telegram bot — your product arrives instantly in your chat.
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              })()}
 
                               {/* Crypto */}
                               <button
@@ -533,9 +583,6 @@ export default function ShopProductList({ category: c }: { category: Category })
                                 )}
                               </button>
 
-                              <p className="mb-1 mt-2 text-center text-[10px] text-gray-400">
-                                ⭐ {Math.ceil(p.price * 50 * 1.25)} Stars ≈ ${(p.price * 1.25).toFixed(2)} (incl. 25% platform fee)
-                              </p>
 
                               {/* ── OR separator ── */}
                               <div className="relative my-4 flex items-center gap-3">
@@ -565,7 +612,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                               </button>
 
                               <p className="mt-2 text-center text-[10px] text-gray-400">
-                                ⭐ {Math.ceil(p.price * 50)} Stars ≈ ${p.price.toFixed(2)} · No platform fee · via Telegram Web
+                                No platform fee · via Telegram Web
                               </p>
 
                               {stars.phase === "error" && (
