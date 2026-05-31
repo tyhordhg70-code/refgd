@@ -26,13 +26,18 @@ const STARS_PER_USD = 50;
 const STAR_PACKAGES = [50, 75, 100, 150, 200, 250, 350, 500, 750, 1000, 1500, 2500, 5000];
 
 /**
- * Round Stars up to the nearest Telegram package boundary so the user
- * can buy exactly one package to cover the invoice — no overshooting.
+ * Round Stars DOWN to the nearest Telegram package boundary.
+ * The user buys exactly that package — they never pay more than the
+ * package price. Merchant receives slightly fewer Stars on non-round prices.
  */
 function snapToPackage(stars: number): number {
-  const pkg = STAR_PACKAGES.find((p) => p >= stars);
-  if (pkg !== undefined) return pkg;
-  return Math.ceil(stars / 500) * 500;
+  // Find the largest package that is ≤ calculated Stars.
+  let best = STAR_PACKAGES[0];
+  for (const p of STAR_PACKAGES) {
+    if (p <= stars) best = p;
+    else break;
+  }
+  return best;
 }
 
 type Body = {
