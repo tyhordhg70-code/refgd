@@ -86,8 +86,7 @@ export default function ShopLiquidParticles() {
       className="pointer-events-none fixed inset-0 overflow-hidden"
       style={{
         zIndex: 0,
-        background:
-          "linear-gradient(165deg, #ece9ff 0%, #f1ecfb 24%, #fdeef8 52%, #ebf2ff 80%, #eef0ff 100%)",
+        background: "transparent",
       }}
     >
       <style dangerouslySetInnerHTML={{ __html: css }} />
