@@ -19,7 +19,8 @@ type CheckoutState =
 type StarsState =
   | { phase: "idle" }
   | { phase: "loading"; method: "app" | "card" }
-  | { phase: "card_ready"; invoiceUrl: string; orderId: string }
+  | { phase: "card_ready"; invoiceUrl: string; invoiceUrl2?: string; orderId: string }
+  | { phase: "split_app_ready"; invoiceUrl: string; invoiceUrl2: string; orderId: string }
   | { phase: "error"; message: string };
 
 /**
@@ -136,7 +137,9 @@ export default function ShopProductList({ category: c }: { category: Category })
       const data = (await res.json()) as {
         ok: boolean;
         invoiceUrl?: string;
+        invoiceUrl2?: string;
         orderId?: string;
+        split?: boolean;
         error?: string;
       };
       if (!res.ok || !data.ok || !data.invoiceUrl) {
@@ -147,9 +150,22 @@ export default function ShopProductList({ category: c }: { category: Category })
         return;
       }
       if (method === "app") {
-        // Redirect immediately — opens Telegram app on mobile, Telegram Web on desktop.
-        window.location.href = data.invoiceUrl;
-        setTimeout(() => setStarsById((s) => ({ ...s, [p.id]: { phase: "idle" } })), 5000);
+        if (data.split && data.invoiceUrl2) {
+          // Split payment — show step-by-step panel instead of redirecting.
+          setStarsById((s) => ({
+            ...s,
+            [p.id]: {
+              phase: "split_app_ready",
+              invoiceUrl: data.invoiceUrl!,
+              invoiceUrl2: data.invoiceUrl2!,
+              orderId: data.orderId ?? "",
+            },
+          }));
+        } else {
+          // Single invoice — redirect immediately.
+          window.location.href = data.invoiceUrl;
+          setTimeout(() => setStarsById((s) => ({ ...s, [p.id]: { phase: "idle" } })), 5000);
+        }
       } else {
         // Show the card-ready panel so the buyer can open Telegram Web themselves.
         setStarsById((s) => ({
@@ -157,6 +173,7 @@ export default function ShopProductList({ category: c }: { category: Category })
           [p.id]: {
             phase: "card_ready",
             invoiceUrl: data.invoiceUrl!,
+            invoiceUrl2: data.invoiceUrl2,
             orderId: data.orderId ?? "",
           },
         }));
@@ -412,6 +429,85 @@ export default function ShopProductList({ category: c }: { category: Category })
                                   </a>
                                 </div>
                               </div>
+
+                              {/* ── Step 2 (split payment) ── */}
+                              {stars.invoiceUrl2 && (
+                                <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-4">
+                                  <div className="mb-2 flex items-center gap-2">
+                                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">2</span>
+                                    <p className="text-sm font-semibold text-indigo-900">Second payment (Part 2 of 2)</p>
+                                  </div>
+                                  <p className="mb-3 text-[11px] leading-relaxed text-indigo-700">
+                                    After completing the first payment above, open this second link to pay the remaining amount.
+                                  </p>
+                                  <a
+                                    href={stars.invoiceUrl2}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex w-full items-center justify-center gap-2 rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                                  >
+                                    Open Payment 2 of 2 →
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+
+                          ) : stars.phase === "split_app_ready" ? (
+                            /* ── Split Apple/Google Pay panel ─── */
+                            <div>
+                              <div className="mb-4 flex items-center justify-between gap-3">
+                                <span className="text-xs uppercase tracking-[0.18em] text-gray-500">
+                                  Order {stars.orderId}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => resetStars(p.id)}
+                                  className="rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                                >
+                                  ← Back
+                                </button>
+                              </div>
+
+                              <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                                <span className="mt-px shrink-0 text-amber-500" aria-hidden>⭐</span>
+                                <p className="text-[11px] leading-relaxed text-amber-700">
+                                  This product requires <strong>two separate payments</strong> because Telegram Stars has a 5,000-Star maximum per invoice. Complete both steps to finish your purchase.
+                                </p>
+                              </div>
+
+                              {/* Step 1 */}
+                              <div className="mb-3 rounded-xl border border-gray-200 bg-white px-4 py-4">
+                                <div className="mb-2 flex items-center gap-2">
+                                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-black text-[10px] font-bold text-white">1</span>
+                                  <p className="text-sm font-semibold text-gray-900">First payment</p>
+                                </div>
+                                <p className="mb-3 text-[11px] text-gray-500">Tap the button below — it opens Telegram to pay with Apple Pay or Google Pay.</p>
+                                <a
+                                  href={stars.invoiceUrl}
+                                  className="flex w-full items-center justify-center gap-2 rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-900"
+                                >
+                                  {/* Apple logo */}
+                                  <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                                  </svg>
+                                  Open Payment 1 of 2 →
+                                </a>
+                              </div>
+
+                              {/* Step 2 */}
+                              <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-4">
+                                <div className="mb-2 flex items-center gap-2">
+                                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">2</span>
+                                  <p className="text-sm font-semibold text-indigo-900">Second payment (after completing Step 1)</p>
+                                </div>
+                                <p className="mb-3 text-[11px] text-indigo-700">Once the first payment goes through, tap here to pay the remaining amount.</p>
+                                <a
+                                  href={stars.invoiceUrl2}
+                                  className="flex w-full items-center justify-center gap-2 rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                                >
+                                  Open Payment 2 of 2 →
+                                </a>
+                              </div>
                             </div>
 
                           ) : checkout.phase === "ready" ? (
@@ -528,11 +624,19 @@ export default function ShopProductList({ category: c }: { category: Category })
                                 className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-gray-900 px-6 py-3 text-sm font-bold uppercase tracking-[0.16em] text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
                                 style={{ boxShadow: `0 0 36px -8px rgba(${c.rgb},0.7)` }}
                               >
-                                {checkout.phase === "loading"
-                                  ? "Creating invoice…"
-                                  : missingRequired
-                                    ? "Fill required fields"
-                                    : `Pay ${priceLabel} with crypto →`}
+                                {checkout.phase === "loading" ? (
+                                  "Creating invoice…"
+                                ) : missingRequired ? (
+                                  "Fill required fields"
+                                ) : (
+                                  <>
+                                    {/* Bitcoin / crypto icon */}
+                                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                                      <path d="M23.638 14.904c-1.602 6.43-8.113 10.34-14.542 8.736C2.67 22.05-1.244 15.525.362 9.105 1.962 2.67 8.475-1.243 14.9.358c6.43 1.605 10.342 8.115 8.738 14.546zm-6.35-4.613c.24-1.59-.974-2.45-2.64-3.03l.54-2.153-1.315-.33-.525 2.107c-.345-.087-.705-.167-1.064-.25l.526-2.127-1.32-.33-.54 2.165c-.285-.067-.565-.132-.84-.2l-1.815-.45-.35 1.407s.974.225.955.236c.537.136.633.486.617.766l-1.48 5.934c-.075.166-.24.42-.614.323.015.02-.96-.24-.96-.24l-.66 1.51 1.71.426.93.236-.54 2.19 1.32.327.54-2.165c.36.1.705.19 1.05.273l-.51 2.154 1.32.33.545-2.19c2.24.427 3.93.257 4.64-1.774.57-1.637-.03-2.58-1.217-3.196.854-.193 1.5-.76 1.68-1.928zm-3.01 4.22c-.404 1.64-3.157.75-4.05.53l.72-2.9c.896.23 3.757.67 3.33 2.37zm.41-4.24c-.37 1.49-2.662.735-3.405.55l.654-2.64c.744.18 3.137.524 2.75 2.09z"/>
+                                    </svg>
+                                    Pay {priceLabel} with crypto →
+                                  </>
+                                )}
                               </button>
 
                               {checkout.phase === "error" && (
