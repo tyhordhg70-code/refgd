@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import EditableText from "@/components/EditableText";
@@ -19,8 +20,6 @@ type CheckoutState =
 type StarsState =
   | { phase: "idle" }
   | { phase: "loading"; method: "app" | "card" }
-  | { phase: "card_ready"; invoiceUrl: string; invoiceUrl2?: string; orderId: string }
-  | { phase: "split_app_ready"; invoiceUrl: string; invoiceUrl2: string; orderId: string }
   | { phase: "error"; message: string };
 
 /**
@@ -28,13 +27,13 @@ type StarsState =
  *
  * Three payment paths in the popup:
  *  1. Crypto (NOWPayments) — opens invoice in new tab.
- *  2. Apple Pay / Google Pay — Telegram Stars via app (25 % platform markup).
- *  3. Credit / Debit Card — Telegram Stars via Telegram Web (no markup).
- *     Shows a "card_ready" panel with an Open Telegram Web link and a
- *     copy-link fallback so the buyer can continue on any device.
+ *  2. Apple Pay / Google Pay — Telegram Stars, navigates to /invoice/[orderId].
+ *  3. Credit / Debit Card — Telegram Stars via Telegram Web (no markup),
+ *     navigates to /invoice/[orderId] which shows cross-device helpers.
  */
 export default function ShopProductList({ category: c }: { category: Category }) {
   const reduced = useReducedMotion();
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [fieldValues, setFieldValues] = useState<Record<string, Record<string, string>>>({});
@@ -118,9 +117,10 @@ export default function ShopProductList({ category: c }: { category: Category })
 
   // ── Telegram Stars checkout ───────────────────────────────────────────────
   /**
-   * method "app"  → Apple / Google Pay: 25 % markup, redirects immediately.
-   * method "card" → Credit / Debit Card: no markup, shows card_ready panel
-   *                 so buyer can open Telegram Web (any device / browser).
+   * Both methods navigate to /invoice/[orderId] which polls the status API,
+   * shows split-step progress for large orders, and auto-redirects on payment.
+   * method "app"  → Apple / Google Pay (25 % markup): invoice opens directly.
+   * method "card" → Telegram Web (no markup): cross-device helpers on page.
    */
   const startStarsCheckout = async (p: Product, method: "app" | "card") => {
     setStarsById((s) => ({ ...s, [p.id]: { phase: "loading", method } }));
@@ -149,35 +149,16 @@ export default function ShopProductList({ category: c }: { category: Category })
         }));
         return;
       }
-      if (method === "app") {
-        if (data.split && data.invoiceUrl2) {
-          // Split payment — show step-by-step panel instead of redirecting.
-          setStarsById((s) => ({
-            ...s,
-            [p.id]: {
-              phase: "split_app_ready",
-              invoiceUrl: data.invoiceUrl!,
-              invoiceUrl2: data.invoiceUrl2!,
-              orderId: data.orderId ?? "",
-            },
-          }));
-        } else {
-          // Single invoice — redirect immediately.
-          window.location.href = data.invoiceUrl;
-          setTimeout(() => setStarsById((s) => ({ ...s, [p.id]: { phase: "idle" } })), 5000);
-        }
-      } else {
-        // Show the card-ready panel so the buyer can open Telegram Web themselves.
-        setStarsById((s) => ({
-          ...s,
-          [p.id]: {
-            phase: "card_ready",
-            invoiceUrl: data.invoiceUrl!,
-            invoiceUrl2: data.invoiceUrl2,
-            orderId: data.orderId ?? "",
-          },
-        }));
-      }
+      // Navigate to the dedicated invoice monitoring page for all Stars payments.
+      // The page polls order status, shows split-step progress, and auto-redirects
+      // to the access page once the order is fully paid.
+      const params = new URLSearchParams({
+        url: data.invoiceUrl!,
+        type: method,
+        title: p.title,
+      });
+      if (data.invoiceUrl2) params.set("url2", data.invoiceUrl2);
+      router.push(`/invoice/${data.orderId}?${params.toString()}`);
     } catch (e) {
       setStarsById((s) => ({ ...s, [p.id]: { phase: "error", message: String(e) } }));
     }
@@ -343,174 +324,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                             Checkout
                           </div>
 
-                          {/* ── Card-ready panel ─── */}
-                          {stars.phase === "card_ready" ? (
-                            <div>
-                              <div className="mb-4 flex items-center justify-between gap-3">
-                                <span className="text-xs uppercase tracking-[0.18em] text-gray-500">
-                                  Order {stars.orderId}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => resetStars(p.id)}
-                                  className="rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-100"
-                                >
-                                  ← Back
-                                </button>
-                              </div>
-
-                              <div className="rounded-xl border border-gray-200 bg-white px-5 py-6">
-                                <div className="mb-1 flex items-center gap-2">
-                                  <svg className="h-5 w-5 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
-                                    <line x1="1" y1="10" x2="23" y2="10"/>
-                                  </svg>
-                                  <p className="text-sm font-semibold text-gray-900">Pay with your card via Telegram Web</p>
-                                </div>
-                                <p className="mb-5 text-xs leading-relaxed text-gray-500">
-                                  Telegram lets you buy Stars with any credit or debit card — no app-store fees.
-                                  Sign in to Telegram Web and your invoice appears automatically.
-                                </p>
-
-                                <a
-                                  href={stars.invoiceUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="mb-4 flex w-full items-center justify-center gap-2 rounded-full bg-indigo-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700"
-                                >
-                                  Open Telegram Web →
-                                </a>
-
-                                {/* Cross-device options */}
-                                <div className="mt-4 space-y-2">
-                                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5">
-                                    <span className="mt-px shrink-0 text-blue-500" aria-hidden>💻</span>
-                                    <p className="text-[11px] leading-relaxed text-blue-700">
-                                      <strong>Must be completed on desktop</strong> — paying via Telegram Desktop avoids the 25% Apple/Google platform fee.
-                                    </p>
-                                  </div>
-                                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
-                                    Get the link on Telegram Desktop
-                                  </p>
-
-                                  {/* Send to Telegram Saved Messages */}
-                                  <a
-                                    href={`https://t.me/share/url?url=${encodeURIComponent(stars.invoiceUrl)}&text=${encodeURIComponent("Tap to complete your payment")}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-left text-xs transition hover:bg-gray-100"
-                                  >
-                                    {/* Telegram paper-plane icon */}
-                                    <svg className="h-5 w-5 shrink-0 text-[#2AABEE]" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                                      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248-1.97 9.289c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.932z"/>
-                                    </svg>
-                                    <div className="flex-1">
-                                      <p className="font-semibold text-gray-800">Send to my Telegram</p>
-                                      <p className="text-[10px] text-gray-500">Select <strong>Saved Messages</strong>, then find the link in Saved Messages on Telegram Desktop</p>
-                                    </div>
-                                    <span className="text-gray-400">→</span>
-                                  </a>
-
-                                  {/* Email to myself */}
-                                  <a
-                                    href={`mailto:?subject=${encodeURIComponent("Your payment link")}&body=${encodeURIComponent("Open this link in any browser to complete your payment:\n\n" + stars.invoiceUrl + "\n\nSign in to Telegram Web and your payment form will appear automatically.")}`}
-                                    className="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-left text-xs transition hover:bg-gray-100"
-                                  >
-                                    {/* Envelope icon */}
-                                    <svg className="h-5 w-5 shrink-0 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                                      <polyline points="22,6 12,13 2,6"/>
-                                    </svg>
-                                    <div className="flex-1">
-                                      <p className="font-semibold text-gray-800">Email to myself</p>
-                                      <p className="text-[10px] text-gray-500">Opens your mail app · open the link on your desktop</p>
-                                    </div>
-                                    <span className="text-gray-400">→</span>
-                                  </a>
-                                </div>
-                              </div>
-
-                              {/* ── Step 2 (split payment) ── */}
-                              {stars.invoiceUrl2 && (
-                                <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-4">
-                                  <div className="mb-2 flex items-center gap-2">
-                                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">2</span>
-                                    <p className="text-sm font-semibold text-indigo-900">Second payment (Part 2 of 2)</p>
-                                  </div>
-                                  <p className="mb-3 text-[11px] leading-relaxed text-indigo-700">
-                                    After completing the first payment above, open this second link to pay the remaining amount.
-                                  </p>
-                                  <a
-                                    href={stars.invoiceUrl2}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex w-full items-center justify-center gap-2 rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
-                                  >
-                                    Open Payment 2 of 2 →
-                                  </a>
-                                </div>
-                              )}
-                            </div>
-
-                          ) : stars.phase === "split_app_ready" ? (
-                            /* ── Split Apple/Google Pay panel ─── */
-                            <div>
-                              <div className="mb-4 flex items-center justify-between gap-3">
-                                <span className="text-xs uppercase tracking-[0.18em] text-gray-500">
-                                  Order {stars.orderId}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => resetStars(p.id)}
-                                  className="rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-100"
-                                >
-                                  ← Back
-                                </button>
-                              </div>
-
-                              <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
-                                <span className="mt-px shrink-0 text-amber-500" aria-hidden>⭐</span>
-                                <p className="text-[11px] leading-relaxed text-amber-700">
-                                  This product requires <strong>two separate payments</strong> because Telegram Stars has a 5,000-Star maximum per invoice. Complete both steps to finish your purchase.
-                                </p>
-                              </div>
-
-                              {/* Step 1 */}
-                              <div className="mb-3 rounded-xl border border-gray-200 bg-white px-4 py-4">
-                                <div className="mb-2 flex items-center gap-2">
-                                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-black text-[10px] font-bold text-white">1</span>
-                                  <p className="text-sm font-semibold text-gray-900">First payment</p>
-                                </div>
-                                <p className="mb-3 text-[11px] text-gray-500">Tap the button below — it opens Telegram to pay with Apple Pay or Google Pay.</p>
-                                <a
-                                  href={stars.invoiceUrl}
-                                  className="flex w-full items-center justify-center gap-2 rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-900"
-                                >
-                                  {/* Apple logo */}
-                                  <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-                                  </svg>
-                                  Open Payment 1 of 2 →
-                                </a>
-                              </div>
-
-                              {/* Step 2 */}
-                              <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-4">
-                                <div className="mb-2 flex items-center gap-2">
-                                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">2</span>
-                                  <p className="text-sm font-semibold text-indigo-900">Second payment (after completing Step 1)</p>
-                                </div>
-                                <p className="mb-3 text-[11px] text-indigo-700">Once the first payment goes through, tap here to pay the remaining amount.</p>
-                                <a
-                                  href={stars.invoiceUrl2}
-                                  className="flex w-full items-center justify-center gap-2 rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
-                                >
-                                  Open Payment 2 of 2 →
-                                </a>
-                              </div>
-                            </div>
-
-                          ) : checkout.phase === "ready" ? (
+                          {checkout.phase === "ready" ? (
                             /* ── Crypto invoice ready ─── */
                             <div>
                               <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.18em] text-gray-500">
