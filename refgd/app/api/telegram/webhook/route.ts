@@ -19,8 +19,13 @@ export const dynamic = "force-dynamic";
  * 1. pre_checkout_query — Telegram asks us to approve a Stars payment.
  *    Must be answered within 10 s. We always approve.
  *
- * 2. message.successful_payment — Stars payment confirmed. We connect the
- *    buyer's Telegram chat to the order, mark it paid, and auto-deliver.
+ * 2. message.successful_payment — Stars payment confirmed. Split-payment
+ *    orders are coordinated so delivery only fires once both parts are paid:
+ *    - Part 1 order IDs contain "_xtr_"
+ *    - Part 2 order IDs contain "_xtr2_"
+ *    When Part 1 arrives we check whether Part 2 is also already paid before
+ *    delivering. When Part 2 arrives we copy the buyer's chat to Part 1's
+ *    record and deliver from Part 1 (the canonical order for delivery).
  *
  * 3. message /start <token> — Buyer taps the deep-link from the access page
  *    to receive a copy of their delivery via Telegram.
@@ -49,6 +54,21 @@ type TgUpdate = {
     invoice_payload: string;
   };
 };
+
+/** True when orderId looks like a split Part-2 order (contains "_xtr2_"). */
+function isSplitPart2(orderId: string): boolean {
+  return orderId.includes("_xtr2_");
+}
+
+/** Derive the Part-1 order ID from a Part-2 order ID. */
+function part1IdFromPart2(part2Id: string): string {
+  return part2Id.replace("_xtr2_", "_xtr_");
+}
+
+/** Derive the Part-2 order ID from a Part-1 order ID (may not exist). */
+function part2IdFromPart1(part1Id: string): string {
+  return part1Id.replace("_xtr_", "_xtr2_");
+}
 
 export async function POST(req: Request) {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
@@ -92,8 +112,77 @@ export async function POST(req: Request) {
     await setOrderTelegramChat(orderId, chat, handle);
     await markOrderPaid(orderId, `xtr_${chargeId}`);
 
+    // ── Split Part 2 ─────────────────────────────────────────────────────
+    if (isSplitPart2(orderId)) {
+      // Part 2 of a split payment just completed. Deliver via the Part-1
+      // order (canonical record that holds the buyer's channel/email info).
+      const part1Id = part1IdFromPart2(orderId);
+      await setOrderTelegramChat(part1Id, chat, handle); // sync chat to Part 1
+
+      const part1 = await getOrder(part1Id);
+      if (part1) {
+        if (part1.status === "paid" || part1.status === "delivered") {
+          // Both parts paid — deliver now.
+          const result = await deliverOrder(part1, baseUrl);
+          if (!result.delivered) {
+            await sendTelegram(
+              chat,
+              "✅ Both payments received! Your delivery is being prepared and will arrive here shortly.",
+            );
+          }
+        } else {
+          // Part 1 not yet confirmed — rare (Telegram processes sequentially
+          // but network can be odd). Acknowledge and let Part-1's webhook
+          // trigger delivery when it arrives.
+          await sendTelegram(
+            chat,
+            "✅ Second payment received! Waiting for the first payment confirmation — your product will arrive here automatically once both are confirmed.",
+          );
+        }
+      } else {
+        // Part 1 record missing (shouldn't happen) — still acknowledge.
+        await sendTelegram(
+          chat,
+          "✅ Second payment received! Your delivery is being prepared.",
+        );
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    // ── Regular order OR Split Part 1 ────────────────────────────────────
     const order = await getOrder(orderId);
-    if (order) {
+    if (!order) {
+      await sendTelegram(chat, "✅ Payment received! Your delivery will arrive here shortly.");
+      return NextResponse.json({ ok: true });
+    }
+
+    // Check if this is Part 1 of a split (a Part-2 sibling order exists).
+    const potentialPart2Id = part2IdFromPart1(orderId);
+    const part2 = await getOrder(potentialPart2Id);
+
+    if (part2) {
+      // This IS Part 1 of a split payment.
+      if (part2.status === "paid" || part2.status === "delivered") {
+        // Part 2 already paid — deliver now (both done).
+        const result = await deliverOrder(order, baseUrl);
+        if (!result.delivered) {
+          await sendTelegram(
+            chat,
+            "✅ Both payments received! Your delivery is being prepared and will arrive here shortly.",
+          );
+        }
+      } else {
+        // Part 2 not yet paid — prompt the buyer to complete Step 2.
+        await sendTelegram(
+          chat,
+          "✅ First payment received!\n\n" +
+          "To complete your order please pay the second part (Step 2). " +
+          "Open the checkout panel in your browser and tap <b>Open Payment 2 of 2</b>. " +
+          "Your product will be delivered here automatically once both payments are confirmed. ⭐",
+        );
+      }
+    } else {
+      // Normal single-invoice order — deliver immediately.
       const result = await deliverOrder(order, baseUrl);
       if (!result.delivered) {
         await sendTelegram(
@@ -101,12 +190,8 @@ export async function POST(req: Request) {
           "✅ Payment received! Your delivery is being prepared and will arrive here shortly.",
         );
       }
-    } else {
-      await sendTelegram(
-        chat,
-        "✅ Payment received! Your delivery will arrive here shortly.",
-      );
     }
+
     return NextResponse.json({ ok: true });
   }
 
