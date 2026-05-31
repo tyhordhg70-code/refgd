@@ -22,6 +22,19 @@ export const dynamic = "force-dynamic";
 
 const STARS_PER_USD = 50;
 
+/** Telegram's fixed Star-purchase package tiers (as of 2025). */
+const STAR_PACKAGES = [50, 75, 100, 150, 200, 250, 350, 500, 750, 1000, 1500, 2500, 5000];
+
+/**
+ * Round Stars up to the nearest Telegram package boundary so the user
+ * can buy exactly one package to cover the invoice — no overshooting.
+ */
+function snapToPackage(stars: number): number {
+  const pkg = STAR_PACKAGES.find((p) => p >= stars);
+  if (pkg !== undefined) return pkg;
+  return Math.ceil(stars / 500) * 500;
+}
+
 type Body = {
   productId: string;
   customFields?: Record<string, string>;
@@ -62,7 +75,8 @@ export async function POST(req: Request) {
   const markupPct = Math.max(0, Math.min(1, body.markupPct ?? 0));
   const orderId = `refgd_${product.id}_xtr_${Date.now().toString(36)}`;
   const token = newDeliveryToken();
-  const stars = Math.max(1, Math.ceil(product.price * STARS_PER_USD * (1 + markupPct)));
+  const rawStars = Math.max(1, Math.ceil(product.price * STARS_PER_USD * (1 + markupPct)));
+  const stars = snapToPackage(rawStars);
 
   const fieldLines = Object.entries(body.customFields ?? {})
     .filter(([, v]) => v?.trim())
