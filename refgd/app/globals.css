@@ -212,29 +212,36 @@
   }
 }
 
-/* ─── Readability halo for dark text on the light gradient background ───
+/* ─── Readability outline for text on the light gradient background ───
    The shop's light pages render eyebrows, headings and subtitles directly
-   on the animated liquid-particle gradient. A white text halo separates the
-   glyphs from the busy backdrop so they stay crisp without darkening them
-   into heavy slabs. Use on text that sits ON the background (not on white
-   cards, where it would do nothing). */
+   on the animated liquid-particle gradient. White glyphs with a tight black
+   outline separate the text from the busy backdrop so it stays legible. Use on
+   text that sits ON the background (not on white cards, where the white fill
+   would vanish). */
 .txt-on-light {
+  color: #fff !important;
   text-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.95),
-    0 -1px 0 rgba(255, 255, 255, 0.95),
-    1px 0 0 rgba(255, 255, 255, 0.95),
-    -1px 0 0 rgba(255, 255, 255, 0.95);
+    0 1px 0 #000,
+    0 -1px 0 #000,
+    1px 0 0 #000,
+    -1px 0 0 #000,
+    1px 1px 0 #000,
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000;
 }
 .txt-on-light-strong {
+  color: #fff !important;
   text-shadow:
-    0 1px 0 rgba(255, 255, 255, 1),
-    0 -1px 0 rgba(255, 255, 255, 1),
-    1px 0 0 rgba(255, 255, 255, 1),
-    -1px 0 0 rgba(255, 255, 255, 1),
-    1px 1px 0 rgba(255, 255, 255, 1),
-    -1px -1px 0 rgba(255, 255, 255, 1),
-    1px -1px 0 rgba(255, 255, 255, 1),
-    -1px 1px 0 rgba(255, 255, 255, 1);
+    0 1px 0 #000,
+    0 -1px 0 #000,
+    1px 0 0 #000,
+    -1px 0 0 #000,
+    1px 1px 0 #000,
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000,
+    0 2px 1px rgba(0, 0, 0, 0.55);
 }
 
 /* ─── Custom cursor ─── */
