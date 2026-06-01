@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import EditableImage from "@/components/EditableImage";
 import EditableText from "@/components/EditableText";
+import { useVouchesOpen } from "@/components/shop/ShopVouchesModal";
 
 import type { ShopCategory as Category } from "@/lib/shop-catalog";
 
@@ -18,6 +19,7 @@ import type { ShopCategory as Category } from "@/lib/shop-catalog";
  */
 export default function ShopMethodsGrid({ categories }: { categories: Category[] }) {
   const reduced = useReducedMotion();
+  const frozen = useVouchesOpen();
 
   /**
    * Detect return visits via sessionStorage so back-navigation skips the
@@ -62,7 +64,11 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
             /* Outer: entrance fade+slide on first visit */
             <motion.div
               key={c.slug}
-              className="group"
+              className={`group${
+                i === categories.length - 1 && categories.length % 2 === 1
+                  ? " lg:col-span-2 lg:mx-auto lg:w-[calc(50%_-_1rem)]"
+                  : ""
+              }`}
               initial={skip ? false : { opacity: 0, y: 36 }}
               animate={{ opacity: 1, y: 0 }}
               transition={skip ? undefined : {
@@ -73,13 +79,17 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
             >
               {/* Inner: continuous gentle float — each card offset so they don't bob in sync */}
               <motion.div
-                animate={reduced ? undefined : { y: [0, -10, 0] }}
-                transition={{
-                  duration: 4.2 + i * 0.5,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                  delay: i * 0.7 + (skip ? 0 : 0.6),
-                }}
+                animate={reduced || frozen ? { y: 0 } : { y: [0, -10, 0] }}
+                transition={
+                  reduced || frozen
+                    ? { duration: 0.4 }
+                    : {
+                        duration: 4.2 + i * 0.5,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        delay: i * 0.7 + (skip ? 0 : 0.6),
+                      }
+                }
               >
                 <Link
                   href={`/shop-methods/${c.slug}`}
