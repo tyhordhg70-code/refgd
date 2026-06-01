@@ -294,6 +294,30 @@ export default function AutoEditWrapper({ children }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, editMode, pathname]);
 
+  // ── Block navigation while editing ───────────────────────────────
+  // In edit mode admins click links / buttons to edit their label or
+  // URL, but a plain <a> (nav links, CTAs, MagneticButtons, product &
+  // category cards…) would otherwise navigate away — "redirecting" the
+  // admin the moment they try to edit. We swallow the default
+  // navigation for ANY anchor click on the public site so editing is
+  // possible everywhere. Editor chrome (the toolbar + its menu links)
+  // opts out via `data-editor-chrome`, and admin pages are exempt so
+  // their own UI keeps working. Caret placement / contentEditable focus
+  // happens on mousedown, so preventing the click default never blocks
+  // inline text editing.
+  useEffect(() => {
+    if (!isAdmin || !editMode) return;
+    if (pathname.startsWith("/admin")) return;
+    const onClickCapture = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t || typeof t.closest !== "function") return;
+      if (t.closest("[data-editor-chrome]")) return;
+      if (t.closest("a")) e.preventDefault();
+    };
+    document.addEventListener("click", onClickCapture, true);
+    return () => document.removeEventListener("click", onClickCapture, true);
+  }, [isAdmin, editMode, pathname]);
+
   // ── Style: hover outline only inside the wrapper ──────────────────
   return (
     <div
