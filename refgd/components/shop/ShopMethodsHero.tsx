@@ -55,7 +55,7 @@
               initial={reduced ? {} : { opacity: 0, y: 16 }}
               animate={reduced ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.55, ease: [0.22, 1, 0.36, 1] }}
-              className="mx-auto mb-4 w-full max-w-[190px] select-none sm:mb-5 sm:max-w-[230px]"
+              className="mx-auto mb-4 w-full max-w-[250px] select-none sm:mb-5 sm:max-w-[310px]"
               aria-hidden="true"
             >
               <Image
