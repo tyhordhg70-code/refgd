@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getProduct } from "@/lib/shop-catalog";
 import { createOrder, newDeliveryToken } from "@/lib/delivery";
-import { STARS_PER_USD, splitStars, partId } from "@/lib/stars-split";
+import { STARS_PER_USD, splitStars, partId, maxStarsForMethod } from "@/lib/stars-split";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,10 +11,12 @@ export const dynamic = "force-dynamic";
  *
  * Creates the Telegram Stars invoice link(s) for a product.
  *
- * Telegram caps a single Stars invoice, so an order is split into as many
- * parts as needed — each ≤ MAX_SINGLE_STARS — that SUM to the full price.
- * (See lib/stars-split.ts.) A product that needs 50 000 Stars therefore
- * yields 10 invoices of 5 000 rather than being truncated to 10 000.
+ * Telegram caps how many Stars a buyer can spend per transaction, depending on
+ * the pay method (mobile IAP 35 000, desktop/web 150 000). An order over the
+ * relevant cap is split into as many parts as needed that SUM to the full price
+ * (see lib/stars-split.ts). Most orders fit in a single invoice; e.g. a $700
+ * product is one 35 000-Star invoice on mobile, and a $3 000 product is one
+ * 150 000-Star invoice on desktop/web.
  *
  * Markup (Apple / Google Pay) is folded into the total before splitting, so
  * the buyer always covers the full cost plus the platform fee.
@@ -56,6 +58,14 @@ type Body = {
   customFields?: Record<string, string>;
   /** Fractional markup, e.g. 0.25 = 25 %. Clamped 0–1. Defaults to 0. */
   markupPct?: number;
+  /**
+   * Checkout method — sets the per-invoice Stars cap:
+   *   "app"  → Apple / Google Pay (mobile IAP, 35 000 cap)
+   *   "card" → Telegram Web / Desktop (150 000 cap)
+   * Defaults to "card" (higher cap = fewer steps). If omitted, inferred from
+   * markupPct (>0 implies the 25 % app-pay path).
+   */
+  method?: "app" | "card";
 };
 
 export async function POST(req: Request) {
@@ -89,11 +99,15 @@ export async function POST(req: Request) {
   }
 
   const markupPct = Math.max(0, Math.min(1, body.markupPct ?? 0));
+  // Method sets the per-invoice cap (mobile IAP 35k vs desktop/web 150k).
+  // Fall back to inferring it from the markup if the client didn't send it.
+  const method: "app" | "card" = body.method ?? (markupPct > 0 ? "app" : "card");
+  const maxPerInvoice = maxStarsForMethod(method);
 
   // Full Stars total (price + any platform-fee markup), then split into parts
-  // that each fit under Telegram's single-invoice cap and SUM to this total.
+  // that each fit under this method's single-invoice cap and SUM to this total.
   const totalStars = Math.max(1, Math.ceil(product.price * STARS_PER_USD * (1 + markupPct)));
-  const starsParts = splitStars(totalStars);
+  const starsParts = splitStars(totalStars, maxPerInvoice);
   const total = starsParts.length;
   const split = total > 1;
 
