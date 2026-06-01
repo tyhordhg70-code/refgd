@@ -132,6 +132,7 @@ export default function ShopProductList({ category: c }: { category: Category })
           productId: p.id,
           customFields: fieldValues[p.id] ?? {},
           markupPct: method === "app" ? 0.25 : 0,
+          method,
         }),
       });
       const data = (await res.json()) as {
