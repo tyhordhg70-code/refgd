@@ -227,6 +227,21 @@ export default function InvoiceMonitor({
           /* ── Payment buttons ── */
           <div className="space-y-4">
 
+            {/* Two-step explainer — only shown for split (large) orders */}
+            {isSplit && (
+              <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3.5">
+                <p className="text-sm font-semibold text-indigo-900">
+                  This order is paid in 2 quick steps
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-indigo-700">
+                  Telegram limits how many Stars can be sent in one payment, so larger
+                  orders are split in two. Pay <strong>Step 1</strong>, then{" "}
+                  <strong>Step 2</strong> right below it — your product unlocks
+                  automatically once both are confirmed.
+                </p>
+              </div>
+            )}
+
             {/* Part-1 / single invoice */}
             <div className={cardBorder(part1Paid, !part1Paid, false)}>
               <div className="mb-3 flex items-center gap-2">
@@ -303,8 +318,8 @@ export default function InvoiceMonitor({
                       <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248-1.97 9.289c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.932z" />
                     </svg>
                     <div className="flex-1">
-                      <p className="font-semibold text-gray-800">Send to my Telegram</p>
-                      <p className="text-[10px] text-gray-500">Select <strong>Saved Messages</strong> → open on Telegram Desktop</p>
+                      <p className="font-semibold text-gray-800">On phone? Send the link to yourself</p>
+                      <p className="text-[10px] text-gray-500">Choose <strong>Saved Messages</strong>, then open it from Telegram Desktop to pay with no added fee</p>
                     </div>
                     <span className="text-gray-400">→</span>
                   </a>
