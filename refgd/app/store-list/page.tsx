@@ -110,6 +110,7 @@ export default async function StoreListPage() {
       {/* ── Layer 1: main radial + conic field ── */}
       <div
         aria-hidden="true"
+        data-sl-bg-anim
         className="pointer-events-none fixed inset-0 -z-[3]"
         style={{
           background:
@@ -120,7 +121,7 @@ export default async function StoreListPage() {
             "radial-gradient(ellipse 55% 50% at 50% 50%, rgba(99,102,241,0.22), transparent 70%), " +
             "conic-gradient(from 0deg at 50% 50%, rgba(245,185,69,0.14), rgba(167,139,250,0.17), rgba(34,211,238,0.13), rgba(244,114,182,0.14), rgba(245,185,69,0.14))",
           animation: "slBgShift 22s ease-in-out infinite, slBgHue 28s linear infinite",
-          willChange: "transform, filter",
+          willChange: "transform",
         }}
       />
       {/* ── Layer 2: sweeping nebula stripe L→R ── */}
@@ -192,6 +193,10 @@ export default async function StoreListPage() {
                               50%     { transform: translate3d(-6px,-14px,0) scale(1.15); opacity:0.95; } }
         @media (max-width: 767px) {
           [data-sl-sweep] { display: none; }
+          /* hue-rotate() is not compositor-accelerated — drop it on mobile
+             so it stops triggering a repaint every animation frame while
+             the user is scrolling. The shift+scale animation still runs. */
+          [data-sl-bg-anim] { animation: slBgShift 22s ease-in-out infinite !important; }
         }
       `}</style>
 
@@ -624,8 +629,8 @@ export default async function StoreListPage() {
                   style={{
                     background:
                       "linear-gradient(160deg, rgba(15,10,30,0.78), rgba(8,6,18,0.88))",
-                    backdropFilter: "blur(10px)",
-                    WebkitBackdropFilter: "blur(10px)",
+                    backdropFilter: "blur(4px)",
+                    WebkitBackdropFilter: "blur(4px)",
                   }}
                 >
                   <div className="grid items-end gap-6 sm:grid-cols-[1fr_auto]">
