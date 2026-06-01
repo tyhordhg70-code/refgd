@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getProduct } from "@/lib/shop-catalog";
 import { createOrder, newDeliveryToken } from "@/lib/delivery";
+import { STARS_PER_USD, splitStars, partId } from "@/lib/stars-split";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,45 +9,20 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/telegram/invoice
  *
- * Creates one or two Telegram Stars invoice links for a product.
+ * Creates the Telegram Stars invoice link(s) for a product.
  *
- * Split logic:
- *   - If total Stars ≤ 5 000 (max single Telegram package): one invoice.
- *   - If total Stars > 5 000: two invoices — first is always 5 000 Stars,
- *     second is the remainder snapped to the nearest package.
+ * Telegram caps a single Stars invoice, so an order is split into as many
+ * parts as needed — each ≤ MAX_SINGLE_STARS — that SUM to the full price.
+ * (See lib/stars-split.ts.) A product that needs 50 000 Stars therefore
+ * yields 10 invoices of 5 000 rather than being truncated to 10 000.
  *
- * Rounding direction:
- *   - markupPct > 0 (Apple / Google Pay): snap UP so the user buys the
- *     next available package — they will always cover the full cost.
- *   - markupPct = 0 (Credit / Debit Card): snap DOWN so the user is never
- *     charged more than the product price.
+ * Markup (Apple / Google Pay) is folded into the total before splitting, so
+ * the buyer always covers the full cost plus the platform fee.
  *
  * Stars base rate: 50 Stars ≈ $1 USD.
  *
  * Required env: TELEGRAM_BOT_TOKEN
  */
-
-const STARS_PER_USD = 50;
-const MAX_SINGLE_STARS = 5000;
-
-/** Telegram Stars purchase tiers (as of 2025). */
-const STAR_PACKAGES = [50, 75, 100, 150, 200, 250, 350, 500, 750, 1000, 1500, 2500, 5000];
-
-/** Snap UP to nearest package boundary (Apple / Google Pay). */
-function snapUp(stars: number): number {
-  const pkg = STAR_PACKAGES.find((p) => p >= stars);
-  return pkg ?? MAX_SINGLE_STARS;
-}
-
-/** Snap DOWN to nearest package boundary (Card / Telegram Web). */
-function snapDown(stars: number): number {
-  let best = STAR_PACKAGES[0];
-  for (const p of STAR_PACKAGES) {
-    if (p <= stars) best = p;
-    else break;
-  }
-  return best;
-}
 
 async function makeTgInvoiceLink(
   botToken: string,
@@ -113,20 +89,16 @@ export async function POST(req: Request) {
   }
 
   const markupPct = Math.max(0, Math.min(1, body.markupPct ?? 0));
-  const roundUp = markupPct > 0; // Apple/Google Pay rounds up; card rounds down
-  const snap = roundUp ? snapUp : snapDown;
 
-  const rawStars = Math.max(1, Math.ceil(product.price * STARS_PER_USD * (1 + markupPct)));
-  const needsSplit = rawStars > MAX_SINGLE_STARS;
-
-  const stars1 = needsSplit ? MAX_SINGLE_STARS : snap(rawStars);
-  const stars2 = needsSplit ? snap(rawStars - MAX_SINGLE_STARS) : null;
+  // Full Stars total (price + any platform-fee markup), then split into parts
+  // that each fit under Telegram's single-invoice cap and SUM to this total.
+  const totalStars = Math.max(1, Math.ceil(product.price * STARS_PER_USD * (1 + markupPct)));
+  const starsParts = splitStars(totalStars);
+  const total = starsParts.length;
+  const split = total > 1;
 
   const ts = Date.now().toString(36);
-  const orderId1 = `refgd_${product.id}_xtr_${ts}`;
-  const orderId2 = needsSplit ? `refgd_${product.id}_xtr2_${ts}` : null;
-  const token1 = newDeliveryToken();
-  const token2 = needsSplit ? newDeliveryToken() : null;
+  const base = `refgd_${product.id}_xtr_${ts}`;
 
   const fieldLines = Object.entries(body.customFields ?? {})
     .filter(([, v]) => v?.trim())
@@ -138,23 +110,19 @@ export async function POST(req: Request) {
     req.headers.get("origin") ??
     `https://${req.headers.get("host") ?? "refgd.onrender.com"}`;
 
+  // Create one pending order per part. Part 1 carries the real delivery token
+  // (the access page + final delivery key off it); later parts just collect the
+  // remaining Stars. We keep the buyer's custom fields/price on every part so
+  // the admin orders view stays consistent with the previous behaviour.
+  const ids = starsParts.map((_, i) => partId(base, i + 1, total));
+  const tokens = starsParts.map(() => newDeliveryToken());
+  const firstId = ids[0];
+  const firstToken = tokens[0];
+
   try {
-    await createOrder({
-      id: orderId1,
-      productId: product.id,
-      productTitle: product.title,
-      price: product.price,
-      currency: product.currency ?? "USD",
-      customFields: body.customFields ?? {},
-      channel: "telegram",
-      email: null,
-      telegramHandle: null,
-      deliveryToken: token1,
-      invoiceId: null,
-    });
-    if (needsSplit && orderId2 && token2) {
+    for (let i = 0; i < ids.length; i++) {
       await createOrder({
-        id: orderId2,
+        id: ids[i],
         productId: product.id,
         productTitle: product.title,
         price: product.price,
@@ -163,7 +131,7 @@ export async function POST(req: Request) {
         channel: "telegram",
         email: null,
         telegramHandle: null,
-        deliveryToken: token2,
+        deliveryToken: tokens[i],
         invoiceId: null,
       });
     }
@@ -174,33 +142,42 @@ export async function POST(req: Request) {
     );
   }
 
-  const title1 = needsSplit
-    ? `${product.title.slice(0, 27)} (1/2)`
-    : product.title;
-  const title2 = `${product.title.slice(0, 27)} (2/2)`;
-
-  const url1 = await makeTgInvoiceLink(botToken, title1, description, orderId1, stars1);
-  if (!url1) {
-    return NextResponse.json(
-      { ok: false, error: "Failed to create Telegram Stars invoice" },
-      { status: 502 },
-    );
-  }
-
-  let url2: string | null = null;
-  if (needsSplit && orderId2 && stars2) {
-    url2 = await makeTgInvoiceLink(botToken, title2, description, orderId2, stars2);
+  const titleBase = product.title.slice(0, 22);
+  const invoiceUrls: string[] = [];
+  for (let i = 0; i < ids.length; i++) {
+    const title = split ? `${titleBase} (${i + 1}/${total})` : product.title;
+    const url = await makeTgInvoiceLink(botToken, title, description, ids[i], starsParts[i]);
+    if (!url) {
+      // Part 1 must succeed — without it checkout cannot start.
+      if (i === 0) {
+        return NextResponse.json(
+          { ok: false, error: "Failed to create Telegram Stars invoice" },
+          { status: 502 },
+        );
+      }
+      // A later part failed: stop rather than ship a short-paying order.
+      return NextResponse.json(
+        { ok: false, error: `Failed to create Telegram Stars invoice (part ${i + 1})` },
+        { status: 502 },
+      );
+    }
+    invoiceUrls.push(url);
   }
 
   return NextResponse.json({
     ok: true,
-    invoiceUrl: url1,
-    invoiceUrl2: url2 ?? undefined,
-    orderId: orderId1,
-    stars: stars1,
-    stars2: stars2 ?? undefined,
-    split: needsSplit,
+    orderId: firstId,
+    invoiceUrls,
+    starsParts,
+    totalStars,
+    totalParts: total,
+    split,
     markupPct,
-    accessUrl: `${origin}/access/${token1}`,
+    // Back-compat fields for older clients.
+    invoiceUrl: invoiceUrls[0],
+    invoiceUrl2: invoiceUrls[1],
+    stars: starsParts[0],
+    stars2: starsParts[1],
+    accessUrl: `${origin}/access/${firstToken}`,
   });
 }
