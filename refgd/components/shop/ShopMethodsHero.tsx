@@ -2,7 +2,6 @@
 
   import { motion, useReducedMotion } from "framer-motion";
   import Image from "next/image";
-  import EditableImage from "@/components/EditableImage";
   import EditableText from "@/components/EditableText";
   import KineticText from "@/components/KineticText";
   import { openVouches } from "@/components/shop/ShopVouchesModal";
@@ -28,46 +27,12 @@
     return (
       <section className="relative z-10 pt-0 pb-8 sm:pt-4 sm:pb-12 overflow-x-clip">
         <div className="container-wide relative">
-          {/* Framed banner — shorter so it clears quicker */}
-          <motion.div
-            initial={reduced ? {} : { clipPath: "inset(100% 0 0 0 round 2rem)", opacity: 0 }}
-            animate={reduced ? undefined : { clipPath: "inset(0% 0 0 0 round 2rem)", opacity: 1 }}
-            transition={{ duration: 0.95, ease: [0.76, 0, 0.24, 1] }}
-            className="relative overflow-hidden rounded-[2rem]"
-          >
-            <EditableImage
-              id="shop.hero.banner"
-              defaultSrc={hero.image}
-              alt="Shop Methods hero banner"
-              wrapperClassName="relative z-0 block w-full"
-              className="block h-[180px] w-full object-cover sm:h-[260px]"
-            />
-            {/* Top→bottom fade */}
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0"
-              style={{
-                background:
-                  "linear-gradient(180deg, rgba(10,8,22,0.20) 0%, rgba(10,8,22,0.50) 55%, rgba(10,8,22,0.95) 100%)",
-              }}
-            />
-            {/* Left/right edge cover — hides pastel blobs on banner sides */}
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0"
-              style={{
-                background:
-                  "linear-gradient(90deg, rgba(10,8,22,0.92) 0%, transparent 22%, transparent 78%, rgba(10,8,22,0.92) 100%)",
-              }}
-            />
-          </motion.div>
-
-          {/* Title block — pulled up hard; glows outward against white page */}
+          {/* Title block */}
           <motion.div
             initial={reduced ? {} : { opacity: 0, y: 30, scale: 0.97 }}
             animate={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
             transition={{ type: "spring", stiffness: 90, damping: 18, delay: 0.3 }}
-            className="relative z-10 mx-auto -mt-32 max-w-4xl rounded-[1.75rem] border border-violet-400/60 bg-[rgba(8,6,20,0.90)] p-4 text-center backdrop-blur-md sm:-mt-52 sm:p-8"
+            className="relative z-10 mx-auto max-w-4xl rounded-[1.75rem] border border-violet-400/60 bg-[rgba(8,6,20,0.90)] p-4 text-center backdrop-blur-md sm:p-8"
             style={{
               boxShadow:
                 "0 0 0 1px rgba(139,92,246,0.35), 0 0 32px 6px rgba(139,92,246,0.55), 0 0 90px 24px rgba(139,92,246,0.22), 0 30px 80px -20px rgba(0,0,0,0.8)",
