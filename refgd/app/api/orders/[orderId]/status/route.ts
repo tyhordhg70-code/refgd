@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOrder } from "@/lib/delivery";
 import { publicBaseUrl } from "@/lib/deliver";
+import { siblingIds, partInfo, firstPartId } from "@/lib/stars-split";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,15 +9,13 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/orders/[orderId]/status
  *
- * Lightweight polling endpoint for the invoice monitor page.
- * Returns the order's current status plus split-payment state.
+ * Polling endpoint for the invoice monitor page. Always called with the
+ * Part-1 orderId. For multi-part Stars orders it derives every sibling part
+ * (see lib/stars-split.ts) and reports each part's pay state so the frontend
+ * can show step-by-step progress.
  *
- * For split Stars payments the caller always passes the Part-1 orderId.
- * This route derives the Part-2 ID (by swapping "_xtr_" → "_xtr2_") and
- * includes its status so the frontend can show step-by-step progress.
- *
- * The deliveryToken (and therefore accessUrl) is only returned once the
- * order is fully paid — not while still awaiting Part 2.
+ * The accessUrl (and therefore delivery) is only returned once EVERY part is
+ * paid — never while any part is still outstanding.
  */
 export async function GET(
   req: Request,
@@ -32,35 +31,31 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "Order not found" }, { status: 404 });
   }
 
-  const baseUrl = publicBaseUrl(
-    `https://${new URL(req.url).host}`,
-  );
+  const baseUrl = publicBaseUrl(`https://${new URL(req.url).host}`);
 
-  // ── Split-payment detection ──────────────────────────────────────────────
-  // Part-1 IDs contain "_xtr_" (underscore on both sides of "xtr").
-  // Part-2 IDs contain "_xtr2_" — "_xtr_" is NOT a substring of "_xtr2_"
-  // because the character after "r" is "2", not "_".
-  let awaitingPart2 = false;
-  let part2Status: string | undefined;
+  const { total } = partInfo(orderId);
+  const ids = siblingIds(orderId);
 
-  const isPart1Stars = orderId.includes("_xtr_");
-  if (isPart1Stars) {
-    const part2Id = orderId.replace("_xtr_", "_xtr2_");
-    const part2 = await getOrder(part2Id);
-    if (part2) {
-      const p2paid = part2.status === "paid" || part2.status === "delivered";
-      part2Status = part2.status;
-      awaitingPart2 = !p2paid && (order.status === "paid" || order.status === "delivered");
-    }
-  }
+  // Fetch every part and record its pay state in order.
+  const partOrders = await Promise.all(ids.map((id) => getOrder(id)));
+  const isPaid = (s?: string) => s === "paid" || s === "delivered";
+  const parts = partOrders.map((o, i) => ({
+    index: i + 1,
+    status: o?.status ?? "pending",
+    paid: isPaid(o?.status),
+  }));
+  const paidCount = parts.filter((p) => p.paid).length;
+  const fullyPaid = paidCount === total && total > 0;
 
-  // ── Build response ───────────────────────────────────────────────────────
-  const fullyPaid =
-    (order.status === "paid" || order.status === "delivered") && !awaitingPart2;
-
-  const accessUrl = fullyPaid
-    ? `${baseUrl}/access/${order.deliveryToken}`
+  // Delivery is keyed off Part 1's token.
+  const first = orderId === firstPartId(orderId) ? order : partOrders[0];
+  const accessUrl = fullyPaid && first
+    ? `${baseUrl}/access/${first.deliveryToken}`
     : undefined;
+
+  // Back-compat fields (older cached clients still read these).
+  const part2 = parts[1];
+  const awaitingPart2 = total > 1 && isPaid(order.status) && !fullyPaid;
 
   return NextResponse.json({
     ok: true,
@@ -68,7 +63,11 @@ export async function GET(
     productTitle: order.productTitle,
     createdAt: order.createdAt,
     accessUrl,
+    totalParts: total,
+    paidCount,
+    fullyPaid,
+    parts,
     awaitingPart2,
-    part2Status,
+    part2Status: part2?.status,
   });
 }
