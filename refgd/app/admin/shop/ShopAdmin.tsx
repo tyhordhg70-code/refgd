@@ -411,7 +411,7 @@
     return (
       <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
         <div onClick={(e) => e.stopPropagation()}
-             className="mt-16 w-full max-w-2xl rounded-2xl border border-white/15 bg-[#0c0c14] p-6 shadow-2xl">
+             className="my-16 max-h-[calc(100vh-8rem)] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-2xl border border-white/15 bg-[#0c0c14] p-6 shadow-2xl">
           {children}
         </div>
       </div>
