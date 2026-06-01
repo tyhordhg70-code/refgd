@@ -43,12 +43,15 @@ export default function InvoiceMonitor({
   // position (browser scroll restoration), so the payment screen would open
   // already scrolled halfway down. Force it to the top on mount.
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      if ("scrollRestoration" in window.history) {
-        window.history.scrollRestoration = "manual";
-      }
-      window.scrollTo(0, 0);
-    }
+    if (typeof window === "undefined") return;
+    const prev = "scrollRestoration" in window.history
+      ? window.history.scrollRestoration
+      : null;
+    if (prev !== null) window.history.scrollRestoration = "manual";
+    window.scrollTo(0, 0);
+    return () => {
+      if (prev !== null) window.history.scrollRestoration = prev;
+    };
   }, []);
 
   // ── Status polling ─────────────────────────────────────────────────────
