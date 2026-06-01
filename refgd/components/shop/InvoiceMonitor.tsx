@@ -309,25 +309,28 @@ export default function InvoiceMonitor({
                 </a>
               ) : null}
 
-              {/* Apple/Google Pay add a 25% fee — make it explicit on every
-                  device (mobile included) that paying in the browser via
-                  Telegram Web is an option. */}
+              {/* Telegram Web alternative — shown for app-pay type as a
+                  clear second option so users know they can pay in-browser. */}
               {!part1Paid && paymentType === "app" && (
-                <a
-                  href={invoiceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 flex w-full items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-left text-xs transition hover:bg-blue-100"
-                >
-                  <svg className="h-5 w-5 shrink-0 text-[#2AABEE]" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248-1.97 9.289c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.932z" />
-                  </svg>
-                  <div className="flex-1">
-                    <p className="font-semibold text-blue-800">Pay via Telegram Web instead</p>
-                    <p className="text-[10px] text-blue-600">Works on phone or computer — opens the invoice in your browser and avoids the 25% Apple/Google fee</p>
-                  </div>
-                  <span className="text-blue-400">→</span>
-                </a>
+                <div className="mt-3 space-y-2">
+                  <p className="text-center text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    — or pay without the fee —
+                  </p>
+                  <a
+                    href={invoiceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex w-full items-center justify-center gap-2 rounded-full bg-[#2AABEE] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#1d9bd6]"
+                  >
+                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248-1.97 9.289c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.932z" />
+                    </svg>
+                    Pay via Telegram Web (browser)
+                  </a>
+                  <p className="text-center text-[10px] text-gray-400">
+                    Opens in your browser on any device · avoids the 25% Apple/Google fee
+                  </p>
+                </div>
               )}
 
               {part1Paid ? null : paymentType === "app" ? null : (
@@ -342,9 +345,9 @@ export default function InvoiceMonitor({
                     Open Telegram Web →
                   </a>
                   <div className="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5">
-                    <span className="mt-px shrink-0 text-blue-500">💻</span>
+                    <span className="mt-px shrink-0 text-blue-500">🌐</span>
                     <p className="text-[11px] leading-relaxed text-blue-700">
-                      <strong>Complete on desktop</strong> — paying via Telegram Desktop avoids the 25% Apple/Google fee.
+                      <strong>Paying via Telegram Web (browser)</strong> avoids the 25% Apple/Google fee — works on any phone or computer.
                     </p>
                   </div>
                   <a
