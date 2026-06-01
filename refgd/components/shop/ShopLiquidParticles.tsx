@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 /**
  * ShopLiquidParticles — full-page ambient background for every shop page.
  *
@@ -76,6 +78,18 @@ function blobCss(i: number, b: Blob): string {
 }
 
 export default function ShopLiquidParticles() {
+  // Freeze the blobs while the vouches modal is open. With the (relatively
+  // expensive) blurred blobs paused, the modal's desktop backdrop-blur composites
+  // over a static scene instead of re-blurring these layers every frame.
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    const onVis = (e: Event) =>
+      setPaused(!!(e as CustomEvent<{ open?: boolean }>).detail?.open);
+    window.addEventListener("vouches:visibility", onVis as EventListener);
+    return () =>
+      window.removeEventListener("vouches:visibility", onVis as EventListener);
+  }, []);
+
   const css =
     BLOBS.map((b, i) => blobCss(i, b)).join("\n") +
     `\n@media (prefers-reduced-motion: reduce){.shop-blob{animation:none !important}}`;
@@ -108,6 +122,7 @@ export default function ShopLiquidParticles() {
               willChange: "transform",
               transform: "translateZ(0)",
               animation: `shopBlob${i} ${b.dur}s ease-in-out infinite`,
+              animationPlayState: paused ? "paused" : "running",
             }}
           />
         );
