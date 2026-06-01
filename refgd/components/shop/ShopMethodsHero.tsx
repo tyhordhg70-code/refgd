@@ -42,12 +42,22 @@
               wrapperClassName="relative z-0 block w-full"
               className="block h-[180px] w-full object-cover sm:h-[260px]"
             />
+            {/* Top→bottom fade */}
             <span
               aria-hidden
               className="pointer-events-none absolute inset-0"
               style={{
                 background:
                   "linear-gradient(180deg, rgba(10,8,22,0.20) 0%, rgba(10,8,22,0.50) 55%, rgba(10,8,22,0.95) 100%)",
+              }}
+            />
+            {/* Left/right edge cover — hides pastel blobs on banner sides */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background:
+                  "linear-gradient(90deg, rgba(10,8,22,0.92) 0%, transparent 22%, transparent 78%, rgba(10,8,22,0.92) 100%)",
               }}
             />
           </motion.div>
