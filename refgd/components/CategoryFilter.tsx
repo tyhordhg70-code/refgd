@@ -279,7 +279,7 @@ export default function CategoryFilter({
           ref={panelRef}
           role="listbox"
           aria-multiselectable="true"
-          className="absolute left-0 right-0 sm:right-auto z-30 mt-2 w-full sm:w-[360px] origin-top rounded-2xl border border-white/15 bg-gradient-to-b from-ink-800/85 via-ink-900/90 to-ink-950/95 p-3 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.85)] ring-1 ring-inset ring-white/5 backdrop-blur-2xl"
+          className="absolute left-0 right-0 sm:right-auto z-30 mt-2 w-full sm:w-[360px] origin-top rounded-2xl border border-white/15 bg-gradient-to-b from-ink-800 via-ink-900 to-ink-950 p-3 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.85)] ring-1 ring-inset ring-white/5 sm:backdrop-blur-xl"
         >
           <div className="mb-2 flex items-center justify-between px-2 pt-1">
             <span className="text-[10px] font-semibold uppercase tracking-widest text-white/50">
@@ -300,7 +300,10 @@ export default function CategoryFilter({
             </p>
           )}
           <div className="relative">
-          <div className="max-h-[340px] overflow-y-auto pr-1">
+          <div
+            className="max-h-[340px] overflow-y-auto overscroll-contain pr-1"
+            style={{ touchAction: "pan-y" }}
+          >
             {localOrder.length === 0 ? (
               <p className="px-2 py-3 text-xs text-white/50">
                 No categories yet.
