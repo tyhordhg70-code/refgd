@@ -5,7 +5,7 @@ import RegionFlag from "./RegionFlag";
 import StoreCard from "./StoreCard";
 import StoreEditDialog from "./StoreEditDialog";
 import CategoryFilter from "./CategoryFilter";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useEditContext } from "@/lib/edit-context";
 
 interface Props {
@@ -442,9 +442,12 @@ export default function StoreFilters({
           NOTE: framer-motion's `layout` prop emits a server-side
           transform that the client re-measures, which trips React's
           "Extra attributes from the server: style" hydration warning.
-          We drop `layout` and rely on initial/animate for entrance. */}
-      <AnimatePresence>
-        <div className="space-y-12">
+          We drop `layout` and rely on initial/animate for entrance.
+          AnimatePresence was removed: having it wrap all sections caused
+          every section to simultaneously exit-animate on each region/filter
+          change (7+ framer-motion exit sequences at once), which was the
+          primary source of scroll jank on mobile. Entry animations remain. */}
+      <div className="space-y-12">
           {grouped.map(({ category, stores: list }, secIdx) => (
             <motion.section
               key={category}
@@ -505,7 +508,6 @@ export default function StoreFilters({
             </motion.section>
           ))}
         </div>
-      </AnimatePresence>
 
       {filtered.length === 0 && !(isAdmin && editMode) && (
         <div className="mt-12 rounded-2xl border border-white/10 bg-white/5 p-10 text-center">
