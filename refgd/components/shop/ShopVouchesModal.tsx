@@ -37,6 +37,25 @@ export function openVouches() {
   }
 }
 
+/**
+ * Subscribe to whether the vouches modal is open. Background layers (the liquid
+ * blobs, the floating category cards, the hero glow) use this to freeze their
+ * animations while the modal is open, so the modal's desktop backdrop-blur stays
+ * cheap and smooth — it composites over a static scene instead of re-blurring a
+ * fully animated page every frame (which previously pegged the GPU compositor).
+ */
+export function useVouchesOpen(): boolean {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const onVis = (e: Event) =>
+      setOpen(!!(e as CustomEvent<{ open?: boolean }>).detail?.open);
+    window.addEventListener("vouches:visibility", onVis as EventListener);
+    return () =>
+      window.removeEventListener("vouches:visibility", onVis as EventListener);
+  }, []);
+  return open;
+}
+
 /* ---- Ordering ----------------------------------------------------------
    No shuffle. Posts render as a proper in-order discussion thread
    (chronological by postNum), with genuine vouches/testimonials floated to
@@ -596,13 +615,36 @@ export default function ShopVouchesModal({
               animated sections — which pegs the GPU compositor and freezes the
               page. A fully opaque cover lets the browser occlusion-cull all of
               it, so nothing behind is composited while the modal is open. */}
-          <div
-            className="absolute inset-0 bg-[#06030f]"
-            onClick={() => {
-              if (Date.now() - openedAtRef.current < 400) return;
-              setOpen(false);
-            }}
-          />
+          {mobile ? (
+            /* Mobile: fully opaque cover. Weaker mobile GPUs can't afford a live
+               backdrop-blur, and an opaque layer lets the browser occlusion-cull
+               everything behind it so the page stays smooth. */
+            <div
+              className="absolute inset-0 bg-[#06030f]"
+              onClick={() => {
+                if (Date.now() - openedAtRef.current < 400) return;
+                setOpen(false);
+              }}
+            />
+          ) : (
+            /* Desktop: smooth translucent blur instead of a hard black cover.
+               Safe because the page's background animations (liquid blobs,
+               floating cards, hero glow) freeze via the "vouches:visibility"
+               event while the modal is open, so this blurs a STATIC scene — it
+               is composited once rather than re-blurred every frame. The opacity
+               fade gives the "blur smoothly rolls in" feel. */
+            <motion.div
+              className="absolute inset-0 bg-[#06030f]/70 backdrop-blur-2xl"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+              onClick={() => {
+                if (Date.now() - openedAtRef.current < 400) return;
+                setOpen(false);
+              }}
+            />
+          )}
 
           <motion.div
             initial={reduced ? {} : { y: 40, scale: 0.98, opacity: 0 }}
