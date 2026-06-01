@@ -36,6 +36,7 @@ export default function EditorToolbar() {
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Keyboard shortcuts: Cmd/Ctrl-Z undo, Cmd/Ctrl-Shift-Z redo,
@@ -122,6 +123,7 @@ export default function EditorToolbar() {
       <button
         type="button"
         onClick={() => setEditMode(true)}
+        data-editor-chrome
         className="fixed bottom-6 left-1/2 z-[80] -translate-x-1/2 rounded-full border border-amber-300/40 bg-gradient-to-r from-amber-500/90 to-orange-500/90 px-5 py-3 text-sm font-semibold text-ink-950 shadow-[0_20px_60px_-15px_rgba(245,185,69,0.7)] backdrop-blur-md transition hover:scale-[1.03]"
         aria-label="Enter inline editor"
         data-testid="editor-toolbar-enter"
@@ -131,8 +133,54 @@ export default function EditorToolbar() {
     );
   }
 
+  // ── Collapsed: minimal pinned pill (Publish + Exit always reachable) ──
+  if (collapsed) {
+    return (
+      <div className="fixed bottom-6 left-1/2 z-[80] -translate-x-1/2" data-editor-chrome data-testid="editor-toolbar-collapsed">
+        <div
+          className="flex items-center gap-1 rounded-full border border-white/15 bg-ink-900/90 p-1.5 text-sm text-white/85 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.85)] backdrop-blur-2xl"
+          role="toolbar"
+          aria-label="Page editor (collapsed)"
+        >
+          <span
+            className={`ml-1 inline-flex h-9 items-center gap-2 rounded-full px-3 text-xs font-semibold ${
+              savedFlash
+                ? "bg-emerald-400/20 text-emerald-200"
+                : dirty
+                ? "bg-amber-400/15 text-amber-200"
+                : "bg-white/5 text-white/55"
+            }`}
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${
+                savedFlash ? "bg-emerald-300" : dirty ? "bg-amber-300 animate-pulse" : "bg-white/40"
+              }`}
+            />
+            {savedFlash ? "Published" : dirty ? `${pendingCount}` : "Saved"}
+          </span>
+          <button
+            type="button"
+            onClick={doSave}
+            disabled={!dirty || saving}
+            className="inline-flex h-9 items-center gap-2 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-4 text-xs font-bold text-ink-950 transition disabled:cursor-not-allowed disabled:opacity-40 hover:brightness-110"
+            data-testid="editor-toolbar-publish"
+          >
+            {saving ? "Publishing…" : "Publish"}
+          </button>
+          <ToolbarBtn label="Exit editor" onClick={() => setEditMode(false)} variant="ghost" testId="editor-toolbar-exit">
+            Exit
+          </ToolbarBtn>
+          <span aria-hidden className="mx-1 h-5 w-px bg-white/10" />
+          <ToolbarBtn label="Show full toolbar" onClick={() => setCollapsed(false)} testId="editor-toolbar-expand">
+            <ExpandIcon />
+          </ToolbarBtn>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed bottom-6 left-1/2 z-[80] -translate-x-1/2" data-testid="editor-toolbar">
+    <div className="fixed bottom-6 left-1/2 z-[80] -translate-x-1/2" data-editor-chrome data-testid="editor-toolbar">
       <div
         className="flex items-center gap-1 rounded-full border border-white/15 bg-ink-900/90 p-1.5 text-sm text-white/85 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.85)] backdrop-blur-2xl"
         role="toolbar"
@@ -182,6 +230,10 @@ export default function EditorToolbar() {
 
         <ToolbarBtn label="Exit editor" onClick={() => setEditMode(false)} variant="ghost" testId="editor-toolbar-exit">
           Exit
+        </ToolbarBtn>
+
+        <ToolbarBtn label="Hide toolbar" onClick={() => setCollapsed(true)} testId="editor-toolbar-collapse">
+          <CollapseIcon />
         </ToolbarBtn>
 
         <div className="relative" ref={menuRef}>
@@ -278,6 +330,22 @@ function RedoIcon() {
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M15 14l5-5-5-5" />
       <path d="M20 9H9a5 5 0 0 0 0 10h4" />
+    </svg>
+  );
+}
+function CollapseIcon() {
+  // Chevron-down → "hide / minimize the toolbar".
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+function ExpandIcon() {
+  // Chevron-up → "show the full toolbar again".
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 15l-6-6-6 6" />
     </svg>
   );
 }
