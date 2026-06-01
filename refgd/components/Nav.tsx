@@ -77,35 +77,6 @@ export default function Nav() {
           </ul>
         </nav>
         <div className="flex items-center gap-2">
-          {adminEditing ? (
-            // Admin "Shop Methods" editor — bigger surface so editing
-            // is easy. Renders a quick inline label + URL pair above
-            // the actual button so the visual button keeps its styling.
-            <div className="flex items-center gap-2">
-              <div className="hidden flex-col gap-1 rounded-lg border border-amber-300/40 bg-amber-300/[0.06] px-2 py-1.5 sm:flex">
-                <EditableText
-                  id="nav.cta.label"
-                  defaultValue={BUY_LABEL}
-                  as="span"
-                  className="text-[11px] font-semibold uppercase tracking-wider text-amber-200"
-                />
-                <EditableText
-                  id="nav.cta.url"
-                  defaultValue={BUY_URL}
-                  as="span"
-                  className="font-mono text-[10px] text-white/85"
-                  placeholder="https://…"
-                />
-              </div>
-              <a href={ctaUrl} target="_blank" rel="noopener noreferrer" className="btn-primary !px-5 !py-2.5 text-sm">
-                {ctaLabel}
-              </a>
-            </div>
-          ) : (
-            <a href={ctaUrl} target="_blank" rel="noopener noreferrer" className="btn-primary !px-5 !py-2.5 text-sm">
-              {ctaLabel}
-            </a>
-          )}
           <button
             type="button"
             aria-label="Toggle menu"
