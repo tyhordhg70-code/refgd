@@ -103,7 +103,7 @@ export default function ShopLiquidParticles() {
               left: b.left,
               top: b.top,
               borderRadius: b.radius,
-              background: `radial-gradient(circle at 32% 30%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.55) 9%, rgba(${r},${g},${bl},0.72) 26%, rgba(${r},${g},${bl},0.5) 52%, rgba(${r},${g},${bl},0.12) 78%, transparent 100%)`,
+              background: `radial-gradient(circle, rgba(${r},${g},${bl},0.60) 0%, rgba(${r},${g},${bl},0.38) 40%, rgba(${r},${g},${bl},0.12) 72%, transparent 100%)`,
               filter: `blur(${b.blur}px)`,
               willChange: "transform",
               transform: "translateZ(0)",
