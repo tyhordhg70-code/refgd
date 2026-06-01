@@ -4,7 +4,7 @@
   import Image from "next/image";
   import EditableText from "@/components/EditableText";
   import KineticText from "@/components/KineticText";
-  import { openVouches } from "@/components/shop/ShopVouchesModal";
+  import { openVouches, useVouchesOpen } from "@/components/shop/ShopVouchesModal";
 
   import type { ShopHero as Hero } from "@/lib/shop-catalog";
 
@@ -23,6 +23,7 @@
    */
   export default function ShopMethodsHero({ hero }: { hero: Hero }) {
     const reduced = useReducedMotion();
+    const frozen = useVouchesOpen();
 
     return (
       <section className="relative z-10 pt-0 pb-8 sm:pt-4 sm:pb-12 overflow-x-clip">
@@ -32,18 +33,29 @@
             initial={reduced ? {} : { opacity: 0, y: 30, scale: 0.97 }}
             animate={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
             transition={{ type: "spring", stiffness: 90, damping: 18, delay: 0.3 }}
-            className="relative z-10 mx-auto max-w-4xl rounded-[1.75rem] border border-violet-400/60 bg-[rgba(8,6,20,0.90)] p-4 text-center backdrop-blur-md sm:p-8"
-            style={{
-              boxShadow:
-                "0 0 0 1px rgba(139,92,246,0.35), 0 0 32px 6px rgba(139,92,246,0.55), 0 0 90px 24px rgba(139,92,246,0.22), 0 30px 80px -20px rgba(0,0,0,0.8)",
-            }}
+            className="relative z-10 mx-auto max-w-4xl"
           >
-            {/* Crypto illustration — full original size (user request) */}
+            {/* Inner wrapper floats the whole boxcard gently (paused while the
+                vouches modal is open so its blur stays cheap). */}
+            <motion.div
+              animate={reduced || frozen ? { y: 0 } : { y: [0, -8, 0] }}
+              transition={
+                reduced || frozen
+                  ? { duration: 0.4 }
+                  : { duration: 5.5, repeat: Infinity, ease: "easeInOut", delay: 1 }
+              }
+              className="rounded-[1.75rem] border border-violet-400/60 bg-[rgba(8,6,20,0.90)] p-4 text-center backdrop-blur-md sm:p-8"
+              style={{
+                boxShadow:
+                  "0 0 0 1px rgba(139,92,246,0.35), 0 0 32px 6px rgba(139,92,246,0.55), 0 0 90px 24px rgba(139,92,246,0.22), 0 30px 80px -20px rgba(0,0,0,0.8)",
+              }}
+            >
+            {/* Crypto illustration — sized to keep the whole card in view on desktop */}
             <motion.div
               initial={reduced ? {} : { opacity: 0, y: 16 }}
               animate={reduced ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.55, ease: [0.22, 1, 0.36, 1] }}
-              className="mx-auto mb-6 w-full max-w-md select-none sm:mb-8"
+              className="mx-auto mb-4 w-full max-w-[190px] select-none sm:mb-5 sm:max-w-[230px]"
               aria-hidden="true"
             >
               <Image
@@ -62,7 +74,7 @@
               as="h1"
               text={hero.title}
               editId="shop.hero.title"
-              className="editorial-display mt-1 text-balance uppercase text-white text-[clamp(2rem,5.5vw,4.5rem)]"
+              className="editorial-display mt-1 text-balance uppercase text-white text-[clamp(1.7rem,4vw,3rem)]"
               style={{
                 textShadow: "0 4px 24px rgba(0,0,0,0.95), 0 1px 4px rgba(0,0,0,0.95)",
                 letterSpacing: "-0.025em",
@@ -87,7 +99,7 @@
                 whileHover={reduced ? {} : { scale: 1.03 }}
                 whileTap={reduced ? {} : { scale: 0.97 }}
                 animate={
-                  reduced
+                  reduced || frozen
                     ? {}
                     : {
                         boxShadow: [
@@ -123,6 +135,7 @@
                 </span>
               </motion.button>
             </div>
+            </motion.div>
           </motion.div>
         </div>
       </section>
