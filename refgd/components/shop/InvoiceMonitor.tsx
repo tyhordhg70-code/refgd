@@ -38,6 +38,19 @@ export default function InvoiceMonitor({
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isSplit = !!invoiceUrl2;
 
+  // ── Start at the top ───────────────────────────────────────────────────
+  // Navigating in from the product page can carry over the previous scroll
+  // position (browser scroll restoration), so the payment screen would open
+  // already scrolled halfway down. Force it to the top on mount.
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if ("scrollRestoration" in window.history) {
+        window.history.scrollRestoration = "manual";
+      }
+      window.scrollTo(0, 0);
+    }
+  }, []);
+
   // ── Status polling ─────────────────────────────────────────────────────
   useEffect(() => {
     let active = true;
@@ -291,7 +304,29 @@ export default function InvoiceMonitor({
                   </svg>
                   <span>Google Pay</span>
                 </a>
-              ) : (
+              ) : null}
+
+              {/* On a computer Apple/Google Pay isn't available — make it
+                  explicit that paying in the browser via Telegram Web works. */}
+              {!part1Paid && paymentType === "app" && (
+                <a
+                  href={invoiceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 flex w-full items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-left text-xs transition hover:bg-blue-100"
+                >
+                  <svg className="h-5 w-5 shrink-0 text-[#2AABEE]" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248-1.97 9.289c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.932z" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="font-semibold text-blue-800">On a computer? Pay via Telegram Web</p>
+                    <p className="text-[10px] text-blue-600">Opens the invoice in your browser — no app needed, and it avoids the 25% Apple/Google fee</p>
+                  </div>
+                  <span className="text-blue-400">→</span>
+                </a>
+              )}
+
+              {part1Paid ? null : paymentType === "app" ? null : (
                 /* Card / Telegram Web */
                 <div className="space-y-3">
                   <a
