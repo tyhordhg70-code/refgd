@@ -294,8 +294,12 @@ export default function ShopProductList({ category: c }: { category: Category })
                         </button>
                       </div>
 
-                      {/* Scrollable body */}
-                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-5 sm:px-6">
+                      {/* Scrollable body — data-lenis-prevent lets the native
+                          mouse-wheel scroll work inside the modal on desktop.
+                          Without it Lenis hijacks the wheel and tries to scroll
+                          the (scroll-locked) page body instead, so the modal
+                          feels frozen and won't scroll. */}
+                      <div data-lenis-prevent className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-5 sm:px-6">
                         {p.image && (
                           <div className="mb-5 overflow-hidden rounded-2xl border border-gray-100 bg-gray-50 p-5">
                             <EditableImage
