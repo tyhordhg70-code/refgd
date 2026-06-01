@@ -1,11 +1,14 @@
 /**
  * Telegram Stars pricing + multi-part split helpers.
  *
- * Telegram caps a single Stars (XTR) invoice, so an order whose total exceeds
- * MAX_SINGLE_STARS must be collected across several invoices that SUM to the
- * full price. The previous implementation capped every order at two invoices
- * (max 2 × 5 000 = 10 000 Stars ≈ $200), so anything above ~$200 — e.g. a
- * $1 000 mentorship — was silently undercharged. These helpers split the full
+ * Telegram caps how many Stars a buyer can spend in a SINGLE transaction, and
+ * that cap depends on how they pay:
+ *   • Mobile (Apple / Google Pay in-app purchase): 35 000 Stars (≈ $700)
+ *   • Desktop / Telegram Web / PremiumBot:        150 000 Stars (≈ $3 000)
+ * So an order whose total exceeds the relevant cap must be collected across
+ * several invoices that SUM to the full price. (The original code wrongly
+ * hard-capped every order at two 5 000-Star invoices ≈ $200, undercharging
+ * anything pricier — e.g. a $1 000 mentorship.) These helpers split the full
  * amount into as many parts as needed and give every part a deterministic id so
  * the webhook / status route can find its siblings without a DB schema change.
  *
@@ -15,21 +18,34 @@
 /** Stars base rate: 50 Stars ≈ $1 USD. */
 export const STARS_PER_USD = 50;
 
-/**
- * Max Stars chargeable in one invoice. Kept at the known-good 5 000 the shop
- * has always used; Telegram rejects invoices above its server-side cap, and a
- * rejected invoice means a lost sale, so we stay conservative on purpose.
- */
-export const MAX_SINGLE_STARS = 5000;
+/** Apple / Google in-app-purchase cap per transaction (mobile pay). ≈ $700. */
+export const MAX_STARS_MOBILE = 35000;
+
+/** Telegram Desktop / Web / PremiumBot cap per transaction. ≈ $3 000. */
+export const MAX_STARS_DESKTOP = 150000;
+
+/** Back-compat alias (some callers may still reference it). */
+export const MAX_SINGLE_STARS = MAX_STARS_DESKTOP;
 
 /**
- * Split a total Stars amount into N parts, each ≤ MAX_SINGLE_STARS, distributed
- * as evenly as possible and summing EXACTLY to the total (no truncation, no
- * package snapping — the buyer always covers the real price).
+ * The per-invoice Stars cap for a checkout method.
+ *   "app"  → Apple / Google Pay → mobile IAP cap (35 000)
+ *   "card" → Telegram Web / Desktop (the no-fee path we steer to) → 150 000
  */
-export function splitStars(total: number): number[] {
+export function maxStarsForMethod(method: "app" | "card"): number {
+  return method === "app" ? MAX_STARS_MOBILE : MAX_STARS_DESKTOP;
+}
+
+/**
+ * Split a total Stars amount into N parts, each ≤ `max`, distributed as evenly
+ * as possible and summing EXACTLY to the total (no truncation, no package
+ * snapping — the buyer always covers the real price). Most orders fit in one
+ * part; only very large totals need splitting.
+ */
+export function splitStars(total: number, max: number = MAX_STARS_DESKTOP): number[] {
   const t = Math.max(1, Math.ceil(total));
-  const n = Math.ceil(t / MAX_SINGLE_STARS);
+  const cap = Math.max(1, Math.floor(max));
+  const n = Math.ceil(t / cap);
   if (n <= 1) return [t];
   const base = Math.floor(t / n);
   const rem = t - base * n;
