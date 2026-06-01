@@ -136,13 +136,21 @@ export default function ShopProductList({ category: c }: { category: Category })
       });
       const data = (await res.json()) as {
         ok: boolean;
+        invoiceUrls?: string[];
         invoiceUrl?: string;
         invoiceUrl2?: string;
         orderId?: string;
+        totalParts?: number;
         split?: boolean;
         error?: string;
       };
-      if (!res.ok || !data.ok || !data.invoiceUrl) {
+      // Prefer the multi-step list; fall back to legacy single/double fields.
+      const urls = (
+        data.invoiceUrls?.length
+          ? data.invoiceUrls
+          : [data.invoiceUrl, data.invoiceUrl2]
+      ).filter((u): u is string => Boolean(u));
+      if (!res.ok || !data.ok || urls.length === 0) {
         setStarsById((s) => ({
           ...s,
           [p.id]: { phase: "error", message: data.error ?? "Failed to create payment link" },
@@ -153,11 +161,10 @@ export default function ShopProductList({ category: c }: { category: Category })
       // The page polls order status, shows split-step progress, and auto-redirects
       // to the access page once the order is fully paid.
       const params = new URLSearchParams({
-        url: data.invoiceUrl!,
+        urls: urls.join(","),
         type: method,
         title: p.title,
       });
-      if (data.invoiceUrl2) params.set("url2", data.invoiceUrl2);
       router.push(`/invoice/${data.orderId}?${params.toString()}`);
     } catch (e) {
       setStarsById((s) => ({ ...s, [p.id]: { phase: "error", message: String(e) } }));
