@@ -345,9 +345,9 @@ export default function InvoiceMonitor({
                     Open Telegram Web →
                   </a>
                   <div className="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5">
-                    <span className="mt-px shrink-0 text-blue-500">🌐</span>
+                    <span className="mt-px shrink-0 text-blue-500">💡</span>
                     <p className="text-[11px] leading-relaxed text-blue-700">
-                      <strong>Paying via Telegram Web (browser)</strong> avoids the 25% Apple/Google fee — works on any phone or computer.
+                      Paying via <strong>Telegram Web</strong> (browser) or <strong>Telegram Desktop</strong> (app) avoids the 25% Apple/Google fee — both work on any device.
                     </p>
                   </div>
                   <a
