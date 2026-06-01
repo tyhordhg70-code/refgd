@@ -59,7 +59,7 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
         />
 
         {/* Category cards */}
-        <div className="relative mt-12 grid gap-6 sm:gap-8 lg:grid-cols-2">
+        <div className="relative mt-12 grid gap-6 sm:gap-8 lg:mx-auto lg:max-w-5xl lg:grid-cols-2">
           {categories.map((c, i) => (
             /* Outer: entrance fade+slide on first visit */
             <motion.div
