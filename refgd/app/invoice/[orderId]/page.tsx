@@ -19,8 +19,8 @@ export const metadata = {
  * component which polls the status API and auto-redirects on completion.
  *
  * Search params:
- *   url   — Telegram invoice URL for Part 1 (required)
- *   url2  — Telegram invoice URL for Part 2 (split payments only)
+ *   urls  — comma-separated Telegram invoice URLs, one per payment step
+ *           (required). `url` / `url2` are still read for back-compat.
  *   type  — "app" (Apple/Google Pay) | "card" (Telegram Web)
  *   title — product title (display only, falls back to DB value)
  */
@@ -29,12 +29,17 @@ export default async function InvoicePage({
   searchParams,
 }: {
   params: Promise<{ orderId: string }>;
-  searchParams: Promise<{ url?: string; url2?: string; type?: string; title?: string }>;
+  searchParams: Promise<{ urls?: string; url?: string; url2?: string; type?: string; title?: string }>;
 }) {
   const { orderId } = await params;
-  const { url, url2, type, title } = await searchParams;
+  const { urls, url, url2, type, title } = await searchParams;
 
-  if (!orderId || !url) notFound();
+  // Prefer the multi-step `urls` list; fall back to legacy url/url2.
+  const invoiceUrls = (urls ? urls.split(",") : [url, url2])
+    .map((u) => (u ?? "").trim())
+    .filter(Boolean);
+
+  if (!orderId || invoiceUrls.length === 0) notFound();
 
   // Verify the order exists so the page can't be reached with a fake ID.
   const order = await getOrder(orderId);
@@ -46,8 +51,7 @@ export default async function InvoicePage({
   return (
     <InvoiceMonitor
       orderId={orderId}
-      invoiceUrl={url}
-      invoiceUrl2={url2}
+      invoiceUrls={invoiceUrls}
       paymentType={paymentType}
       productTitle={productTitle}
     />
