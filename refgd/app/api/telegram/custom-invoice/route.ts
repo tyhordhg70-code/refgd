@@ -96,9 +96,14 @@ export async function POST(req: Request) {
   const rawAmount = Number(body.amount);
   const hasNative = isFinite(rawAmount) && rawAmount > 0;
   const amountUsd = hasNative ? toUsd(rawAmount, cur.code) : Number(body.amountUsd);
-  if (!isFinite(amountUsd) || amountUsd <= 0) {
+  // Mirror the client's $1 USD-equivalent floor here — this endpoint is public,
+  // so a direct POST must not be able to create sub-$1 (underpriced) invoices.
+  if (!isFinite(amountUsd) || amountUsd < 1) {
     return NextResponse.json(
-      { ok: false, error: "A positive amount (amount + currency, or amountUsd) is required" },
+      {
+        ok: false,
+        error: "Amount must be at least $1 USD (or equivalent in the selected currency)",
+      },
       { status: 400 },
     );
   }
