@@ -136,6 +136,36 @@
                 + New product
               </button>
             </div>
+
+            {/* ── Pinned unlisted product ── */}
+            <div className="rounded-xl border border-amber-400/30 bg-amber-400/5 p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="rounded-full border border-amber-400/50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-amber-300">
+                  Unlisted
+                </span>
+                <span className="text-xs font-semibold text-white/80">Custom Order — Name Your Price</span>
+              </div>
+              <p className="mb-3 text-xs leading-relaxed text-white/50">
+                A standalone checkout page not shown in any public category. Buyers enter their own price and pay via Telegram Stars. Share the link directly with customers.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href="/shop-methods/custom-order"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-amber-400/40 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-400/20"
+                >
+                  Open page →
+                </a>
+                <span className="font-mono text-[11px] text-white/35 select-all">
+                  /shop-methods/custom-order
+                </span>
+                <span className="ml-auto text-[10px] text-white/30">
+                  Content editable on the page itself (admin edit mode)
+                </span>
+              </div>
+            </div>
+
             <div className="grid gap-2">
               {allProducts.map((p) => (
                 <ProductRow
