@@ -384,7 +384,7 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
             </div>
           </div>
           {bulkRows.length > 0 && (
-            <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-white/10 bg-ink-900/40">
+            <div data-lenis-prevent className="mt-3 max-h-64 overflow-auto rounded-xl border border-white/10 bg-ink-900/40">
               <table className="w-full text-left text-xs">
                 <thead className="bg-white/5 text-white/55">
                   <tr>
@@ -500,7 +500,7 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
       </div>
 
       {editing && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur" onClick={() => setEditing(null)}>
+        <div data-lenis-prevent className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/70 p-4 backdrop-blur" onClick={() => setEditing(null)}>
           <form
             onClick={(e) => e.stopPropagation()}
             onSubmit={save}
