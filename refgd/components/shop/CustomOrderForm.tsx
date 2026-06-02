@@ -180,9 +180,9 @@ export default function CustomOrderForm() {
           className="inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-gray-200 bg-white px-6 py-4 text-sm font-bold uppercase tracking-[0.12em] text-gray-900 shadow-sm transition hover:border-violet-300 hover:shadow-[0_8px_28px_-6px_rgba(109,40,217,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
           style={{ boxShadow: valid && !anyLoading ? "0 0 28px -8px rgba(109,40,217,0.22)" : undefined }}
         >
-          {/* Telegram logo */}
-          <svg className="h-5 w-5 shrink-0 text-[#2AABEE]" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8-1.76 8.3c-.13.6-.48.74-.97.46l-2.69-1.98-1.3 1.24c-.14.14-.26.26-.54.26l.19-2.7 5-4.5c.21-.19-.05-.29-.33-.1l-6.19 3.9-2.66-.83c-.58-.18-.59-.58.12-.86l10.4-4c.48-.18.91.12.73.81z" />
+          {/* Credit card icon */}
+          <svg className="h-5 w-5 shrink-0 text-violet-600" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z" />
           </svg>
           {isLoadingCard ? (
             "Preparing invoice…"
