@@ -69,6 +69,35 @@
     categories: ShopCategory[];
   };
 
+  /**
+   * Virtual "Custom Order" product.
+   *
+   * Not stored in the DB — injected into every category at load time so the
+   * card always appears in the product grid regardless of DB seed state. Its
+   * card routes to the dedicated /shop-methods/custom-order page (where the
+   * buyer names their own price) instead of the normal fixed-price popup, so
+   * the price here is only a placeholder.
+   */
+  export const CUSTOM_ORDER_PRODUCT_ID = "custom-order";
+  const CUSTOM_ORDER_PRODUCT: ShopProduct = {
+    id: CUSTOM_ORDER_PRODUCT_ID,
+    title: "Custom Order",
+    price: 0,
+    currency: "USD",
+    image: "/uploads/payment-pay.png",
+    summary: "Name your price — pay any amount we've agreed instantly via Telegram Stars.",
+    description: "",
+    chargeType: "ONE_TIME",
+    customFields: [],
+    categorySlugs: [],
+    sortOrder: 999_999,
+  };
+
+  /** Append the virtual custom-order product to a category's product list. */
+  function withCustomOrder(products: ShopProduct[], slug: string): ShopProduct[] {
+    return [...products, { ...CUSTOM_ORDER_PRODUCT, categorySlugs: [slug] }];
+  }
+
   function rowToCategory(row: Record<string, unknown>): Omit<ShopCategory, "products"> {
     return {
       slug: String(row.slug),
@@ -174,7 +203,10 @@
       const prods = prodsRes.rows.map(rowToProduct);
       const categories: ShopCategory[] = cats.map(c => ({
         ...c,
-        products: prods.filter(p => p.categorySlugs.includes(c.slug)),
+        products: withCustomOrder(
+          prods.filter(p => p.categorySlugs.includes(c.slug)),
+          c.slug,
+        ),
       }));
       const seedTyped = seed as unknown as { hero: ShopHero };
       const catalog: ShopCatalog = { hero: seedTyped.hero, categories };
@@ -190,12 +222,15 @@
         categories: seedTyped.categories.map(c => ({
           ...c,
           sortOrder: 0,
-          products: c.products.map(p => ({
-            ...p,
-            customFields: p.customFields ?? [],
-            categorySlugs: [c.slug],
-            sortOrder: 0,
-          })),
+          products: withCustomOrder(
+            c.products.map(p => ({
+              ...p,
+              customFields: p.customFields ?? [],
+              categorySlugs: [c.slug],
+              sortOrder: 0,
+            })),
+            c.slug,
+          ),
         })),
       };
       setCachedShopCatalog(fallback);
