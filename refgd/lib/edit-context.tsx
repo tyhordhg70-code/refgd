@@ -146,7 +146,13 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
 
   const getValue = useCallback(
     (id: string, fallback?: string) => {
-      if (Object.prototype.hasOwnProperty.call(display, id) && display[id] !== "") return display[id];
+      // Honour an explicitly-set value even when it is an empty string.
+      // An admin who clears a field MEANS to clear it, so we return that
+      // "" rather than reverting to the caller's default — the editable
+      // primitive then collapses the now-blank element so the page
+      // reflows and the empty gap closes. We only fall back to the
+      // default when the id was never set (absent from the map).
+      if (Object.prototype.hasOwnProperty.call(display, id)) return display[id];
       return fallback ?? "";
     },
     [display],
