@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { CURRENCIES, getCurrency, toUsd } from "@/lib/currency";
 
 type StarsState =
   | { phase: "idle" }
@@ -12,18 +13,24 @@ type StarsState =
  * CustomOrderForm — price-entry + Telegram Stars checkout for the
  * unlisted custom-order page.
  *
- * The customer types any amount ≥ $1, adds an optional note, then picks
- * their payment method. Uses the same Stars splitting logic and invoice-
- * monitoring page as all other shop products.
+ * The customer types any amount in their chosen currency, adds an optional
+ * note, then picks their payment method. Telegram Stars are always priced
+ * from USD (50 Stars ≈ $1), so the entered amount is converted to USD via
+ * lib/currency before the Stars total is computed. Uses the same Stars
+ * splitting logic and invoice-monitoring page as all other shop products.
  */
 export default function CustomOrderForm() {
   const router = useRouter();
   const [amountRaw, setAmountRaw] = useState("");
+  const [currencyCode, setCurrencyCode] = useState("USD");
   const [note, setNote] = useState("");
   const [stars, setStars] = useState<StarsState>({ phase: "idle" });
 
+  const currency = getCurrency(currencyCode);
   const amount = parseFloat(amountRaw);
-  const valid = isFinite(amount) && amount >= 1;
+  const amountUsd = toUsd(amount, currencyCode);
+  // Minimum order is $1 USD-equivalent (the Telegram Stars floor).
+  const valid = isFinite(amount) && amount > 0 && amountUsd >= 1;
   const anyLoading = stars.phase === "loading";
   const isLoadingCard = stars.phase === "loading" && stars.method === "card";
   const isLoadingApp = stars.phase === "loading" && stars.method === "app";
@@ -38,7 +45,11 @@ export default function CustomOrderForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amountUsd: amount,
+          // Send both the original amount + currency (server converts and
+          // records it) and the pre-converted USD value as a fallback.
+          amount,
+          currency: currency.code,
+          amountUsd,
           title: "Custom Order",
           note: note.trim() || undefined,
           markupPct: method === "app" ? 0.25 : 0,
@@ -73,35 +84,55 @@ export default function CustomOrderForm() {
   return (
     <div className="mt-8 rounded-[1.5rem] border border-gray-200 bg-white p-6 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.10)] sm:p-8">
 
-      {/* ── Price input ── */}
+      {/* ── Price input + currency ── */}
       <div className="mb-5">
         <label className="mb-1.5 block text-xs font-bold uppercase tracking-[0.22em] text-gray-500">
-          Your price (USD)
+          Your price
         </label>
-        <div className="relative">
-          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-gray-300 select-none">
-            $
-          </span>
-          <input
-            type="number"
-            inputMode="decimal"
-            min="1"
-            step="0.01"
-            placeholder="0.00"
-            value={amountRaw}
+        <div className="flex items-stretch gap-2">
+          <div className="relative flex-1">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-gray-300 select-none">
+              {currency.symbol}
+            </span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={amountRaw}
+              onChange={(e) => {
+                setAmountRaw(e.target.value);
+                resetStars();
+              }}
+              className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-4 pl-10 pr-5 text-2xl font-bold text-gray-900 placeholder:text-gray-300 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100 transition"
+            />
+          </div>
+          <select
+            aria-label="Currency"
+            value={currencyCode}
             onChange={(e) => {
-              setAmountRaw(e.target.value);
+              setCurrencyCode(e.target.value);
               resetStars();
             }}
-            className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-4 pl-9 pr-5 text-2xl font-bold text-gray-900 placeholder:text-gray-300 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100 transition"
-          />
+            className="shrink-0 rounded-2xl border border-gray-200 bg-gray-50 px-3 text-sm font-bold text-gray-700 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100 transition"
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code}
+              </option>
+            ))}
+          </select>
         </div>
         {amountRaw !== "" && !valid && (
-          <p className="mt-1.5 text-xs text-rose-500">Minimum $1.00</p>
+          <p className="mt-1.5 text-xs text-rose-500">Minimum $1.00 USD equivalent</p>
         )}
         {valid && (
           <p className="mt-1.5 text-xs text-gray-400">
-            ≈ {Math.ceil(amount * 50).toLocaleString()} Telegram Stars
+            {currencyCode !== "USD" && (
+              <>≈ ${amountUsd.toFixed(2)} USD &nbsp;·&nbsp; </>
+            )}
+            ≈ {Math.ceil(amountUsd * 50).toLocaleString()} Telegram Stars
           </p>
         )}
       </div>
