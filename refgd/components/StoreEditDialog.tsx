@@ -238,7 +238,7 @@ export default function StoreEditDialog({
           </button>
         </div>
 
-        <div className="grid max-h-[70vh] grid-cols-1 gap-3 overflow-y-auto p-5 sm:grid-cols-2">
+        <div data-lenis-prevent className="grid max-h-[70vh] grid-cols-1 gap-3 overflow-y-auto p-5 sm:grid-cols-2">
           <Field label="Name *" full>
             <input
               value={draft.name}
