@@ -305,6 +305,30 @@
   white-space: nowrap;
   will-change: transform;
 }
+/* Top-layer host for the custom cursor. Promoted via the Popover API so
+   the dot/ring/label always paint above 3D-transformed (preserve-3d /
+   perspective) card sections, which otherwise cover a plain position:fixed
+   overlay regardless of z-index. Fully transparent and click-through. */
+.custom-cursor-layer {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 9999;
+}
+.custom-cursor-layer:popover-open {
+  display: block;
+}
+.custom-cursor-layer::backdrop {
+  background: transparent;
+  pointer-events: none;
+}
 
 /* ─── Marquee ─── */
 @keyframes marquee-track {
@@ -884,6 +908,7 @@ html, body { overscroll-behavior-y: none; }
 }
 @media (pointer: coarse) {
   /* Touch primary devices: no custom cursor, no hover-only embellishments. */
+  .custom-cursor-layer,
   .custom-cursor-dot,
   .custom-cursor-ring,
   .custom-cursor-label { display: none !important; }
