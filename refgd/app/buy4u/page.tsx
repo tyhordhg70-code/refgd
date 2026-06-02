@@ -7,7 +7,7 @@ import Image from "next/image";
 import { useEditContext } from "@/lib/edit-context";
 
 type CardKind = "brand" | "photo";
-type Card = { key: string; name: string; kind: CardKind; domain?: string; photo?: string; gradient?: string; };
+type Card = { key: string; name: string; kind: CardKind; domain?: string; photo?: string; gradient?: string; compact?: boolean; };
 type Tab = { intro: string; disclaimer?: string; cards: Card[]; withSearch?: boolean; };
 type Section = { id: string; label: string; icon: string; hasRefund: boolean; staticBadge?: string; buy4u: Tab; refund?: Tab; };
 
@@ -318,7 +318,7 @@ function BrandCard({ secId, mode, card, onDelete }: { secId: string; mode: "buy4
           defaultSrc={card.kind === "photo" ? card.photo! : (LOGO_SRC[card.domain!] || `https://www.google.com/s2/favicons?domain=${card.domain}&sz=128`)}
           alt={card.name}
           className="h-full w-full object-cover"
-          wrapperClassName={card.kind === "photo" ? "block aspect-[4/3] w-full overflow-hidden rounded-xl" : "grid h-14 w-14 place-items-center overflow-hidden rounded-xl bg-white shadow"}
+          wrapperClassName={card.kind === "photo" && !card.compact ? "block aspect-[4/3] w-full overflow-hidden rounded-xl" : "grid h-14 w-14 place-items-center overflow-hidden rounded-xl bg-white shadow"}
         />
       <div className="relative w-full" style={{ minHeight:"28px" }}>
         <EditableText id={`${id}.name`} defaultValue={card.name} as="span" className={`block text-center text-xs font-semibold leading-tight text-white${isAdmin && editMode ? " rounded px-1 outline-dashed outline-1 outline-amber-300/40 hover:outline-amber-300/80" : ""}`} />
@@ -373,8 +373,8 @@ function CardGrid({ secId, mode, cards, wide }: { secId: string; mode: "buy4u"|"
       if (!addName.trim()) return;
       const nk = `x${Date.now()}`;
       const nc: Card = addKind === "brand"
-        ? { key: nk, name: addName.trim(), kind: "brand", domain: addVal.trim() || "example.com" }
-        : { key: nk, name: addName.trim(), kind: "photo", photo: addVal.trim() || "https://loremflickr.com/400/300/travel" };
+        ? { key: nk, name: addName.trim(), kind: "brand", domain: addVal.trim() || "example.com", compact: true }
+        : { key: nk, name: addName.trim(), kind: "photo", photo: addVal.trim() || "https://loremflickr.com/400/300/travel", compact: true };
       const next = [...extra, nc].sort((a, b) => {
           const ap = a.name.trim().startsWith("+") ? 1 : 0;
           const bp = b.name.trim().startsWith("+") ? 1 : 0;
