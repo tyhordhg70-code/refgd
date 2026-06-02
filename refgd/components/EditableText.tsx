@@ -56,15 +56,13 @@ function EditableTextInner({
 }: Props) {
   const { isAdmin, editMode, getValue, setValue } = useEditContext();
   const raw = getValue(id, defaultValue);
-    // If the DB stored an empty string (admin cleared the field), fall back
-    // to the component's own defaultValue so content is never blank on screen.
-    // Robust blank check: treat null, undefined, and whitespace-only
-      // values as "no value" and fall back to defaultValue. Without this
-      // any DB value of null or "   " renders as a blank card on screen.
-      const isBlank = (v: unknown): boolean =>
-        v == null || (typeof v === "string" && v.trim() === "");
-      const value: string =
-        !isBlank(raw) && typeof raw === "string" ? raw : defaultValue;
+    // getValue already returns `defaultValue` when the id was never set,
+    // and the explicit stored value when it was — which MAY be an empty
+    // string if an admin deliberately cleared the field. We honour `raw`
+    // verbatim: an empty value means "intentionally blank" and the element
+    // collapses below (return null) so the surrounding layout reflows and
+    // the leftover gap closes up, instead of snapping back to the default.
+    const value: string = typeof raw === "string" ? raw : defaultValue;
   const editing = isAdmin && editMode;
   const ref = useRef<HTMLElement | null>(null);
 
@@ -110,7 +108,7 @@ function EditableTextInner({
      coloured tints, white hero panels alike) so the typing position
      is always unmistakable. */
   const baseClass = editing
-    ? `relative cursor-text caret-amber-300 outline-none rounded-sm ring-1 ring-amber-300/0 hover:ring-amber-300/60 focus:ring-amber-300/90 transition-shadow ${className}`
+    ? `relative cursor-text caret-amber-300 outline-none rounded-sm ring-1 ring-amber-300/0 hover:ring-amber-300/60 focus:ring-amber-300/90 transition-shadow min-w-[2ch] empty:before:content-[attr(data-placeholder)] empty:before:opacity-30 empty:before:pointer-events-none ${className}`
     : className;
   // Multiline text MUST keep its `\n` characters visible in BOTH edit
   // and view modes — otherwise an admin who adds a line break in
@@ -200,6 +198,13 @@ function EditableTextInner({
               : {}),
           }
         : undefined;
+
+  // Visitors (and admins NOT in edit mode) should never see an empty
+  // outlined box where cleared content used to be — render nothing so the
+  // surrounding layout reflows and the blank gap closes up. Admins IN edit
+  // mode keep the (now clickable, placeholder-bearing) element so they can
+  // type new content back in.
+  if (!editing && value.trim() === "") return null;
 
   const Component = Tag as ElementType;
   const editable = (
