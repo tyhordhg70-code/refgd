@@ -6,6 +6,7 @@ import {
   partId,
   maxStarsForMethod,
 } from "@/lib/stars-split";
+import { getCurrency, toUsd } from "@/lib/currency";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,7 +58,12 @@ async function makeTgInvoiceLink(
 }
 
 type Body = {
-  amountUsd: number;
+  /** Pre-converted USD value (fallback when amount+currency absent). */
+  amountUsd?: number;
+  /** Amount in the buyer's chosen currency. */
+  amount?: number;
+  /** ISO currency code, e.g. "USD", "GBP". Defaults to USD. */
+  currency?: string;
   title?: string;
   note?: string;
   markupPct?: number;
@@ -83,13 +89,25 @@ export async function POST(req: Request) {
     );
   }
 
-  const amountUsd = Number(body.amountUsd);
+  // Resolve the USD amount used for Stars pricing. Prefer the original
+  // amount + currency (converted here so the server is the source of
+  // truth) and fall back to a pre-converted amountUsd for back-compat.
+  const cur = getCurrency(body.currency || "USD");
+  const rawAmount = Number(body.amount);
+  const hasNative = isFinite(rawAmount) && rawAmount > 0;
+  const amountUsd = hasNative ? toUsd(rawAmount, cur.code) : Number(body.amountUsd);
   if (!isFinite(amountUsd) || amountUsd <= 0) {
     return NextResponse.json(
-      { ok: false, error: "amountUsd must be a positive number" },
+      { ok: false, error: "A positive amount (amount + currency, or amountUsd) is required" },
       { status: 400 },
     );
   }
+
+  // Human-readable price label for the invoice description / order record.
+  const priceLabel =
+    cur.code === "USD" || !hasNative
+      ? `$${amountUsd.toFixed(2)}`
+      : `${cur.symbol}${rawAmount.toFixed(2)} ${cur.code} (≈ $${amountUsd.toFixed(2)})`;
 
   const title = (body.title?.trim() || "Custom Order").slice(0, 80);
   const note = body.note?.trim() ?? "";
@@ -109,7 +127,13 @@ export async function POST(req: Request) {
   const ts = Date.now().toString(36);
   const base = `refgd_custom_xtr_${ts}`;
 
-  const description = [title, note].filter(Boolean).join(" — ").slice(0, 255);
+  const description = [title, priceLabel, note].filter(Boolean).join(" — ").slice(0, 255);
+  const customFields: Record<string, string> = {};
+  if (note) customFields.note = note;
+  if (hasNative && cur.code !== "USD") {
+    customFields.currency = cur.code;
+    customFields.amount = String(rawAmount);
+  }
   const origin =
     req.headers.get("origin") ??
     `https://${req.headers.get("host") ?? "refgd.onrender.com"}`;
@@ -127,7 +151,7 @@ export async function POST(req: Request) {
         productTitle: title,
         price: amountUsd,
         currency: "USD",
-        customFields: note ? { note } : {},
+        customFields,
         channel: "telegram",
         email: null,
         telegramHandle: null,
