@@ -9,7 +9,7 @@ import { useEditContext } from "@/lib/edit-context";
 type CardKind = "brand" | "photo";
 type Card = { key: string; name: string; kind: CardKind; domain?: string; photo?: string; gradient?: string; compact?: boolean; };
 type Tab = { intro: string; disclaimer?: string; cards: Card[]; withSearch?: boolean; };
-type Section = { id: string; label: string; icon: string; hasRefund: boolean; staticBadge?: string; serviceModes?: string[]; buy4u: Tab; refund?: Tab; };
+type Section = { id: string; label: string; icon: string; hasRefund: boolean; staticBadge?: string; serviceModes?: string[]; modeLabels?: { buy4u: string; refund: string }; buy4u: Tab; refund?: Tab; };
 
 const B = (key: string, name: string, domain: string): Card => ({ key, name, kind: "brand", domain });
 const C = (key: string, name: string, photo: string): Card => ({ key, name, kind: "photo", photo });
@@ -74,7 +74,7 @@ const SECTIONS: Section[] = [
       B("f23","Air Canada","aircanada.com"),
     ],
   }},
-  { id:"food",label:"Food",icon:"🍔",hasRefund:false,serviceModes:["Pick Up","Delivery"],buy4u:{
+  { id:"food",label:"Food",icon:"🍔",hasRefund:true,modeLabels:{buy4u:"Pick Up",refund:"Delivery"},buy4u:{
     intro:"Food pickup via DoorDash & Uber Eats. Uber Eats delivery up to $100. Instacart for groceries below $100.",
     disclaimer:"Make sure we are ONLINE before placing your order.",
     withSearch:true,
@@ -160,6 +160,16 @@ const SECTIONS: Section[] = [
       B("fd79","Uber Eats","ubereats.com"),
       B("fd80","Instacart","instacart.com"),
       { key:"fd99",name:"+ Any Other Chain Restaurant!",kind:"photo",photo:"https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80" },
+    ],
+  },refund:{
+    intro:"Order delivery through one of these platforms and we'll place the order for you. Uber Eats up to $100. Instacart for groceries below $100.",
+    disclaimer:"Make sure we are ONLINE before placing your order.",
+    cards:[
+      B("dv01","Uber Eats","ubereats.com"),
+      B("dv02","DoorDash","doordash.com"),
+      B("dv03","GrubHub","grubhub.com"),
+      B("dv04","Instacart","instacart.com"),
+      B("dv05","GoPuff","gopuff.com"),
     ],
   },},
   { id:"hotels",label:"Hotels",icon:"🛏",hasRefund:true,buy4u:{
@@ -484,7 +494,7 @@ function SectionBlock({ section }: { section: Section }) {
         {section.hasRefund && section.refund ? (
             <div className="inline-flex rounded-full border border-white/10 bg-ink-900 p-1">
               {(["buy4u","refund"] as const).map(m => (
-                <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition ${mode===m ? "bg-amber-400 text-ink-950 shadow-[0_0_18px_-4px_rgba(245,185,69,0.6)]" : "text-white/65 hover:text-white"}`}>{m==="buy4u"?"BUY4U":"REFUND"}</button>
+                <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition ${mode===m ? "bg-amber-400 text-ink-950 shadow-[0_0_18px_-4px_rgba(245,185,69,0.6)]" : "text-white/65 hover:text-white"}`}>{section.modeLabels?.[m] ?? (m==="buy4u"?"BUY4U":"REFUND")}</button>
               ))}
             </div>
           ) : section.serviceModes ? (
