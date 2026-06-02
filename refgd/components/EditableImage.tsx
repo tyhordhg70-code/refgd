@@ -418,8 +418,9 @@ function EditableImageInner({
       {editing && popOpen && anchorRect && typeof document !== "undefined" && createPortal(
         <div
           ref={popRef}
-          style={{ position: "fixed", top: popTop, left: popLeft, width: POP_W, zIndex: 100000 }}
-          className="space-y-3 rounded-xl border border-white/15 bg-ink-900/98 p-3 text-xs text-white shadow-2xl backdrop-blur-xl"
+          data-lenis-prevent
+          style={{ position: "fixed", top: popTop, left: popLeft, width: POP_W, zIndex: 100000, maxHeight: "min(80vh, 640px)" }}
+          className="space-y-3 overflow-y-auto overscroll-contain rounded-xl border border-white/15 bg-ink-900/98 p-3 text-xs text-white shadow-2xl backdrop-blur-xl"
         >
           <div className="text-[10px] uppercase tracking-widest text-white/45">
             Image · {id}
