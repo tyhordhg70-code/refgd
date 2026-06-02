@@ -182,10 +182,7 @@ export default function ShopProductList({ category: c }: { category: Category })
       <div className="container-wide relative">
         <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
           {c.products.map((p, i) => {
-            const isCustom = p.id === "custom-order";
-            const priceLabel = isCustom
-              ? "Your price"
-              : `$${p.price}${p.currency && p.currency !== "USD" ? " " + p.currency : ""}`;
+            const priceLabel = `$${p.price}${p.currency && p.currency !== "USD" ? " " + p.currency : ""}`;
             return (
               <motion.article
                 key={p.id}
@@ -234,14 +231,10 @@ export default function ShopProductList({ category: c }: { category: Category })
 
                   <button
                     type="button"
-                    onClick={() =>
-                      isCustom
-                        ? router.push("/shop-methods/custom-order")
-                        : setOpenId(p.id)
-                    }
+                    onClick={() => setOpenId(p.id)}
                     className="mt-5 inline-flex items-center justify-center gap-2 self-start rounded-full border border-gray-300 bg-gray-50 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-gray-800 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700"
                   >
-                    {isCustom ? "Name your price" : "View product"}
+                    View product
                     <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
                   </button>
                 </div>
