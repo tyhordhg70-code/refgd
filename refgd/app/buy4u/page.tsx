@@ -9,7 +9,7 @@ import { useEditContext } from "@/lib/edit-context";
 type CardKind = "brand" | "photo";
 type Card = { key: string; name: string; kind: CardKind; domain?: string; photo?: string; gradient?: string; compact?: boolean; };
 type Tab = { intro: string; disclaimer?: string; cards: Card[]; withSearch?: boolean; };
-type Section = { id: string; label: string; icon: string; hasRefund: boolean; staticBadge?: string; buy4u: Tab; refund?: Tab; };
+type Section = { id: string; label: string; icon: string; hasRefund: boolean; staticBadge?: string; serviceModes?: string[]; buy4u: Tab; refund?: Tab; };
 
 const B = (key: string, name: string, domain: string): Card => ({ key, name, kind: "brand", domain });
 const C = (key: string, name: string, photo: string): Card => ({ key, name, kind: "photo", photo });
@@ -74,7 +74,7 @@ const SECTIONS: Section[] = [
       B("f23","Air Canada","aircanada.com"),
     ],
   }},
-  { id:"food",label:"Food",icon:"🍔",hasRefund:false,staticBadge:"REFUND",buy4u:{
+  { id:"food",label:"Food",icon:"🍔",hasRefund:false,serviceModes:["Pick Up","Delivery"],buy4u:{
     intro:"Food pickup via DoorDash & Uber Eats. Uber Eats delivery up to $100. Instacart for groceries below $100.",
     disclaimer:"Make sure we are ONLINE before placing your order.",
     withSearch:true,
@@ -307,23 +307,34 @@ function badgeColor(key: string): string {
 
 function BrandCard({ secId, mode, card, onDelete }: { secId: string; mode: "buy4u"|"refund"; card: Card; onDelete?: () => void }) {
   const id = `buy4u.${secId}.${mode}.${card.key}`;
-  const { isAdmin, editMode } = useEditContext();
+  const { isAdmin, editMode, getValue } = useEditContext();
+  const imgId = card.kind === "photo" ? `${id}.photo` : `${id}.logo`;
+  const defaultSrc = card.kind === "photo" ? card.photo! : (LOGO_SRC[card.domain!] || `https://www.google.com/s2/favicons?domain=${card.domain}&sz=128`);
+  // Big photo box only for non-compact photo cards; everything else (brand logos +
+  // compact admin-added cards) uses the small square badge box.
+  const isBadge = !(card.kind === "photo" && !card.compact);
+  // Default favicons/logos are shown WHOLE (object-contain) so the logo is always
+  // visible. Once an admin applies their own image it crops to fill the box
+  // (object-cover) so logos with edge padding sit tight. Big photo cards always fill.
+  const stored = getValue(imgId, "");
+  const hasCustom = !!stored && stored !== defaultSrc;
+  const objectFit = isBadge ? (hasCustom ? "object-cover" : "object-contain") : "object-cover";
   return (
     <div className="group relative flex flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition hover:-translate-y-0.5 hover:border-amber-300/40 hover:bg-white/[0.07]" style={{ overflow:"visible", minHeight:"100px" }}>
         {onDelete && (
           <button onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Remove card" className="absolute -right-2 -top-2 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[11px] font-bold text-white shadow-lg hover:bg-red-400 transition-colors">×</button>
         )}
       <EditableImage
-          id={card.kind === "photo" ? `${id}.photo` : `${id}.logo`}
-          defaultSrc={card.kind === "photo" ? card.photo! : (LOGO_SRC[card.domain!] || `https://www.google.com/s2/favicons?domain=${card.domain}&sz=128`)}
+          id={imgId}
+          defaultSrc={defaultSrc}
           alt={card.name}
-          className="h-full w-full object-cover"
-          wrapperClassName={card.kind === "photo" && !card.compact ? "block aspect-[4/3] w-full overflow-hidden rounded-xl" : "grid h-14 w-14 place-items-center overflow-hidden rounded-xl bg-white shadow"}
+          className={`h-full w-full ${objectFit}`}
+          wrapperClassName={isBadge ? "grid h-14 w-14 place-items-center overflow-hidden rounded-xl bg-white shadow" : "block aspect-[4/3] w-full overflow-hidden rounded-xl"}
         />
       <div className="relative w-full" style={{ minHeight:"28px" }}>
         <EditableText id={`${id}.name`} defaultValue={card.name} as="span" className={`block text-center text-xs font-semibold leading-tight text-white${isAdmin && editMode ? " rounded px-1 outline-dashed outline-1 outline-amber-300/40 hover:outline-amber-300/80" : ""}`} />
       </div>
-      {isAdmin && editMode && card.domain && (
+      {isAdmin && editMode && card.domain && secId !== "food" && (
         <EditableText id={`${id}.domain`} defaultValue={card.domain} as="p" className="w-full text-center font-mono text-[10px] text-white/35" placeholder="clearbit domain…" />
       )}
     </div>
@@ -442,11 +453,19 @@ function SearchableGrid({ secId, mode, cards }: { secId: string; mode: "buy4u"|"
     </>);
   }
   
-function TabBody({ section, mode }: { section: Section; mode: "buy4u"|"refund" }) {
+function TabBody({ section, mode, service }: { section: Section; mode: "buy4u"|"refund"; service?: string }) {
   const tab = mode === "buy4u" ? section.buy4u : (section.refund ?? section.buy4u);
   const hasPhotos = tab.cards.some(c => c.kind === "photo");
+  const serviceKey = service ? service.replace(/\s+/g, "").toLowerCase() : "";
+  const serviceIntro = service === "Pick Up"
+    ? "Food pickup via DoorDash & Uber Eats — order ahead and grab it in-store."
+    : "Uber Eats delivery up to $100. Instacart for groceries below $100 — delivered straight to your door.";
   return (<div>
-    <EditableText id={`buy4u.${section.id}.${mode}.intro`} defaultValue={tab.intro} as="p" multiline className="text-base leading-relaxed text-white/85" />
+    {service ? (
+      <EditableText id={`buy4u.${section.id}.service.${serviceKey}.intro`} defaultValue={serviceIntro} as="p" multiline className="text-base leading-relaxed text-white/85" />
+    ) : (
+      <EditableText id={`buy4u.${section.id}.${mode}.intro`} defaultValue={tab.intro} as="p" multiline className="text-base leading-relaxed text-white/85" />
+    )}
     {tab.disclaimer && <div className="mt-3 rounded-xl border border-amber-300/30 bg-amber-400/[0.06] px-4 py-3"><EditableText id={`buy4u.${section.id}.${mode}.disclaimer`} defaultValue={tab.disclaimer} as="p" multiline className="text-sm text-amber-100" /></div>}
     {tab.withSearch ? <SearchableGrid secId={section.id} mode={mode} cards={tab.cards} /> : <CardGrid secId={section.id} mode={mode} cards={tab.cards} wide={hasPhotos} />}
   </div>);
@@ -454,6 +473,7 @@ function TabBody({ section, mode }: { section: Section; mode: "buy4u"|"refund" }
 
 function SectionBlock({ section }: { section: Section }) {
   const [mode, setMode] = useState<"buy4u"|"refund">("buy4u");
+  const [svc, setSvc] = useState(0);
   return (
     <section id={`buy4u-${section.id}`} className="scroll-mt-24 rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -467,11 +487,17 @@ function SectionBlock({ section }: { section: Section }) {
                 <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition ${mode===m ? "bg-amber-400 text-ink-950 shadow-[0_0_18px_-4px_rgba(245,185,69,0.6)]" : "text-white/65 hover:text-white"}`}>{m==="buy4u"?"BUY4U":"REFUND"}</button>
               ))}
             </div>
+          ) : section.serviceModes ? (
+            <div className="inline-flex rounded-full border border-white/10 bg-ink-900 p-1">
+              {section.serviceModes.map((label, i) => (
+                <button key={label} type="button" onClick={() => setSvc(i)} className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition ${i===svc ? "bg-amber-400 text-ink-950 shadow-[0_0_18px_-4px_rgba(245,185,69,0.6)]" : "text-white/65 hover:text-white"}`}>{label}</button>
+              ))}
+            </div>
           ) : section.staticBadge ? (
             <span className="inline-flex rounded-full border border-amber-300/40 bg-amber-400/10 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-amber-200 shadow-[0_0_18px_-4px_rgba(245,185,69,0.45)]">{section.staticBadge}</span>
           ) : null}
       </div>
-      <TabBody section={section} mode={section.hasRefund ? mode : "buy4u"} />
+      <TabBody section={section} mode={section.hasRefund ? mode : "buy4u"} service={section.serviceModes ? section.serviceModes[svc] : undefined} />
     </section>
   );
 }
