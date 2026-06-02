@@ -27,6 +27,7 @@ import { useEffect, useRef, useState } from "react";
  * scroll frames get their full main-thread budget back.
  */
 export default function CustomCursor() {
+  const layerRef = useRef<HTMLDivElement | null>(null);
   const dotRef = useRef<HTMLDivElement | null>(null);
   const ringRef = useRef<HTMLDivElement | null>(null);
   const labelRef = useRef<HTMLDivElement | null>(null);
@@ -38,6 +39,33 @@ export default function CustomCursor() {
     if (!mq.matches) return;
     setEnabled(true);
   }, []);
+
+  // Promote the cursor into the browser top layer via the Popover API so it
+  // always paints above 3D-transformed (preserve-3d / perspective) sections —
+  // those otherwise cover a plain position:fixed overlay regardless of
+  // z-index, making the cursor vanish behind cards in admin edit mode. The
+  // top layer ignores those stacking quirks. No-ops where unsupported.
+  useEffect(() => {
+    if (!enabled) return;
+    const el = layerRef.current as (HTMLDivElement & {
+      showPopover?: () => void;
+      hidePopover?: () => void;
+    }) | null;
+    if (!el || typeof el.showPopover !== "function") return;
+    try {
+      el.setAttribute("popover", "manual");
+      el.showPopover();
+    } catch {
+      /* ignore — falls back to plain fixed positioning */
+    }
+    return () => {
+      try {
+        if (el.matches?.(":popover-open")) el.hidePopover?.();
+      } catch {
+        /* noop */
+      }
+    };
+  }, [enabled]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -158,7 +186,7 @@ export default function CustomCursor() {
 
   if (!enabled) return null;
   return (
-    <>
+    <div ref={layerRef} aria-hidden="true" className="custom-cursor-layer">
       <div
         ref={ringRef}
         aria-hidden="true"
@@ -166,6 +194,6 @@ export default function CustomCursor() {
       />
       <div ref={dotRef} aria-hidden="true" className="custom-cursor-dot" />
       <div ref={labelRef} aria-hidden="true" className="custom-cursor-label" />
-    </>
+    </div>
   );
 }
