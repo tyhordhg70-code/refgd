@@ -38,8 +38,13 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
 
-  const region = REGIONS.has(body.region) ? (body.region as Region) : "USA";
-  const category = normalizeCategory(body.category);
+  // Accept both legacy single-value and new multi-value fields.
+  const regions: Region[] = Array.isArray(body.regions) && body.regions.length > 0
+    ? (body.regions as string[]).filter((r): r is Region => REGIONS.has(r as Region))
+    : [REGIONS.has(body.region) ? (body.region as Region) : "USA"];
+  const categories: StoreCategory[] = Array.isArray(body.categories) && body.categories.length > 0
+    ? (body.categories as string[]).map(normalizeCategory).filter(Boolean)
+    : [normalizeCategory(body.category)];
   const tags = Array.isArray(body.tags)
     ? (body.tags as string[]).filter((t): t is StoreTag => TAGS.has(t as StoreTag))
     : [];
@@ -51,8 +56,8 @@ export async function POST(req: Request) {
     id,
     name: String(body.name ?? "").trim(),
     domain: domain ? String(domain).trim() : null,
-    region,
-    category,
+    regions: regions.length > 0 ? regions : ["USA"],
+    categories: categories.length > 0 ? categories : ["Other"],
     priceLimit: body.priceLimit ? String(body.priceLimit) : null,
     itemLimit: body.itemLimit ? String(body.itemLimit) : null,
     fee: body.fee ? String(body.fee) : null,
