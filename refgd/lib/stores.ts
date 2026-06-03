@@ -4,7 +4,7 @@ import {
   setCachedStores,
   invalidateStores,
 } from "./cache";
-import type { Region, Store } from "./types";
+import type { Region, Store, StoreCategory } from "./types";
 
 /**
  * pg returns TIMESTAMPTZ columns as native JS Date objects. Calling
