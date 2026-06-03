@@ -26,6 +26,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     createdAt: existing.createdAt,
   };
   if (Array.isArray(body.tags)) merged.tags = body.tags;
+  if (Array.isArray(body.regions) && body.regions.length > 0) merged.regions = body.regions;
+  if (Array.isArray(body.categories) && body.categories.length > 0) merged.categories = body.categories;
   const saved = await upsertStore(merged);
   return NextResponse.json({ store: saved });
 }
