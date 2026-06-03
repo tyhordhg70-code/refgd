@@ -440,12 +440,12 @@ export default function StoreFilters({
             <span className="ml-3 inline-flex items-center gap-1 rounded-full border border-amber-300/40 bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-amber-200">
               edit mode — hover a card
             </span>
-            <Link
+            <a
               href="/admin/stores?bulk=1"
               className="ml-2 inline-flex items-center gap-1 rounded-full border-2 border-amber-300/70 bg-amber-400/10 px-3 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-200 shadow-[0_0_16px_-4px_rgba(245,185,69,0.4)] transition hover:border-amber-300 hover:bg-amber-400/20 hover:text-white"
             >
               📋 Bulk import
-            </Link>
+            </a>
           </>
         )}
       </p>
