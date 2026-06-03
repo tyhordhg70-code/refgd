@@ -110,7 +110,7 @@ export default function StoreFilters({
 
   const counts = useMemo(() => {
     const c: Record<Region, number> = { USA: 0, CAD: 0, EU: 0, UK: 0 };
-    for (const s of stores) c[s.region]++;
+    for (const s of stores) for (const r of s.regions) if (r in c) c[r as Region]++;
     return c;
   }, [stores]);
 
@@ -118,13 +118,13 @@ export default function StoreFilters({
     const q = search.trim().toLowerCase();
     const catFilterActive = selectedCategories.size > 0;
     return stores.filter((s) => {
-      if (s.region !== region) return false;
-      if (catFilterActive && !selectedCategories.has(s.category)) return false;
+      if (!s.regions.includes(region)) return false;
+      if (catFilterActive && !s.categories.some((c) => selectedCategories.has(c))) return false;
       if (!q) return true;
       return (
         s.name.toLowerCase().includes(q) ||
         (s.notes ?? "").toLowerCase().includes(q) ||
-        s.category.toLowerCase().includes(q) ||
+        s.categories.some((c) => c.toLowerCase().includes(q)) ||
         (s.domain ?? "").toLowerCase().includes(q)
       );
     });
@@ -146,8 +146,10 @@ export default function StoreFilters({
       isAdmin && editMode && !search.trim() && !catFilterActive;
     const map = new Map<string, Store[]>();
     for (const s of filtered) {
-      if (!map.has(s.category)) map.set(s.category, []);
-      map.get(s.category)!.push(s);
+      for (const cat of s.categories) {
+        if (!map.has(cat)) map.set(cat, []);
+        map.get(cat)!.push(s);
+      }
     }
     const ordered: { category: StoreCategory; stores: Store[] }[] = [];
     const emit = (cat: string, list: Store[]) =>
@@ -206,7 +208,7 @@ export default function StoreFilters({
     setDialog({ open: true, store: null, region, category });
   }
   function openEdit(s: Store) {
-    setDialog({ open: true, store: s, region: s.region, category: s.category });
+    setDialog({ open: true, store: s, region: s.regions[0] ?? "USA", category: s.categories[0] ?? "Other" });
   }
 
   async function handleDelete(s: Store) {
@@ -262,7 +264,7 @@ export default function StoreFilters({
       if (!sourceId || sourceId === target.id) return;
 
       const source = stores.find((x) => x.id === sourceId);
-      if (!source || source.category !== target.category || source.region !== target.region) {
+      if (!source || source.categories[0] !== target.categories[0] || source.regions[0] !== target.regions[0]) {
         // Cross-section drag is intentionally a no-op — admins should
         // use Edit to change category/region explicitly.
         return;
@@ -275,7 +277,7 @@ export default function StoreFilters({
       // rows that all default to 0). Without this, a drop to "position
       // 3" can land somewhere else once persisted.
       const bucket = stores
-        .filter((x) => x.region === source.region && x.category === source.category)
+        .filter((x) => x.regions[0] === source.regions[0] && x.categories[0] === source.categories[0])
         .sort((a, b) => {
           const so = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
           return so !== 0 ? so : a.name.localeCompare(b.name);
