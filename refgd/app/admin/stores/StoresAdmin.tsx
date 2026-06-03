@@ -147,11 +147,42 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
   const [bulkRows, setBulkRows] = useState<BulkRow[]>([]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+  const [classifyBusy, setClassifyBusy] = useState(false);
+  const [classifyErr, setClassifyErr] = useState<string | null>(null);
   // Re-parse whenever the textarea / region / known-categories change.
   useEffect(() => {
     if (!bulkOpen) return;
+    setClassifyErr(null);
     setBulkRows(parseBulkPaste(bulkText, bulkRegion, allCategories));
   }, [bulkText, bulkRegion, bulkOpen, allCategories]);
+
+  async function classifyWithAI() {
+    if (!bulkRows.length) return;
+    setClassifyBusy(true);
+    setClassifyErr(null);
+    try {
+      const r = await fetch("/api/admin/stores/classify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: bulkRows.map((row) => ({ name: row.name, domain: row.domain || undefined })),
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Classification failed");
+      const results: { category: string }[] = j.results ?? [];
+      setBulkRows((prev) =>
+        prev.map((row, i) => ({
+          ...row,
+          category: (results[i]?.category as StoreCategory) || row.category,
+        })),
+      );
+    } catch (e) {
+      setClassifyErr((e as Error).message);
+    } finally {
+      setClassifyBusy(false);
+    }
+  }
 
   // drag-and-drop reordering
   const [dragId, setDragId] = useState<string | null>(null);
@@ -328,6 +359,19 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
               </p>
               <button
                 type="button"
+                disabled={classifyBusy || bulkBusy || bulkRows.length === 0}
+                onClick={classifyWithAI}
+                className="rounded-lg border border-violet-400/50 bg-violet-500/10 px-3 py-2 text-xs font-bold text-violet-200 transition hover:border-violet-400 hover:bg-violet-500/20 disabled:opacity-50"
+              >
+                {classifyBusy ? "🤖 Classifying…" : "🤖 AI classify"}
+              </button>
+              {classifyErr && (
+                <p className="rounded-lg border border-rose-400/30 bg-rose-500/10 p-2 text-[10px] text-rose-300">
+                  {classifyErr}
+                </p>
+              )}
+              <button
+                type="button"
                 disabled={bulkBusy || bulkRows.length === 0}
                 onClick={async () => {
                   setBulkBusy(true);
@@ -399,7 +443,25 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
                     <tr key={i} className="border-t border-white/5">
                       <td className="px-2 py-1.5 text-white">{r.name}</td>
                       <td className="px-2 py-1.5 text-white/55">{r.domain || "—"}</td>
-                      <td className="px-2 py-1.5 text-amber-200">{r.category}</td>
+                      <td className="px-2 py-1.5">
+                        <select
+                          value={r.category}
+                          onChange={(e) =>
+                            setBulkRows((prev) =>
+                              prev.map((row, idx) =>
+                                idx === i ? { ...row, category: e.target.value as StoreCategory } : row,
+                              ),
+                            )
+                          }
+                          className="rounded border border-white/10 bg-white/5 px-1 py-0.5 text-xs text-amber-200 focus:border-amber-300 focus:outline-none"
+                        >
+                          {CATEGORIES.map((c) => (
+                            <option key={c} value={c} className="bg-[#0c0c14] text-white">
+                              {c}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="px-2 py-1.5 text-white/55">{r.region}</td>
                     </tr>
                   ))}
