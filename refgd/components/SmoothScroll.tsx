@@ -29,7 +29,7 @@ export default function SmoothScroll() {
       prevent: (node: Element) =>
         node.hasAttribute?.("data-lenis-prevent") ||
         !!node.closest?.("[data-lenis-prevent]"),
-      anchors: false,
+      anchors: true,
     });
 
     // Expose for programmatic scroll-to (PixelRainCosmic auto-advance).
