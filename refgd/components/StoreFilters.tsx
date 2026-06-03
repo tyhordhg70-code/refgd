@@ -232,15 +232,19 @@ export default function StoreFilters({
     }
   }
 
-  function handleSaved(saved: Store) {
+  function handleSaved(result: { upserts: Store[]; deletedIds: string[] }) {
     setStores((cur) => {
-      const i = cur.findIndex((x) => x.id === saved.id);
-      if (i >= 0) {
-        const next = cur.slice();
-        next[i] = saved;
-        return next;
+      let next = cur.slice();
+      for (const saved of result.upserts) {
+        const i = next.findIndex((x) => x.id === saved.id);
+        if (i >= 0) next[i] = saved;
+        else next.push(saved);
       }
-      return [...cur, saved];
+      if (result.deletedIds.length > 0) {
+        const del = new Set(result.deletedIds);
+        next = next.filter((x) => !del.has(x.id));
+      }
+      return next;
     });
     // Intentionally no router.refresh() — the local setStores above already
     // reflects the change. router.refresh() would overwrite local state with
@@ -552,6 +556,15 @@ export default function StoreFilters({
         store={dialog.open ? dialog.store : null}
         defaultRegion={dialog.open ? dialog.region : region}
         defaultCategory={dialog.open ? dialog.category : "Other"}
+        relatedStores={
+          dialog.open && dialog.store
+            ? stores.filter(
+                (x) =>
+                  x.name.trim().toLowerCase() ===
+                  dialog.store!.name.trim().toLowerCase(),
+              )
+            : undefined
+        }
         availableCategories={categoryOptions}
         onCategoryAdded={refreshCategories}
         onClose={() => setDialog({ open: false })}

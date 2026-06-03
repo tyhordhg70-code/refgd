@@ -30,18 +30,27 @@ const TAGS: { id: StoreTag; label: string }[] = [
   { id: "new", label: "✨ new" },
 ];
 
+/** Result of a save. A single logical store can span multiple regions as
+ *  sibling rows (one row per region, all sharing a name), so one save may
+ *  create/update/delete several rows at once. */
+export type StoreSaveResult = { upserts: Store[]; deletedIds: string[] };
+
 type Props = {
   open: boolean;
   store: Store | null;
   defaultRegion?: Region;
   defaultCategory?: StoreCategory;
+  /** All store rows sharing this store's name (the "logical store" across
+   *  regions). Used to pre-highlight every region the store spans and to
+   *  add/remove sibling rows on save. Includes the current row. */
+  relatedStores?: Store[];
   /** Extra category strings (admin-created customs) to append to the
    *  dropdown so they survive editing. */
   availableCategories?: string[];
   /** Fired after a brand-new custom category was registered server-side. */
   onCategoryAdded?: () => void;
   onClose: () => void;
-  onSaved: (store: Store) => void;
+  onSaved: (result: StoreSaveResult) => void;
 };
 
 type Draft = {
@@ -70,7 +79,9 @@ function emptyDraft(region: Region, category: StoreCategory): Draft {
     customCategoryInput: "",
     priceLimit: "",
     itemLimit: "",
-    fee: "",
+    // New stores default to the standard 20% rate (the overwhelming
+    // majority of stores use it); admin can override before saving.
+    fee: "20%",
     timeframe: "",
     notes: "",
     tags: [],
@@ -97,18 +108,37 @@ function fromStore(s: Store): Draft {
   };
 }
 
+/** Union of every region across the logical store's sibling rows, in a
+ *  stable canonical order. Falls back to `fallback` when empty. */
+function unionRegions(related: Store[], fallback: Region[]): Region[] {
+  const set = new Set<Region>();
+  for (const s of related) for (const r of s.regions ?? []) set.add(r as Region);
+  const out = REGIONS.filter((r) => set.has(r));
+  return out.length > 0 ? out : fallback;
+}
+
+/** Build the edit draft, pre-highlighting EVERY region the logical store
+ *  spans (not just the clicked row). All other fields come from the
+ *  clicked row only. */
+function editDraftFrom(store: Store, related?: Store[]): Draft {
+  const sibs = related && related.length > 0 ? related : [store];
+  const base = fromStore(store);
+  return { ...base, regions: unionRegions(sibs, base.regions) };
+}
+
 export default function StoreEditDialog({
   open,
   store,
   defaultRegion = "USA",
   defaultCategory = "Other",
+  relatedStores,
   onClose,
   onSaved,
   availableCategories,
   onCategoryAdded,
 }: Props) {
   const [draft, setDraft] = useState<Draft>(() =>
-    store ? fromStore(store) : emptyDraft(defaultRegion, defaultCategory),
+    store ? editDraftFrom(store, relatedStores) : emptyDraft(defaultRegion, defaultCategory),
   );
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -136,9 +166,9 @@ export default function StoreEditDialog({
   // store (or for a different "+ Add" slot).
   useEffect(() => {
     if (!open) return;
-    setDraft(store ? fromStore(store) : emptyDraft(defaultRegion, defaultCategory));
+    setDraft(store ? editDraftFrom(store, relatedStores) : emptyDraft(defaultRegion, defaultCategory));
     setErr(null);
-  }, [open, store, defaultRegion, defaultCategory]);
+  }, [open, store, defaultRegion, defaultCategory, relatedStores]);
 
   // Esc to close.
   useEffect(() => {
@@ -186,7 +216,13 @@ export default function StoreEditDialog({
       .catch(() => {});
   }
 
+  // In edit mode the clicked row "lives" in this region — it can't be
+  // un-highlighted (that would orphan the very row being edited). Use the
+  // card's delete button to remove a store from its home region entirely.
+  const homeRegion: Region | null = store?.id ? defaultRegion : null;
+
   function toggleRegion(r: Region) {
+    if (homeRegion && r === homeRegion) return; // home region is locked
     if (draft.regions.includes(r)) {
       if (draft.regions.length === 1) return; // keep at least one
       setField("regions", draft.regions.filter((x) => x !== r));
@@ -212,13 +248,11 @@ export default function StoreEditDialog({
     setSaving(true);
     setErr(null);
     try {
-      const isUpdate = Boolean(store?.id);
-      const url = isUpdate ? `/api/admin/stores/${store!.id}` : "/api/admin/stores";
-      const method = isUpdate ? "PATCH" : "POST";
-      const body = {
+      // Fields that describe the store itself. `regions` is handled
+      // separately because it drives multi-row (sibling) sync.
+      const fields = {
         name: draft.name.trim(),
         domain: draft.domain.trim() || null,
-        regions: draft.regions,
         categories: draft.categories,
         priceLimit: draft.priceLimit.trim() || null,
         itemLimit: draft.itemLimit.trim() || null,
@@ -229,19 +263,113 @@ export default function StoreEditDialog({
         prismaticGlow: draft.prismaticGlow,
         logoUrl: draft.logoUrl.trim() || null,
       };
-      const res = await fetch(url, {
-        method,
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => null);
-        throw new Error(j?.error || `Save failed: ${res.status}`);
+
+      // ── CREATE: a single new row in the highlighted region(s). ──
+      if (!store?.id) {
+        const res = await fetch("/api/admin/stores", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ...fields, regions: draft.regions }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => null);
+          throw new Error(j?.error || `Save failed: ${res.status}`);
+        }
+        const j = await res.json();
+        onSaved({ upserts: [j.store as Store], deletedIds: [] });
+        onClose();
+        return;
       }
-      const j = await res.json();
-      onSaved(j.store as Store);
-      onClose();
+
+      // ── EDIT: the logical store may span several regions as sibling
+      //    rows. Field edits apply ONLY to the clicked row; highlighting a
+      //    region adds a copy there, un-highlighting deletes that copy. ──
+      const related =
+        relatedStores && relatedStores.length > 0 ? relatedStores : [store];
+      const target = new Set(draft.regions);
+      const upserts: Store[] = [];
+      const deletedIds: string[] = [];
+      const failures: string[] = [];
+
+      // 1) PATCH the clicked row. It keeps its OWN region(s) (intersected
+      //    with the highlighted set), never the union — otherwise it would
+      //    surface in every region.
+      const ownKept = (store.regions ?? []).filter((r) => target.has(r));
+      const currentRegions = ownKept.length > 0 ? ownKept : [defaultRegion];
+      {
+        const res = await fetch(`/api/admin/stores/${store.id}`, {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ...fields, regions: currentRegions }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => null);
+          throw new Error(j?.error || `Save failed: ${res.status}`);
+        }
+        const j = await res.json();
+        upserts.push(j.store as Store);
+      }
+
+      // Which regions are already covered by OTHER rows (siblings).
+      const siblingByRegion = new Map<Region, Store[]>();
+      for (const s of related) {
+        if (s.id === store.id) continue;
+        for (const r of s.regions ?? []) {
+          const list = siblingByRegion.get(r as Region) ?? [];
+          list.push(s);
+          siblingByRegion.set(r as Region, list);
+        }
+      }
+      const ownSet = new Set(store.regions ?? []);
+
+      // 2) ADD: a highlighted region with no row yet → create a copy.
+      for (const r of REGIONS) {
+        if (!target.has(r) || ownSet.has(r) || siblingByRegion.has(r)) continue;
+        const res = await fetch("/api/admin/stores", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ...fields, regions: [r] }),
+        });
+        const j = await res.json().catch(() => null);
+        if (!res.ok || !j?.store) {
+          failures.push(`add ${r}`);
+          continue;
+        }
+        upserts.push(j.store as Store);
+      }
+
+      // 3) REMOVE: a sibling whose regions are ALL un-highlighted → delete.
+      //    A row that still covers a kept region is left untouched.
+      const handled = new Set<string>();
+      for (const [r, sibs] of siblingByRegion) {
+        if (target.has(r)) continue;
+        for (const s of sibs) {
+          if (handled.has(s.id)) continue;
+          const regs = s.regions ?? [];
+          if (regs.length > 0 && regs.every((x) => !target.has(x as Region))) {
+            handled.add(s.id);
+            const res = await fetch(`/api/admin/stores/${s.id}`, {
+              method: "DELETE",
+              credentials: "same-origin",
+            });
+            if (!res.ok) {
+              failures.push(`remove ${r}`);
+              continue;
+            }
+            deletedIds.push(s.id);
+          }
+        }
+      }
+
+      onSaved({ upserts, deletedIds });
+      if (failures.length > 0) {
+        setErr(`Saved the current region, but some changes failed: ${failures.join(", ")}.`);
+      } else {
+        onClose();
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Save failed.");
     } finally {
@@ -294,26 +422,45 @@ export default function StoreEditDialog({
               className={inputCls}
             />
           </Field>
-          <Field label="Regions — pick all that apply" full>
+          <Field label="Regions — highlight every region this store is in" full>
             <div className="flex flex-wrap gap-2">
               {REGIONS.map((r) => {
                 const on = draft.regions.includes(r);
+                const isHome = homeRegion === r;
                 return (
                   <button
                     key={r}
                     type="button"
                     onClick={() => toggleRegion(r)}
+                    aria-pressed={on}
+                    title={
+                      isHome
+                        ? "Current region — edits below apply here"
+                        : on
+                          ? "This store is in this region"
+                          : "Add this store to this region"
+                    }
                     className={`rounded-full px-4 py-1.5 text-xs font-semibold ring-1 transition ${
+                      isHome ? "cursor-default " : ""
+                    }${
                       on
                         ? "bg-amber-400/20 text-amber-100 ring-amber-300/50"
                         : "bg-white/5 text-white/60 ring-white/10 hover:bg-white/10 hover:text-white"
                     }`}
                   >
                     {r}
+                    {isHome ? " ●" : ""}
                   </button>
                 );
               })}
             </div>
+            {store?.id && (
+              <p className="mt-1.5 text-[10px] leading-relaxed text-white/40">
+                Highlighting a region adds this store there; un-highlighting removes
+                that region&apos;s copy. Field edits below apply only to the current
+                region ({homeRegion}).
+              </p>
+            )}
           </Field>
           <Field label="Categories — pick all that apply" full>
             <div className="flex flex-wrap gap-2">
