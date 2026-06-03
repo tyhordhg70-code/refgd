@@ -193,7 +193,7 @@ export default function ShopProductList({ category: c }: { category: Category })
                 className="group relative flex flex-col overflow-hidden rounded-[1.5rem] border border-gray-200 bg-white shadow-[0_8px_32px_-8px_rgba(0,0,0,0.10),0_2px_8px_-2px_rgba(0,0,0,0.06)] transition-all duration-300 hover:border-violet-200 hover:shadow-[0_16px_48px_-12px_rgba(109,40,217,0.14)]"
               >
                 {p.image && (
-                  <div className="relative w-full overflow-hidden rounded-t-[1.5rem] bg-white aspect-[4/3]">
+                  <div className="relative w-full bg-white aspect-square">
                     <EditableImage
                       id={`shop.prod.${p.id}.image`}
                       defaultSrc={p.image}
