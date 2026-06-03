@@ -15,7 +15,7 @@
  * out of scope for option A).
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { Region, Store, StoreCategory, StoreTag } from "@/lib/types";
 
 const REGIONS: Region[] = ["USA", "CAD", "EU", "UK"];
@@ -119,6 +119,24 @@ export default function StoreEditDialog({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+
+  const insertLink = useCallback(() => {
+    const ta = notesRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const sel = draft.notes.slice(start, end);
+    const label = sel || "link text";
+    const snippet = `[${label}](url)`;
+    const next = draft.notes.slice(0, start) + snippet + draft.notes.slice(end);
+    setDraft((d) => ({ ...d, notes: next }));
+    requestAnimationFrame(() => {
+      ta.focus();
+      const urlStart = start + 1 + label.length + 2;
+      ta.setSelectionRange(urlStart, urlStart + 3);
+    });
+  }, [draft.notes]);
 
   // Reset the draft whenever the dialog is reopened with a different
   // store (or for a different "+ Add" slot).
@@ -321,12 +339,25 @@ export default function StoreEditDialog({
             <input value={draft.timeframe} onChange={(e) => setField("timeframe", e.target.value)} className={inputCls} />
           </Field>
           <Field label="Notes" full>
-            <textarea
-              value={draft.notes}
-              onChange={(e) => setField("notes", e.target.value)}
-              rows={3}
-              className={`${inputCls} resize-none`}
-            />
+            <div className="overflow-hidden rounded-md border border-white/10 bg-white/5 transition-colors focus-within:border-amber-300/60">
+              <div className="flex items-center gap-0.5 border-b border-white/10 bg-white/[0.04] px-2 py-1">
+                <button
+                  type="button"
+                  title="Insert link — [text](url). Select text first to wrap it."
+                  onClick={insertLink}
+                  className="rounded px-2 py-0.5 text-xs text-white/60 hover:bg-white/10 hover:text-white transition-colors"
+                >
+                  🔗 Link
+                </button>
+              </div>
+              <textarea
+                ref={notesRef}
+                value={draft.notes}
+                onChange={(e) => setField("notes", e.target.value)}
+                rows={3}
+                className="w-full bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-white/30 resize-none"
+              />
+            </div>
           </Field>
           <Field label="Tags" full>
             <div className="flex flex-wrap gap-2">
