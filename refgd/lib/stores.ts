@@ -26,13 +26,33 @@ function toIso(v: unknown): string {
   return new Date().toISOString();
 }
 
+/**
+ * Parse a DB column that may be:
+ *   - an old plain string  "USA"         → ["USA"]
+ *   - a JSON string array  '["USA","EU"]' → ["USA","EU"]
+ *   - a JSON scalar        '"USA"'        → ["USA"]
+ */
+function parseJsonArray<T>(raw: unknown, fallback: T): T[] {
+  if (raw == null) return [fallback];
+  const s = String(raw).trim();
+  if (!s) return [fallback];
+  try {
+    const parsed = JSON.parse(s);
+    if (Array.isArray(parsed)) return parsed.length > 0 ? (parsed as T[]) : [fallback];
+    return [parsed as T];
+  } catch {
+    // old plain-text value like "USA" or "Electronics"
+    return [s as unknown as T];
+  }
+}
+
 function rowToStore(row: Record<string, unknown>): Store {
   return {
     id: row.id as string,
     name: row.name as string,
     domain: (row.domain as string | null) ?? null,
-    region: row.region as Region,
-    category: (row.category as Store["category"]) ?? "Other",
+    regions: parseJsonArray<Region>(row.region, "USA"),
+    categories: parseJsonArray<StoreCategory>(row.category, "Other"),
     priceLimit: (row.price_limit as string | null) ?? null,
     itemLimit: (row.item_limit as string | null) ?? null,
     fee: (row.fee as string | null) ?? null,
@@ -85,7 +105,7 @@ export async function listStores(
   let stores = await getAllStores();
 
   if (opts.region) {
-    stores = stores.filter((s) => s.region === opts.region);
+    stores = stores.filter((s) => s.regions.includes(opts.region!));
   }
   if (opts.search) {
     const q = opts.search.toLowerCase();
@@ -93,7 +113,7 @@ export async function listStores(
       (s) =>
         s.name.toLowerCase().includes(q) ||
         (s.notes ?? "").toLowerCase().includes(q) ||
-        s.category.toLowerCase().includes(q)
+        s.categories.some((c) => c.toLowerCase().includes(q))
     );
   }
   return stores;
@@ -130,7 +150,9 @@ export async function upsertStore(s: Store): Promise<Store> {
        sort_order    = EXCLUDED.sort_order,
        updated_at    = EXCLUDED.updated_at`,
     [
-      s.id, s.name, s.domain ?? null, s.region, s.category,
+      s.id, s.name, s.domain ?? null,
+      JSON.stringify(s.regions ?? ["USA"]),
+      JSON.stringify(s.categories ?? ["Other"]),
       s.priceLimit ?? null, s.itemLimit ?? null, s.fee ?? null,
       s.timeframe ?? null, s.notes ?? null,
       JSON.stringify(s.tags ?? []),
@@ -154,7 +176,9 @@ export async function regionCounts(): Promise<Record<Region, number>> {
   const stores = await getAllStores();
   const out: Record<Region, number> = { USA: 0, CAD: 0, EU: 0, UK: 0 };
   for (const s of stores) {
-    if (s.region in out) out[s.region]++;
+    for (const r of s.regions) {
+      if (r in out) out[r as Region]++;
+    }
   }
   return out;
 }
