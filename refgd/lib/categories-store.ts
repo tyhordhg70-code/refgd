@@ -160,7 +160,7 @@ export async function getAllCategoriesMerged(): Promise<string[]> {
     listStores(),
     getCategoryOrder(),
   ]);
-  const used = new Set(stores.map((s) => s.category).filter(Boolean));
+  const used = new Set(stores.flatMap((s) => s.categories).filter(Boolean));
   const out: string[] = [];
   const seen = new Set<string>();
   const push = (c: string) => {
