@@ -46,6 +46,23 @@ function parseJsonArray<T>(raw: unknown, fallback: T): T[] {
   }
 }
 
+/**
+ * Parse the JSON `tags` column defensively. A malformed value must NEVER
+ * throw — a single bad row would otherwise blow up the entire
+ * `rows.map(rowToStore)` in loadAll(), make loadAll() return [], and wipe
+ * the whole store list ("edit vanishes everything"). Mirrors the safety
+ * already applied to region/category via parseJsonArray.
+ */
+function parseTags(raw: unknown): Store["tags"] {
+  if (raw == null) return [];
+  try {
+    const parsed = JSON.parse(String(raw) || "[]");
+    return Array.isArray(parsed) ? (parsed as Store["tags"]) : [];
+  } catch {
+    return [];
+  }
+}
+
 function rowToStore(row: Record<string, unknown>): Store {
   return {
     id: row.id as string,
@@ -58,7 +75,7 @@ function rowToStore(row: Record<string, unknown>): Store {
     fee: (row.fee as string | null) ?? null,
     timeframe: (row.timeframe as string | null) ?? null,
     notes: (row.notes as string | null) ?? null,
-    tags: JSON.parse((row.tags as string) || "[]") as Store["tags"],
+    tags: parseTags(row.tags),
     prismaticGlow: Boolean(row.prismatic_glow),
     logoUrl: (row.logo_url as string | null) ?? null,
     rawText: (row.raw_text as string | null) ?? null,
@@ -70,26 +87,44 @@ function rowToStore(row: Record<string, unknown>): Store {
 
 /** Load all stores from DB into cache (called once on first request). */
 async function loadAll(): Promise<Store[]> {
-  try {
-    await initDb();
-    const { rows } = await getPool().query(
-      "SELECT * FROM stores ORDER BY sort_order ASC, name ASC"
-    );
-    const stores = rows.map(rowToStore);
-    setCachedStores(stores);
-    return stores;
-  } catch (err) {
-    // Always log — this is a critical failure regardless of environment.
-    console.error(
-      "[stores] DB load failed, will retry on next request:",
-      (err as Error).message,
-    );
-    // Do NOT cache the failure. Leaving the cache as null means the next
-    // request will call loadAll() again and retry the DB, so a transient
-    // connection blip doesn't permanently empty the store list for the
-    // lifetime of the server process.
-    return [];
+  // Retry transient failures in-line before giving up. The most common
+  // cause of a [] result on Render is a Neon free-tier cold-start or the
+  // connection pool being momentarily saturated — e.g. when the inline
+  // editor's content flush() and the subsequent router.refresh() both hit
+  // the DB at once. A couple of short retries lets the pool drain / Neon
+  // wake before we surface an empty list (which would blank the page).
+  const MAX_ATTEMPTS = 3;
+  let lastErr: unknown = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await initDb();
+      const { rows } = await getPool().query(
+        "SELECT * FROM stores ORDER BY sort_order ASC, name ASC"
+      );
+      const stores = rows.map(rowToStore);
+      setCachedStores(stores);
+      return stores;
+    } catch (err) {
+      lastErr = err;
+      // Always log — this is a critical failure regardless of environment.
+      console.error(
+        `[stores] DB load failed (attempt ${attempt}/${MAX_ATTEMPTS}):`,
+        (err as Error).message,
+      );
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, 250 * attempt));
+      }
+    }
   }
+  // Do NOT cache the failure. Leaving the cache as null means the next
+  // request will call loadAll() again and retry the DB, so a transient
+  // connection blip doesn't permanently empty the store list for the
+  // lifetime of the server process.
+  console.error(
+    "[stores] DB load failed after retries, returning empty (cache NOT poisoned):",
+    (lastErr as Error)?.message,
+  );
+  return [];
 }
 
 /** Get the full store list, using cache when available. */
