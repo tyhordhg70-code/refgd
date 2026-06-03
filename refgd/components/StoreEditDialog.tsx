@@ -15,7 +15,7 @@
  * out of scope for option A).
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import type { Region, Store, StoreCategory, StoreTag } from "@/lib/types";
 
 const REGIONS: Region[] = ["USA", "CAD", "EU", "UK"];
@@ -47,12 +47,10 @@ type Props = {
 type Draft = {
   name: string;
   domain: string;
-  region: Region;
-  category: StoreCategory;
-  /** Free-form custom-category name when `category === "Other"`. Persists
-   *  as the actual `category` value so the section is named after the
-   *  custom string (e.g. "Toys") rather than literally "Other". */
-  customCategory: string;
+  regions: Region[];
+  categories: StoreCategory[];
+  /** Input field for adding a custom category not in the known list. */
+  customCategoryInput: string;
   priceLimit: string;
   itemLimit: string;
   fee: string;
@@ -67,9 +65,9 @@ function emptyDraft(region: Region, category: StoreCategory): Draft {
   return {
     name: "",
     domain: "",
-    region,
-    category,
-    customCategory: "",
+    regions: [region],
+    categories: [category],
+    customCategoryInput: "",
     priceLimit: "",
     itemLimit: "",
     fee: "",
@@ -81,17 +79,13 @@ function emptyDraft(region: Region, category: StoreCategory): Draft {
   };
 }
 
-function fromStore(s: Store, knownCanned: readonly string[]): Draft {
-  // If the store's category isn't one of the canned 7, drop it under
-  // "Other" + freeform so the dropdown stays the canonical 7 and the
-  // admin keeps editing the custom name in the inline input below.
-  const isCanned = (knownCanned as readonly string[]).includes(s.category);
+function fromStore(s: Store): Draft {
   return {
     name: s.name,
     domain: s.domain ?? "",
-    region: s.region,
-    category: isCanned ? s.category : "Other",
-    customCategory: isCanned ? "" : s.category,
+    regions: s.regions?.length > 0 ? s.regions : ["USA"],
+    categories: s.categories?.length > 0 ? s.categories : ["Other"],
+    customCategoryInput: "",
     priceLimit: s.priceLimit ?? "",
     itemLimit: s.itemLimit ?? "",
     fee: s.fee ?? "",
@@ -114,7 +108,7 @@ export default function StoreEditDialog({
   onCategoryAdded,
 }: Props) {
   const [draft, setDraft] = useState<Draft>(() =>
-    store ? fromStore(store, CATEGORIES) : emptyDraft(defaultRegion, defaultCategory),
+    store ? fromStore(store) : emptyDraft(defaultRegion, defaultCategory),
   );
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -142,7 +136,7 @@ export default function StoreEditDialog({
   // store (or for a different "+ Add" slot).
   useEffect(() => {
     if (!open) return;
-    setDraft(store ? fromStore(store, CATEGORIES) : emptyDraft(defaultRegion, defaultCategory));
+    setDraft(store ? fromStore(store) : emptyDraft(defaultRegion, defaultCategory));
     setErr(null);
   }, [open, store, defaultRegion, defaultCategory]);
 
@@ -161,32 +155,53 @@ export default function StoreEditDialog({
   const setField = <K extends keyof Draft>(k: K, v: Draft[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
 
+  const allKnownCats = useMemo(() => {
+    const extras = (availableCategories ?? []).filter(
+      (c) => !(CATEGORIES as readonly string[]).includes(c),
+    );
+    return [...CATEGORIES, ...extras];
+  }, [availableCategories]);
+
+  function addCustomCategory() {
+    const name = draft.customCategoryInput.trim();
+    if (!name) return;
+    setDraft((d) => ({
+      ...d,
+      categories: d.categories.includes(name) ? d.categories : [...d.categories, name],
+      customCategoryInput: "",
+    }));
+    fetch("/api/admin/categories", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name }),
+    })
+      .then(() => onCategoryAdded?.())
+      .catch(() => {});
+  }
+
+  function toggleRegion(r: Region) {
+    if (draft.regions.includes(r)) {
+      if (draft.regions.length === 1) return; // keep at least one
+      setField("regions", draft.regions.filter((x) => x !== r));
+    } else {
+      setField("regions", [...draft.regions, r]);
+    }
+  }
+
+  function toggleCategory(c: string) {
+    if (draft.categories.includes(c)) {
+      if (draft.categories.length === 1) return; // keep at least one
+      setField("categories", draft.categories.filter((x) => x !== c));
+    } else {
+      setField("categories", [...draft.categories, c]);
+    }
+  }
+
   async function save() {
     if (!draft.name.trim()) {
       setErr("Name is required.");
       return;
-    }
-    // If "Other" was chosen but a custom name was typed, persist that
-    // custom string as the category — the section header will then read
-    // the custom name instead of the literal "Other".
-    let resolvedCategory: string = draft.category;
-    if (draft.category === "Other" && draft.customCategory.trim()) {
-      resolvedCategory = draft.customCategory.trim();
-      // Pre-register the custom category so it shows up in the filter
-      // dropdown immediately. This is best-effort — even if the POST
-      // fails, the store save below would still persist the category
-      // string on the row, so the section will render anyway.
-      try {
-        await fetch("/api/admin/categories", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ name: resolvedCategory }),
-        });
-        onCategoryAdded?.();
-      } catch {
-        /* ignore */
-      }
     }
     setSaving(true);
     setErr(null);
@@ -197,8 +212,8 @@ export default function StoreEditDialog({
       const body = {
         name: draft.name.trim(),
         domain: draft.domain.trim() || null,
-        region: draft.region,
-        category: resolvedCategory,
+        regions: draft.regions,
+        categories: draft.categories,
         priceLimit: draft.priceLimit.trim() || null,
         itemLimit: draft.itemLimit.trim() || null,
         fee: draft.fee.trim() || null,
@@ -273,51 +288,85 @@ export default function StoreEditDialog({
               className={inputCls}
             />
           </Field>
-          <Field label="Region">
-            <select
-              value={draft.region}
-              onChange={(e) => setField("region", e.target.value as Region)}
-              className={inputCls}
-            >
-              {REGIONS.map((r) => (
-                <option key={r} value={r} className="bg-ink-900 text-white">{r}</option>
-              ))}
-            </select>
+          <Field label="Regions — pick all that apply" full>
+            <div className="flex flex-wrap gap-2">
+              {REGIONS.map((r) => {
+                const on = draft.regions.includes(r);
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => toggleRegion(r)}
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ring-1 transition ${
+                      on
+                        ? "bg-amber-400/20 text-amber-100 ring-amber-300/50"
+                        : "bg-white/5 text-white/60 ring-white/10 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    {r}
+                  </button>
+                );
+              })}
+            </div>
           </Field>
-          <Field label="Category">
-            <select
-              value={draft.category}
-              onChange={(e) => setField("category", e.target.value as StoreCategory)}
-              className={inputCls}
-              data-testid="store-category-select"
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c} className="bg-ink-900 text-white">{c}</option>
-              ))}
-              {/* Existing admin-extras (e.g. "Toys") not in the canned list */}
-              {(availableCategories ?? [])
-                .filter((c: string) => !(CATEGORIES as readonly string[]).includes(c))
-                .map((c: string) => (
-                  <option key={c} value={c as StoreCategory} className="bg-ink-900 text-white">{c}</option>
+          <Field label="Categories — pick all that apply" full>
+            <div className="flex flex-wrap gap-2">
+              {allKnownCats.map((c) => {
+                const on = draft.categories.includes(c);
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => toggleCategory(c)}
+                    data-testid={c === "Other" ? "store-category-select" : undefined}
+                    className={`rounded-full px-3 py-1 text-xs ring-1 transition ${
+                      on
+                        ? "bg-amber-400/20 text-amber-100 ring-amber-300/50"
+                        : "bg-white/5 text-white/70 ring-white/10 hover:bg-white/10"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                );
+              })}
+              {draft.categories
+                .filter((c) => !(allKnownCats as readonly string[]).includes(c))
+                .map((c) => (
+                  <span
+                    key={c}
+                    className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs ring-1 bg-violet-500/20 text-violet-200 ring-violet-400/40"
+                  >
+                    {c}
+                    <button
+                      type="button"
+                      onClick={() => toggleCategory(c)}
+                      className="opacity-60 hover:opacity-100"
+                    >
+                      ✕
+                    </button>
+                  </span>
                 ))}
-            </select>
-          </Field>
-          {draft.category === "Other" && (
-            <Field label="Custom category name" full>
+            </div>
+            <div className="mt-2 flex gap-2">
               <input
-                value={draft.customCategory}
-                onChange={(e) => setField("customCategory", e.target.value)}
-                placeholder="e.g. Toys, Auto, Cosmetics — leave blank to keep as 'Other'"
-                className={inputCls}
+                value={draft.customCategoryInput}
+                onChange={(e) => setField("customCategoryInput", e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); addCustomCategory(); }
+                }}
+                placeholder="Add custom category…"
                 data-testid="store-custom-category-input"
+                className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white outline-none placeholder:text-white/30 focus:border-amber-300/60"
               />
-              <p className="mt-1 text-[10px] text-white/40">
-                Type a custom category and we&apos;ll create that section under
-                the chosen region. Leave empty to file under the generic
-                &quot;Other&quot; bucket.
-              </p>
-            </Field>
-          )}
+              <button
+                type="button"
+                onClick={addCustomCategory}
+                className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70 hover:text-white transition-colors"
+              >
+                Add
+              </button>
+            </div>
+          </Field>
           <Field label="Logo URL">
             <input
               value={draft.logoUrl}
