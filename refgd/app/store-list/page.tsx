@@ -408,7 +408,7 @@ export default async function StoreListPage() {
             <LedTicker
               accent="#f5b945"
               items={[
-                "+480 stores active",
+                "+560 stores active",
                 "USA · Canada · EU · UK",
                 "Stealth Identities Available",
                 "Cashback up to 100%",
@@ -447,7 +447,7 @@ export default async function StoreListPage() {
                 >
                   <ChapterPill
                     editId="storelist.hero.eyebrow"
-                    defaultValue="chapter 05 / curated · 480+ stores"
+                    defaultValue="chapter 05 / curated · 560+ stores"
                     accent="amber"
                     size="md"
                   />
