@@ -86,12 +86,31 @@ export default function KineticText({
         defaultValue={text}
         as={Tag}
         className={className}
+        multiline
       />
     );
   }
 
-  const words = value.split(" ");
+  // Split the value into lines (supports \n inserted by the admin in edit mode),
+  // then pre-compute each word's animation delay across all lines so stagger
+  // flows continuously from line to line.
+  const lines = value.split("\n");
   const Tg = Tag as any;
+
+  let wordCounter = 0;
+  const lineData = lines.map((line) => {
+    const words = line.split(" ");
+    return words.map((w) => ({ w, d: delay + wordCounter++ * stagger }));
+  });
+
+  const WORD_SPAN: CSSProperties = {
+    paddingBottom: "0.18em",
+    paddingTop: "0.06em",
+    paddingLeft: "0.05em",
+    paddingRight: "0.05em",
+    marginLeft: "-0.05em",
+    marginRight: "-0.05em",
+  };
 
   return (
     <Tg
@@ -101,32 +120,27 @@ export default function KineticText({
       aria-label={value}
       suppressHydrationWarning
     >
-      {words.map((w: string, i: number) => {
-        const d = delay + i * stagger;
-        return (
-          <span
-            key={i}
-            className="kt-mask inline-block overflow-hidden align-bottom"
-            style={{
-              paddingBottom: "0.18em",
-              paddingTop: "0.06em",
-              paddingLeft: "0.05em",
-              paddingRight: "0.05em",
-              marginLeft: "-0.05em",
-              marginRight: "-0.05em",
-            }}
-            aria-hidden="true"
-          >
+      {lineData.map((words, li) => (
+        <span key={li}>
+          {li > 0 && <br />}
+          {words.map(({ w, d }, wi) => (
             <span
-              className={`kt-word ${hidden ? "kt-hidden" : ""} inline-block`}
-              style={!hidden && d > 0 ? { transitionDelay: `${d}s` } : undefined}
+              key={wi}
+              className="kt-mask inline-block overflow-hidden align-bottom"
+              style={WORD_SPAN}
+              aria-hidden="true"
             >
-              {w}
-              {i < words.length - 1 ? "\u00A0" : ""}
+              <span
+                className={`kt-word ${hidden ? "kt-hidden" : ""} inline-block`}
+                style={!hidden && d > 0 ? { transitionDelay: `${d}s` } : undefined}
+              >
+                {w}
+                {wi < words.length - 1 ? "\u00A0" : ""}
+              </span>
             </span>
-          </span>
-        );
-      })}
+          ))}
+        </span>
+      ))}
     </Tg>
   );
 }
