@@ -81,9 +81,9 @@ export async function POST(req: Request) {
   // inside a (region, category) bucket — accepting mixed payloads would
   // let an admin (or a forged client) silently move stores across
   // categories, which would corrupt the canonical ordering.
-  const bucket = `${stores[0].region}::${stores[0].category}`;
+  const bucket = `${stores[0].regions[0]}::${stores[0].categories[0]}`;
   for (const st of stores) {
-    if (`${st.region}::${st.category}` !== bucket) {
+    if (`${st.regions[0]}::${st.categories[0]}` !== bucket) {
       return NextResponse.json(
         {
           error: "All stores in an order batch must share region and category",
