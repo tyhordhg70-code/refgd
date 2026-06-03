@@ -343,7 +343,11 @@ export default function StoreFilters({
   }
 
   return (
-    <div className="w-full">
+    // data-editable-skip: this whole store browser is data-driven and
+    // re-renders on every save/reorder. AutoEditWrapper must NOT decorate it
+    // (contentEditable + textContent mutation here desyncs React's DOM and
+    // blanks the card grid on edit). Stores are edited via StoreEditDialog.
+    <div className="w-full" data-editable-skip>
       {/* Region selector — radio-style, only one active at a time */}
       <div
         role="radiogroup"
