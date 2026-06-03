@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Store, Region, StoreCategory } from "@/lib/types";
 import RegionFlag from "./RegionFlag";
 import StoreCard from "./StoreCard";
@@ -56,6 +57,7 @@ export default function StoreFilters({
   initialExtras = [],
   initialCanned = [],
 }: Props) {
+  const router = useRouter();
   const [region, setRegion] = useState<Region>("USA");
   const [search, setSearch] = useState("");
 
@@ -233,6 +235,7 @@ export default function StoreFilters({
       }
       return [...cur, saved];
     });
+    router.refresh();
   }
 
   // ───── drag reorder within a category ─────────────────────────────
