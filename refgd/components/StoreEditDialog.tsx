@@ -178,17 +178,17 @@ export default function StoreEditDialog({
       const method = isUpdate ? "PATCH" : "POST";
       const body = {
         name: draft.name.trim(),
-        domain: draft.domain.trim() || undefined,
+        domain: draft.domain.trim() || null,
         region: draft.region,
         category: resolvedCategory,
-        priceLimit: draft.priceLimit.trim() || undefined,
-        itemLimit: draft.itemLimit.trim() || undefined,
-        fee: draft.fee.trim() || undefined,
-        timeframe: draft.timeframe.trim() || undefined,
-        notes: draft.notes.trim() || undefined,
+        priceLimit: draft.priceLimit.trim() || null,
+        itemLimit: draft.itemLimit.trim() || null,
+        fee: draft.fee.trim() || null,
+        timeframe: draft.timeframe.trim() || null,
+        notes: draft.notes.trim() || null,
         tags: draft.tags,
         prismaticGlow: draft.prismaticGlow,
-        logoUrl: draft.logoUrl.trim() || undefined,
+        logoUrl: draft.logoUrl.trim() || null,
       };
       const res = await fetch(url, {
         method,
