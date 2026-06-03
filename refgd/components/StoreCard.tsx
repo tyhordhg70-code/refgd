@@ -76,6 +76,7 @@ export default function StoreCard({
       data-cursor="hover"
       data-cursor-label={store.name}
       data-testid={`store-card-${store.id}`}
+      data-editable-skip
       whileHover={{ y: -4 }}
       className={`group relative ${store.prismaticGlow ? "p-[1.5px]" : "p-px"} rounded-2xl ${
         store.prismaticGlow ? "prismatic-border" : "bg-white/10"
