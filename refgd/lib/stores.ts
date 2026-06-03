@@ -79,13 +79,15 @@ async function loadAll(): Promise<Store[]> {
     setCachedStores(stores);
     return stores;
   } catch (err) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn(
-        "[stores] DB unavailable, rendering empty store list fallback:",
-        (err as Error).message,
-      );
-    }
-    setCachedStores([]);
+    // Always log — this is a critical failure regardless of environment.
+    console.error(
+      "[stores] DB load failed, will retry on next request:",
+      (err as Error).message,
+    );
+    // Do NOT cache the failure. Leaving the cache as null means the next
+    // request will call loadAll() again and retry the DB, so a transient
+    // connection blip doesn't permanently empty the store list for the
+    // lifetime of the server process.
     return [];
   }
 }
