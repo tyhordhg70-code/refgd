@@ -49,6 +49,7 @@ import Cosmic3DShapes from "@/components/Cosmic3DShapes";
 import LoadingScreen from "@/components/LoadingScreen";
 import SmoothScroll from "@/components/SmoothScroll";
 import EditProvider from "@/lib/edit-context";
+import ReactDomGuard from "@/components/ReactDomGuard";
 import EditorToolbar from "@/components/EditorToolbar";
 import AutoEditWrapper from "@/components/AutoEditWrapper";
 import EditorErrorBoundary from "@/components/EditorErrorBoundary";
@@ -140,6 +141,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           above — the page can't be scrolled until galaxy +
           critical assets are warm. */}
       <body className="min-h-screen bg-ink-950 text-white antialiased">
+        {/* Installs the defensive removeChild/insertBefore shim BEFORE any
+            editor decoration runs, so AutoEditWrapper's manual DOM mutation
+            can never crash React's commit and blank the page. */}
+        <ReactDomGuard />
         {/* Lenis-powered smooth scroll for the entire site (no-op for
             users with prefers-reduced-motion). */}
         <SmoothScroll />
