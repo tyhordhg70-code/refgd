@@ -238,7 +238,10 @@ export default function StoreFilters({
       }
       return [...cur, saved];
     });
-    router.refresh();
+    // Intentionally no router.refresh() — the local setStores above already
+    // reflects the change. router.refresh() would overwrite local state with
+    // whatever the server cache returns, which can be an empty list if the
+    // DB had a transient hiccup right after invalidation.
   }
 
   // ───── drag reorder within a category ─────────────────────────────
