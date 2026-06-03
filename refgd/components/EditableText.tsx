@@ -110,13 +110,14 @@ function EditableTextInner({
   const baseClass = editing
     ? `relative cursor-text caret-amber-300 outline-none rounded-sm ring-1 ring-amber-300/0 hover:ring-amber-300/60 focus:ring-amber-300/90 transition-shadow min-w-[2ch] empty:before:content-[attr(data-placeholder)] empty:before:opacity-30 empty:before:pointer-events-none ${className}`
     : className;
-  // Multiline text MUST keep its `\n` characters visible in BOTH edit
-  // and view modes — otherwise an admin who adds a line break in
-  // preview will see the text revert to a single line after saving
-  // (because the default `white-space: normal` collapses `\n` to a
-  // single space on the next render). `whitespace-pre-line` preserves
-  // newlines while still allowing soft-wrapping at word boundaries.
-  const wrapClass = multiline ? `${baseClass} whitespace-pre-line` : baseClass;
+  // Multiline text MUST keep its `\n` characters and consecutive spaces
+  // visible in BOTH edit and view modes — otherwise an admin who adds a
+  // line break or extra spaces will see the text revert after saving.
+  // `whitespace-pre-line` preserves newlines but still collapses
+  // consecutive spaces (e.g. " " → single space), so spaces appear to
+  // revert on save. `whitespace-pre-wrap` preserves BOTH newlines AND
+  // whitespace sequences while still soft-wrapping at word boundaries.
+  const wrapClass = multiline ? `${baseClass} whitespace-pre-wrap` : baseClass;
 
   const onBlur = (e: React.FocusEvent<HTMLElement>) => {
     let next: string;
