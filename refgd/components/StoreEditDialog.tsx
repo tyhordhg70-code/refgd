@@ -150,17 +150,23 @@ export default function StoreEditDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open) return null;
-
-  const setField = <K extends keyof Draft>(k: K, v: Draft[K]) =>
-    setDraft((d) => ({ ...d, [k]: v }));
-
+  // NOTE: this useMemo MUST stay above the `if (!open) return null` early
+  // return. Calling a hook after a conditional return changes the hook count
+  // between the closed (open=false) and open (open=true) renders, which makes
+  // React throw "Rendered more hooks than during the previous render". The
+  // EditorIsland error boundary then swallows the crash and the whole store
+  // card grid blanks — the exact bug reported on /store-list.
   const allKnownCats = useMemo(() => {
     const extras = (availableCategories ?? []).filter(
       (c) => !(CATEGORIES as readonly string[]).includes(c),
     );
     return [...CATEGORIES, ...extras];
   }, [availableCategories]);
+
+  if (!open) return null;
+
+  const setField = <K extends keyof Draft>(k: K, v: Draft[K]) =>
+    setDraft((d) => ({ ...d, [k]: v }));
 
   function addCustomCategory() {
     const name = draft.customCategoryInput.trim();
