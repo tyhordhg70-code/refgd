@@ -15,8 +15,8 @@ export interface Store {
   id: string;
   name: string;
   domain: string | null; // e.g. "anker.com"
-  region: Region;
-  category: StoreCategory;
+  regions: Region[];
+  categories: StoreCategory[];
   priceLimit: string | null; // "$2,000" / "NO LIMIT"
   itemLimit: string | null;  // "5 items" / "1 item"
   fee: string | null;        // "20%"
