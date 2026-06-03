@@ -5,6 +5,30 @@ import type { Store } from "@/lib/types";
 import { logoChainForStore } from "@/lib/logo";
 import { useEditContext } from "@/lib/edit-context";
 
+function parseNotes(text: string) {
+  const re = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const parts: (string | JSX.Element)[] = [];
+  let last = 0, ki = 0, m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    parts.push(
+      <a
+        key={ki++}
+        href={m[2]}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline underline-offset-2 text-amber-300 hover:text-amber-200 break-all"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {m[1]}
+      </a>,
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
 const TAG_LABEL: Record<string, { label: string; cls: string }> = {
   fire:    { label: "🔥 hot",       cls: "bg-orange-500/15 text-orange-300 ring-orange-400/30" },
   diamond: { label: "💎 premium",   cls: "bg-sky-400/15 text-sky-200 ring-sky-300/30" },
@@ -199,7 +223,7 @@ export default function StoreCard({
 
         {store.notes && (
           <p className="mt-3 whitespace-pre-wrap break-words text-sm font-bold leading-relaxed text-white/85">
-            {store.notes}
+            {parseNotes(store.notes)}
           </p>
         )}
 
