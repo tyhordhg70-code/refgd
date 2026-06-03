@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Store, Region, StoreCategory, StoreTag } from "@/lib/types";
 
@@ -149,6 +149,25 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
   const [classifyBusy, setClassifyBusy] = useState(false);
   const [classifyErr, setClassifyErr] = useState<string | null>(null);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+
+  const insertLink = useCallback(() => {
+    const ta = notesRef.current;
+    if (!ta || !editing) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const notes = editing.notes ?? "";
+    const sel = notes.slice(start, end);
+    const label = sel || "link text";
+    const snippet = `[${label}](url)`;
+    const next = notes.slice(0, start) + snippet + notes.slice(end);
+    setEditing({ ...editing, notes: next });
+    requestAnimationFrame(() => {
+      ta.focus();
+      const urlStart = start + 1 + label.length + 2;
+      ta.setSelectionRange(urlStart, urlStart + 3);
+    });
+  }, [editing]);
   // Re-parse whenever the textarea / region / known-categories change.
   useEffect(() => {
     if (!bulkOpen) return;
@@ -600,12 +619,25 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
               <Field label="Timeframe" value={editing.timeframe ?? ""} onChange={(v) => setEditing({ ...editing, timeframe: v })} placeholder="1-2 weeks" />
               <div className="sm:col-span-2">
                 <label className="text-xs font-semibold uppercase tracking-wider text-white/55">Notes</label>
-                <textarea
-                  value={editing.notes ?? ""}
-                  onChange={(e) => setEditing({ ...editing, notes: e.target.value })}
-                  rows={2}
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-                />
+                <div className="mt-1 overflow-hidden rounded-lg border border-white/10 bg-white/5 transition-colors focus-within:border-amber-300/60">
+                  <div className="flex items-center gap-0.5 border-b border-white/10 bg-white/[0.04] px-2 py-1">
+                    <button
+                      type="button"
+                      title="Insert link — [text](url). Select text first to wrap it."
+                      onClick={insertLink}
+                      className="rounded px-2 py-0.5 text-xs text-white/60 hover:bg-white/10 hover:text-white transition-colors"
+                    >
+                      🔗 Link
+                    </button>
+                  </div>
+                  <textarea
+                    ref={notesRef}
+                    value={editing.notes ?? ""}
+                    onChange={(e) => setEditing({ ...editing, notes: e.target.value })}
+                    rows={2}
+                    className="w-full bg-transparent px-3 py-2 text-sm text-white outline-none resize-none"
+                  />
+                </div>
               </div>
               <div className="sm:col-span-2">
                 <label className="text-xs font-semibold uppercase tracking-wider text-white/55">Logo URL (override)</label>
