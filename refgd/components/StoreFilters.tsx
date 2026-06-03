@@ -66,7 +66,11 @@ export default function StoreFilters({
   // mutate this in place so the admin sees changes immediately without
   // a full page reload. On non-admin sessions this just equals props.
   const [stores, setStores] = useState<Store[]>(initialStores);
-  useEffect(() => { setStores(initialStores); }, [initialStores]);
+  useEffect(() => {
+    // Only overwrite local state when the server actually returns stores.
+    // An empty array means a transient DB error — keep whatever we have.
+    if (initialStores.length > 0) setStores(initialStores);
+  }, [initialStores]);
 
   // Category-filter state (multi-select). Empty Set = "all categories".
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
