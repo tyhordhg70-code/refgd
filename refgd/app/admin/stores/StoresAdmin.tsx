@@ -97,8 +97,8 @@ function blankStore(): Partial<Store> {
     id: undefined,
     name: "",
     domain: "",
-    region: "USA",
-    category: "Other",
+    regions: ["USA"],
+    categories: ["Other"],
     priceLimit: "",
     itemLimit: "",
     fee: "",
@@ -126,7 +126,7 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
      bulk-import auto-detect's allowed-set. */
   const allCategories = useMemo(() => {
     const set = new Set<string>(CATEGORIES);
-    for (const s of stores) if (s.category) set.add(s.category);
+    for (const s of stores) for (const c of s.categories ?? []) if (c) set.add(c);
     return Array.from(set);
   }, [stores]);
 
@@ -209,13 +209,13 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
     return stores
-      .filter((s) => (region === "ALL" ? true : s.region === region))
+      .filter((s) => (region === "ALL" ? true : s.regions.includes(region)))
       .filter((s) =>
         !q
           ? true
           : s.name.toLowerCase().includes(q) ||
             (s.domain ?? "").toLowerCase().includes(q) ||
-            s.category.toLowerCase().includes(q),
+            s.categories.some((c) => c.toLowerCase().includes(q)),
       )
       .sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));
   }, [stores, filter, region]);
@@ -538,8 +538,8 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
                 className="border-t border-white/5 transition hover:bg-white/5"
               >
                 <td className="px-3 py-2 font-medium text-white">{s.name}</td>
-                <td className="px-3 py-2 text-white/65">{s.region}</td>
-                <td className="px-3 py-2 text-white/65">{s.category}</td>
+                <td className="px-3 py-2 text-white/65">{(s.regions ?? []).join(', ')}</td>
+                <td className="px-3 py-2 text-white/65">{(s.categories ?? []).join(', ')}</td>
                 <td className="px-3 py-2 text-white/65">{s.priceLimit ?? "—"}</td>
                 <td className="px-3 py-2 text-white/65">{s.itemLimit ?? "—"}</td>
                 <td className="px-3 py-2 text-white/65">{s.timeframe ?? "—"}</td>
@@ -593,25 +593,57 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <Field label="Name *" value={editing.name ?? ""} onChange={(v) => setEditing({ ...editing, name: v })} />
               <Field label="Domain (logo source)" value={editing.domain ?? ""} onChange={(v) => setEditing({ ...editing, domain: v })} />
-              <Select label="Region" value={editing.region ?? "USA"} options={REGIONS} onChange={(v) => setEditing({ ...editing, region: v as Region })} />
-              {/* v6.13.36 — Free-text category with a datalist of every
-                  known + admin-added category. Admins can type "Beauty"
-                  and the server will persist it as the actual category
-                  (CATS validation was loosened). */}
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-white/55">Category</label>
-                <input
-                  list="admin-category-list"
-                  value={editing.category ?? "Other"}
-                  onChange={(e) => setEditing({ ...editing, category: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-                  placeholder="Type or pick — e.g. Beauty, Toys, Auto"
-                />
-                <datalist id="admin-category-list">
-                  {Array.from(new Set([...CATEGORIES, ...allCategories])).map((c) => (
-                    <option key={c} value={c} />
-                  ))}
-                </datalist>
+              <div className="sm:col-span-2">
+                <label className="text-xs font-semibold uppercase tracking-wider text-white/55">Regions — pick all that apply</label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {REGIONS.map((r) => {
+                    const on = (editing.regions ?? ["USA"]).includes(r);
+                    return (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => {
+                          const cur = editing.regions ?? ["USA"];
+                          const next = on ? (cur.length > 1 ? cur.filter((x) => x !== r) : cur) : [...cur, r];
+                          setEditing({ ...editing, regions: next });
+                        }}
+                        className={`rounded-full px-4 py-1.5 text-xs font-semibold ring-1 transition ${on ? "bg-amber-400/20 text-amber-100 ring-amber-300/50" : "bg-white/5 text-white/60 ring-white/10 hover:bg-white/10 hover:text-white"}`}
+                      >
+                        {r}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs font-semibold uppercase tracking-wider text-white/55">Categories — pick all that apply</label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {Array.from(new Set([...CATEGORIES, ...allCategories])).map((c) => {
+                    const on = (editing.categories ?? ["Other"]).includes(c);
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => {
+                          const cur = editing.categories ?? ["Other"];
+                          const next = on ? (cur.length > 1 ? cur.filter((x) => x !== c) : cur) : [...cur, c];
+                          setEditing({ ...editing, categories: next });
+                        }}
+                        className={`rounded-full px-3 py-1 text-xs ring-1 transition ${on ? "bg-amber-400/20 text-amber-100 ring-amber-300/50" : "bg-white/5 text-white/70 ring-white/10 hover:bg-white/10"}`}
+                      >
+                        {c}
+                      </button>
+                    );
+                  })}
+                  {(editing.categories ?? [])
+                    .filter((c) => !Array.from(new Set([...CATEGORIES, ...allCategories])).includes(c))
+                    .map((c) => (
+                      <span key={c} className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs ring-1 bg-violet-500/20 text-violet-200 ring-violet-400/40">
+                        {c}
+                        <button type="button" onClick={() => setEditing({ ...editing, categories: (editing.categories ?? []).filter((x) => x !== c) })} className="opacity-60 hover:opacity-100">✕</button>
+                      </span>
+                    ))}
+                </div>
               </div>
               <Field label="Price limit" value={editing.priceLimit ?? ""} onChange={(v) => setEditing({ ...editing, priceLimit: v })} placeholder="$2,000" />
               <Field label="Item limit" value={editing.itemLimit ?? ""} onChange={(v) => setEditing({ ...editing, itemLimit: v })} placeholder="2 items" />
