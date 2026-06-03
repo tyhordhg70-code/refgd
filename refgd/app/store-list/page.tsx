@@ -622,7 +622,7 @@ export default async function StoreListPage() {
         <ReorderableSection sectionId="filter-grid">
           {/* Filters + grid — final chapter, parallax. */}
           <ParallaxChapter intensity={0.45} className="pt-6 pb-20">
-            <section className="relative" id="region">
+            <section className="relative scroll-mt-20" id="region">
               <div className="container-wide relative">
                 <div
                   className="mb-10 rounded-[2rem] border border-white/10 px-6 py-8 sm:px-10 sm:py-10"
