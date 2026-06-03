@@ -114,7 +114,7 @@ export default function StoreFilters({
 
   const counts = useMemo(() => {
     const c: Record<Region, number> = { USA: 0, CAD: 0, EU: 0, UK: 0 };
-    for (const s of stores) for (const r of s.regions) if (r in c) c[r as Region]++;
+    for (const s of stores) for (const r of (s.regions ?? [])) if (r in c) c[r as Region]++;
     return c;
   }, [stores]);
 
@@ -122,13 +122,13 @@ export default function StoreFilters({
     const q = search.trim().toLowerCase();
     const catFilterActive = selectedCategories.size > 0;
     return stores.filter((s) => {
-      if (!s.regions.includes(region)) return false;
-      if (catFilterActive && !s.categories.some((c) => selectedCategories.has(c))) return false;
+      if (!(s.regions ?? []).includes(region)) return false;
+      if (catFilterActive && !(s.categories ?? []).some((c) => selectedCategories.has(c))) return false;
       if (!q) return true;
       return (
         s.name.toLowerCase().includes(q) ||
         (s.notes ?? "").toLowerCase().includes(q) ||
-        s.categories.some((c) => c.toLowerCase().includes(q)) ||
+        (s.categories ?? []).some((c) => c.toLowerCase().includes(q)) ||
         (s.domain ?? "").toLowerCase().includes(q)
       );
     });
@@ -150,7 +150,7 @@ export default function StoreFilters({
       isAdmin && editMode && !search.trim() && !catFilterActive;
     const map = new Map<string, Store[]>();
     for (const s of filtered) {
-      for (const cat of s.categories) {
+      for (const cat of (s.categories ?? [])) {
         if (!map.has(cat)) map.set(cat, []);
         map.get(cat)!.push(s);
       }
@@ -212,7 +212,7 @@ export default function StoreFilters({
     setDialog({ open: true, store: null, region, category });
   }
   function openEdit(s: Store) {
-    setDialog({ open: true, store: s, region: s.regions[0] ?? "USA", category: s.categories[0] ?? "Other" });
+    setDialog({ open: true, store: s, region: (s.regions ?? [])[0] ?? "USA", category: (s.categories ?? [])[0] ?? "Other" });
   }
 
   async function handleDelete(s: Store) {

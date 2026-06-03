@@ -189,16 +189,16 @@ export default function StoreCard({
               <h3 className="heading-display truncate text-lg font-semibold tracking-tight text-white">
                 {store.name}
               </h3>
-              {store.regions.map((r) => (
+              {(store.regions ?? []).map((r) => (
                 <span key={r} className="rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white/60 ring-1 ring-white/10">
                   {r}
                 </span>
               ))}
             </div>
-            <p className="text-xs text-white/65 font-medium">{store.categories.join(' · ')}</p>
-            {store.tags.length > 0 && (
+            <p className="text-xs text-white/65 font-medium">{(store.categories ?? []).join(' · ')}</p>
+            {(store.tags ?? []).length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {store.tags.map((t) => {
+                {(store.tags ?? []).map((t) => {
                   const meta = TAG_LABEL[t];
                   if (!meta) return null;
                   return (
