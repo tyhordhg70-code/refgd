@@ -162,13 +162,17 @@ export default function StoreEditDialog({
     });
   }, [draft.notes]);
 
-  // Reset the draft whenever the dialog is reopened with a different
-  // store (or for a different "+ Add" slot).
+  // Reset only when the dialog (re)opens or targets a different store. We
+  // intentionally do NOT depend on `relatedStores`: after a partial save the
+  // parent's store list (and thus this prop) changes, and re-running the reset
+  // here would clobber the user's in-progress field edits and revert them to
+  // the stale snapshot, breaking retry. `relatedStores` is read fresh on open.
   useEffect(() => {
     if (!open) return;
     setDraft(store ? editDraftFrom(store, relatedStores) : emptyDraft(defaultRegion, defaultCategory));
     setErr(null);
-  }, [open, store, defaultRegion, defaultCategory, relatedStores]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, store, defaultRegion, defaultCategory]);
 
   // Esc to close.
   useEffect(() => {

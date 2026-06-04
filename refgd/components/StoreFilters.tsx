@@ -212,7 +212,11 @@ export default function StoreFilters({
     setDialog({ open: true, store: null, region, category });
   }
   function openEdit(s: Store) {
-    setDialog({ open: true, store: s, region: (s.regions ?? [])[0] ?? "USA", category: (s.categories ?? [])[0] ?? "Other" });
+    // The card the user clicked is always within the currently-selected
+    // region tab (the grid is filtered by `region`), so that tab is the
+    // store's "home" region for this edit — the one whose row gets the
+    // field edits and stays locked-highlighted.
+    setDialog({ open: true, store: s, region, category: (s.categories ?? [])[0] ?? "Other" });
   }
 
   async function handleDelete(s: Store) {
