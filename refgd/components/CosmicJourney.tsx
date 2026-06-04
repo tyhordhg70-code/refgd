@@ -69,18 +69,31 @@ type SplineApp = {
 // ─────────────────────────────────────────────────────────────────────
 const SCENE_URL = "https://prod.spline.design/mzZcfxXnOQsM5LXz/scene.splinecode";
 
-// ── FORWARD-AXIS camera dolly (validated in the live Spline tester) ────
+// ── CINEMATIC ORBIT → DIVE camera rig (validated in the live Spline tester) ──
 // The scene has zoom limits that clamp app.setZoom(), so the ONLY thing that
 // actually flies INTO the portal is physically moving the camera. The tester
-// proved the right motion is a straight dolly along each camera's ORIGINAL
-// view axis (its local -Z at load), NOT a move toward the portal centroid —
-// aiming at the centroid tilted the view DOWN ("black under the portal");
-// dollying straight forward flies cleanly through the portal and fills frame.
-//   FORWARD_DISTANCE — how far (scene units) the camera travels at full dolly.
-//   DOLLY_FRACTION   — fraction of FORWARD_DISTANCE covered at full progress.
-const FORWARD_DISTANCE = 2600;
-const DOLLY_FRACTION = 1.0;
-// The dolly SATURATES at this fraction of the scroll so the camera is fully
+// (artifacts/spline-tester) was used to tune these values with live feedback,
+// then ported here. The motion has two beats, and ALWAYS looks at the portal
+// centre so the portal stays dead-centre with no 180° look-flip:
+//   A) reveal → orbit: starts EXACTLY on the authored opening frame, then eases
+//      to a fresh 3/4 angle (gentle azimuth swing) while aiming slightly DOWN
+//      (LOOK_DROP) so the bottom of the design — clipped in the authored frame —
+//      comes into view over the first scrolls. It only ever zooms IN; pulling
+//      back would move the camera straight through the person behind it.
+//   B) dive: travels most (DOLLY_DEEP) of the way to the portal centre, easing
+//      the aim up from the dropped point to dead-centre so it ends framed inside
+//      the portal but STOPS SHORT of the person (DOLLY_DEEP < 1).
+const PIVOT = { x: 57, y: 3878, z: -387 }; // measured portal sphere-cluster centre
+const AZIMUTH_DEG = -12; // Phase-A orbit swing to a fresh angle
+const ELEV_LIFT = 0; // vertical orbit lift (flat "2D" third-person angle)
+const ESTABLISH_BACK = 0; // extra orbit radius — 0: never pull back through the person
+const RADIUS_PULL = 0; // orbit closer(+)/further(−) to the pivot
+const LOOK_DROP = 700; // aim this far BELOW centre during reveal (shows lower design)
+const PHASE_A_END = 0.34; // fraction of the (saturated) scroll spent on the orbit
+const PHASE_B_END = 0.82; // fraction at which the dive finishes and holds
+const DOLLY_DEEP = 0.8; // fraction of the way to centre the dive travels (<1 = stop short)
+
+// The motion SATURATES at this fraction of the scroll so the camera is fully
 // inside the portal BEFORE the scroll ends, then HOLDS — the remaining scroll
 // hands off to the path cards with no extra "finish the zoom" gesture.
 const ZOOM_COMPLETE_AT = 0.6;
@@ -88,18 +101,118 @@ const ZOOM_COMPLETE_AT = 0.6;
 // glides toward the real scroll position instead of snapping, which absorbs
 // scroll jitter / momentum and kills the per-tick "zoom flicker".
 const EASE = 0.16;
+// The opaque hand-off curtain rises over this slice of the scroll (after the
+// dive has settled), leaving the scene behind as the path cards take over.
+const HANDOFF_START = 0.64;
+const HANDOFF_END = 0.96;
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
+const deg2rad = (d: number) => (d * Math.PI) / 180;
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+// smoothstep ease-in-out
+const smoothstep = (t: number) => {
+  const x = clamp01(t);
+  return x * x * (3 - 2 * x);
+};
 
-// Camera-space forward axis (local -Z) for an intrinsic XYZ Euler rotation,
-// in world space — used to dolly the camera straight along its view direction.
-function forwardAxis(r: { x: number; y: number; z: number }) {
-  const cx = Math.cos(r.x), sx = Math.sin(r.x);
-  const cy = Math.cos(r.y), sy = Math.sin(r.y);
-  // Local Z axis (3rd column) of the three.js intrinsic XYZ rotation matrix is
-  // (sin y, -sin x cos y, cos x cos y); forward = -Z. Roll-independent (does
-  // NOT depend on r.z), matching three.js / Spline Euler semantics.
-  return { x: -sy, y: sx * cy, z: -cx * cy };
+// Rotate a vector about the Y axis (used to swing the orbit azimuth).
+function rotateY(v: Vec3, a: number): Vec3 {
+  const c = Math.cos(a), s = Math.sin(a);
+  return { x: v.x * c + v.z * s, y: v.y, z: -v.x * s + v.z * c };
+}
+
+// Shortest-arc angle interpolation (keeps Euler blends from spinning the long way).
+function lerpAngle(a: number, b: number, t: number): number {
+  let d = b - a;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return a + d * t;
+}
+
+// Euler (intrinsic XYZ, three.js convention) that makes a camera at P look at T.
+function lookAtEuler(P: Vec3, T: Vec3): Vec3 {
+  const dx = T.x - P.x, dy = T.y - P.y, dz = T.z - P.z;
+  const len = Math.hypot(dx, dy, dz) || 1;
+  const zx = -dx / len, zy = -dy / len, zz = -dz / len; // camera looks down -Z
+  let xx = 1 * zz - 0 * zy; // cross(up=(0,1,0), z)
+  let xy = 0 * zx - 0 * zz;
+  let xz = 0 * zy - 1 * zx;
+  let xl = Math.hypot(xx, xy, xz);
+  if (xl < 1e-6) {
+    xx = 1; xy = 0; xz = 0; xl = 1;
+  }
+  xx /= xl; xy /= xl; xz /= xl;
+  const yy = zz * xx - zx * xz; // cross(z, x)
+  const yz = zx * xy - zy * xx;
+  const yx = zy * xz - zz * xy;
+  const m11 = xx, m12 = yx, m13 = zx, m22 = yy, m23 = zy, m32 = yz, m33 = zz;
+  const ey = Math.asin(Math.max(-1, Math.min(1, m13)));
+  let ex: number;
+  let ez: number;
+  if (Math.abs(m13) < 0.9999999) {
+    ex = Math.atan2(-m23, m33);
+    ez = Math.atan2(-m12, m11);
+  } else {
+    ex = Math.atan2(m32, m22);
+    ez = 0;
+  }
+  return { x: ex, y: ey, z: ez };
+}
+
+// Compute the cinematic camera pose for a given start pose + saturated scroll
+// progress (zp, 0→1). Always looks at the portal centre so it stays dead-centre.
+function computeCam(start: Vec3, startRot: Vec3, zp: number) {
+  const P = PIVOT;
+  const off0 = { x: start.x - P.x, y: start.y - P.y, z: start.z - P.z };
+  const baseLen = Math.hypot(off0.x, off0.y, off0.z) || 1;
+  const azFull = deg2rad(AZIMUTH_DEG);
+  const aEnd = PHASE_A_END;
+  const bEnd = PHASE_B_END;
+  // Orbit radius factor: base radius + reveal pull, minus any manual pull.
+  const fOrbit = 1 + ESTABLISH_BACK / baseLen - RADIUS_PULL;
+  // Orbit-end pose (also the dive's start), reused by both phases.
+  const offA = rotateY(off0, azFull);
+  const orbit = {
+    x: P.x + offA.x * fOrbit,
+    y: P.y + offA.y * fOrbit + ELEV_LIFT,
+    z: P.z + offA.z * fOrbit,
+  };
+  // Look target dropped BELOW the portal centre to reveal the lower design.
+  const dropped = { x: P.x, y: P.y - LOOK_DROP, z: P.z };
+
+  if (zp <= aEnd) {
+    // Phase A — start EXACTLY on the authored frame (t=0) and ease into the
+    // orbit: swing the angle and aim DOWN so the full design comes into view.
+    const t = smoothstep(aEnd <= 0 ? 1 : zp / aEnd);
+    const az = azFull * t;
+    const s = lerp(1, fOrbit, t);
+    const off = rotateY(off0, az);
+    const pos = {
+      x: P.x + off.x * s,
+      y: P.y + off.y * s + ELEV_LIFT * t,
+      z: P.z + off.z * s,
+    };
+    const look = lookAtEuler(pos, dropped);
+    return {
+      pos,
+      rot: {
+        x: lerpAngle(startRot.x, look.x, t),
+        y: lerpAngle(startRot.y, look.y, t),
+        z: lerpAngle(startRot.z, look.z, t),
+      },
+    };
+  }
+  // Phase B — dive toward the portal CENTRE (kept short of it so the look-at
+  // never flips), easing the aim from the dropped point up to dead-centre.
+  const u = smoothstep(clamp01((zp - aEnd) / Math.max(0.01, bEnd - aEnd)));
+  const k = u * DOLLY_DEEP;
+  const pos = {
+    x: lerp(orbit.x, P.x, k),
+    y: lerp(orbit.y, P.y, k),
+    z: lerp(orbit.z, P.z, k),
+  };
+  const lookT = { x: dropped.x, y: lerp(dropped.y, P.y, u), z: dropped.z };
+  return { pos, rot: lookAtEuler(pos, lookT) };
 }
 
 // ── Error boundary so a bad/blocked scene never crashes the page ───────
@@ -194,6 +307,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const backdropRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
   const portalRef = useRef<HTMLDivElement>(null);
+  const handoffRef = useRef<HTMLDivElement>(null);
   const mobileRef = useRef<HTMLDivElement>(null);
   const headlineRef = useRef<HTMLDivElement>(null);
   const cueRef = useRef<HTMLDivElement>(null);
@@ -272,13 +386,16 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     try {
       const cams = camerasRef.current;
       if (cams.length) {
-        const k = zp * DOLLY_FRACTION * FORWARD_DISTANCE;
         for (const { obj, start, startRot } of cams) {
-          if (!obj.position) continue;
-          const dir = forwardAxis(startRot);
-          obj.position.x = start.x + dir.x * k;
-          obj.position.y = start.y + dir.y * k;
-          obj.position.z = start.z + dir.z * k;
+          if (!obj.position || !obj.rotation) continue;
+          const { pos, rot } = computeCam(start, startRot, zp);
+          obj.position.x = pos.x;
+          obj.position.y = pos.y;
+          obj.position.z = pos.z;
+          // keep rotation continuous frame-to-frame via shortest-arc set
+          obj.rotation.x = lerpAngle(obj.rotation.x, rot.x, 1);
+          obj.rotation.y = lerpAngle(obj.rotation.y, rot.y, 1);
+          obj.rotation.z = lerpAngle(obj.rotation.z, rot.z, 1);
         }
       } else if (scrubVarRef.current) {
         // FALLBACK — no camera object exposed; scrub a scroll/zoom variable.
@@ -499,6 +616,17 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // Scroll cue fades out the moment the user starts moving.
       const cue = cueRef.current;
       if (cue) cue.style.opacity = clamp01(1 - progress / 0.06).toFixed(4);
+
+      // ── Hand-off curtain: an OPAQUE panel slides UP over the scene once the
+      // dive has settled, leaving the galaxy behind so the path cards take over
+      // with a clean professional wipe instead of the bare scene scrolling away.
+      // Fully reversible: scroll up and it slides back down to reveal the scene.
+      const handoff = handoffRef.current;
+      if (handoff) {
+        const r = clamp01((progress - HANDOFF_START) / (HANDOFF_END - HANDOFF_START));
+        const e = 1 - Math.pow(1 - r, 3); // ease-out cubic
+        handoff.style.transform = `translateY(${((1 - e) * 100).toFixed(2)}%)`;
+      }
     };
 
     // Coalesce scroll/resize bursts into one rAF-aligned update.
@@ -603,6 +731,22 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             background:
               "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.96) 0%, rgba(255,237,180,0.82) 24%, rgba(167,139,250,0.5) 48%, transparent 74%)",
             willChange: "opacity",
+          }}
+        />
+
+        {/* ── Hand-off curtain — OPAQUE panel that slides UP over the scene once
+            the camera dive has settled, leaving the galaxy behind so the path
+            cards take over with a clean wipe (no backdrop-blur = perf-safe over
+            the animated background). Driven by the scroll listener above. ── */}
+        <div
+          ref={handoffRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-[8]"
+          style={{
+            transform: "translateY(100%)",
+            background:
+              "radial-gradient(120% 90% at 50% 0%, #1a1230 0%, #0b0716 55%, #06040d 100%)",
+            willChange: "transform",
           }}
         />
 
