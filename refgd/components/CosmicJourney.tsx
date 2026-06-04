@@ -60,12 +60,13 @@ const SCENE_URL = "https://prod.spline.design/mzZcfxXnOQsM5LXz/scene.splinecode"
 // ── Camera zoom range (tunable) ───────────────────────────────────────
 // START_ZOOM < 1  → start pulled back so the whole design is visible.
 // END_ZOOM   > 1  → fly in toward the portal as the user scrolls.
-const START_ZOOM = 0.9;
-const END_ZOOM = 2.4;
+const START_ZOOM = 0.85;
+const END_ZOOM = 4.5;
 
 // Once the scroll passes this fraction, a settled scroll auto-completes
-// forward into the cards; below it (when scrolling up) it returns to top.
-const SNAP_FORWARD_AT = 0.18;
+// forward — flying the rest of the way THROUGH the portal and landing on
+// the path cards; below it (when scrolling up) it returns to the top.
+const SNAP_FORWARD_AT = 0.16;
 const SNAP_BACK_AT = 0.82;
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
@@ -161,6 +162,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const sectionRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
   const mobileRef = useRef<HTMLDivElement>(null);
   const headlineRef = useRef<HTMLDivElement>(null);
   const cueRef = useRef<HTMLDivElement>(null);
@@ -208,53 +210,86 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const onSplineLoad = (app: SplineApp) => {
     splineRef.current = app;
     applyZoom(getProgress());
+    // Tell the loading screen the heavy 3D scene has painted its first
+    // frame so the splash holds until the galaxy is actually ready
+    // (instead of lifting onto an empty backdrop that "pops in" later
+    // on the first scroll).
+    try {
+      window.dispatchEvent(new Event("refgd:scene-ready"));
+    } catch {
+      /* noop */
+    }
   };
 
   // ── Scroll-linked camera zoom + fades — zero React re-renders ────────
   useEffect(() => {
     const section = sectionRef.current;
     if (!section) return;
-    let lastProg = -1;
+    let lastKey = -1;
 
     const update = () => {
-      const progress = getProgress();
-      if (Math.abs(progress - lastProg) < 0.0005) return;
-      lastProg = progress;
+      const section = sectionRef.current;
+      if (!section) return;
       const red = reducedRef.current;
+      const rect = section.getBoundingClientRect();
+      const denom = Math.max(1, section.offsetHeight - window.innerHeight);
+      const scrolledPast = -rect.top;                  // px scrolled into the hero
+      const progress = clamp01(scrolledPast / denom);  // 0→1 during the pinned fly-in
 
-      // Real camera dolly-in toward the portal.
+      // Exit phase: once the camera has flown ALL the way in, the hero
+      // un-pins and the scene scrolls up and away while the path cards
+      // rise from directly below — the "travel through to another
+      // section" hand-off, with NO blank gap in between.
+      const exitDist = Math.max(1, window.innerHeight * 0.9);
+      const exit = clamp01((scrolledPast - denom) / exitDist);
+
+      // progress is constant (1) during the exit phase, so fold exit into
+      // the change key or the hand-off frames would be skipped.
+      const key = progress + exit;
+      if (Math.abs(key - lastKey) < 0.0005) return;
+      lastKey = key;
+
+      // Real camera dolly-in toward the portal — full immersive zoom.
       applyZoom(progress);
 
-      // Scene fades out over the last third so the cards take over.
-      const sceneOpacity = red ? 1 : clamp01(1 - (progress - 0.62) / (1 - 0.62));
+      // Scene stays FULLY visible through the entire zoom (no early fade
+      // = no blank screen), then fades only as the cards take over.
+      const sceneOpacity = red ? 1 : 1 - exit;
       const scene = sceneRef.current;
       if (scene) scene.style.opacity = sceneOpacity.toFixed(4);
       const mob = mobileRef.current;
       if (mob) mob.style.opacity = sceneOpacity.toFixed(4);
+
+      // Portal flash — a burst of light as the camera enters the portal
+      // at peak zoom, which then lifts to reveal the cards.
+      const enter = clamp01((progress - 0.78) / 0.22);
+      const flash = red || isMobileRef.current ? 0 : 0.82 * enter * (1 - exit);
+      const portal = portalRef.current;
+      if (portal) portal.style.opacity = flash.toFixed(4);
 
       // Backdrop drifts slower than the scene → parallax depth.
       const bd = backdropRef.current;
       if (bd) {
         bd.style.transform = red
           ? "none"
-          : `translateY(${(progress * -42).toFixed(1)}px) scale(${(1 + progress * 0.08).toFixed(4)})`;
+          : `translateY(${(progress * -52).toFixed(1)}px) scale(${(1 + progress * 0.1).toFixed(4)})`;
       }
 
-      // Headline lifts away over the first ~38% of the scroll.
+      // Headline lifts away over the first ~32% of the scroll.
       const headline = headlineRef.current;
       if (headline) {
         if (red) {
           headline.style.transform = "none";
           headline.style.opacity = "1";
         } else {
-          headline.style.opacity = clamp01(1 - progress / 0.38).toFixed(4);
-          headline.style.transform = `translateY(${(progress * -70).toFixed(1)}px)`;
+          headline.style.opacity = clamp01(1 - progress / 0.32).toFixed(4);
+          headline.style.transform = `translateY(${(progress * -80).toFixed(1)}px) scale(${(1 + progress * 0.06).toFixed(4)})`;
         }
       }
 
       // Scroll cue fades out the moment the user starts moving.
       const cue = cueRef.current;
-      if (cue) cue.style.opacity = clamp01(1 - progress / 0.07).toFixed(4);
+      if (cue) cue.style.opacity = clamp01(1 - progress / 0.06).toFixed(4);
     };
 
     // Coalesce scroll/resize bursts into one rAF-aligned update.
@@ -291,6 +326,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     let lastY = window.scrollY;
     let dirDown = true;
 
+    const easeInOutCubic = (t: number) =>
+      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
     const scrollToY = (y: number) => {
       snapping = true;
       const lenis = (window as unknown as { __lenis?: {
@@ -298,8 +336,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       } }).__lenis;
       if (lenis && typeof lenis.scrollTo === "function") {
         lenis.scrollTo(y, {
-          duration: 0.9,
-          easing: (t: number) => 1 - Math.pow(1 - t, 3),
+          // Longer, eased glide so the camera visibly flies all the way
+          // THROUGH the portal during the snap, then settles on the cards.
+          duration: 1.25,
+          easing: easeInOutCubic,
           onComplete: () => { snapping = false; },
         });
       } else {
@@ -307,7 +347,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
       // Safety release in case onComplete never fires.
       window.clearTimeout(safetyTimer);
-      safetyTimer = window.setTimeout(() => { snapping = false; }, 1200);
+      safetyTimer = window.setTimeout(() => { snapping = false; }, 1700);
     };
 
     // Auto-complete only ever continues in the direction the user was
@@ -318,13 +358,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const p = getProgress();
       if (p <= 0.02 || p >= 0.98) return;
       const docTop = window.scrollY + section.getBoundingClientRect().top;
-      const denom = Math.max(1, section.offsetHeight - window.innerHeight);
       let target: number | null = null;
       if (dirDown) {
-        // committed downward → fly the rest of the way into the cards
-        if (p >= SNAP_FORWARD_AT) target = docTop + denom;
+        // Committed downward → fly the rest of the way through the portal
+        // and land ON the path cards (never the blank tail of the hero).
+        if (p >= SNAP_FORWARD_AT) {
+          const paths = document.getElementById("paths");
+          target = paths
+            ? window.scrollY + paths.getBoundingClientRect().top
+            : docTop + section.offsetHeight;
+        }
       } else {
-        // committed upward → return to the top of the hero
+        // Committed upward → return to the top of the hero.
         if (p <= SNAP_BACK_AT) target = docTop;
       }
       if (target != null) scrollToY(target);
@@ -401,6 +446,20 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             <MobileStars />
           </div>
         )}
+
+        {/* ── Portal flash — a burst of light as the camera enters the
+            portal at peak zoom, which then lifts to reveal the cards. ── */}
+        <div
+          ref={portalRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-[7]"
+          style={{
+            opacity: 0,
+            background:
+              "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.96) 0%, rgba(255,237,180,0.82) 24%, rgba(167,139,250,0.5) 48%, transparent 74%)",
+            willChange: "opacity",
+          }}
+        />
 
         {/* ── WELCOME headline ── */}
         <motion.div
