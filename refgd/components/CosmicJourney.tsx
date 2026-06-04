@@ -91,7 +91,13 @@ const RADIUS_PULL = 0; // orbit closer(+)/further(−) to the pivot
 const LOOK_DROP = 700; // aim this far BELOW centre during reveal (shows lower design)
 const PHASE_A_END = 0.34; // fraction of the (saturated) scroll spent on the orbit
 const PHASE_B_END = 0.82; // fraction at which the dive finishes and holds
-const DOLLY_DEEP = 0.8; // fraction of the way to centre the dive travels (<1 = stop short)
+const DOLLY_DEEP = 1.0; // fraction of the way to centre the dive travels (1 = all the way into the portal centre)
+// Keeps the dive's END this far ABOVE the portal centre so a full-depth dive
+// flies INTO the portal without the camera sinking to floor/leg level.
+const DIVE_LIFT = 260;
+// How far the dive bows SIDEWAYS at its midpoint (quadratic Bézier control),
+// so the camera curves AROUND the person instead of punching through them.
+const ARC_SIDE = 900;
 
 // The motion SATURATES at this fraction of the scroll so the camera is fully
 // inside the portal BEFORE the scroll ends, then HOLDS — the remaining scroll
@@ -101,10 +107,10 @@ const ZOOM_COMPLETE_AT = 0.6;
 // glides toward the real scroll position instead of snapping, which absorbs
 // scroll jitter / momentum and kills the per-tick "zoom flicker".
 const EASE = 0.16;
-// The opaque hand-off curtain rises over this slice of the scroll (after the
-// dive has settled), leaving the scene behind as the path cards take over.
-const HANDOFF_START = 0.64;
-const HANDOFF_END = 0.96;
+// Once the EASED (visible) dive progress crosses this, a one-shot smooth
+// auto-snap (via Lenis) rushes the remaining pin straight to the path cards,
+// so there's no dead scrolling after the camera is inside the portal.
+const SNAP_AT = 0.84;
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 const deg2rad = (d: number) => (d * Math.PI) / 180;
@@ -202,14 +208,32 @@ function computeCam(start: Vec3, startRot: Vec3, zp: number) {
       },
     };
   }
-  // Phase B — dive toward the portal CENTRE (kept short of it so the look-at
-  // never flips), easing the aim from the dropped point up to dead-centre.
+  // Phase B — dive toward the portal CENTRE along a quadratic Bézier that bows
+  // sideways (ARC_SIDE) so the camera curves AROUND the person instead of
+  // punching through them, easing the aim from the dropped point up to centre.
   const u = smoothstep(clamp01((zp - aEnd) / Math.max(0.01, bEnd - aEnd)));
-  const k = u * DOLLY_DEEP;
+  // Dive END: all the way to centre on X/Z, held above it (P.y + DIVE_LIFT) so
+  // a full-depth dive doesn't sink into the floor/legs.
+  const E = {
+    x: lerp(orbit.x, P.x, DOLLY_DEEP),
+    y: lerp(orbit.y, P.y + DIVE_LIFT, DOLLY_DEEP),
+    z: lerp(orbit.z, P.z, DOLLY_DEEP),
+  };
+  // Bézier control point: midpoint of (orbit→E) pushed out along the in-plane
+  // "right" vector so the flight path swings past the person.
+  const dirx = E.x - orbit.x;
+  const dirz = E.z - orbit.z;
+  const dlen = Math.hypot(dirx, dirz) || 1;
+  const rightx = -dirz / dlen;
+  const rightz = dirx / dlen;
+  const cx = (orbit.x + E.x) / 2 + rightx * ARC_SIDE;
+  const cy = (orbit.y + E.y) / 2;
+  const cz = (orbit.z + E.z) / 2 + rightz * ARC_SIDE;
+  const mt = 1 - u;
   const pos = {
-    x: lerp(orbit.x, P.x, k),
-    y: lerp(orbit.y, P.y, k),
-    z: lerp(orbit.z, P.z, k),
+    x: mt * mt * orbit.x + 2 * mt * u * cx + u * u * E.x,
+    y: mt * mt * orbit.y + 2 * mt * u * cy + u * u * E.y,
+    z: mt * mt * orbit.z + 2 * mt * u * cz + u * u * E.z,
   };
   const lookT = { x: dropped.x, y: lerp(dropped.y, P.y, u), z: dropped.z };
   return { pos, rot: lookAtEuler(pos, lookT) };
@@ -307,7 +331,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const backdropRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
   const portalRef = useRef<HTMLDivElement>(null);
-  const handoffRef = useRef<HTMLDivElement>(null);
   const mobileRef = useRef<HTMLDivElement>(null);
   const headlineRef = useRef<HTMLDivElement>(null);
   const cueRef = useRef<HTMLDivElement>(null);
@@ -326,6 +349,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const appliedPRef = useRef(0);
   const lastAppliedRef = useRef(-1);
   const pendingRef = useRef(true);
+  // Auto-snap (Lenis) hand-off state: fire once when the eased dive completes,
+  // re-arm only after the user scrolls back up well before the trigger.
+  const lastTargetRef = useRef(0);
+  const snapArmedRef = useRef(true);
 
   const isMobileRef = useRef(false);
   const reducedRef = useRef(false);
@@ -419,6 +446,36 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       raf = requestAnimationFrame(loop);
       if (!splineRef.current || reducedRef.current) return;
       const target = getProgress();
+
+      // ── One-shot auto-snap to the path cards once the dive has visually
+      // settled. Triggers off the EASED progress (not the raw scroll) and only
+      // while scrolling DOWN, so a momentum wobble mid-dive can't fire it; it
+      // re-arms only after the user scrolls back up well before the trigger.
+      // Uses the shared Lenis instance (native scrollTo gets reverted by Lenis).
+      // This block only runs on a loaded desktop scene — mobile never mounts
+      // Spline and reduced-motion returns above, so neither gets yanked.
+      const goingDown = target > lastTargetRef.current + 1e-4;
+      if (snapArmedRef.current && goingDown && appliedPRef.current >= SNAP_AT) {
+        snapArmedRef.current = false;
+        const paths = document.getElementById("paths");
+        const lenis = (
+          window as unknown as {
+            __lenis?: { scrollTo: (t: unknown, o?: unknown) => void };
+          }
+        ).__lenis;
+        if (paths && lenis) {
+          lenis.scrollTo(paths, {
+            offset: -8,
+            duration: 0.7,
+            easing: (t: number) => 1 - Math.pow(1 - t, 3),
+          });
+        } else if (paths) {
+          paths.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }
+      if (target < SNAP_AT - 0.05) snapArmedRef.current = true;
+      lastTargetRef.current = target;
+
       const cur = appliedPRef.current;
       let next = cur + (target - cur) * EASE;
       if (Math.abs(target - next) < 0.0004) next = target;
@@ -617,16 +674,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const cue = cueRef.current;
       if (cue) cue.style.opacity = clamp01(1 - progress / 0.06).toFixed(4);
 
-      // ── Hand-off curtain: an OPAQUE panel slides UP over the scene once the
-      // dive has settled, leaving the galaxy behind so the path cards take over
-      // with a clean professional wipe instead of the bare scene scrolling away.
-      // Fully reversible: scroll up and it slides back down to reveal the scene.
-      const handoff = handoffRef.current;
-      if (handoff) {
-        const r = clamp01((progress - HANDOFF_START) / (HANDOFF_END - HANDOFF_START));
-        const e = 1 - Math.pow(1 - r, 3); // ease-out cubic
-        handoff.style.transform = `translateY(${((1 - e) * 100).toFixed(2)}%)`;
-      }
+      // Hand-off is now a one-shot Lenis auto-snap to the path cards (driven by
+      // the eased RAF loop above) — no curtain wipe; the galaxy stays visible
+      // and the page rushes to the cards once the dive settles.
     };
 
     // Coalesce scroll/resize bursts into one rAF-aligned update.
@@ -651,18 +701,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
   }, []);
 
-  // NOTE: the previous "hard-scroll auto-complete" (Lenis snap) was
-  // removed. It caused two problems the owner reported:
-  //   • "zooms back out and restarts" — a tiny deceleration / momentum
-  //     reversal near the top of the zoom flipped the tracked direction
-  //     to "up", and the back-snap then yanked the camera all the way
-  //     out to the hero top (a jarring restart, with the scene
-  //     re-rendering mid-jump so it looked like "details missing").
-  //   • the forward snap skipped the natural exit hand-off into the cards.
-  // Plain native scrolling (Lenis still smooths it) flies fully into the
-  // portal, holds there, then hard-cuts the scene out as the path cards
-  // rise up on their own background — no direction tracking, no
-  // programmatic scroll fighting the user.
+  // Hand-off: a ROBUST one-shot auto-snap (in the eased RAF loop above) rushes
+  // the page to the path cards once the dive has VISUALLY settled. The earlier
+  // snap was removed because it "zoomed back out and restarted" — a momentum
+  // wobble flipped the tracked direction to "up" and the back-snap yanked the
+  // camera to the hero top. This version avoids that: it fires only off the
+  // EASED progress crossing SNAP_AT (well past the dive, so early wobble can't
+  // reach it), only DOWNWARD, only ONCE (re-armed solely after scrolling back
+  // up), and NEVER snaps back up — so it can't fight the user or restart.
 
   const showSpline = mounted && !isMobile && !reduced && SCENE_URL.length > 0;
 
@@ -731,22 +777,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             background:
               "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.96) 0%, rgba(255,237,180,0.82) 24%, rgba(167,139,250,0.5) 48%, transparent 74%)",
             willChange: "opacity",
-          }}
-        />
-
-        {/* ── Hand-off curtain — OPAQUE panel that slides UP over the scene once
-            the camera dive has settled, leaving the galaxy behind so the path
-            cards take over with a clean wipe (no backdrop-blur = perf-safe over
-            the animated background). Driven by the scroll listener above. ── */}
-        <div
-          ref={handoffRef}
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-[8]"
-          style={{
-            transform: "translateY(100%)",
-            background:
-              "radial-gradient(120% 90% at 50% 0%, #1a1230 0%, #0b0716 55%, #06040d 100%)",
-            willChange: "transform",
           }}
         />
 
