@@ -192,11 +192,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const headlineRef = useRef<HTMLDivElement>(null);
   const cueRef = useRef<HTMLDivElement>(null);
   const splineRef = useRef<SplineApp | null>(null);
-  // Real camera dolly state (discovered on load). When the camera object is
-  // found we move its position toward `camTargetRef` as scroll progresses —
-  // this is what actually flies into the portal (setZoom is clamped).
-  const cameraObjRef = useRef<SplineObj | null>(null);
-  const camStartRef = useRef<Vec3 | null>(null);
+  // Real camera dolly state (discovered on load). The scene has MULTIPLE
+  // perspective cameras ("Camera", "Camera 2", "Camera 3") and only one is the
+  // active render camera — we can't tell which, so we move ALL of them toward
+  // `camTargetRef` as scroll progresses (moving an inactive camera is a no-op).
+  // This is what actually flies into the portal (setZoom is clamped).
+  const camerasRef = useRef<Array<{ obj: SplineObj; start: Vec3 }>>([]);
   const camTargetRef = useRef<Vec3 | null>(null);
   // Fallback only (used when no camera object is exposed): a scene variable
   // whose name looks like a scroll/zoom driver, scrubbed with progress.
@@ -269,14 +270,16 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // This is the ONLY lever that actually flies INTO the scene: the scene
       // has zoom limits that clamp setZoom(), so position movement is what
       // produces a genuine fly-in (and it is a real 3D move, not a CSS scale).
-      const cam = cameraObjRef.current;
-      const s = camStartRef.current;
+      const cams = camerasRef.current;
       const t = camTargetRef.current;
-      if (cam?.position && s && t) {
+      if (cams.length && t) {
         const k = zp * DOLLY_FRACTION;
-        cam.position.x = s.x + (t.x - s.x) * k;
-        cam.position.y = s.y + (t.y - s.y) * k;
-        cam.position.z = s.z + (t.z - s.z) * k;
+        for (const { obj, start } of cams) {
+          if (!obj.position) continue;
+          obj.position.x = start.x + (t.x - start.x) * k;
+          obj.position.y = start.y + (t.y - start.y) * k;
+          obj.position.z = start.z + (t.z - start.z) * k;
+        }
       } else if (scrubVarRef.current) {
         // FALLBACK — no camera object exposed; scrub a scroll/zoom variable.
         app.setVariable?.(scrubVarRef.current, zp);
@@ -335,27 +338,38 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // why bumping END_ZOOM never made it fly in. Moving the camera's POSITION
     // bypasses the limit and produces a genuine fly-in toward the portal.
     try {
-      let cam: SplineObj | null =
-        app.findObjectByName?.("Camera") ??
-        app.findObjectByName?.("camera") ??
-        null;
-      if (!cam) {
-        const all = app.getAllObjects?.() ?? [];
-        cam = all.find((o) => /camera|\bcam\b/i.test(o?.name ?? "")) ?? null;
+      // The scene has THREE perspective cameras ("Camera", "Camera 2",
+      // "Camera 3") — confirmed by inspecting scene.splinecode. Only one is the
+      // active render camera and the runtime gives no reliable way to know
+      // which, so collect every camera we can find and dolly them ALL.
+      const cams: Array<{ obj: SplineObj; start: Vec3 }> = [];
+      const pushCam = (o: SplineObj | undefined | null) => {
+        if (!o?.position) return;
+        if (cams.some((c) => c.obj === o)) return;
+        cams.push({
+          obj: o,
+          start: { x: o.position.x, y: o.position.y, z: o.position.z },
+        });
+      };
+      for (const n of [
+        "Camera", "Camera 2", "Camera 3", "Camera 4", "Camera 1",
+        "camera", "playCamera",
+      ]) {
+        pushCam(app.findObjectByName?.(n));
       }
-      if (cam?.position) {
-        cameraObjRef.current = cam;
-        camStartRef.current = {
-          x: cam.position.x,
-          y: cam.position.y,
-          z: cam.position.z,
-        };
+      const all = app.getAllObjects?.() ?? [];
+      for (const o of all) {
+        if (/camera|\bcam\b/i.test(o?.name ?? "")) pushCam(o);
+      }
+      camerasRef.current = cams;
+
+      if (cams.length) {
         // Target = a portal/center object if we can find one, otherwise the
         // world origin (galaxy/portal hero scenes are centered at the origin).
         let target: Vec3 | null = null;
         for (const n of [
-          "Portal", "portal", "Black Hole", "Blackhole", "Vortex", "Galaxy",
-          "Tunnel", "Wormhole", "Gate", "Ring", "Door", "Center",
+          "Portal", "portal", "Gate", "Black Hole", "Blackhole", "Vortex",
+          "Galaxy", "Tunnel", "Wormhole", "Ring", "Door", "Center",
         ]) {
           const o = app.findObjectByName?.(n);
           if (o?.position) {
@@ -379,11 +393,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       /* fall back to clamped setZoom-only behaviour */
     }
 
-    // Best-effort: relax any camera-controls zoom limits so the secondary
-    // setZoom() is not clamped (runtimes expose this differently; all guarded).
+    // Best-effort: DISABLE the orbit/zoom controls so our per-frame camera
+    // position writes are not immediately overwritten by the control loop
+    // (a likely reason an earlier dolly "barely changed"), and relax any zoom
+    // limits so the secondary setZoom() is not clamped. All guarded.
     try {
       const c = app.controls as
         | {
+            enabled?: boolean;
+            enableZoom?: boolean;
+            enablePan?: boolean;
+            enableRotate?: boolean;
+            autoRotate?: boolean;
             maxDistance?: number;
             minDistance?: number;
             maxZoom?: number;
@@ -391,6 +412,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           }
         | undefined;
       if (c) {
+        if (typeof c.enabled === "boolean") c.enabled = false;
+        if (typeof c.enableZoom === "boolean") c.enableZoom = false;
+        if (typeof c.enableRotate === "boolean") c.enableRotate = false;
+        if (typeof c.enablePan === "boolean") c.enablePan = false;
+        if (typeof c.autoRotate === "boolean") c.autoRotate = false;
         if (typeof c.maxDistance === "number") c.maxDistance = Number.POSITIVE_INFINITY;
         if (typeof c.minDistance === "number") c.minDistance = 0;
         if (typeof c.maxZoom === "number") c.maxZoom = Number.POSITIVE_INFINITY;
