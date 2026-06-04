@@ -38,6 +38,20 @@ export default async function HomePage() {
 
   return (
     <>
+      {/* Start streaming the heavy 3D hero scene at the very first byte of the
+          page (home only) so the ~23 MB scene.splinecode downloads in parallel
+          with hydration instead of starting late, after the React tree mounts
+          and the lazy Spline chunk resolves. Next hoists these <link>s into
+          <head>. The scene is still large — the durable fix is re-exporting it
+          lighter in Spline — but this removes seconds of "blank backdrop". */}
+      <link rel="preconnect" href="https://prod.spline.design" crossOrigin="" />
+      <link
+        rel="preload"
+        as="fetch"
+        href="https://prod.spline.design/mzZcfxXnOQsM5LXz/scene.splinecode"
+        crossOrigin="anonymous"
+      />
+
       <HomeBackground />
 
       <ReorderableContainer pageId="home">
