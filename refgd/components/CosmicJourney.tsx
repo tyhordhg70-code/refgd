@@ -89,28 +89,30 @@ const ELEV_LIFT = 0; // vertical orbit lift (flat "2D" third-person angle)
 const ESTABLISH_BACK = 0; // extra orbit radius — 0: never pull back through the person
 const RADIUS_PULL = 0; // orbit closer(+)/further(−) to the pivot
 const LOOK_DROP = 700; // aim this far BELOW centre during reveal (shows lower design)
-const PHASE_A_END = 0.34; // fraction of the (saturated) scroll spent on the orbit
-const PHASE_B_END = 0.82; // fraction at which the dive finishes and holds
-const DOLLY_DEEP = 1.0; // fraction of the way to centre the dive travels (1 = all the way into the portal centre)
-// Keeps the dive's END this far ABOVE the portal centre so a full-depth dive
+const PHASE_A_END = 0.3; // fraction of the scroll spent on the orbit
+const PHASE_B_END = 0.93; // fraction at which the dive finishes and holds (kept high so the dive uses almost the whole runway → barely any frozen hold zone to scroll back up through)
+const DOLLY_DEEP = 0.92; // fraction of the way to centre the dive travels — kept just short of 1 so it flies INTO the portal looking forward instead of collapsing onto the centre and pitching straight down ("off track" on entry)
+// Keeps the dive's END this far ABOVE the portal centre so the dive
 // flies INTO the portal without the camera sinking to floor/leg level.
-const DIVE_LIFT = 260;
+const DIVE_LIFT = 220;
 // How far the dive bows SIDEWAYS at its midpoint (quadratic Bézier control),
 // so the camera curves AROUND the person instead of punching through them.
-const ARC_SIDE = 900;
+const ARC_SIDE = 650;
 
-// The motion SATURATES at this fraction of the scroll so the camera is fully
-// inside the portal BEFORE the scroll ends, then HOLDS — the remaining scroll
-// hands off to the path cards with no extra "finish the zoom" gesture.
-const ZOOM_COMPLETE_AT = 0.6;
+// zp = progress / ZOOM_COMPLETE_AT. Kept at 1.0 (no early saturation) so the
+// phase splits map directly onto raw scroll, matching the approved tester feel:
+// the dive uses the whole runway and the auto-snap (not a hold) does the hand-off.
+const ZOOM_COMPLETE_AT = 1.0;
 // Per-frame critical-damping factor for the eased camera loop: the camera
 // glides toward the real scroll position instead of snapping, which absorbs
 // scroll jitter / momentum and kills the per-tick "zoom flicker".
 const EASE = 0.16;
 // Once the EASED (visible) dive progress crosses this, a one-shot smooth
 // auto-snap (via Lenis) rushes the remaining pin straight to the path cards,
-// so there's no dead scrolling after the camera is inside the portal.
-const SNAP_AT = 0.84;
+// so there's no dead scrolling after the camera is inside the portal. Kept
+// ABOVE PHASE_B_END so the dive has fully settled before the snap fires — the
+// snap then just glides the page while the camera holds still (no fight/glitch).
+const SNAP_AT = 0.95;
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 const deg2rad = (d: number) => (d * Math.PI) / 180;
@@ -465,7 +467,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         ).__lenis;
         if (paths && lenis) {
           lenis.scrollTo(paths, {
-            offset: -8,
+            // Land with the section TOP ~18% below the viewport top so we clip in
+            // "right above CHOOSE YOUR PATH" (thin hero sliver still showing)
+            // instead of slamming it flush to the top / overshooting downward.
+            offset: -window.innerHeight * 0.18,
             duration: 0.7,
             easing: (t: number) => 1 - Math.pow(1 - t, 3),
           });
@@ -717,7 +722,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       ref={sectionRef}
       data-testid="cosmic-journey"
       className="relative w-full"
-      style={{ height: isMobile ? "150svh" : "170svh" }}
+      style={{ height: isMobile ? "150svh" : reduced ? "130svh" : "300svh" }}
     >
       <div
         className="sticky top-0 grid w-full place-items-center overflow-hidden"
