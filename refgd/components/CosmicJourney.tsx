@@ -62,13 +62,17 @@ const SCENE_URL = "https://prod.spline.design/mzZcfxXnOQsM5LXz/scene.splinecode"
 // END_ZOOM   > 1  → fly in toward the portal as the user scrolls.
 // START_ZOOM is kept close to 1 so the galaxy reads clearly the instant
 // the splash lifts (a very-pulled-back start looked like "nothing there"
-// until the user scrolled). END_ZOOM is a strong, deep fly-IN so the
-// camera genuinely travels into the portal (a shallower 3.8 read as "only
-// zooms a tiny bit"); the ~30fps setZoom throttle keeps this GPU-sane even
-// at high zoom. The zoom is also spread over a TALL pinned section (see the
-// section height below) so it's a gradual journey, not a quick snap-in.
+// until the user scrolled). END_ZOOM is a DEEP fly-IN so the camera
+// genuinely travels INSIDE the portal (5.5 still read as "doesn't go
+// inside"); the ~30fps setZoom throttle keeps it GPU-sane even at high zoom.
+// The zoom SATURATES at ZOOM_COMPLETE_AT (a fraction of the pinned scroll)
+// and then HOLDS at full zoom for the rest of the pin, so you arrive fully
+// inside the portal and dwell there before the path cards rise up over it.
 const START_ZOOM = 0.92;
-const END_ZOOM = 5.5;
+const END_ZOOM = 8;
+// Reach END_ZOOM at this fraction of the pinned scroll, then hold at full
+// zoom (dwell "inside the portal") for the remaining pin before un-pinning.
+const ZOOM_COMPLETE_AT = 0.72;
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
@@ -228,7 +232,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const renderZoom = (progress: number) => {
     const app = splineRef.current;
     if (!app || reducedRef.current) return;
-    const zoom = START_ZOOM + progress * (END_ZOOM - START_ZOOM);
+    // Saturate the zoom BEFORE the pin ends so the camera reaches full depth
+    // inside the portal and then holds there (dwell) for the rest of the pin.
+    const zp = clamp01(progress / ZOOM_COMPLETE_AT);
+    const zoom = START_ZOOM + zp * (END_ZOOM - START_ZOOM);
     try {
       app.setZoom(zoom);
       app.requestRender?.();
@@ -304,16 +311,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const scrolledPast = -rect.top;                  // px scrolled into the hero
       const progress = clamp01(scrolledPast / denom);  // 0→1 during the pinned fly-in
 
-      // Exit phase: once the camera has flown ALL the way in, the hero
-      // un-pins and the scene scrolls up and away while the path cards
-      // rise from directly below — the "travel through to another
-      // section" hand-off, with NO blank gap in between. The fade is spread
-      // over the FULL card rise: the sticky child is exactly one viewport
-      // tall (100svh), so after un-pinning it takes exactly innerHeight of
-      // scroll for the cards to climb from the bottom to the top. Fading the
-      // galaxy across that whole 1.0*innerHeight keeps it visible (faded) on
-      // top the entire time the cards arrive, and it reaches 0 exactly as
-      // they land — no "scene already gone, keep scrolling" dead zone.
+      // Exit phase: once the camera has flown ALL the way into the portal
+      // (and held there), the hero un-pins and the path cards rise from
+      // directly below on their own normal background. The scene is hidden
+      // with a hard cut the instant exit > 0 (see below) — it is NOT faded
+      // and the cards do NOT come up over a still-visible galaxy. exitDist
+      // just defines how quickly `exit` saturates past the pin; only its
+      // sign (>0) matters now that the scene is a hard show/hide.
       const exitDist = Math.max(1, window.innerHeight * 1.0);
       const exit = clamp01((scrolledPast - denom) / exitDist);
 
@@ -326,20 +330,30 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // Real camera dolly-in toward the portal — full immersive zoom.
       applyZoom(progress);
 
-      // Scene stays FULLY visible through the entire zoom (no early fade
-      // = no blank screen), then fades only as the cards take over.
-      const sceneOpacity = red ? 1 : 1 - exit;
+      // Owner: do NOT fade the galaxy out over the cards. The scene stays
+      // FULLY visible (opacity 1) for the whole pinned phase — the deep zoom
+      // AND the hold "inside the portal". The instant the pin ends and the
+      // path cards begin to take over (exit > 0), the scene is hidden with a
+      // HARD cut (no opacity fade): it just stops being visible while the
+      // cards rise up on their own normal background. The element stays in
+      // place (sticky) and the cut is fully reversible on scroll-up.
+      const sceneVisible = exit <= 0;
+      const sceneOpacity = sceneVisible ? 1 : 0;
       const scene = sceneRef.current;
-      if (scene) scene.style.opacity = sceneOpacity.toFixed(4);
+      if (scene) {
+        scene.style.opacity = sceneOpacity.toFixed(4);
+        scene.style.visibility = sceneVisible ? "visible" : "hidden";
+      }
       const mob = mobileRef.current;
-      if (mob) mob.style.opacity = sceneOpacity.toFixed(4);
+      if (mob) {
+        mob.style.opacity = sceneOpacity.toFixed(4);
+        mob.style.visibility = sceneVisible ? "visible" : "hidden";
+      }
 
-      // Portal flash — a burst of light as the camera enters the portal
-      // at peak zoom, which then lifts to reveal the cards.
-      const enter = clamp01((progress - 0.78) / 0.22);
-      const flash = red || isMobileRef.current ? 0 : 0.45 * enter * (1 - exit);
+      // Portal flash glow removed per owner (read as a "glow wash" over the
+      // zoom) — keep the overlay fully transparent at all times.
       const portal = portalRef.current;
-      if (portal) portal.style.opacity = flash.toFixed(4);
+      if (portal) portal.style.opacity = "0";
 
       // Backdrop drifts slower than the scene → parallax depth.
       const bd = backdropRef.current;
@@ -395,11 +409,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   //     to "up", and the back-snap then yanked the camera all the way
   //     out to the hero top (a jarring restart, with the scene
   //     re-rendering mid-jump so it looked like "details missing").
-  //   • the forward snap skipped the natural exit hand-off, so the user
-  //     never saw the galaxy fade away over the rising cards.
-  // Plain native scrolling (Lenis still smooths it) flies into the
-  // portal and then reveals the cards with the scene fading on top — no
-  // direction tracking, no programmatic scroll fighting the user.
+  //   • the forward snap skipped the natural exit hand-off into the cards.
+  // Plain native scrolling (Lenis still smooths it) flies fully into the
+  // portal, holds there, then hard-cuts the scene out as the path cards
+  // rise up on their own background — no direction tracking, no
+  // programmatic scroll fighting the user.
 
   const showSpline = mounted && !isMobile && !reduced && SCENE_URL.length > 0;
 
