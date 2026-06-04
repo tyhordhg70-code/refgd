@@ -917,6 +917,11 @@ html { scroll-behavior: smooth; }
    (#06030f) was reading as black against the cosmic gradient base. */
 html { background-color: #04030f; }
 html, body { overscroll-behavior-y: none; }
+/* Stabilize the pinned CosmicJourney fly-in: overflow-anchor stops the
+   browser's scroll-anchoring from nudging the scroll offset mid-dolly
+   (which read as a per-tick zoom flicker), and overscroll-behavior keeps
+   momentum/rubber-banding from overshooting the eased camera loop. */
+html { overflow-anchor: none; }
 
 /* ─── Mobile/tablet performance — cut expensive effects ─────────── */
 @media (max-width: 1024px) {

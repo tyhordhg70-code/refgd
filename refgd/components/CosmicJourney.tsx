@@ -69,32 +69,37 @@ type SplineApp = {
 // ─────────────────────────────────────────────────────────────────────
 const SCENE_URL = "https://prod.spline.design/mzZcfxXnOQsM5LXz/scene.splinecode";
 
-// ── Camera zoom range (tunable) ───────────────────────────────────────
-// START_ZOOM < 1  → start pulled back so the whole design is visible.
-// END_ZOOM   > 1  → fly in toward the portal as the user scrolls.
-// START_ZOOM is kept close to 1 so the galaxy reads clearly the instant
-// the splash lifts (a very-pulled-back start looked like "nothing there"
-// until the user scrolled). END_ZOOM is a DEEP fly-IN so the camera
-// genuinely travels INSIDE the portal (5.5 still read as "doesn't go
-// inside"); the ~30fps setZoom throttle keeps it GPU-sane even at high zoom.
-// The zoom SATURATES at ZOOM_COMPLETE_AT (a fraction of the pinned scroll)
-// and then HOLDS at full zoom for the rest of the pin, so you arrive fully
-// inside the portal and dwell there before the path cards rise up over it.
-const START_ZOOM = 0.92;
-const END_ZOOM = 8;
-// Reach END_ZOOM at this fraction of the pinned scroll, then hold at full
-// zoom (dwell "inside the portal") for the remaining pin before un-pinning.
-const ZOOM_COMPLETE_AT = 0.72;
-// ── Real camera dolly (the part that actually flies IN) ───────────────
-// The Spline scene has `zoomLimitsEnabled`, so app.setZoom() is CLAMPED to
-// the camera's max zoom — that is why pushing END_ZOOM higher did "nothing".
-// The fix is to physically MOVE the camera object toward the portal/center,
-// which bypasses the zoom limit entirely (a true 3D dolly, not a CSS scale).
-// DOLLY_FRACTION = how far along the start→target path the camera travels at
-// full progress (0.94 ⇒ end up deep inside the portal, just shy of the core).
-const DOLLY_FRACTION = 0.94;
+// ── FORWARD-AXIS camera dolly (validated in the live Spline tester) ────
+// The scene has zoom limits that clamp app.setZoom(), so the ONLY thing that
+// actually flies INTO the portal is physically moving the camera. The tester
+// proved the right motion is a straight dolly along each camera's ORIGINAL
+// view axis (its local -Z at load), NOT a move toward the portal centroid —
+// aiming at the centroid tilted the view DOWN ("black under the portal");
+// dollying straight forward flies cleanly through the portal and fills frame.
+//   FORWARD_DISTANCE — how far (scene units) the camera travels at full dolly.
+//   DOLLY_FRACTION   — fraction of FORWARD_DISTANCE covered at full progress.
+const FORWARD_DISTANCE = 2600;
+const DOLLY_FRACTION = 1.0;
+// The dolly SATURATES at this fraction of the scroll so the camera is fully
+// inside the portal BEFORE the scroll ends, then HOLDS — the remaining scroll
+// hands off to the path cards with no extra "finish the zoom" gesture.
+const ZOOM_COMPLETE_AT = 0.6;
+// Per-frame critical-damping factor for the eased camera loop: the camera
+// glides toward the real scroll position instead of snapping, which absorbs
+// scroll jitter / momentum and kills the per-tick "zoom flicker".
+const EASE = 0.16;
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
+
+// Camera-space forward axis (local -Z) for an intrinsic XYZ Euler rotation,
+// in world space — used to dolly the camera straight along its view direction.
+function forwardAxis(r: { x: number; y: number; z: number }) {
+  const cx = Math.cos(r.x), sx = Math.sin(r.x);
+  const cy = Math.cos(r.y), sy = Math.sin(r.y);
+  const cz = Math.cos(r.z), sz = Math.sin(r.z);
+  // Third column of the intrinsic XYZ rotation matrix, negated (forward = -Z).
+  return { x: -(cy * sz + sx * sy * cz), y: -(sy * sz - sx * cy * cz), z: -(cx * cy) };
+}
 
 // ── Error boundary so a bad/blocked scene never crashes the page ───────
 class SplineErrorBoundary extends Component<
@@ -197,11 +202,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // active render camera — we can't tell which, so we move ALL of them toward
   // `camTargetRef` as scroll progresses (moving an inactive camera is a no-op).
   // This is what actually flies into the portal (setZoom is clamped).
-  const camerasRef = useRef<Array<{ obj: SplineObj; start: Vec3 }>>([]);
-  const camTargetRef = useRef<Vec3 | null>(null);
+  const camerasRef = useRef<Array<{ obj: SplineObj; start: Vec3; startRot: Vec3 }>>([]);
   // Fallback only (used when no camera object is exposed): a scene variable
   // whose name looks like a scroll/zoom driver, scrubbed with progress.
   const scrubVarRef = useRef<string | null>(null);
+  // Eased camera-progress state for the continuous RAF loop (the value glides
+  // toward the real scroll position so the dolly never snaps or flickers).
+  const appliedPRef = useRef(0);
+  const lastAppliedRef = useRef(-1);
+  const pendingRef = useRef(true);
 
   const isMobileRef = useRef(false);
   const reducedRef = useRef(false);
@@ -249,85 +258,65 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     return clamp01(-section.getBoundingClientRect().top / denom);
   };
 
-  // Push the current scroll progress into the Spline camera zoom.
-  // Each setZoom() forces a FULL re-render of the WebGL scene, so we
-  // cap it to ~30fps. At 60fps every scroll frame re-rendered the whole
-  // galaxy and the scroll stuttered; halving the render rate keeps the
-  // dolly smooth while freeing the GPU. `force` lets the very first
-  // (on-load) call paint immediately.
-  const lastZoomTs = useRef(0);
-  const trailingTimer = useRef<number | null>(null);
-  const pendingProgress = useRef(0);
-
+  // Apply a 0→1 scroll progress to the camera as a straight FORWARD dolly
+  // along each camera's ORIGINAL view axis (validated in the live tester). zp
+  // saturates at ZOOM_COMPLETE_AT so the camera is fully inside the portal
+  // BEFORE the scroll ends, then HOLDS there for a seamless hand-off to the
+  // path cards. Position movement is the ONLY thing that flies in — the scene
+  // clamps setZoom() — and it is a real 3D move, not a CSS scale.
   const renderZoom = (progress: number) => {
     const app = splineRef.current;
     if (!app || reducedRef.current) return;
-    // Saturate the zoom BEFORE the pin ends so the camera reaches full depth
-    // inside the portal and then holds there (dwell) for the rest of the pin.
     const zp = clamp01(progress / ZOOM_COMPLETE_AT);
     try {
-      // PRIMARY — physically dolly the real camera toward the portal/center.
-      // This is the ONLY lever that actually flies INTO the scene: the scene
-      // has zoom limits that clamp setZoom(), so position movement is what
-      // produces a genuine fly-in (and it is a real 3D move, not a CSS scale).
       const cams = camerasRef.current;
-      const t = camTargetRef.current;
-      if (cams.length && t) {
-        const k = zp * DOLLY_FRACTION;
-        for (const { obj, start } of cams) {
+      if (cams.length) {
+        const k = zp * DOLLY_FRACTION * FORWARD_DISTANCE;
+        for (const { obj, start, startRot } of cams) {
           if (!obj.position) continue;
-          obj.position.x = start.x + (t.x - start.x) * k;
-          obj.position.y = start.y + (t.y - start.y) * k;
-          obj.position.z = start.z + (t.z - start.z) * k;
+          const dir = forwardAxis(startRot);
+          obj.position.x = start.x + dir.x * k;
+          obj.position.y = start.y + dir.y * k;
+          obj.position.z = start.z + dir.z * k;
         }
       } else if (scrubVarRef.current) {
         // FALLBACK — no camera object exposed; scrub a scroll/zoom variable.
         app.setVariable?.(scrubVarRef.current, zp);
       }
-      // SECONDARY — also nudge setZoom (clamped by the scene, so harmless;
-      // adds a touch of extra depth on scenes where the limit allows it).
-      app.setZoom(START_ZOOM + zp * (END_ZOOM - START_ZOOM));
       app.requestRender?.();
     } catch {
       /* never let a runtime hiccup break scrolling */
     }
   };
 
-  const applyZoom = (progress: number, force = false) => {
-    if (!splineRef.current || reducedRef.current) return;
-    pendingProgress.current = progress;
-    const now =
-      typeof performance !== "undefined" ? performance.now() : Date.now();
-    if (force || now - lastZoomTs.current >= 32) {
-      lastZoomTs.current = now;
-      if (trailingTimer.current != null) {
-        clearTimeout(trailingTimer.current);
-        trailingTimer.current = null;
-      }
-      renderZoom(progress);
-      return;
-    }
-    // Throttled this frame — schedule a trailing flush so the FINAL
-    // resting position is always painted even if scrolling stops inside
-    // the throttle window (otherwise the camera can settle a hair stale).
-    if (trailingTimer.current == null) {
-      trailingTimer.current = window.setTimeout(() => {
-        trailingTimer.current = null;
-        lastZoomTs.current =
-          typeof performance !== "undefined" ? performance.now() : Date.now();
-        renderZoom(pendingProgress.current);
-      }, 40);
-    }
-  };
-
-  // Clear any pending trailing zoom flush on unmount.
+  // Continuous eased camera loop: read the REAL scroll progress every frame
+  // and glide the applied value toward it (critical damping). This is the
+  // motion the tester validated — it absorbs scroll jitter / momentum so the
+  // dolly glides instead of snapping and never "zooms back out" on a hard
+  // scroll tick. Driving the camera here (not in the scroll listener) is what
+  // makes the fly-in buttery on fast flicks.
   useEffect(() => {
-    return () => {
-      if (trailingTimer.current != null) {
-        clearTimeout(trailingTimer.current);
-        trailingTimer.current = null;
+    let raf = 0;
+    const loop = () => {
+      raf = requestAnimationFrame(loop);
+      if (!splineRef.current || reducedRef.current) return;
+      const target = getProgress();
+      const cur = appliedPRef.current;
+      let next = cur + (target - cur) * EASE;
+      if (Math.abs(target - next) < 0.0004) next = target;
+      appliedPRef.current = next;
+      if (
+        Math.abs(next - lastAppliedRef.current) > 0.00002 ||
+        pendingRef.current
+      ) {
+        pendingRef.current = false;
+        lastAppliedRef.current = next;
+        renderZoom(next);
       }
     };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onSplineLoad = (app: SplineApp) => {
@@ -342,13 +331,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // "Camera 3") — confirmed by inspecting scene.splinecode. Only one is the
       // active render camera and the runtime gives no reliable way to know
       // which, so collect every camera we can find and dolly them ALL.
-      const cams: Array<{ obj: SplineObj; start: Vec3 }> = [];
+      const cams: Array<{ obj: SplineObj; start: Vec3; startRot: Vec3 }> = [];
       const pushCam = (o: SplineObj | undefined | null) => {
         if (!o?.position) return;
         if (cams.some((c) => c.obj === o)) return;
         cams.push({
           obj: o,
           start: { x: o.position.x, y: o.position.y, z: o.position.z },
+          startRot: {
+            x: o.rotation?.x ?? 0,
+            y: o.rotation?.y ?? 0,
+            z: o.rotation?.z ?? 0,
+          },
         });
       };
       for (const n of [
@@ -363,22 +357,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
       camerasRef.current = cams;
 
-      if (cams.length) {
-        // Target = a portal/center object if we can find one, otherwise the
-        // world origin (galaxy/portal hero scenes are centered at the origin).
-        let target: Vec3 | null = null;
-        for (const n of [
-          "Portal", "portal", "Gate", "Black Hole", "Blackhole", "Vortex",
-          "Galaxy", "Tunnel", "Wormhole", "Ring", "Door", "Center",
-        ]) {
-          const o = app.findObjectByName?.(n);
-          if (o?.position) {
-            target = { x: o.position.x, y: o.position.y, z: o.position.z };
-            break;
-          }
-        }
-        camTargetRef.current = target ?? { x: 0, y: 0, z: 0 };
-      } else {
+      if (!cams.length) {
         // No camera object exposed — fall back to scrubbing a scene variable
         // whose name looks like a scroll/zoom driver, if one exists.
         const vars = app.getVariables?.() ?? {};
@@ -426,7 +405,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       /* noop */
     }
 
-    applyZoom(getProgress(), true);
+    appliedPRef.current = getProgress();
+    pendingRef.current = true;
+    renderZoom(getProgress());
     // Tell the loading screen the heavy 3D scene has painted its first
     // frame so the splash holds until the galaxy is actually ready
     // (instead of lifting onto an empty backdrop that "pops in" later
@@ -470,27 +451,23 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (Math.abs(key - lastKey) < 0.0005) return;
       lastKey = key;
 
-      // Real camera dolly-in toward the portal — full immersive zoom.
-      applyZoom(progress);
+      // Camera dolly is driven by the continuous eased RAF loop above, NOT
+      // here — this listener only handles the DOM parallax + fades.
 
-      // Owner: do NOT fade the galaxy out over the cards. The scene stays
-      // FULLY visible (opacity 1) for the whole pinned phase — the deep zoom
-      // AND the hold "inside the portal". The instant the pin ends and the
-      // path cards begin to take over (exit > 0), the scene is hidden with a
-      // HARD cut (no opacity fade): it just stops being visible while the
-      // cards rise up on their own normal background. The element stays in
-      // place (sticky) and the cut is fully reversible on scroll-up.
-      const sceneVisible = exit <= 0;
-      const sceneOpacity = sceneVisible ? 1 : 0;
+      // Owner rule: never fade the galaxy out (no opacity fade) AND no hard
+      // cut either. The scene stays FULLY visible the whole time; when the
+      // pinned hero ends, the sticky scene simply scrolls away as the path
+      // cards take over, so the hand-off is seamless instead of the galaxy
+      // blinking out. Fully reversible on scroll-up.
       const scene = sceneRef.current;
       if (scene) {
-        scene.style.opacity = sceneOpacity.toFixed(4);
-        scene.style.visibility = sceneVisible ? "visible" : "hidden";
+        scene.style.opacity = "1";
+        scene.style.visibility = "visible";
       }
       const mob = mobileRef.current;
       if (mob) {
-        mob.style.opacity = sceneOpacity.toFixed(4);
-        mob.style.visibility = sceneVisible ? "visible" : "hidden";
+        mob.style.opacity = "1";
+        mob.style.visibility = "visible";
       }
 
       // Portal flash glow removed per owner (read as a "glow wash" over the
@@ -565,7 +542,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       ref={sectionRef}
       data-testid="cosmic-journey"
       className="relative w-full"
-      style={{ height: isMobile ? "150svh" : "220svh" }}
+      style={{ height: isMobile ? "150svh" : "170svh" }}
     >
       <div
         className="sticky top-0 grid w-full place-items-center overflow-hidden"
