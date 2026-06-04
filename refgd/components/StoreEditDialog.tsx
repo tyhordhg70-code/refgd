@@ -591,17 +591,6 @@ export default function StoreEditDialog({
               })}
             </div>
           </Field>
-          <Field label="Prismatic glow">
-            <label className="inline-flex items-center gap-2 text-sm text-white/80">
-              <input
-                type="checkbox"
-                checked={draft.prismaticGlow}
-                onChange={(e) => setField("prismaticGlow", e.target.checked)}
-                className="h-4 w-4 accent-amber-400"
-              />
-              Featured / animated border
-            </label>
-          </Field>
         </div>
 
         {err && (

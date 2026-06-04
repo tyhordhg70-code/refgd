@@ -612,7 +612,8 @@ html { scroll-behavior: smooth; }
   html { scroll-behavior: auto; }
   .marquee, .marquee-reverse { animation: none; }
   .pulse-glow, .float-card, .pulsating-overlay-a, .pulsating-overlay-b,
-  .chess-float, .prismatic-glow::before, .prismatic-glow::after { animation: none !important; }
+  .chess-float, .prismatic-glow::before, .prismatic-glow::after,
+  .glow-hot, .glow-premium, .glow-luxury, .glow-new { animation: none !important; }
 }
 
 /* ─── Site-wide pulsating gradient overlay ──────────────────────── */
@@ -834,6 +835,60 @@ html { scroll-behavior: smooth; }
 @keyframes prism {
   0%, 100% { background-position: 0% 50%; }
   50%      { background-position: 100% 50%; }
+}
+
+/* ─── Tag-driven boxcard glow borders ──────────────────────────────
+   The /store-list boxcards derive their animated glow border from the
+   store's featured tag (highest priority wins): 👑 luxury, 💎 premium,
+   🔥 hot, ✨ new. This replaced the old manual "prismaticGlow" checkbox.
+   Each tag gets a visually distinct animation + colour-matched halo. The
+   card adds the chosen class to its 1.5px gradient ring wrapper. */
+
+/* 🔥 hot — fiery red→orange flowing border + warm halo */
+.glow-hot {
+  background: linear-gradient(135deg,#ff3b2f,#ff7a18,#ffb347,#ff5a28,#ff3b2f);
+  background-size: 200% 200%;
+  animation: prism 5s ease infinite;
+  box-shadow:
+    0 0 22px -4px rgba(255,90,40,0.55),
+    0 18px 50px -22px rgba(255,120,40,0.5);
+}
+
+/* 💎 premium — icy cyan/sky diamond shimmer + cool halo */
+.glow-premium {
+  background: linear-gradient(135deg,#7dd3fc,#38bdf8,#e0f2fe,#22d3ee,#7dd3fc);
+  background-size: 220% 220%;
+  animation: prism 6.5s ease infinite;
+  box-shadow:
+    0 0 22px -4px rgba(56,189,248,0.55),
+    0 18px 50px -22px rgba(34,211,238,0.45);
+}
+
+/* 👑 luxury — regal gold rotating conic ring + gold halo */
+.glow-luxury {
+  background: conic-gradient(from var(--pg-angle, 0deg),
+    #8a6d0b,#ffd700,#fff3b0,#daa520,#ffe88a,#8a6d0b);
+  animation: prismaticSpin 7s linear infinite;
+  box-shadow:
+    0 0 24px -3px rgba(255,200,40,0.55),
+    0 18px 50px -22px rgba(212,160,23,0.5);
+}
+@supports not (background: conic-gradient(from 0deg, red, blue)) {
+  .glow-luxury {
+    background: linear-gradient(135deg,#8a6d0b,#ffd700,#fff3b0,#daa520,#ffd700);
+    background-size: 300% 300%;
+    animation: prism 7s ease infinite;
+  }
+}
+
+/* ✨ new — full-spectrum prismatic rainbow (the original animated border) */
+.glow-new {
+  background: linear-gradient(135deg,#ff6ad5,#c779d0,#4bc0c8,#feac5e,#ff6ad5);
+  background-size: 200% 200%;
+  animation: prism 8s ease infinite;
+  box-shadow:
+    0 0 22px -4px rgba(199,121,208,0.5),
+    0 18px 50px -22px rgba(75,192,200,0.4);
 }
 
 /* ─── Mobile typography taming ─────────────────────────────────── */
@@ -1460,6 +1515,10 @@ html, body { overscroll-behavior-y: none; }
   .prism-bg::after,
   .aurora-bg::before,
   .aurora-bg::after,
+  .glow-hot,
+  .glow-premium,
+  .glow-luxury,
+  .glow-new,
   [class*="animate-spin"] {
     animation: none !important;
   }

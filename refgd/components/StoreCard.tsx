@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import type { Store } from "@/lib/types";
+import type { Store, StoreTag } from "@/lib/types";
 import { logoChainForStore } from "@/lib/logo";
 import { useEditContext } from "@/lib/edit-context";
 
@@ -28,6 +28,17 @@ function parseNotes(text: string) {
   if (last < text.length) parts.push(text.slice(last));
   return parts;
 }
+
+// Featured tags drive the card's animated glow border. Highest priority
+// wins when a store carries several. This replaced the old manual
+// prismaticGlow checkbox — the tag now auto-sets the glow.
+const GLOW_BY_TAG: Partial<Record<StoreTag, string>> = {
+  crown: "glow-luxury",
+  diamond: "glow-premium",
+  fire: "glow-hot",
+  new: "glow-new",
+};
+const GLOW_PRIORITY: StoreTag[] = ["crown", "diamond", "fire", "new"];
 
 const TAG_LABEL: Record<string, { label: string; cls: string }> = {
   fire:    { label: "🔥 hot",       cls: "bg-orange-500/15 text-orange-300 ring-orange-400/30" },
@@ -74,6 +85,10 @@ export default function StoreCard({
 
   const initial = store.name.replace(/[^a-zA-Z]/g, "")[0]?.toUpperCase() || "?";
 
+  // Pick the glow border for the highest-priority featured tag (if any).
+  const glowTag = GLOW_PRIORITY.find((t) => (store.tags ?? []).includes(t));
+  const glowClass = glowTag ? GLOW_BY_TAG[glowTag] : null;
+
   // Editor overlay only shows when admin is in edit mode AND a parent
   // (StoreFilters) supplied callbacks — keeps this component usable on
   // public pages with zero visual change for non-admin visitors.
@@ -102,8 +117,8 @@ export default function StoreCard({
       data-testid={`store-card-${store.id}`}
       data-editable-skip
       whileHover={{ y: -4 }}
-      className={`group relative ${store.prismaticGlow ? "p-[1.5px]" : "p-px"} rounded-2xl ${
-        store.prismaticGlow ? "prismatic-border" : "bg-white/10"
+      className={`group relative ${glowClass ? "p-[1.5px]" : "p-px"} rounded-2xl ${
+        glowClass ?? "bg-white/10"
       } transition-shadow duration-300 hover:shadow-[0_30px_70px_-25px_rgba(245,185,69,0.18)] ${
         showOverlay ? "ring-2 ring-amber-300/0 hover:ring-amber-300/40" : ""
       }`}
