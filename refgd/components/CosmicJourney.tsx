@@ -286,6 +286,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     if (!section) return;
 
     let endTimer = 0;
+    let safetyTimer = 0;
     let snapping = false;
     let lastY = window.scrollY;
     let dirDown = true;
@@ -305,21 +306,26 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         window.scrollTo({ top: y, behavior: "smooth" });
       }
       // Safety release in case onComplete never fires.
-      window.setTimeout(() => { snapping = false; }, 1200);
+      window.clearTimeout(safetyTimer);
+      safetyTimer = window.setTimeout(() => { snapping = false; }, 1200);
     };
 
+    // Auto-complete only ever continues in the direction the user was
+    // already scrolling — it never reverses their intent, so it can't
+    // "fight" a user trying to scroll the other way near either edge.
     const onSettle = () => {
       if (snapping) return;
       const p = getProgress();
       if (p <= 0.02 || p >= 0.98) return;
       const docTop = window.scrollY + section.getBoundingClientRect().top;
       const denom = Math.max(1, section.offsetHeight - window.innerHeight);
-      const toCards = docTop + denom;
       let target: number | null = null;
       if (dirDown) {
-        target = p >= SNAP_FORWARD_AT ? toCards : docTop;
+        // committed downward → fly the rest of the way into the cards
+        if (p >= SNAP_FORWARD_AT) target = docTop + denom;
       } else {
-        target = p <= SNAP_BACK_AT ? docTop : toCards;
+        // committed upward → return to the top of the hero
+        if (p <= SNAP_BACK_AT) target = docTop;
       }
       if (target != null) scrollToY(target);
     };
