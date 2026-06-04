@@ -410,7 +410,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // clamps setZoom() — and it is a real 3D move, not a CSS scale.
   const renderZoom = (progress: number) => {
     const app = splineRef.current;
-    if (!app || reducedRef.current) return;
+    if (!app || reducedRef.current || isMobileRef.current) return;
     const zp = clamp01(progress / ZOOM_COMPLETE_AT);
     try {
       const cams = camerasRef.current;
@@ -446,7 +446,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     let raf = 0;
     const loop = () => {
       raf = requestAnimationFrame(loop);
-      if (!splineRef.current || reducedRef.current) return;
+      // Guard mobile too: if the viewport crosses to mobile after the scene
+      // already loaded on desktop, showSpline unmounts but splineRef may linger
+      // — without this the camera loop / auto-snap could still fire on mobile.
+      if (!splineRef.current || reducedRef.current || isMobileRef.current)
+        return;
       const target = getProgress();
 
       // ── One-shot auto-snap to the path cards once the dive has visually
