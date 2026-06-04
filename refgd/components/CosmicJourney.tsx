@@ -12,37 +12,63 @@ import { motion, useReducedMotion } from "framer-motion";
 import KineticText from "./KineticText";
 
 /**
- * CosmicJourney — real 3D Spline galaxy hero.
+ * CosmicJourney — real 3D Spline galaxy hero with a camera-driven
+ * fly-INTO-the-portal scroll.
  *
- * Replaces the old hand-built CSS planet + the shooting-star "warp
- * filler" void (which made users think the page had ended). Now a real
- * 3D Spline galaxy fills the hero; on scroll the whole scene ZOOMS OUT
- * and recedes while the welcome headline lifts away, so the path cards
- * directly below rise into view — the motion itself tells the user to
- * keep scrolling. A bold, always-visible scroll cue reinforces it.
+ * The previous version scaled the whole flat canvas down (a "chunk"
+ * zoom-out) which looked like shrinking a picture, not travelling into
+ * the scene. This version drives the actual Spline CAMERA via the
+ * runtime `setZoom()` API, so scrolling performs a true dolly-in toward
+ * the scene's focal point (the portal) — objects at different depths
+ * move at different rates on their own (real parallax), and the camera
+ * pushes through into the path cards waiting directly below.
+ *
+ * Behaviour:
+ *   • On load the camera starts slightly zoomed OUT (START_ZOOM < 1) so
+ *     the ENTIRE design is visible — nothing clipped at the bottom.
+ *   • Scrolling ramps the zoom up (END_ZOOM) → fly into the portal,
+ *     while the scene fades near the end so the cards take over.
+ *   • A subtle backdrop drift adds extra parallax depth behind the scene.
+ *   • Hard / fast scroll AUTO-COMPLETES: when scrolling settles mid-way
+ *     the page snaps (via the shared Lenis instance on window.__lenis) to
+ *     the cards (scrolling down) or back to the top (scrolling up), so
+ *     nobody gets stranded mid-zoom.
  *
  * Robustness ("can't go wrong with bugs"):
- *   • A cosmic gradient backdrop is ALWAYS painted behind the scene, so
- *     the hero is never blank — during load, on error, on mobile, or
- *     under prefers-reduced-motion.
- *   • The Spline canvas is wrapped in an ErrorBoundary; if the scene
- *     fails to load the page keeps working and just shows the backdrop.
- *   • Spline only renders on desktop after hydration (WebGL is heavy /
- *     crash-prone on low-end phones) — mobile gets a light star canvas.
- *   • Scroll transforms are applied by direct style mutation in a single
+ *   • A cosmic gradient backdrop is ALWAYS painted, so the hero is never
+ *     blank — during load, on error, on mobile, or under reduced-motion.
+ *   • The Spline canvas is wrapped in an ErrorBoundary.
+ *   • Spline only renders on desktop after hydration; mobile gets a light
+ *     star canvas and normal scrolling (no zoom / no snap).
+ *   • Scroll work is direct DOM/camera mutation inside one rAF-coalesced
  *     passive listener (zero React re-renders per frame).
  */
 
 const Spline = lazy(() => import("@splinetool/react-spline"));
 
+// Minimal shape of the Spline runtime Application we actually use.
+type SplineApp = {
+  setZoom: (zoom: number) => void;
+  requestRender?: () => void;
+};
+
 // ─────────────────────────────────────────────────────────────────────
-// Spline scene URL.
-// Paste the exported `scene.splinecode` URL from your Spline scene here.
-// Get it by opening the community scene → Remix → Export → Code/Viewer
-// (set Public) → copy the URL that ends in `/scene.splinecode`.
-// Until a real URL is set, the hero shows the cosmic gradient backdrop.
+// Spline scene URL (exported `scene.splinecode`).
 // ─────────────────────────────────────────────────────────────────────
 const SCENE_URL = "https://prod.spline.design/mzZcfxXnOQsM5LXz/scene.splinecode";
+
+// ── Camera zoom range (tunable) ───────────────────────────────────────
+// START_ZOOM < 1  → start pulled back so the whole design is visible.
+// END_ZOOM   > 1  → fly in toward the portal as the user scrolls.
+const START_ZOOM = 0.9;
+const END_ZOOM = 2.4;
+
+// Once the scroll passes this fraction, a settled scroll auto-completes
+// forward into the cards; below it (when scrolling up) it returns to top.
+const SNAP_FORWARD_AT = 0.18;
+const SNAP_BACK_AT = 0.82;
+
+const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
 // ── Error boundary so a bad/blocked scene never crashes the page ───────
 class SplineErrorBoundary extends Component<
@@ -133,9 +159,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const [mounted, setMounted] = useState(false);
 
   const sectionRef = useRef<HTMLElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
+  const mobileRef = useRef<HTMLDivElement>(null);
   const headlineRef = useRef<HTMLDivElement>(null);
   const cueRef = useRef<HTMLDivElement>(null);
+  const splineRef = useRef<SplineApp | null>(null);
 
   const isMobileRef = useRef(false);
   const reducedRef = useRef(false);
@@ -155,37 +184,60 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // ── Scroll-linked zoom-out — direct DOM mutation, zero re-renders ────
+  // Progress (0→1) of how far we are through the sticky hero section.
+  const getProgress = () => {
+    const section = sectionRef.current;
+    if (!section) return 0;
+    const denom = Math.max(1, section.offsetHeight - window.innerHeight);
+    return clamp01(-section.getBoundingClientRect().top / denom);
+  };
+
+  // Push the current scroll progress into the Spline camera zoom.
+  const applyZoom = (progress: number) => {
+    const app = splineRef.current;
+    if (!app || reducedRef.current) return;
+    const zoom = START_ZOOM + progress * (END_ZOOM - START_ZOOM);
+    try {
+      app.setZoom(zoom);
+      app.requestRender?.();
+    } catch {
+      /* never let a runtime hiccup break scrolling */
+    }
+  };
+
+  const onSplineLoad = (app: SplineApp) => {
+    splineRef.current = app;
+    applyZoom(getProgress());
+  };
+
+  // ── Scroll-linked camera zoom + fades — zero React re-renders ────────
   useEffect(() => {
     const section = sectionRef.current;
     if (!section) return;
     let lastProg = -1;
 
     const update = () => {
-      const rect = section.getBoundingClientRect();
-      const sectionH = section.offsetHeight;
-      const viewH = window.innerHeight;
-      const raw = -rect.top / Math.max(1, sectionH - viewH);
-      const progress = raw < 0 ? 0 : raw > 1 ? 1 : raw;
+      const progress = getProgress();
       if (Math.abs(progress - lastProg) < 0.0005) return;
       lastProg = progress;
-
       const red = reducedRef.current;
-      const clamp = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
-      // Scene: zoom OUT (scale down) + recede + fade as the user scrolls.
+      // Real camera dolly-in toward the portal.
+      applyZoom(progress);
+
+      // Scene fades out over the last third so the cards take over.
+      const sceneOpacity = red ? 1 : clamp01(1 - (progress - 0.62) / (1 - 0.62));
       const scene = sceneRef.current;
-      if (scene) {
-        if (red) {
-          scene.style.transform = "none";
-          scene.style.opacity = "1";
-        } else {
-          const scale = 1.12 - progress * 0.62; // 1.12 → 0.50
-          const yPx = progress * -90;
-          const opacity = clamp(1 - (progress - 0.18) / (0.72 - 0.18));
-          scene.style.transform = `scale(${scale.toFixed(4)}) translateY(${yPx.toFixed(1)}px)`;
-          scene.style.opacity = opacity.toFixed(4);
-        }
+      if (scene) scene.style.opacity = sceneOpacity.toFixed(4);
+      const mob = mobileRef.current;
+      if (mob) mob.style.opacity = sceneOpacity.toFixed(4);
+
+      // Backdrop drifts slower than the scene → parallax depth.
+      const bd = backdropRef.current;
+      if (bd) {
+        bd.style.transform = red
+          ? "none"
+          : `translateY(${(progress * -42).toFixed(1)}px) scale(${(1 + progress * 0.08).toFixed(4)})`;
       }
 
       // Headline lifts away over the first ~38% of the scroll.
@@ -195,16 +247,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           headline.style.transform = "none";
           headline.style.opacity = "1";
         } else {
-          const op = clamp(1 - progress / 0.38);
-          const y = progress * -70;
-          headline.style.transform = `translateY(${y.toFixed(1)}px)`;
-          headline.style.opacity = op.toFixed(4);
+          headline.style.opacity = clamp01(1 - progress / 0.38).toFixed(4);
+          headline.style.transform = `translateY(${(progress * -70).toFixed(1)}px)`;
         }
       }
 
       // Scroll cue fades out the moment the user starts moving.
       const cue = cueRef.current;
-      if (cue) cue.style.opacity = clamp(1 - progress / 0.07).toFixed(4);
+      if (cue) cue.style.opacity = clamp01(1 - progress / 0.07).toFixed(4);
     };
 
     // Coalesce scroll/resize bursts into one rAF-aligned update.
@@ -229,6 +279,67 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
   }, []);
 
+  // ── Hard-scroll auto-complete (snap) — desktop, motion-on only ───────
+  useEffect(() => {
+    if (isMobile || reduced) return;
+    const section = sectionRef.current;
+    if (!section) return;
+
+    let endTimer = 0;
+    let snapping = false;
+    let lastY = window.scrollY;
+    let dirDown = true;
+
+    const scrollToY = (y: number) => {
+      snapping = true;
+      const lenis = (window as unknown as { __lenis?: {
+        scrollTo: (t: number, o?: Record<string, unknown>) => void;
+      } }).__lenis;
+      if (lenis && typeof lenis.scrollTo === "function") {
+        lenis.scrollTo(y, {
+          duration: 0.9,
+          easing: (t: number) => 1 - Math.pow(1 - t, 3),
+          onComplete: () => { snapping = false; },
+        });
+      } else {
+        window.scrollTo({ top: y, behavior: "smooth" });
+      }
+      // Safety release in case onComplete never fires.
+      window.setTimeout(() => { snapping = false; }, 1200);
+    };
+
+    const onSettle = () => {
+      if (snapping) return;
+      const p = getProgress();
+      if (p <= 0.02 || p >= 0.98) return;
+      const docTop = window.scrollY + section.getBoundingClientRect().top;
+      const denom = Math.max(1, section.offsetHeight - window.innerHeight);
+      const toCards = docTop + denom;
+      let target: number | null = null;
+      if (dirDown) {
+        target = p >= SNAP_FORWARD_AT ? toCards : docTop;
+      } else {
+        target = p <= SNAP_BACK_AT ? docTop : toCards;
+      }
+      if (target != null) scrollToY(target);
+    };
+
+    const onScroll = () => {
+      const y = window.scrollY;
+      dirDown = y >= lastY;
+      lastY = y;
+      if (snapping) return;
+      window.clearTimeout(endTimer);
+      endTimer = window.setTimeout(onSettle, 150);
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.clearTimeout(endTimer);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [isMobile, reduced]);
+
   const showSpline = mounted && !isMobile && !reduced && SCENE_URL.length > 0;
 
   return (
@@ -244,6 +355,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       >
         {/* ── Cosmic gradient backdrop — ALWAYS painted (never blank) ── */}
         <div
+          ref={backdropRef}
           aria-hidden="true"
           className="pointer-events-none absolute inset-0"
           style={{
@@ -252,20 +364,21 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
               "radial-gradient(ellipse at 74% 64%, rgba(34,211,238,0.24) 0%, transparent 56%)," +
               "radial-gradient(ellipse at 50% 50%, rgba(245,185,69,0.20) 0%, transparent 60%)",
             filter: "blur(30px)",
+            willChange: "transform",
           }}
         />
 
-        {/* ── 3D Spline galaxy (desktop) — zoom-out driven by scroll ── */}
+        {/* ── 3D Spline galaxy (desktop) — camera zoom driven by scroll ── */}
         {showSpline && (
           <div
             ref={sceneRef}
             aria-hidden="true"
             className="absolute inset-0"
-            style={{ willChange: "transform, opacity", transformOrigin: "50% 42%" }}
+            style={{ willChange: "opacity" }}
           >
             <SplineErrorBoundary>
               <Suspense fallback={null}>
-                <Spline scene={SCENE_URL} />
+                <Spline scene={SCENE_URL} onLoad={onSplineLoad} />
               </Suspense>
             </SplineErrorBoundary>
           </div>
@@ -274,9 +387,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         {/* ── Mobile fallback star canvas ── */}
         {isMobile && (
           <div
+            ref={mobileRef}
             aria-hidden="true"
             className="absolute inset-0"
-            style={{ willChange: "transform" }}
+            style={{ willChange: "opacity" }}
           >
             <MobileStars />
           </div>
