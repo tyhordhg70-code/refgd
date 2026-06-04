@@ -355,24 +355,32 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // "fight" a user trying to scroll the other way near either edge.
     const onSettle = () => {
       if (snapping) return;
-      const p = getProgress();
-      if (p <= 0.02 || p >= 0.98) return;
-      const docTop = window.scrollY + section.getBoundingClientRect().top;
-      let target: number | null = null;
+      const rect = section.getBoundingClientRect();
+      const denom = Math.max(1, section.offsetHeight - window.innerHeight);
+      const progress = clamp01(-rect.top / denom);
+      const docTop = window.scrollY + rect.top;
+
       if (dirDown) {
         // Committed downward → fly the rest of the way through the portal
-        // and land ON the path cards (never the blank tail of the hero).
-        if (p >= SNAP_FORWARD_AT) {
-          const paths = document.getElementById("paths");
-          target = paths
-            ? window.scrollY + paths.getBoundingClientRect().top
+        // and land ON the path cards. We must allow this even once the
+        // zoom has finished (progress clamps to 1 for the whole exit
+        // phase while the cards are still below the fold), otherwise a
+        // fast fling that completes the zoom would strand the user in the
+        // exit tail and force a manual scroll to reach the cards.
+        const paths = document.getElementById("paths");
+        const pathsTop = paths ? paths.getBoundingClientRect().top : Infinity;
+        const committed = progress >= SNAP_FORWARD_AT;
+        const cardsReached = pathsTop <= 4; // already at / past the cards
+        if (committed && !cardsReached) {
+          const target = paths
+            ? Math.max(0, window.scrollY + pathsTop)
             : docTop + section.offsetHeight;
+          scrollToY(target);
         }
       } else {
         // Committed upward → return to the top of the hero.
-        if (p <= SNAP_BACK_AT) target = docTop;
+        if (progress > 0.02 && progress <= SNAP_BACK_AT) scrollToY(docTop);
       }
-      if (target != null) scrollToY(target);
     };
 
     const onScroll = () => {
@@ -387,6 +395,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.clearTimeout(endTimer);
+      window.clearTimeout(safetyTimer);
       window.removeEventListener("scroll", onScroll);
     };
   }, [isMobile, reduced]);
