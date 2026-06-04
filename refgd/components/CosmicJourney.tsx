@@ -96,9 +96,10 @@ const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 function forwardAxis(r: { x: number; y: number; z: number }) {
   const cx = Math.cos(r.x), sx = Math.sin(r.x);
   const cy = Math.cos(r.y), sy = Math.sin(r.y);
-  const cz = Math.cos(r.z), sz = Math.sin(r.z);
-  // Third column of the intrinsic XYZ rotation matrix, negated (forward = -Z).
-  return { x: -(cy * sz + sx * sy * cz), y: -(sy * sz - sx * cy * cz), z: -(cx * cy) };
+  // Local Z axis (3rd column) of the three.js intrinsic XYZ rotation matrix is
+  // (sin y, -sin x cos y, cos x cos y); forward = -Z. Roll-independent (does
+  // NOT depend on r.z), matching three.js / Spline Euler semantics.
+  return { x: -sy, y: sx * cy, z: -cx * cy };
 }
 
 // ── Error boundary so a bad/blocked scene never crashes the page ───────
