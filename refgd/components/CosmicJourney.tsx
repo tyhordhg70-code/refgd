@@ -60,14 +60,13 @@ const SCENE_URL = "https://prod.spline.design/mzZcfxXnOQsM5LXz/scene.splinecode"
 // ── Camera zoom range (tunable) ───────────────────────────────────────
 // START_ZOOM < 1  → start pulled back so the whole design is visible.
 // END_ZOOM   > 1  → fly in toward the portal as the user scrolls.
-const START_ZOOM = 0.85;
-const END_ZOOM = 4.5;
-
-// Once the scroll passes this fraction, a settled scroll auto-completes
-// forward — flying the rest of the way THROUGH the portal and landing on
-// the path cards; below it (when scrolling up) it returns to the top.
-const SNAP_FORWARD_AT = 0.16;
-const SNAP_BACK_AT = 0.82;
+// START_ZOOM is kept close to 1 so the galaxy reads clearly the instant
+// the splash lifts (a very-pulled-back start looked like "nothing there"
+// until the user scrolled). END_ZOOM is a strong-but-GPU-sane dolly —
+// pushing it too far (4.5+) filled the screen with particle overdraw and
+// made scrolling stutter on mid-range machines.
+const START_ZOOM = 0.92;
+const END_ZOOM = 3.8;
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
@@ -176,6 +175,26 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // Mount gate — render Spline only on the client, after hydration.
   useEffect(() => { setMounted(true); }, []);
 
+  // Warm the heavy Spline chunk + scene asset as early as possible, and
+  // tell the loading splash that a real 3D scene is mounting so it holds
+  // the overlay until the galaxy has actually painted (see LoadingScreen's
+  // `refgd:scene-pending` handling) instead of lifting onto an empty
+  // backdrop that the scene then "pops into" several seconds later.
+  useEffect(() => {
+    if (typeof window === "undefined" || reduced) return;
+    if (window.matchMedia("(max-width: 768px)").matches) return; // no scene on mobile
+    try {
+      (window as unknown as { __refgdScenePending?: boolean }).__refgdScenePending = true;
+      window.dispatchEvent(new Event("refgd:scene-pending"));
+    } catch { /* noop */ }
+    // Prefetch the lazy chunk and the scene file so the canvas is warm
+    // the moment it mounts behind the splash.
+    void import("@splinetool/react-spline").catch(() => {});
+    try {
+      void fetch(SCENE_URL, { mode: "cors", credentials: "omit" }).catch(() => {});
+    } catch { /* noop */ }
+  }, [reduced]);
+
   // Viewport size watcher
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -195,9 +214,19 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   };
 
   // Push the current scroll progress into the Spline camera zoom.
-  const applyZoom = (progress: number) => {
+  // Each setZoom() forces a FULL re-render of the WebGL scene, so we
+  // cap it to ~30fps. At 60fps every scroll frame re-rendered the whole
+  // galaxy and the scroll stuttered; halving the render rate keeps the
+  // dolly smooth while freeing the GPU. `force` lets the very first
+  // (on-load) call and the resting frame paint immediately.
+  const lastZoomTs = useRef(0);
+  const applyZoom = (progress: number, force = false) => {
     const app = splineRef.current;
     if (!app || reducedRef.current) return;
+    const now =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+    if (!force && now - lastZoomTs.current < 32) return;
+    lastZoomTs.current = now;
     const zoom = START_ZOOM + progress * (END_ZOOM - START_ZOOM);
     try {
       app.setZoom(zoom);
@@ -209,7 +238,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
   const onSplineLoad = (app: SplineApp) => {
     splineRef.current = app;
-    applyZoom(getProgress());
+    applyZoom(getProgress(), true);
     // Tell the loading screen the heavy 3D scene has painted its first
     // frame so the splash holds until the galaxy is actually ready
     // (instead of lifting onto an empty backdrop that "pops in" later
@@ -239,8 +268,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // Exit phase: once the camera has flown ALL the way in, the hero
       // un-pins and the scene scrolls up and away while the path cards
       // rise from directly below — the "travel through to another
-      // section" hand-off, with NO blank gap in between.
-      const exitDist = Math.max(1, window.innerHeight * 0.9);
+      // section" hand-off, with NO blank gap in between. The fade is
+      // tuned to ~0.6vh of scroll so the galaxy is still clearly visible
+      // (faded) at the top of the screen while the cards climb up from
+      // below, instead of vanishing while it's still mostly opaque.
+      const exitDist = Math.max(1, window.innerHeight * 0.6);
       const exit = clamp01((scrolledPast - denom) / exitDist);
 
       // progress is constant (1) during the exit phase, so fold exit into
@@ -314,91 +346,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
   }, []);
 
-  // ── Hard-scroll auto-complete (snap) — desktop, motion-on only ───────
-  useEffect(() => {
-    if (isMobile || reduced) return;
-    const section = sectionRef.current;
-    if (!section) return;
-
-    let endTimer = 0;
-    let safetyTimer = 0;
-    let snapping = false;
-    let lastY = window.scrollY;
-    let dirDown = true;
-
-    const easeInOutCubic = (t: number) =>
-      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-
-    const scrollToY = (y: number) => {
-      snapping = true;
-      const lenis = (window as unknown as { __lenis?: {
-        scrollTo: (t: number, o?: Record<string, unknown>) => void;
-      } }).__lenis;
-      if (lenis && typeof lenis.scrollTo === "function") {
-        lenis.scrollTo(y, {
-          // Longer, eased glide so the camera visibly flies all the way
-          // THROUGH the portal during the snap, then settles on the cards.
-          duration: 1.25,
-          easing: easeInOutCubic,
-          onComplete: () => { snapping = false; },
-        });
-      } else {
-        window.scrollTo({ top: y, behavior: "smooth" });
-      }
-      // Safety release in case onComplete never fires.
-      window.clearTimeout(safetyTimer);
-      safetyTimer = window.setTimeout(() => { snapping = false; }, 1700);
-    };
-
-    // Auto-complete only ever continues in the direction the user was
-    // already scrolling — it never reverses their intent, so it can't
-    // "fight" a user trying to scroll the other way near either edge.
-    const onSettle = () => {
-      if (snapping) return;
-      const rect = section.getBoundingClientRect();
-      const denom = Math.max(1, section.offsetHeight - window.innerHeight);
-      const progress = clamp01(-rect.top / denom);
-      const docTop = window.scrollY + rect.top;
-
-      if (dirDown) {
-        // Committed downward → fly the rest of the way through the portal
-        // and land ON the path cards. We must allow this even once the
-        // zoom has finished (progress clamps to 1 for the whole exit
-        // phase while the cards are still below the fold), otherwise a
-        // fast fling that completes the zoom would strand the user in the
-        // exit tail and force a manual scroll to reach the cards.
-        const paths = document.getElementById("paths");
-        const pathsTop = paths ? paths.getBoundingClientRect().top : Infinity;
-        const committed = progress >= SNAP_FORWARD_AT;
-        const cardsReached = pathsTop <= 4; // already at / past the cards
-        if (committed && !cardsReached) {
-          const target = paths
-            ? Math.max(0, window.scrollY + pathsTop)
-            : docTop + section.offsetHeight;
-          scrollToY(target);
-        }
-      } else {
-        // Committed upward → return to the top of the hero.
-        if (progress > 0.02 && progress <= SNAP_BACK_AT) scrollToY(docTop);
-      }
-    };
-
-    const onScroll = () => {
-      const y = window.scrollY;
-      dirDown = y >= lastY;
-      lastY = y;
-      if (snapping) return;
-      window.clearTimeout(endTimer);
-      endTimer = window.setTimeout(onSettle, 150);
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.clearTimeout(endTimer);
-      window.clearTimeout(safetyTimer);
-      window.removeEventListener("scroll", onScroll);
-    };
-  }, [isMobile, reduced]);
+  // NOTE: the previous "hard-scroll auto-complete" (Lenis snap) was
+  // removed. It caused two problems the owner reported:
+  //   • "zooms back out and restarts" — a tiny deceleration / momentum
+  //     reversal near the top of the zoom flipped the tracked direction
+  //     to "up", and the back-snap then yanked the camera all the way
+  //     out to the hero top (a jarring restart, with the scene
+  //     re-rendering mid-jump so it looked like "details missing").
+  //   • the forward snap skipped the natural exit hand-off, so the user
+  //     never saw the galaxy fade away over the rising cards.
+  // Plain native scrolling (Lenis still smooths it) flies into the
+  // portal and then reveals the cards with the scene fading on top — no
+  // direction tracking, no programmatic scroll fighting the user.
 
   const showSpline = mounted && !isMobile && !reduced && SCENE_URL.length > 0;
 
@@ -423,7 +382,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
               "radial-gradient(ellipse at 28% 30%, rgba(167,139,250,0.40) 0%, transparent 52%)," +
               "radial-gradient(ellipse at 74% 64%, rgba(34,211,238,0.24) 0%, transparent 56%)," +
               "radial-gradient(ellipse at 50% 50%, rgba(245,185,69,0.20) 0%, transparent 60%)",
-            filter: "blur(30px)",
+            filter: "blur(18px)",
             willChange: "transform",
           }}
         />

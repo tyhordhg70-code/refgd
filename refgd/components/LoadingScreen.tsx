@@ -347,24 +347,50 @@ export default function LoadingScreen() {
     //    mentorships, etc.), the timeout below resolves immediately
     //    after a short grace window so it doesn't extend page loads
     //    that don't need it.
+    // A heavy 3D scene (the home-page Spline galaxy) dispatches
+    // `refgd:scene-pending` the instant it begins mounting. When that
+    // fires we give the scene a much longer window to paint its first
+    // frame so the splash never lifts onto an empty backdrop. Pages with
+    // no scene never see the event and keep the fast 1500ms grace.
+    let scenePending =
+      typeof window !== "undefined" &&
+      !!(window as unknown as { __refgdScenePending?: boolean })
+        .__refgdScenePending;
+    const onScenePending = () => {
+      scenePending = true;
+    };
+    window.addEventListener(
+      "refgd:scene-pending",
+      onScenePending as EventListener,
+    );
+
     const sceneReadyPromise = new Promise<void>((resolve) => {
       let resolved = false;
+      let graceTimer = 0;
       const finish = () => {
         if (resolved) return;
         resolved = true;
+        window.clearTimeout(graceTimer);
         window.removeEventListener(
           "refgd:scene-ready",
           finish as EventListener,
+        );
+        window.removeEventListener(
+          "refgd:scene-pending",
+          onScenePending as EventListener,
         );
         resolve();
       };
       window.addEventListener("refgd:scene-ready", finish as EventListener, {
         once: true,
       });
-      // Pages without a heavy scene should not be held back. Resolve
-      // after 1500ms if no scene-ready fires, which still gives any
-      // mounting scene a real chance to signal first.
-      window.setTimeout(finish, 1500);
+      // First checkpoint at 1500ms: pages WITHOUT a scene resolve here so
+      // they're never held back. If a scene announced itself pending, we
+      // extend the grace to give the galaxy time to actually paint.
+      graceTimer = window.setTimeout(() => {
+        if (!scenePending) finish();
+        else graceTimer = window.setTimeout(finish, 6000);
+      }, 1500);
     });
 
     // ── Image promise: resolves when ALL images have either loaded
@@ -402,7 +428,16 @@ export default function LoadingScreen() {
     // that a true hang (slow CDN font, never-resolving load event)
     // clears before the user gives up. Previously had no ceiling at
     // all — splash visibly stalled at 90/95 % indefinitely.
-    const ceilingPromise = new Promise<void>((r) => window.setTimeout(r, 4000));
+    // When a heavy scene is pending we extend the ceiling in lockstep
+    // with the scene grace above (up to ~8s), otherwise the 4s ceiling
+    // would win the race and lift the splash before the galaxy paints.
+    // Scene-less pages are unaffected — they keep the 4s ceiling.
+    const ceilingPromise = new Promise<void>((r) => {
+      window.setTimeout(() => {
+        if (!scenePending) r();
+        else window.setTimeout(r, 4000);
+      }, 4000);
+    });
     Promise.race([
       Promise.all([
         fontsReadyPromise,
