@@ -70,6 +70,9 @@ function MobileStars() {
     const ctx: CanvasRenderingContext2D = ctx2d;
     let raf = 0;
     let alive = true;
+    const reducedMQ =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const COLORS = ["#ffe28a", "#a78bfa", "#67e8f9", "#f472b6", "#ffffff"];
     type Star = { x: number; y: number; vx: number; vy: number; r: number; c: string; t: number };
     let pts: Star[] = [];
@@ -110,7 +113,7 @@ function MobileStars() {
       }
       ctx.globalAlpha = 1;
       ctx.shadowBlur = 0;
-      raf = requestAnimationFrame(draw);
+      if (!reducedMQ) raf = requestAnimationFrame(draw);
     }
     const timer = setTimeout(() => { if (setup()) draw(); }, 50);
     return () => { alive = false; cancelAnimationFrame(raf); clearTimeout(timer); };
@@ -204,12 +207,25 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (cue) cue.style.opacity = clamp(1 - progress / 0.07).toFixed(4);
     };
 
-    window.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
+    // Coalesce scroll/resize bursts into one rAF-aligned update.
+    let rafId = 0;
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      rafId = requestAnimationFrame(() => {
+        ticking = false;
+        update();
+      });
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
     update();
     return () => {
-      window.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
+      cancelAnimationFrame(rafId);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
     };
   }, []);
 
