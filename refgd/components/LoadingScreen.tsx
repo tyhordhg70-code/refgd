@@ -498,6 +498,10 @@ export default function LoadingScreen() {
       clearTimeout(timerB);
       clearTimeout(timerC);
       window.removeEventListener("load", onWindowLoad);
+      window.removeEventListener(
+        "refgd:scene-pending",
+        onScenePending as EventListener,
+      );
       document.body.style.overflow = prevOverflow;
       document.body.style.touchAction = prevTouchAction;
     };

@@ -218,15 +218,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // cap it to ~30fps. At 60fps every scroll frame re-rendered the whole
   // galaxy and the scroll stuttered; halving the render rate keeps the
   // dolly smooth while freeing the GPU. `force` lets the very first
-  // (on-load) call and the resting frame paint immediately.
+  // (on-load) call paint immediately.
   const lastZoomTs = useRef(0);
-  const applyZoom = (progress: number, force = false) => {
+  const trailingTimer = useRef<number | null>(null);
+  const pendingProgress = useRef(0);
+
+  const renderZoom = (progress: number) => {
     const app = splineRef.current;
     if (!app || reducedRef.current) return;
-    const now =
-      typeof performance !== "undefined" ? performance.now() : Date.now();
-    if (!force && now - lastZoomTs.current < 32) return;
-    lastZoomTs.current = now;
     const zoom = START_ZOOM + progress * (END_ZOOM - START_ZOOM);
     try {
       app.setZoom(zoom);
@@ -236,6 +235,43 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     }
   };
 
+  const applyZoom = (progress: number, force = false) => {
+    if (!splineRef.current || reducedRef.current) return;
+    pendingProgress.current = progress;
+    const now =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+    if (force || now - lastZoomTs.current >= 32) {
+      lastZoomTs.current = now;
+      if (trailingTimer.current != null) {
+        clearTimeout(trailingTimer.current);
+        trailingTimer.current = null;
+      }
+      renderZoom(progress);
+      return;
+    }
+    // Throttled this frame — schedule a trailing flush so the FINAL
+    // resting position is always painted even if scrolling stops inside
+    // the throttle window (otherwise the camera can settle a hair stale).
+    if (trailingTimer.current == null) {
+      trailingTimer.current = window.setTimeout(() => {
+        trailingTimer.current = null;
+        lastZoomTs.current =
+          typeof performance !== "undefined" ? performance.now() : Date.now();
+        renderZoom(pendingProgress.current);
+      }, 40);
+    }
+  };
+
+  // Clear any pending trailing zoom flush on unmount.
+  useEffect(() => {
+    return () => {
+      if (trailingTimer.current != null) {
+        clearTimeout(trailingTimer.current);
+        trailingTimer.current = null;
+      }
+    };
+  }, []);
+
   const onSplineLoad = (app: SplineApp) => {
     splineRef.current = app;
     applyZoom(getProgress(), true);
@@ -244,6 +280,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // (instead of lifting onto an empty backdrop that "pops in" later
     // on the first scroll).
     try {
+      (window as unknown as { __refgdScenePending?: boolean }).__refgdScenePending = false;
       window.dispatchEvent(new Event("refgd:scene-ready"));
     } catch {
       /* noop */
