@@ -47,9 +47,21 @@ import KineticText from "./KineticText";
 const Spline = lazy(() => import("@splinetool/react-spline"));
 
 // Minimal shape of the Spline runtime Application we actually use.
+type Vec3 = { x: number; y: number; z: number };
+type SplineObj = {
+  name?: string;
+  position?: Vec3;
+  rotation?: Vec3;
+  scale?: Vec3;
+};
 type SplineApp = {
   setZoom: (zoom: number) => void;
   requestRender?: () => void;
+  findObjectByName?: (name: string) => SplineObj | undefined;
+  getAllObjects?: () => SplineObj[];
+  getVariables?: () => Record<string, number | boolean | string>;
+  setVariable?: (name: string, value: number | boolean | string) => void;
+  controls?: unknown;
 };
 
 // ─────────────────────────────────────────────────────────────────────
@@ -73,6 +85,14 @@ const END_ZOOM = 8;
 // Reach END_ZOOM at this fraction of the pinned scroll, then hold at full
 // zoom (dwell "inside the portal") for the remaining pin before un-pinning.
 const ZOOM_COMPLETE_AT = 0.72;
+// ── Real camera dolly (the part that actually flies IN) ───────────────
+// The Spline scene has `zoomLimitsEnabled`, so app.setZoom() is CLAMPED to
+// the camera's max zoom — that is why pushing END_ZOOM higher did "nothing".
+// The fix is to physically MOVE the camera object toward the portal/center,
+// which bypasses the zoom limit entirely (a true 3D dolly, not a CSS scale).
+// DOLLY_FRACTION = how far along the start→target path the camera travels at
+// full progress (0.94 ⇒ end up deep inside the portal, just shy of the core).
+const DOLLY_FRACTION = 0.94;
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
@@ -172,6 +192,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const headlineRef = useRef<HTMLDivElement>(null);
   const cueRef = useRef<HTMLDivElement>(null);
   const splineRef = useRef<SplineApp | null>(null);
+  // Real camera dolly state (discovered on load). When the camera object is
+  // found we move its position toward `camTargetRef` as scroll progresses —
+  // this is what actually flies into the portal (setZoom is clamped).
+  const cameraObjRef = useRef<SplineObj | null>(null);
+  const camStartRef = useRef<Vec3 | null>(null);
+  const camTargetRef = useRef<Vec3 | null>(null);
+  // Fallback only (used when no camera object is exposed): a scene variable
+  // whose name looks like a scroll/zoom driver, scrubbed with progress.
+  const scrubVarRef = useRef<string | null>(null);
 
   const isMobileRef = useRef(false);
   const reducedRef = useRef(false);
@@ -235,9 +264,26 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // Saturate the zoom BEFORE the pin ends so the camera reaches full depth
     // inside the portal and then holds there (dwell) for the rest of the pin.
     const zp = clamp01(progress / ZOOM_COMPLETE_AT);
-    const zoom = START_ZOOM + zp * (END_ZOOM - START_ZOOM);
     try {
-      app.setZoom(zoom);
+      // PRIMARY — physically dolly the real camera toward the portal/center.
+      // This is the ONLY lever that actually flies INTO the scene: the scene
+      // has zoom limits that clamp setZoom(), so position movement is what
+      // produces a genuine fly-in (and it is a real 3D move, not a CSS scale).
+      const cam = cameraObjRef.current;
+      const s = camStartRef.current;
+      const t = camTargetRef.current;
+      if (cam?.position && s && t) {
+        const k = zp * DOLLY_FRACTION;
+        cam.position.x = s.x + (t.x - s.x) * k;
+        cam.position.y = s.y + (t.y - s.y) * k;
+        cam.position.z = s.z + (t.z - s.z) * k;
+      } else if (scrubVarRef.current) {
+        // FALLBACK — no camera object exposed; scrub a scroll/zoom variable.
+        app.setVariable?.(scrubVarRef.current, zp);
+      }
+      // SECONDARY — also nudge setZoom (clamped by the scene, so harmless;
+      // adds a touch of extra depth on scenes where the limit allows it).
+      app.setZoom(START_ZOOM + zp * (END_ZOOM - START_ZOOM));
       app.requestRender?.();
     } catch {
       /* never let a runtime hiccup break scrolling */
@@ -283,6 +329,77 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
   const onSplineLoad = (app: SplineApp) => {
     splineRef.current = app;
+
+    // ── Discover the real camera so scroll can DOLLY it toward the portal ──
+    // The scene has `zoomLimitsEnabled`, which clamps app.setZoom() — that is
+    // why bumping END_ZOOM never made it fly in. Moving the camera's POSITION
+    // bypasses the limit and produces a genuine fly-in toward the portal.
+    try {
+      let cam: SplineObj | null =
+        app.findObjectByName?.("Camera") ??
+        app.findObjectByName?.("camera") ??
+        null;
+      if (!cam) {
+        const all = app.getAllObjects?.() ?? [];
+        cam = all.find((o) => /camera|\bcam\b/i.test(o?.name ?? "")) ?? null;
+      }
+      if (cam?.position) {
+        cameraObjRef.current = cam;
+        camStartRef.current = {
+          x: cam.position.x,
+          y: cam.position.y,
+          z: cam.position.z,
+        };
+        // Target = a portal/center object if we can find one, otherwise the
+        // world origin (galaxy/portal hero scenes are centered at the origin).
+        let target: Vec3 | null = null;
+        for (const n of [
+          "Portal", "portal", "Black Hole", "Blackhole", "Vortex", "Galaxy",
+          "Tunnel", "Wormhole", "Gate", "Ring", "Door", "Center",
+        ]) {
+          const o = app.findObjectByName?.(n);
+          if (o?.position) {
+            target = { x: o.position.x, y: o.position.y, z: o.position.z };
+            break;
+          }
+        }
+        camTargetRef.current = target ?? { x: 0, y: 0, z: 0 };
+      } else {
+        // No camera object exposed — fall back to scrubbing a scene variable
+        // whose name looks like a scroll/zoom driver, if one exists.
+        const vars = app.getVariables?.() ?? {};
+        const match = Object.keys(vars).find(
+          (n) =>
+            typeof vars[n] === "number" &&
+            /scroll|zoom|progress|camera|fly|warp|dolly|depth|journey/i.test(n),
+        );
+        if (match) scrubVarRef.current = match;
+      }
+    } catch {
+      /* fall back to clamped setZoom-only behaviour */
+    }
+
+    // Best-effort: relax any camera-controls zoom limits so the secondary
+    // setZoom() is not clamped (runtimes expose this differently; all guarded).
+    try {
+      const c = app.controls as
+        | {
+            maxDistance?: number;
+            minDistance?: number;
+            maxZoom?: number;
+            minZoom?: number;
+          }
+        | undefined;
+      if (c) {
+        if (typeof c.maxDistance === "number") c.maxDistance = Number.POSITIVE_INFINITY;
+        if (typeof c.minDistance === "number") c.minDistance = 0;
+        if (typeof c.maxZoom === "number") c.maxZoom = Number.POSITIVE_INFINITY;
+        if (typeof c.minZoom === "number") c.minZoom = 0;
+      }
+    } catch {
+      /* noop */
+    }
+
     applyZoom(getProgress(), true);
     // Tell the loading screen the heavy 3D scene has painted its first
     // frame so the splash holds until the galaxy is actually ready
