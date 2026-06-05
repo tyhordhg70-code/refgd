@@ -598,7 +598,20 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // on the first scroll).
     try {
       (window as unknown as { __refgdScenePending?: boolean }).__refgdScenePending = false;
-      window.dispatchEvent(new Event("refgd:scene-ready"));
+      // Announce readiness only AFTER the galaxy has actually painted.
+      // Dispatching straight from onSplineLoad can fire a frame before
+      // the canvas is visually present, letting the loading overlay lift
+      // onto a still-blank backdrop. Two rAF cycles guarantee the first
+      // real frame has been committed before we say "ready".
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          try {
+            window.dispatchEvent(new Event("refgd:scene-ready"));
+          } catch {
+            /* noop */
+          }
+        }),
+      );
     } catch {
       /* noop */
     }
