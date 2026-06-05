@@ -91,13 +91,13 @@ const RADIUS_PULL = 0; // orbit closer(+)/further(−) to the pivot
 const LOOK_DROP = 700; // aim this far BELOW centre during reveal (shows lower design)
 const PHASE_A_END = 0.3; // fraction of the scroll spent on the orbit
 const PHASE_B_END = 0.93; // fraction at which the dive finishes and holds (kept high so the dive uses almost the whole runway → barely any frozen hold zone to scroll back up through)
-const DOLLY_DEEP = 0.92; // fraction of the way to centre the dive travels — kept just short of 1 so it flies INTO the portal looking forward instead of collapsing onto the centre and pitching straight down ("off track" on entry)
+const DOLLY_DEEP = 0.95; // fraction of the way to centre the dive travels — kept just short of 1 so it flies INTO the portal looking forward instead of collapsing onto the centre and pitching straight down ("off track" on entry). Deepened to land truer in the portal centre.
 // Keeps the dive's END this far ABOVE the portal centre so the dive
 // flies INTO the portal without the camera sinking to floor/leg level.
-const DIVE_LIFT = 220;
+const DIVE_LIFT = 150;
 // How far the dive bows SIDEWAYS at its midpoint (quadratic Bézier control),
 // so the camera curves AROUND the person instead of punching through them.
-const ARC_SIDE = 650;
+const ARC_SIDE = 450;
 
 // zp = progress / ZOOM_COMPLETE_AT. Kept at 1.0 (no early saturation) so the
 // phase splits map directly onto raw scroll, matching the approved tester feel:
@@ -107,12 +107,14 @@ const ZOOM_COMPLETE_AT = 1.0;
 // glides toward the real scroll position instead of snapping, which absorbs
 // scroll jitter / momentum and kills the per-tick "zoom flicker".
 const EASE = 0.16;
-// Once the EASED (visible) dive progress crosses this, a one-shot smooth
-// auto-snap (via Lenis) rushes the remaining pin straight to the path cards,
-// so there's no dead scrolling after the camera is inside the portal. Kept
-// ABOVE PHASE_B_END so the dive has fully settled before the snap fires — the
-// snap then just glides the page while the camera holds still (no fight/glitch).
-const SNAP_AT = 0.95;
+// Once the RAW scroll progress crosses this, a one-shot smooth auto-snap (via
+// Lenis) rushes the remaining pin straight to the path cards, so there's no
+// dead scrolling after the camera is inside the portal. Triggered off the RAW
+// scroll (not the eased value, which LAGS and added a visible delay before the
+// hand-off); on fire the camera is snapped straight to its END pose and frozen
+// so it holds dead still while the page glides (no fight/glitch). Set at
+// PHASE_B_END (= the moment the dive finishes).
+const SNAP_AT = 0.93;
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 const deg2rad = (d: number) => (d * Math.PI) / 180;
@@ -355,6 +357,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // re-arm only after the user scrolls back up well before the trigger.
   const lastTargetRef = useRef(0);
   const snapArmedRef = useRef(true);
+  // Latched scroll direction (true = last meaningful move was downward). The
+  // eased progress lags the raw scroll, so an instantaneous "scrolling down
+  // this frame" test misses once the user stops flicking — latching fixes that.
+  const dirDownRef = useRef(false);
+  // While true, the hand-off snap is animating the page — freeze the camera.
+  const snapActiveRef = useRef(false);
+  const snapEndAtRef = useRef(0);
 
   const isMobileRef = useRef(false);
   const reducedRef = useRef(false);
@@ -453,16 +462,31 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         return;
       const target = getProgress();
 
-      // ── One-shot auto-snap to the path cards once the dive has visually
-      // settled. Triggers off the EASED progress (not the raw scroll) and only
-      // while scrolling DOWN, so a momentum wobble mid-dive can't fire it; it
+      // ── One-shot auto-snap to the path cards the instant the dive finishes.
+      // Triggers off the RAW scroll position (not the eased progress) so the
+      // hand-off fires immediately with no lag, and the direction is LATCHED
+      // (kept "down" until a real upward scroll) so it can't be missed when the
+      // user stops flicking while the eased camera is still catching up. It
       // re-arms only after the user scrolls back up well before the trigger.
       // Uses the shared Lenis instance (native scrollTo gets reverted by Lenis).
       // This block only runs on a loaded desktop scene — mobile never mounts
       // Spline and reduced-motion returns above, so neither gets yanked.
-      const goingDown = target > lastTargetRef.current + 1e-4;
-      if (snapArmedRef.current && goingDown && appliedPRef.current >= SNAP_AT) {
+      const dT = target - lastTargetRef.current;
+      if (dT > 1e-4) dirDownRef.current = true;
+      else if (dT < -1e-4) dirDownRef.current = false;
+      if (snapArmedRef.current && dirDownRef.current && target >= SNAP_AT) {
         snapArmedRef.current = false;
+        // Complete the dive INSTANTLY so the camera is at the true end of the
+        // flight (inside the portal) before the page moves — the eased camera
+        // may still be mid-dive, and letting it creep while the page scrolls
+        // reads as a glitch.
+        appliedPRef.current = target;
+        lastAppliedRef.current = target;
+        renderZoom(target);
+        // Freeze the camera for the span of the Lenis snap so it holds dead
+        // still while the cards glide up over a static scene.
+        snapActiveRef.current = true;
+        snapEndAtRef.current = performance.now() + 760;
         const paths = document.getElementById("paths");
         const lenis = (
           window as unknown as {
@@ -471,11 +495,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         ).__lenis;
         if (paths && lenis) {
           lenis.scrollTo(paths, {
-            // Land with the section TOP ~18% below the viewport top so we clip in
-            // "right above CHOOSE YOUR PATH" (thin hero sliver still showing)
-            // instead of slamming it flush to the top / overshooting downward.
-            offset: -window.innerHeight * 0.18,
-            duration: 0.7,
+            // Land the section FLUSH to the top so the Spline scene and its
+            // mismatched background are fully scrolled away before the cards
+            // appear — the user never sees the seam between scene and cards.
+            offset: 0,
+            duration: 0.72,
             easing: (t: number) => 1 - Math.pow(1 - t, 3),
           });
         } else if (paths) {
@@ -484,6 +508,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
       if (target < SNAP_AT - 0.05) snapArmedRef.current = true;
       lastTargetRef.current = target;
+
+      // While the hand-off snap is animating the page, FREEZE the camera at its
+      // settled portal pose so it doesn't drift while the cards slide up.
+      if (snapActiveRef.current) {
+        if (performance.now() >= snapEndAtRef.current) snapActiveRef.current = false;
+        else return;
+      }
 
       const cur = appliedPRef.current;
       let next = cur + (target - cur) * EASE;
@@ -724,13 +755,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   }, []);
 
   // Hand-off: a ROBUST one-shot auto-snap (in the eased RAF loop above) rushes
-  // the page to the path cards once the dive has VISUALLY settled. The earlier
-  // snap was removed because it "zoomed back out and restarted" — a momentum
-  // wobble flipped the tracked direction to "up" and the back-snap yanked the
-  // camera to the hero top. This version avoids that: it fires only off the
-  // EASED progress crossing SNAP_AT (well past the dive, so early wobble can't
-  // reach it), only DOWNWARD, only ONCE (re-armed solely after scrolling back
-  // up), and NEVER snaps back up — so it can't fight the user or restart.
+  // the page to the path cards the instant the dive finishes. The earlier snap
+  // was removed because it "zoomed back out and restarted" — a momentum wobble
+  // flipped the tracked direction to "up" and the back-snap yanked the camera
+  // to the hero top. This version avoids that: it fires off the RAW scroll
+  // crossing SNAP_AT (= dive complete), with a LATCHED downward direction (so a
+  // brief wobble can't flip it), only ONCE (re-armed solely after scrolling
+  // back up), snaps the camera to its end pose + freezes it during the glide,
+  // and NEVER snaps back up — so it can't fight the user or restart.
 
   const showSpline = mounted && !isMobile && !reduced && SCENE_URL.length > 0;
 
