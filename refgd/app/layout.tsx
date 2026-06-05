@@ -47,6 +47,7 @@ import Cosmic3DShapes from "@/components/Cosmic3DShapes";
    once it lifts. The useEntranceReady gate in components is
    already wired up — just remounting the screen here re-arms it. */
 import LoadingScreen from "@/components/LoadingScreen";
+import RouteTransitionLoader from "@/components/RouteTransitionLoader";
 import SmoothScroll from "@/components/SmoothScroll";
 import EditProvider from "@/lib/edit-context";
 import ReactDomGuard from "@/components/ReactDomGuard";
@@ -153,6 +154,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             event fires (with a hard timeout fallback inside
             LoadingScreen so it can never strand the page). */}
         <LoadingScreen />
+        {/* Cosmic splash on client-side navigation to a heavy page so the
+            destination's large scene is fully downloaded + painted before
+            the page is revealed (light routes stay instant). */}
+        <RouteTransitionLoader />
         <EditProvider initialAdmin={initialAdmin} initialContent={initialContent}>
         <EditorErrorBoundary>
           {/* Site-wide continuous WebGL galaxy field — every page scrolls

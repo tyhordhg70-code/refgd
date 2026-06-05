@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { markLoadingActive, markLoadingComplete } from "@/lib/loading-screen-gate";
+import {
+  heavyAssetsForPath,
+  downloadHeavyAssets,
+} from "@/lib/asset-preloader";
 
 /**
  * v6.13.37 — sessionStorage gate.
@@ -159,6 +163,14 @@ export default function LoadingScreen() {
     document.body.style.overflow = "hidden";
     document.body.style.touchAction = "none";
 
+    // Route-aware heavy asset(s): the home page pulls a ~23 MB Spline
+    // galaxy. We fully download it behind this splash (warming the HTTP
+    // cache so the scene component reuses it) and only lift once it's in.
+    // Light routes have none and keep the fast boot.
+    const heavyAssets = heavyAssetsForPath(window.location.pathname);
+    const hasHeavyAsset = heavyAssets.length > 0;
+    const assetAbort = new AbortController();
+
     const startTime = performance.now();
     const MIN_DURATION = 1500;
     let cancelled = false;
@@ -177,6 +189,8 @@ export default function LoadingScreen() {
       firstPaintDone: false,
       minStallDone: false,
       everythingResolved: false,
+      // 0..1 real download fraction of the route's heavy remote asset(s).
+      sceneDlPct: 0,
     };
 
     function commitProgress() {
@@ -190,22 +204,36 @@ export default function LoadingScreen() {
       const paintPct = state.firstPaintDone ? 1 : 0;
       const stallPct = state.minStallDone ? 1 : 0;
 
-      // Weighted real composite — images dominate because they're
-      // the slowest per-asset wait for first-paint perf.
-      const real =
-        imgPct * 0.45 +
-        fontPct * 0.20 +
-        winPct * 0.15 +
-        paintPct * 0.10 +
-        stallPct * 0.10;
+      // Weighted real composite. On a route with a heavy remote asset
+      // (the home Spline galaxy) the actual MEGABYTE download dominates
+      // the bar so the % reflects genuine progress toward "fully
+      // downloaded"; the other signals are minor contributors. Light
+      // routes keep the original first-paint-weighted mix.
+      const real = hasHeavyAsset
+        ? state.sceneDlPct * 0.6 +
+          imgPct * 0.15 +
+          fontPct * 0.1 +
+          winPct * 0.05 +
+          paintPct * 0.05 +
+          stallPct * 0.05
+        : imgPct * 0.45 +
+          fontPct * 0.20 +
+          winPct * 0.15 +
+          paintPct * 0.10 +
+          stallPct * 0.10;
 
       // Soft time floor so the bar shows motion even if the first
       // batch of resources hasn't reported yet. Caps at 88 % — only
       // the everythingResolved Promise.all() can take it to 100 %.
+      // On heavy-asset routes the floor is held much lower (35 %) so a
+      // fast time-curve can't outrun a still-downloading 23 MB scene and
+      // falsely imply it's almost done.
       const elapsed = performance.now() - startTime;
       const t = Math.min(1, elapsed / 1200);
       const eased = 1 - Math.pow(1 - t, 3);
-      const floor = Math.min(0.88, eased * 0.78);
+      const floor = hasHeavyAsset
+        ? Math.min(0.35, eased * 0.35)
+        : Math.min(0.88, eased * 0.78);
 
       const candidate = Math.max(real, floor);
       const cap = state.everythingResolved ? 1.0 : 0.95;
@@ -384,6 +412,12 @@ export default function LoadingScreen() {
       window.addEventListener("refgd:scene-ready", finish as EventListener, {
         once: true,
       });
+      // Heavy-asset routes (the home galaxy) wait for the REAL
+      // scene-ready event — no auto-finish grace — so the splash never
+      // lifts onto a blank canvas while the freshly-downloaded 23 MB
+      // scene is still parsing into its first painted frame. The
+      // ceilingPromise below is the only backstop on those routes.
+      if (hasHeavyAsset) return;
       // First checkpoint at 1500ms: pages WITHOUT a scene resolve here so
       // they're never held back. If a scene announced itself pending, we
       // extend the grace to give the galaxy time to actually paint.
@@ -432,7 +466,31 @@ export default function LoadingScreen() {
     // with the scene grace above (up to ~8s), otherwise the 4s ceiling
     // would win the race and lift the splash before the galaxy paints.
     // Scene-less pages are unaffected — they keep the 4s ceiling.
+    // ── Heavy remote asset(s): fully stream the route's large file(s)
+    //    (the ~23 MB home Spline galaxy) into the HTTP cache so the
+    //    scene component reuses it and the splash only lifts once it's
+    //    100 % downloaded. No-op on light routes (empty list → resolves
+    //    immediately). Drives the real sceneDlPct the bar reads above.
+    const assetsPromise: Promise<unknown> = hasHeavyAsset
+      ? downloadHeavyAssets(
+          heavyAssets,
+          (f) => {
+            state.sceneDlPct = f;
+            commitProgress();
+          },
+          assetAbort.signal,
+        )
+      : Promise.resolve();
+
     const ceilingPromise = new Promise<void>((r) => {
+      // Heavy-asset routes hold for a long safety window so the splash
+      // can wait for the full download + first paint; the real download
+      // and scene-ready signals normally win this race well before the
+      // ceiling. A dead/stalled network must never strand the user.
+      if (hasHeavyAsset) {
+        window.setTimeout(r, 60000);
+        return;
+      }
       window.setTimeout(() => {
         if (!scenePending) r();
         else window.setTimeout(r, 4000);
@@ -446,6 +504,7 @@ export default function LoadingScreen() {
         paintWaiter,
         imagesPromise,
         sceneReadyPromise,
+        assetsPromise,
       ]).then(() => undefined),
       ceilingPromise,
     ]).then(() => {
@@ -492,6 +551,7 @@ export default function LoadingScreen() {
 
     return () => {
       cancelled = true;
+      assetAbort.abort();
       cancelAnimationFrame(rafId);
       clearTimeout(discoverTimer);
       clearTimeout(timerA);

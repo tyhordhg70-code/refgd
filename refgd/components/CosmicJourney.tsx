@@ -328,11 +328,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
-  // True once the Spline scene has painted its first frame. Until then we
-  // show a subtle in-hero loader instead of an empty backdrop — the scene
-  // file is large (~23 MB) so on a cold load there can be several seconds
-  // between the splash lifting and the galaxy actually appearing.
-  const [sceneReady, setSceneReady] = useState(false);
 
   const sectionRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -381,12 +376,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       (window as unknown as { __refgdScenePending?: boolean }).__refgdScenePending = true;
       window.dispatchEvent(new Event("refgd:scene-pending"));
     } catch { /* noop */ }
-    // Prefetch the lazy chunk and the scene file so the canvas is warm
-    // the moment it mounts behind the splash.
+    // Prefetch the lazy Spline chunk so the canvas can mount instantly.
+    // The heavy scene FILE itself is downloaded by the loading overlay
+    // (see lib/asset-preloader + LoadingScreen/RouteTransitionLoader),
+    // which holds the splash until it's fully in, so we don't fetch it
+    // again here.
     void import("@splinetool/react-spline").catch(() => {});
-    try {
-      void fetch(SCENE_URL, { mode: "cors", credentials: "omit" }).catch(() => {});
-    } catch { /* noop */ }
   }, [reduced]);
 
   // Viewport size watcher
@@ -607,8 +602,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     } catch {
       /* noop */
     }
-    // Hide the in-hero loader now the galaxy has painted its first frame.
-    setSceneReady(true);
   };
 
   // ── Scroll-linked camera zoom + fades — zero React re-renders ────────
@@ -767,33 +760,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
                 <Spline scene={SCENE_URL} onLoad={onSplineLoad} />
               </Suspense>
             </SplineErrorBoundary>
-          </div>
-        )}
-
-        {/* ── In-hero loader — shown while the heavy galaxy scene streams in
-            (after the boot splash has lifted) so the visitor never stares at
-            an empty backdrop. Fades out the instant the scene paints. ── */}
-        {showSpline && !sceneReady && (
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 z-[4] flex items-center justify-center"
-          >
-            <div className="flex flex-col items-center gap-4">
-              <motion.div
-                style={{
-                  width: 46,
-                  height: 46,
-                  borderRadius: "50%",
-                  border: "2px solid rgba(167,139,250,0.22)",
-                  borderTopColor: "rgba(245,185,69,0.95)",
-                }}
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, ease: "linear", duration: 0.9 }}
-              />
-              <span className="text-[0.7rem] uppercase tracking-[0.32em] text-white/55">
-                Summoning the cosmos…
-              </span>
-            </div>
           </div>
         )}
 
