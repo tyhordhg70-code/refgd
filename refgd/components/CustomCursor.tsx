@@ -83,6 +83,9 @@ export default function CustomCursor() {
     let dy = my;
     let raf = 0;
     let running = false;
+    // The dot is snapped straight to the pointer on the very first move so it
+    // never visibly catches up from screen-center; damping applies afterwards.
+    let seeded = false;
 
     if (dotRef.current) {
       dotRef.current.style.transform = `translate3d(${mx}px, ${my}px, 0) translate(-50%, -50%)`;
@@ -135,6 +138,17 @@ export default function CustomCursor() {
       // tick() so the damping curve applies (see above).
       mx = e.clientX;
       my = e.clientY;
+      if (!seeded) {
+        // First pointer event: snap the eased dot exactly onto the pointer and
+        // paint it now, so it doesn't sweep in from screen-center. Every move
+        // after this one goes through the normal damping curve in tick().
+        seeded = true;
+        dx = mx;
+        dy = my;
+        const d0 = dotRef.current;
+        if (d0)
+          d0.style.transform = `translate3d(${dx}px, ${dy}px, 0) translate(-50%, -50%)`;
+      }
       const lbl = labelRef.current;
       if (lbl) lbl.style.transform = `translate3d(${mx + 18}px, ${my + 18}px, 0)`;
       startLoop();
