@@ -38,7 +38,13 @@ function initGalaxy({ canvas, width, height, dpr, isMobile, isTablet }) {
 
   renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, powerPreference: 'low-power' });
   renderer.setSize(width, height, false);
-  renderer.setPixelRatio(Math.min(dpr, isMobile ? 1 : 1.15));
+  // DPR clamp (perf): the galaxy is an ADDITIVE point field blended (screen)
+  // over a dark gradient — it has no hard edges or text, so rendering at 1.0
+  // device-pixel-ratio instead of 1.15 is visually indistinguishable while
+  // cutting fragment/fill cost ~24% (1.15² → 1.0²). This is the main remaining
+  // GPU consumer on the lower page once the Spline hero unmounts offscreen, so
+  // the saving shows up exactly where the scroll/cursor lag was felt.
+  renderer.setPixelRatio(Math.min(dpr, 1));
   renderer.setClearColor(0x000000, 0);
 
   // Build geometry
