@@ -93,13 +93,15 @@ const RADIUS_PULL = 0; // orbit closer(+)/further(−) to the pivot
 const LOOK_DROP = 0;
 const PHASE_A_END = 0.2; // fraction of the flight spent on the orbit (angle shift) — kept short so the small orbit move and the long deep dive run at MATCHED speeds (no jump at the seam)
 const PHASE_B_END = 1.0; // dive runs to the very end of the flight, then hands off
-const DOLLY_DEEP = 0.985; // fraction of the way to centre the dive travels — kept just short of 1 so it flies INTO the portal looking forward instead of collapsing onto the centre and pitching straight down.
+const DOLLY_DEEP = 0.99; // fraction of the way to centre the dive travels — kept just short of 1 so it flies INTO the portal looking forward instead of collapsing onto the centre and pitching straight down.
 // Keeps the dive's END this far ABOVE the portal centre so the dive
 // flies INTO the portal without the camera sinking to floor/leg level.
-const DIVE_LIFT = 36;
+const DIVE_LIFT = 28;
 // How far the dive bows SIDEWAYS at its midpoint (quadratic Bézier control),
 // so the camera curves AROUND the person instead of punching through them.
-const ARC_SIDE = 150;
+// Smaller = a straighter, more HEAD-ON approach that lands deeper in the
+// portal CENTRE (owner: "does not enter the centre of the portal").
+const ARC_SIDE = 80;
 
 // zp = progress / ZOOM_COMPLETE_AT. Kept at 1.0 (no early saturation) so the
 // timed flight's phase splits map directly onto its 0→1 progress.
@@ -447,7 +449,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const PLAY_MS = 4500; // total flight (slow + cinematic): orbit (≈0.2) then long dive (≈0.8)
+    const PLAY_MS = 6000; // total flight (slow + cinematic): orbit (≈0.2) then long dive (≈0.8)
     let startAt = 0;
     let raf = 0;
 
@@ -775,21 +777,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     >
       <div
         className="sticky top-0 grid w-full place-items-center overflow-hidden"
-        style={{ height: "100svh", contain: "layout paint" }}
+        style={{ height: "100svh", contain: "layout paint", background: "#05060a" }}
       >
-        {/* ── Cosmic gradient backdrop — ALWAYS painted (never blank) ── */}
+        {/* ── Solid space backdrop. The colourful "default" gradient was removed
+            per owner request: the loading splash now holds until the Spline
+            scene has actually painted (see LoadingScreen heavy-route gating),
+            so this is only ever a plain near-black behind the 3D galaxy — never
+            a coloured backdrop that flashes in before the scene appears. ── */}
         <div
           ref={backdropRef}
           aria-hidden="true"
           className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse at 28% 30%, rgba(167,139,250,0.40) 0%, transparent 52%)," +
-              "radial-gradient(ellipse at 74% 64%, rgba(34,211,238,0.24) 0%, transparent 56%)," +
-              "radial-gradient(ellipse at 50% 50%, rgba(245,185,69,0.20) 0%, transparent 60%)",
-            filter: "blur(18px)",
-            willChange: "transform",
-          }}
+          style={{ background: "#05060a", willChange: "transform" }}
         />
 
         {/* ── 3D Spline galaxy (desktop) — camera zoom driven by scroll ── */}
