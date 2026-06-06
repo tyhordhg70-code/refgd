@@ -533,7 +533,24 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const y = e.touches[0]?.clientY ?? 0;
       if (touchY - y > 6) startPlayback();
     };
+    const SCROLL_KEYS = [
+      "ArrowDown",
+      "ArrowUp",
+      "PageDown",
+      "PageUp",
+      "Home",
+      "End",
+      " ",
+      "Spacebar",
+    ];
     const onKey = (e: KeyboardEvent) => {
+      // During the flight the page is pinned — swallow every scroll key so the
+      // keyboard can't move the page while the camera is mid-cinematic (the
+      // wheel/touch blocker only covers pointer input).
+      if (playRef.current === "playing") {
+        if (SCROLL_KEYS.includes(e.key)) e.preventDefault();
+        return;
+      }
       if (playRef.current !== "idle") return;
       if (["ArrowDown", "PageDown", " ", "Spacebar"].includes(e.key)) {
         if (
