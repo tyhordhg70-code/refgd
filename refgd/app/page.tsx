@@ -96,7 +96,12 @@ export default async function HomePage() {
              * own via FlyInCard (3D fly-in, viewport: { once: false }
              * so it REPLAYS on scroll up + scroll down).
              */}
-            <section id="paths" className="relative">
+            {/* Top padding gives the auto-scroll landing a clean buffer: we land
+                at this section's top (the hero scene is then fully above the
+                viewport, NOT visible), and this pt drops the "you have arrived"
+                text down off the very edge so it reads as a deliberate arrival
+                instead of being jammed against where the 3D scene ended. */}
+            <section id="paths" className="relative pt-[16vh] sm:pt-[20vh]">
               <ChapterCosmos />
               <div className="container-wide relative">
                 {/*
