@@ -83,25 +83,31 @@ const SCENE_URL = "https://prod.spline.design/mzZcfxXnOQsM5LXz/scene.splinecode"
 //   B) dive: travels most (DOLLY_DEEP) of the way to the portal centre, easing
 //      the aim up from the dropped point to dead-centre so it ends framed inside
 //      the portal but STOPS SHORT of the person (DOLLY_DEEP < 1).
+// ── These constants are synced EXACTLY to the live spline-tester rig, which the
+// owner confirmed lands DEAD-CENTRE in the portal. The camera math (computeCam)
+// is identical to the tester; only these values drive where the dive ends, so
+// any divergence from the tester is what previously threw off the centring.
+// Do NOT hand-tune these without re-validating in the spline-tester first.
 const PIVOT = { x: 57, y: 3878, z: -387 }; // measured portal sphere-cluster centre
-const AZIMUTH_DEG = -26; // Phase-A orbit swing to a fresh angle (pronounced shift)
+const AZIMUTH_DEG = -12; // Phase-A orbit swing to a fresh angle (tester value)
 const ELEV_LIFT = 0; // vertical orbit lift (flat "2D" third-person angle)
 const ESTABLISH_BACK = 0; // extra orbit radius — 0: never pull back through the person
 const RADIUS_PULL = 0; // orbit closer(+)/further(−) to the pivot
-// Aim DEAD-CENTRE the whole way. The owner explicitly wants the dive to go into
-// the portal CENTRE, not "downward" — so we no longer drop the look target.
-const LOOK_DROP = 0;
-const PHASE_A_END = 0.2; // fraction of the flight spent on the orbit (angle shift) — kept short so the small orbit move and the long deep dive run at MATCHED speeds (no jump at the seam)
-const PHASE_B_END = 1.0; // dive runs to the very end of the flight, then hands off
-const DOLLY_DEEP = 0.99; // fraction of the way to centre the dive travels — kept just short of 1 so it flies INTO the portal looking forward instead of collapsing onto the centre and pitching straight down.
-// Keeps the dive's END this far ABOVE the portal centre so the dive
-// flies INTO the portal without the camera sinking to floor/leg level.
-const DIVE_LIFT = 28;
-// How far the dive bows SIDEWAYS at its midpoint (quadratic Bézier control),
-// so the camera curves AROUND the person instead of punching through them.
-// Smaller = a straighter, more HEAD-ON approach that lands deeper in the
-// portal CENTRE (owner: "does not enter the centre of the portal").
-const ARC_SIDE = 80;
+// Look target is dropped during the APPROACH to reveal the lower design, then the
+// dive eases the aim back UP to the portal centre (lookT.y → P.y as u→1), so the
+// dive STILL ENDS framed dead-centre. Tester value — confirmed centred by owner.
+const LOOK_DROP = 700;
+const PHASE_A_END = 0.3; // fraction of the flight spent on the orbit (angle shift)
+const PHASE_B_END = 0.93; // dive completes here, then HOLDS centred for the hand-off
+const DOLLY_DEEP = 0.95; // fraction of the way to centre the dive travels — tester value: stops at the portal MOUTH (0.99 overshot past it, breaking the centred framing)
+// Keeps the dive's END this far ABOVE the portal centre so the dive frames the
+// portal MOUTH instead of sinking to floor/leg level. Tester value (was 28 = too
+// low/deep, which read as "not entering the centre").
+const DIVE_LIFT = 150;
+// How far the dive bows SIDEWAYS at its midpoint (quadratic Bézier control), so
+// the camera curves AROUND the person instead of punching through them. Tester
+// value — confirmed centred by owner (was 80 = too head-on).
+const ARC_SIDE = 450;
 
 // zp = progress / ZOOM_COMPLETE_AT. Kept at 1.0 (no early saturation) so the
 // timed flight's phase splits map directly onto its 0→1 progress.
