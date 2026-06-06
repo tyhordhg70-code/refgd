@@ -5,7 +5,6 @@ import ParallaxIllustration from "@/components/ParallaxIllustration";
 import TelegramCard3D from "@/components/TelegramCard3D";
 import EditableText from "@/components/EditableText";
 import HomeCTAButton from "@/components/HomeCTAButton";
-import HomeBackground from "@/components/HomeBackground";
 import CosmicJourney from "@/components/CosmicJourney";
 import PathsHorizontalReveal from "@/components/PathsHorizontalReveal";
 import ChapterCosmos from "@/components/ChapterCosmos";
@@ -52,7 +51,12 @@ export default async function HomePage() {
         crossOrigin="anonymous"
       />
 
-      <HomeBackground />
+      {/* HomeBackground (orbs + gradient particles + star field) REMOVED:
+          it mounted `fixed inset-0 z-[1]` while the hero section carries no
+          positive z-index, so those decorative blobs painted ON TOP of the
+          Spline hero — wasted memory/compositor cost behind a scene that
+          already ships its own cosmic backdrop. The global <GalaxyBackground/>
+          (in app/layout.tsx, z-0) still covers the page below the hero. */}
 
       <ReorderableContainer pageId="home">
         <ReorderableSection sectionId="hero">
