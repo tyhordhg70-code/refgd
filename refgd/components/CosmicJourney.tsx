@@ -521,6 +521,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const PLAY_MS = 6000; // total flight (slow + cinematic): orbit (≈0.2) then long dive (≈0.8)
     let startAt = 0;
     let raf = 0;
+    let flightOffTimer = 0;
+    // Toggle a <html> flag that freezes the ambient background animations
+    // (galaxy bgPulse + Cosmic3DShapes, both `.rg-ambient-bg`) so the Spline
+    // hero gets the GPU to itself during its flight. Invisible: paused
+    // animations hold their current frame and resume seamlessly.
+    const setFlight = (on: boolean) =>
+      document.documentElement.classList.toggle("hero-flight", on);
 
     type Lenis = {
       scrollTo: (t: unknown, o?: unknown) => void;
@@ -565,6 +572,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
     const handoff = () => {
       playRef.current = "done";
+      // Keep the ambient bg frozen through the ~0.7s auto-scroll reveal so the
+      // galaxy resume + card fly-ins don't pile onto the same frames; release
+      // it once the cards have landed.
+      flightOffTimer = window.setTimeout(() => setFlight(false), 850);
       // ── TEMP diagnostic: where did cam0 ACTUALLY land vs the pivot? If it is
       // near the pivot but the scene still looks zoomed out, cam0 isn't the
       // active render camera; if it didn't move, the writes aren't landing. ──
@@ -629,6 +640,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         return;
       if (window.scrollY > window.innerHeight * 0.5) return;
       playRef.current = "playing";
+      setFlight(true);
       const lenis = getLenis();
       try {
         // Halt Lenis FIRST so the wheel delta it already captured on this same
@@ -740,6 +752,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (playRef.current === "playing") return;
       if (window.scrollY < 8 && playRef.current === "done") {
         playRef.current = "idle";
+        window.clearTimeout(flightOffTimer);
+        setFlight(false);
         applyFrame(0);
         const headline = headlineRef.current;
         if (headline) {
@@ -768,6 +782,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
     return () => {
       cancelAnimationFrame(raf);
+      window.clearTimeout(flightOffTimer);
+      setFlight(false);
       window.removeEventListener("wheel", onWheel, { capture: true });
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchmove", onTouchMove, { capture: true });
