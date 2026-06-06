@@ -93,13 +93,13 @@ const RADIUS_PULL = 0; // orbit closer(+)/further(−) to the pivot
 const LOOK_DROP = 0;
 const PHASE_A_END = 0.34; // fraction of the flight spent on the orbit (angle shift)
 const PHASE_B_END = 1.0; // dive runs to the very end of the flight, then hands off
-const DOLLY_DEEP = 0.96; // fraction of the way to centre the dive travels — kept just short of 1 so it flies INTO the portal looking forward instead of collapsing onto the centre and pitching straight down.
+const DOLLY_DEEP = 0.985; // fraction of the way to centre the dive travels — kept just short of 1 so it flies INTO the portal looking forward instead of collapsing onto the centre and pitching straight down.
 // Keeps the dive's END this far ABOVE the portal centre so the dive
 // flies INTO the portal without the camera sinking to floor/leg level.
-const DIVE_LIFT = 80;
+const DIVE_LIFT = 36;
 // How far the dive bows SIDEWAYS at its midpoint (quadratic Bézier control),
 // so the camera curves AROUND the person instead of punching through them.
-const ARC_SIDE = 300;
+const ARC_SIDE = 150;
 
 // zp = progress / ZOOM_COMPLETE_AT. Kept at 1.0 (no early saturation) so the
 // timed flight's phase splits map directly onto its 0→1 progress.
@@ -182,7 +182,11 @@ function computeCam(start: Vec3, startRot: Vec3, zp: number) {
   if (zp <= aEnd) {
     // Phase A — start EXACTLY on the authored frame (t=0) and ease into the
     // orbit: swing the angle and aim DOWN so the full design comes into view.
-    const t = smoothstep(aEnd <= 0 ? 1 : zp / aEnd);
+    // LINEAR within the phase — the caller (tick) applies ONE global smoothstep
+    // across the whole flight, so the orbit→dive boundary stays velocity-
+    // continuous (per-phase smoothstep eased to a STOP at the seam = a visible
+    // mid-flight pause / "two-step" glitch).
+    const t = aEnd <= 0 ? 1 : clamp01(zp / aEnd);
     const az = azFull * t;
     const s = lerp(1, fOrbit, t);
     const off = rotateY(off0, az);
@@ -204,7 +208,7 @@ function computeCam(start: Vec3, startRot: Vec3, zp: number) {
   // Phase B — dive toward the portal CENTRE along a quadratic Bézier that bows
   // sideways (ARC_SIDE) so the camera curves AROUND the person instead of
   // punching through them, easing the aim from the dropped point up to centre.
-  const u = smoothstep(clamp01((zp - aEnd) / Math.max(0.01, bEnd - aEnd)));
+  const u = clamp01((zp - aEnd) / Math.max(0.01, bEnd - aEnd));
   // Dive END: all the way to centre on X/Z, held above it (P.y + DIVE_LIFT) so
   // a full-depth dive doesn't sink into the floor/legs.
   const E = {
@@ -429,7 +433,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const PLAY_MS = 1800; // total flight: orbit (≈0.34) then dive (≈0.66)
+    const PLAY_MS = 2600; // total flight: orbit (≈0.34) then dive (≈0.66)
     let startAt = 0;
     let raf = 0;
 
@@ -489,7 +493,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const tick = (now: number) => {
       if (playRef.current !== "playing") return;
       const p = clamp01((now - startAt) / PLAY_MS);
-      applyFrame(p); // computeCam eases each phase, so a linear feed is smooth
+      // ONE global ease-in-out across the whole flight (gentle launch, gentle
+      // arrival into the portal); computeCam is linear within each phase so the
+      // motion is velocity-continuous from orbit into dive — no mid-flight stall.
+      applyFrame(smoothstep(p));
       if (p >= 1) {
         handoff();
         return;
@@ -507,12 +514,17 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       playRef.current = "playing";
       const lenis = getLenis();
       try {
-        lenis?.scrollTo(0, { immediate: true });
+        // Halt Lenis FIRST so the wheel delta it already captured on this same
+        // tick is never applied — that residual scroll was the visible "lurch"
+        // before the flight. Only settle to the exact top if we drifted off it.
         lenis?.stop();
+        if (window.scrollY !== 0) {
+          lenis?.scrollTo(0, { immediate: true });
+          window.scrollTo(0, 0);
+        }
       } catch {
         /* noop */
       }
-      window.scrollTo(0, 0);
       window.addEventListener("wheel", blockScroll, { passive: false });
       window.addEventListener("touchmove", blockScroll, { passive: false });
       startAt = performance.now();
@@ -520,9 +532,21 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
 
     // ── First downward intent triggers the flight ──
+    // Eligible = idle, scene loaded, desktop, motion ok, at the hero top. We
+    // only preventDefault (non-passive) when actually triggering, so Lenis is
+    // never persistently blocked — it works normally every other moment.
+    const eligible = () =>
+      playRef.current === "idle" &&
+      !!splineRef.current &&
+      !reducedRef.current &&
+      !isMobileRef.current &&
+      window.scrollY <= window.innerHeight * 0.5;
     const onWheel = (e: WheelEvent) => {
       if (playRef.current !== "idle") return;
-      if (e.deltaY > 0) startPlayback();
+      if (e.deltaY > 0 && eligible()) {
+        e.preventDefault(); // stop the page from lurching before the flight
+        startPlayback();
+      }
     };
     let touchY = 0;
     const onTouchStart = (e: TouchEvent) => {
@@ -531,7 +555,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const onTouchMove = (e: TouchEvent) => {
       if (playRef.current !== "idle") return;
       const y = e.touches[0]?.clientY ?? 0;
-      if (touchY - y > 6) startPlayback();
+      if (touchY - y > 6 && eligible()) {
+        e.preventDefault();
+        startPlayback();
+      }
     };
     const SCROLL_KEYS = [
       "ArrowDown",
@@ -580,9 +607,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
     };
 
-    window.addEventListener("wheel", onWheel, { passive: true });
+    // wheel + touchmove are NON-passive so the trigger can preventDefault the
+    // first gesture (kills the pre-flight lurch); they only ever preventDefault
+    // when actually launching, so Lenis scrolls normally the rest of the time.
+    window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("touchstart", onTouchStart, { passive: true });
-    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
     window.addEventListener("keydown", onKey);
     window.addEventListener("scroll", onScroll, { passive: true });
 
