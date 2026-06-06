@@ -110,7 +110,7 @@ export default function CustomCursor() {
       raf = requestAnimationFrame(tick);
     };
 
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: MouseEvent | PointerEvent) => {
       mx = e.clientX;
       my = e.clientY;
       const d = dotRef.current;
@@ -119,6 +119,16 @@ export default function CustomCursor() {
       if (lbl) lbl.style.transform = `translate3d(${mx + 18}px, ${my + 18}px, 0)`;
       startLoop();
     };
+
+    // Prefer `pointerrawupdate` when available — it delivers raw,
+    // un-coalesced pointer samples at the highest rate the hardware
+    // provides (before the browser batches them into `mousemove`),
+    // which trims input latency so the dot sits as close to the real
+    // pointer as a drawn cursor can. Falls back to `mousemove`.
+    const moveEvent =
+      typeof window !== "undefined" && "onpointerrawupdate" in window
+        ? "pointerrawupdate"
+        : "mousemove";
 
     // Hover detection — rate-limited via rAF so even a fast mouse
     // dragging across the page doesn't fire `closest()` 1000+ times
@@ -165,7 +175,7 @@ export default function CustomCursor() {
       if (ringRef.current) ringRef.current.style.opacity = "1";
     };
 
-    window.addEventListener("mousemove", onMove, { passive: true });
+    window.addEventListener(moveEvent, onMove as EventListener, { passive: true });
     window.addEventListener("mouseover", onOver, { passive: true });
     window.addEventListener("mousedown", onDown);
     window.addEventListener("mouseup", onUp);
@@ -174,7 +184,7 @@ export default function CustomCursor() {
 
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener(moveEvent, onMove as EventListener);
       window.removeEventListener("mouseover", onOver);
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("mouseup", onUp);
