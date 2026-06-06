@@ -33,6 +33,7 @@ import Nav from "@/components/Nav";
 // dropped here; components/Footer.tsx left in repo unused.
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import CustomCursor from "@/components/CustomCursor";
+import OffscreenGlowPauser from "@/components/OffscreenGlowPauser";
 import MusicPlayer from "@/components/MusicPlayer";
 import PulsatingOverlay from "@/components/PulsatingOverlay";
 import GalaxyBackground from "@/components/GalaxyBackground";
@@ -178,6 +179,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </AutoEditWrapper>
           {/* v18 — Footer unmounted per user request */}
           <CustomCursor />
+          {/* Pauses perpetual decorative glow animations while their
+              section is scrolled off-screen (invisible — frees compositor
+              budget so the cursor stays smooth). Skips fixed/sticky layers. */}
+          <OffscreenGlowPauser />
           {/* Persistent background music — lives here so it survives
               navigation between pages. Close button lets users hide it. */}
           <MusicPlayer />
