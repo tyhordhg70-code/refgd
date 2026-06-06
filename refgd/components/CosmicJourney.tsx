@@ -91,7 +91,7 @@ const RADIUS_PULL = 0; // orbit closer(+)/further(−) to the pivot
 // Aim DEAD-CENTRE the whole way. The owner explicitly wants the dive to go into
 // the portal CENTRE, not "downward" — so we no longer drop the look target.
 const LOOK_DROP = 0;
-const PHASE_A_END = 0.34; // fraction of the flight spent on the orbit (angle shift)
+const PHASE_A_END = 0.2; // fraction of the flight spent on the orbit (angle shift) — kept short so the small orbit move and the long deep dive run at MATCHED speeds (no jump at the seam)
 const PHASE_B_END = 1.0; // dive runs to the very end of the flight, then hands off
 const DOLLY_DEEP = 0.985; // fraction of the way to centre the dive travels — kept just short of 1 so it flies INTO the portal looking forward instead of collapsing onto the centre and pitching straight down.
 // Keeps the dive's END this far ABOVE the portal centre so the dive
@@ -112,6 +112,20 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const smoothstep = (t: number) => {
   const x = clamp01(t);
   return x * x * (3 - 2 * x);
+};
+
+// Flight time-ease — TRAPEZOID velocity profile: a soft launch and a soft
+// arrival with a CONSTANT-speed middle. Unlike smoothstep (which spikes to peak
+// velocity right at the midpoint), this never "suddenly speeds up half way", so
+// the orbit→dive flight reads as one calm, even glide.
+const easeFlight = (t: number) => {
+  const x = clamp01(t);
+  const r = 0.22; // fraction of the flight spent ramping at EACH end
+  const norm = 1 - r; // area under the trapezoid (normalises pos to end at 1)
+  if (x < r) return (x * x) / (2 * r) / norm; // accelerate
+  if (x <= 1 - r) return (x - r / 2) / norm; // cruise (constant speed)
+  const q = 1 - x; // decelerate (mirror of accelerate)
+  return 1 - (q * q) / (2 * r) / norm;
 };
 
 // Rotate a vector about the Y axis (used to swing the orbit azimuth).
@@ -433,7 +447,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const PLAY_MS = 2600; // total flight: orbit (≈0.34) then dive (≈0.66)
+    const PLAY_MS = 4500; // total flight (slow + cinematic): orbit (≈0.2) then long dive (≈0.8)
     let startAt = 0;
     let raf = 0;
 
@@ -493,10 +507,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const tick = (now: number) => {
       if (playRef.current !== "playing") return;
       const p = clamp01((now - startAt) / PLAY_MS);
-      // ONE global ease-in-out across the whole flight (gentle launch, gentle
-      // arrival into the portal); computeCam is linear within each phase so the
-      // motion is velocity-continuous from orbit into dive — no mid-flight stall.
-      applyFrame(smoothstep(p));
+      // Trapezoid ease (soft launch, CONSTANT-speed cruise, soft arrival) — no
+      // midpoint velocity spike; computeCam is linear within each phase and the
+      // phases are speed-matched, so the whole flight glides at one even pace.
+      applyFrame(easeFlight(p));
       if (p >= 1) {
         handoff();
         return;
