@@ -508,6 +508,21 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
     const handoff = () => {
       playRef.current = "done";
+      // ── TEMP diagnostic: where did cam0 ACTUALLY land vs the pivot? If it is
+      // near the pivot but the scene still looks zoomed out, cam0 isn't the
+      // active render camera; if it didn't move, the writes aren't landing. ──
+      try {
+        const c0 = camerasRef.current[0]?.obj;
+        if (c0?.position) {
+          const r = (v: number) => Math.round(v);
+          // eslint-disable-next-line no-console
+          console.log(
+            `[REFGD-CAM] HANDOFF cam0 actual=(${r(c0.position.x)},${r(c0.position.y)},${r(c0.position.z)}) vs pivot=(${PIVOT.x},${PIVOT.y},${PIVOT.z})`,
+          );
+        }
+      } catch {
+        /* noop */
+      }
       window.removeEventListener("wheel", blockScroll, { capture: true });
       window.removeEventListener("touchmove", blockScroll, { capture: true });
       const lenis = getLenis();
@@ -749,6 +764,30 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         if (/camera|\bcam\b/i.test(o?.name ?? "")) pushCam(o);
       }
       camerasRef.current = cams;
+
+      // ── TEMP diagnostic (remove once centring is dialled in) ──────────────
+      // We tune this BLIND (no GPU in the build env), so the live scene must
+      // report what it actually exposes. Compare these numbers against the
+      // canvas tester's known-good values to pinpoint why the live diverges.
+      try {
+        const r = (v: number) => Math.round(v);
+        const list = cams
+          .map((c) => {
+            const nm =
+              (c.obj as unknown as { name?: string }).name ?? "?";
+            return `${nm}=(${r(c.start.x)},${r(c.start.y)},${r(c.start.z)})`;
+          })
+          .join("  ");
+        const c0 = cams[0];
+        const dive = c0 ? computeCam(c0.start, c0.startRot, PHASE_B_END) : null;
+        // eslint-disable-next-line no-console
+        console.log(
+          `[REFGD-CAM] cams=${cams.length} controls=${!!app.controls} :: ${list} :: pivot=(${PIVOT.x},${PIVOT.y},${PIVOT.z}) :: diveEnd(cam0)=${dive ? `(${r(dive.pos.x)},${r(dive.pos.y)},${r(dive.pos.z)})` : "n/a"}`,
+        );
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.log("[REFGD-CAM] diag failed", err);
+      }
 
       if (!cams.length) {
         // No camera object exposed — fall back to scrubbing a scene variable
