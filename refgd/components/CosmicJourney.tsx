@@ -97,8 +97,14 @@ const RADIUS_PULL = 0; // orbit closer(+)/further(−) to the pivot
 // dive eases the aim back UP to the portal centre (lookT.y → P.y as u→1), so the
 // dive STILL ENDS framed dead-centre. Tester value — confirmed centred by owner.
 const LOOK_DROP = 700;
-const PHASE_A_END = 0.3; // fraction of the flight spent on the orbit (angle shift)
-const PHASE_B_END = 0.93; // dive completes here, then HOLDS centred for the hand-off
+// ⚠ TIME-DOMAIN params (NOT copied from the tester): the tester is SCROLL-SCRUBBED
+// (the user controls speed by scrolling) so its phase splits are cosmetic there. The
+// LIVE hero is a TIME-BASED flight, so the split must give the tiny orbit and the long
+// dive TIME proportional to DISTANCE or the speed JUMPS at the seam (= mid-flight
+// stutter). 0.2 keeps the orbit short so orbit/dive speeds match. Centring is
+// INDEPENDENT of these (the dive END pose is fixed by the geometry constants above).
+const PHASE_A_END = 0.2; // short orbit slice → speed-matched seam (no stutter)
+const PHASE_B_END = 0.93; // dive fully lands here; tick hands off the INSTANT it does
 const DOLLY_DEEP = 0.95; // fraction of the way to centre the dive travels — tester value: stops at the portal MOUTH (0.99 overshot past it, breaking the centred framing)
 // Keeps the dive's END this far ABOVE the portal centre so the dive frames the
 // portal MOUTH instead of sinking to floor/leg level. Tester value (was 28 = too
@@ -518,8 +524,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // Trapezoid ease (soft launch, CONSTANT-speed cruise, soft arrival) — no
       // midpoint velocity spike; computeCam is linear within each phase and the
       // phases are speed-matched, so the whole flight glides at one even pace.
-      applyFrame(easeFlight(p));
-      if (p >= 1) {
+      const zp = easeFlight(p);
+      applyFrame(zp);
+      // Hand off the INSTANT the dive lands (eased zp reaches PHASE_B_END) instead
+      // of waiting out the full PLAY_MS. After the dive completes the trapezoid's
+      // decel tail left the camera frozen for a beat before the page moved — that
+      // dead gap read as "auto-scroll fires with a delay after the scroll finished".
+      if (zp >= PHASE_B_END || p >= 1) {
         handoff();
         return;
       }
