@@ -57,6 +57,14 @@ type SplineObj = {
 type SplineApp = {
   setZoom: (zoom: number) => void;
   requestRender?: () => void;
+  // Authored-animation playback control. stop() halts the scene's looping
+  // ambient animation (so the runtime stops rendering a frame every tick while
+  // the user just sits on the hero), freeing the main thread + GPU for the
+  // cursor. play() resumes it. requestRender() is INDEPENDENT of these and still
+  // forces a single frame even while stopped — that is what the scroll-flight
+  // camera dolly relies on, so freezing the ambient never blocks the fly-in.
+  play?: () => void;
+  stop?: () => void;
   findObjectByName?: (name: string) => SplineObj | undefined;
   getAllObjects?: () => SplineObj[];
   getVariables?: () => Record<string, number | boolean | string>;
@@ -399,6 +407,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // no progress-threshold snap that lagged or mis-fired.
   const playRef = useRef<"idle" | "playing" | "done">("idle");
   const playPRef = useRef(0); // current 0→1 progress of the flight
+  // Idle-freeze timer. A beat after the scene settles (and again whenever it
+  // returns to idle) we call app.stop() so the hero's looping ambient animation
+  // stops rendering a frame every tick while the user just sits there moving the
+  // cursor — that continuous render is the hero's share of the pointer lag. The
+  // short delay lets any one-shot load/intro animation finish before we freeze.
+  const freezeTimerRef = useRef<number>(0);
 
   const isMobileRef = useRef(false);
   const reducedRef = useRef(false);
@@ -585,6 +599,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
     const handoff = () => {
       playRef.current = "done";
+      // Flight is over and the hero is scrolling away (it unmounts shortly after
+      // it leaves view). Re-freeze the ambient animation so it doesn't keep
+      // rendering during the hand-off reveal or while it lingers off-screen.
+      window.clearTimeout(freezeTimerRef.current);
+      try {
+        splineRef.current?.stop?.();
+      } catch {
+        /* noop */
+      }
       // Keep the ambient bg frozen through the ~0.7s auto-scroll reveal so the
       // galaxy resume + card fly-ins don't pile onto the same frames; release
       // it once the cards have landed.
@@ -654,6 +677,16 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (window.scrollY > window.innerHeight * 0.5) return;
       playRef.current = "playing";
       setFlight(true);
+      // Cancel any pending idle-freeze and resume the scene's animation for the
+      // cinematic ("animates when I scroll"). play() also guarantees the runtime
+      // renders every flight frame even if a build's requestRender() were gated
+      // by the stopped state — so the fly-in can never freeze mid-dive.
+      window.clearTimeout(freezeTimerRef.current);
+      try {
+        splineRef.current?.play?.();
+      } catch {
+        /* noop */
+      }
       const lenis = getLenis();
       try {
         // Halt Lenis FIRST so the wheel delta it already captured on this same
@@ -768,6 +801,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         window.clearTimeout(flightOffTimer);
         setFlight(false);
         applyFrame(0);
+        // Back at the hero top and idle again — re-arm the idle-freeze so the
+        // ambient animation stops rendering once it has settled on frame 0.
+        window.clearTimeout(freezeTimerRef.current);
+        freezeTimerRef.current = window.setTimeout(() => {
+          if (playRef.current === "idle") {
+            try {
+              splineRef.current?.stop?.();
+            } catch {
+              /* noop */
+            }
+          }
+        }, 1400);
         const headline = headlineRef.current;
         if (headline) {
           headline.style.opacity = "1";
@@ -796,6 +841,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     return () => {
       cancelAnimationFrame(raf);
       window.clearTimeout(flightOffTimer);
+      window.clearTimeout(freezeTimerRef.current);
       setFlight(false);
       window.removeEventListener("wheel", onWheel, { capture: true });
       window.removeEventListener("touchstart", onTouchStart);
@@ -927,6 +973,21 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // load) so the camera sits on the authored welcome pose, ready for the
     // first-scroll cinematic.
     renderZoom(playPRef.current);
+    // ── Idle-freeze: stop the looping ambient animation a beat after load ──
+    // While the user sits on the hero, the scene otherwise renders a frame every
+    // tick (its share of the cursor lag). Freeze it once any load/intro motion
+    // has settled; the flight's requestRender() still works while stopped, and
+    // startPlayback() resumes it on the first scroll. Only fires if still idle.
+    window.clearTimeout(freezeTimerRef.current);
+    freezeTimerRef.current = window.setTimeout(() => {
+      if (playRef.current === "idle") {
+        try {
+          splineRef.current?.stop?.();
+        } catch {
+          /* noop */
+        }
+      }
+    }, 1400);
     // Tell the loading screen the heavy 3D scene has painted its first
     // frame so the splash holds until the galaxy is actually ready
     // (instead of lifting onto an empty backdrop that "pops in" later

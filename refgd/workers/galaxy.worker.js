@@ -141,7 +141,13 @@ function tick() {
 
   const now = performance.now();
   const isScrolling = now - lastScrollAt < 220;
-  const minFrameMs = isScrolling ? 80 : 33;
+  // Idle cap eased 30fps→20fps (33→50ms): the galaxy is a full-viewport
+  // mix-blend-screen layer, so every frame forces the compositor to re-blend the
+  // whole screen in the SAME pass that paints the custom cursor. Fewer galaxy
+  // frames = the cursor gets composited sooner = less perceived pointer lag
+  // site-wide. The rotation here is extremely slow (~0.025 rad/s, t*0.05*0.5), so
+  // 20fps is visually identical to 30fps on motion this gradual.
+  const minFrameMs = isScrolling ? 80 : 50;
   if (now - lastRender < minFrameMs) return;
   lastRender = now;
 
