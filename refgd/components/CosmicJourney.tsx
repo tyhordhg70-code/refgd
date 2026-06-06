@@ -492,12 +492,24 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // Hard scroll lock for the duration of the flight ONLY. Paired with
     // lenis.stop(); fully removed at hand-off so Lenis is never persistently
     // blocked (a persistent blocker is what previously broke smooth scroll).
-    const blockScroll = (e: Event) => e.preventDefault();
+    // ⚠ CAPTURE-PHASE + stopImmediatePropagation (NOT just preventDefault): the
+    // Spline scene ships its OWN authored wheel/scroll camera animation. With only
+    // preventDefault on the bubble phase that animation still ran and FOUGHT /
+    // overrode our computeCam writes every frame — which is why the dive never
+    // centred AND why changing the geometry constants did "nothing" on the live
+    // site. Swallowing the event in the capture phase, before Spline's own
+    // listener, neutralises it so our flight is the ONLY thing moving the camera.
+    // Scoped to the flight only, so Lenis is untouched the rest of the time.
+    // (Mirrors the proven spline-tester rig, which DOES centre.)
+    const blockScroll = (e: Event) => {
+      e.stopImmediatePropagation();
+      if (e.cancelable) e.preventDefault();
+    };
 
     const handoff = () => {
       playRef.current = "done";
-      window.removeEventListener("wheel", blockScroll);
-      window.removeEventListener("touchmove", blockScroll);
+      window.removeEventListener("wheel", blockScroll, { capture: true });
+      window.removeEventListener("touchmove", blockScroll, { capture: true });
       const lenis = getLenis();
       try {
         lenis?.start();
@@ -558,8 +570,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       } catch {
         /* noop */
       }
-      window.addEventListener("wheel", blockScroll, { passive: false });
-      window.addEventListener("touchmove", blockScroll, { passive: false });
+      window.addEventListener("wheel", blockScroll, {
+        passive: false,
+        capture: true,
+      });
+      window.addEventListener("touchmove", blockScroll, {
+        passive: false,
+        capture: true,
+      });
       startAt = performance.now();
       raf = requestAnimationFrame(tick);
     };
@@ -577,6 +595,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const onWheel = (e: WheelEvent) => {
       if (playRef.current !== "idle") return;
       if (e.deltaY > 0 && eligible()) {
+        // Capture-phase: kill the TRIGGER gesture before Spline's own listener
+        // sees it, so the scene's authored animation never even starts.
+        e.stopImmediatePropagation();
         e.preventDefault(); // stop the page from lurching before the flight
         startPlayback();
       }
@@ -589,6 +610,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (playRef.current !== "idle") return;
       const y = e.touches[0]?.clientY ?? 0;
       if (touchY - y > 6 && eligible()) {
+        e.stopImmediatePropagation();
         e.preventDefault();
         startPlayback();
       }
@@ -643,21 +665,27 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // wheel + touchmove are NON-passive so the trigger can preventDefault the
     // first gesture (kills the pre-flight lurch); they only ever preventDefault
     // when actually launching, so Lenis scrolls normally the rest of the time.
-    window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("wheel", onWheel, {
+      passive: false,
+      capture: true,
+    });
     window.addEventListener("touchstart", onTouchStart, { passive: true });
-    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchmove", onTouchMove, {
+      passive: false,
+      capture: true,
+    });
     window.addEventListener("keydown", onKey);
     window.addEventListener("scroll", onScroll, { passive: true });
 
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("wheel", onWheel, { capture: true });
       window.removeEventListener("touchstart", onTouchStart);
-      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchmove", onTouchMove, { capture: true });
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("wheel", blockScroll);
-      window.removeEventListener("touchmove", blockScroll);
+      window.removeEventListener("wheel", blockScroll, { capture: true });
+      window.removeEventListener("touchmove", blockScroll, { capture: true });
       try {
         getLenis()?.start();
       } catch {
