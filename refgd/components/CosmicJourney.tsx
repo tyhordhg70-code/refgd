@@ -84,37 +84,26 @@ const SCENE_URL = "https://prod.spline.design/mzZcfxXnOQsM5LXz/scene.splinecode"
 //      the aim up from the dropped point to dead-centre so it ends framed inside
 //      the portal but STOPS SHORT of the person (DOLLY_DEEP < 1).
 const PIVOT = { x: 57, y: 3878, z: -387 }; // measured portal sphere-cluster centre
-const AZIMUTH_DEG = -12; // Phase-A orbit swing to a fresh angle
+const AZIMUTH_DEG = -26; // Phase-A orbit swing to a fresh angle (pronounced shift)
 const ELEV_LIFT = 0; // vertical orbit lift (flat "2D" third-person angle)
 const ESTABLISH_BACK = 0; // extra orbit radius — 0: never pull back through the person
 const RADIUS_PULL = 0; // orbit closer(+)/further(−) to the pivot
-const LOOK_DROP = 700; // aim this far BELOW centre during reveal (shows lower design)
-const PHASE_A_END = 0.3; // fraction of the scroll spent on the orbit
-const PHASE_B_END = 0.93; // fraction at which the dive finishes and holds (kept high so the dive uses almost the whole runway → barely any frozen hold zone to scroll back up through)
-const DOLLY_DEEP = 0.95; // fraction of the way to centre the dive travels — kept just short of 1 so it flies INTO the portal looking forward instead of collapsing onto the centre and pitching straight down ("off track" on entry). Deepened to land truer in the portal centre.
+// Aim DEAD-CENTRE the whole way. The owner explicitly wants the dive to go into
+// the portal CENTRE, not "downward" — so we no longer drop the look target.
+const LOOK_DROP = 0;
+const PHASE_A_END = 0.34; // fraction of the flight spent on the orbit (angle shift)
+const PHASE_B_END = 1.0; // dive runs to the very end of the flight, then hands off
+const DOLLY_DEEP = 0.96; // fraction of the way to centre the dive travels — kept just short of 1 so it flies INTO the portal looking forward instead of collapsing onto the centre and pitching straight down.
 // Keeps the dive's END this far ABOVE the portal centre so the dive
 // flies INTO the portal without the camera sinking to floor/leg level.
-const DIVE_LIFT = 150;
+const DIVE_LIFT = 80;
 // How far the dive bows SIDEWAYS at its midpoint (quadratic Bézier control),
 // so the camera curves AROUND the person instead of punching through them.
-const ARC_SIDE = 450;
+const ARC_SIDE = 300;
 
 // zp = progress / ZOOM_COMPLETE_AT. Kept at 1.0 (no early saturation) so the
-// phase splits map directly onto raw scroll, matching the approved tester feel:
-// the dive uses the whole runway and the auto-snap (not a hold) does the hand-off.
+// timed flight's phase splits map directly onto its 0→1 progress.
 const ZOOM_COMPLETE_AT = 1.0;
-// Per-frame critical-damping factor for the eased camera loop: the camera
-// glides toward the real scroll position instead of snapping, which absorbs
-// scroll jitter / momentum and kills the per-tick "zoom flicker".
-const EASE = 0.16;
-// Once the RAW scroll progress crosses this, a one-shot smooth auto-snap (via
-// Lenis) rushes the remaining pin straight to the path cards, so there's no
-// dead scrolling after the camera is inside the portal. Triggered off the RAW
-// scroll (not the eased value, which LAGS and added a visible delay before the
-// hand-off); on fire the camera is snapped straight to its END pose and frozen
-// so it holds dead still while the page glides (no fight/glitch). Set at
-// PHASE_B_END (= the moment the dive finishes).
-const SNAP_AT = 0.93;
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 const deg2rad = (d: number) => (d * Math.PI) / 180;
@@ -348,22 +337,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // Fallback only (used when no camera object is exposed): a scene variable
   // whose name looks like a scroll/zoom driver, scrubbed with progress.
   const scrubVarRef = useRef<string | null>(null);
-  // Eased camera-progress state for the continuous RAF loop (the value glides
-  // toward the real scroll position so the dolly never snaps or flickers).
-  const appliedPRef = useRef(0);
-  const lastAppliedRef = useRef(-1);
-  const pendingRef = useRef(true);
-  // Auto-snap (Lenis) hand-off state: fire once when the eased dive completes,
-  // re-arm only after the user scrolls back up well before the trigger.
-  const lastTargetRef = useRef(0);
-  const snapArmedRef = useRef(true);
-  // Latched scroll direction (true = last meaningful move was downward). The
-  // eased progress lags the raw scroll, so an instantaneous "scrolling down
-  // this frame" test misses once the user stops flicking — latching fixes that.
-  const dirDownRef = useRef(false);
-  // While true, the hand-off snap is animating the page — freeze the camera.
-  const snapActiveRef = useRef(false);
-  const snapEndAtRef = useRef(0);
+  // ── First-scroll cinematic state machine ──────────────────────────────
+  // "idle"    → waiting for the first downward scroll gesture
+  // "playing" → the timed orbit→dive flight is running (page is pinned)
+  // "done"    → flight finished; page has handed off to the path cards
+  // The flight is TIME-based (not scroll-scrubbed), so it always plays the
+  // full choreography on the very first gesture — no multi-screen runway and
+  // no progress-threshold snap that lagged or mis-fired.
+  const playRef = useRef<"idle" | "playing" | "done">("idle");
+  const playPRef = useRef(0); // current 0→1 progress of the flight
 
   const isMobileRef = useRef(false);
   const reducedRef = useRef(false);
@@ -403,14 +385,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // Progress (0→1) of how far we are through the sticky hero section.
-  const getProgress = () => {
-    const section = sectionRef.current;
-    if (!section) return 0;
-    const denom = Math.max(1, section.offsetHeight - window.innerHeight);
-    return clamp01(-section.getBoundingClientRect().top / denom);
-  };
-
   // Apply a 0→1 scroll progress to the camera as a straight FORWARD dolly
   // along each camera's ORIGINAL view axis (validated in the live tester). zp
   // saturates at ZOOM_COMPLETE_AT so the camera is fully inside the portal
@@ -445,92 +419,171 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     }
   };
 
-  // Continuous eased camera loop: read the REAL scroll progress every frame
-  // and glide the applied value toward it (critical damping). This is the
-  // motion the tester validated — it absorbs scroll jitter / momentum so the
-  // dolly glides instead of snapping and never "zooms back out" on a hard
-  // scroll tick. Driving the camera here (not in the scroll listener) is what
-  // makes the fly-in buttery on fast flicks.
+  // ── First-scroll cinematic: orbit → dive → hand-off to the path cards ──
+  // The hero plays ONE time-based camera flight the instant the user makes a
+  // downward scroll gesture, then auto-scrolls to #paths. There is no long
+  // scroll-scrub runway (which forced the user to flick through several
+  // screens) and no progress-threshold snap (which lagged / mis-fired and let
+  // the camera "restart"). Reversible: returning to the very top resets the
+  // camera + fades and re-arms the trigger.
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const PLAY_MS = 1800; // total flight: orbit (≈0.34) then dive (≈0.66)
+    let startAt = 0;
     let raf = 0;
-    const loop = () => {
-      raf = requestAnimationFrame(loop);
-      // Guard mobile too: if the viewport crosses to mobile after the scene
-      // already loaded on desktop, showSpline unmounts but splineRef may linger
-      // — without this the camera loop / auto-snap could still fire on mobile.
-      if (!splineRef.current || reducedRef.current || isMobileRef.current)
-        return;
-      const target = getProgress();
 
-      // ── One-shot auto-snap to the path cards the instant the dive finishes.
-      // Triggers off the RAW scroll position (not the eased progress) so the
-      // hand-off fires immediately with no lag, and the direction is LATCHED
-      // (kept "down" until a real upward scroll) so it can't be missed when the
-      // user stops flicking while the eased camera is still catching up. It
-      // re-arms only after the user scrolls back up well before the trigger.
-      // Uses the shared Lenis instance (native scrollTo gets reverted by Lenis).
-      // This block only runs on a loaded desktop scene — mobile never mounts
-      // Spline and reduced-motion returns above, so neither gets yanked.
-      const dT = target - lastTargetRef.current;
-      if (dT > 1e-4) dirDownRef.current = true;
-      else if (dT < -1e-4) dirDownRef.current = false;
-      if (snapArmedRef.current && dirDownRef.current && target >= SNAP_AT) {
-        snapArmedRef.current = false;
-        // Complete the dive INSTANTLY so the camera is at the true end of the
-        // flight (inside the portal) before the page moves — the eased camera
-        // may still be mid-dive, and letting it creep while the page scrolls
-        // reads as a glitch.
-        appliedPRef.current = target;
-        lastAppliedRef.current = target;
-        renderZoom(target);
-        // Freeze the camera for the span of the Lenis snap so it holds dead
-        // still while the cards glide up over a static scene.
-        snapActiveRef.current = true;
-        snapEndAtRef.current = performance.now() + 760;
-        const paths = document.getElementById("paths");
-        const lenis = (
-          window as unknown as {
-            __lenis?: { scrollTo: (t: unknown, o?: unknown) => void };
-          }
-        ).__lenis;
-        if (paths && lenis) {
-          lenis.scrollTo(paths, {
-            // Land the section FLUSH to the top so the Spline scene and its
-            // mismatched background are fully scrolled away before the cards
-            // appear — the user never sees the seam between scene and cards.
-            offset: 0,
-            duration: 0.72,
-            easing: (t: number) => 1 - Math.pow(1 - t, 3),
-          });
-        } else if (paths) {
-          paths.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
+    type Lenis = {
+      scrollTo: (t: unknown, o?: unknown) => void;
+      stop: () => void;
+      start: () => void;
+    };
+    const getLenis = () =>
+      (window as unknown as { __lenis?: Lenis }).__lenis;
+
+    // Drive camera + DOM fades for a single 0→1 flight progress.
+    const applyFrame = (p: number) => {
+      playPRef.current = p;
+      renderZoom(p);
+      const bd = backdropRef.current;
+      if (bd)
+        bd.style.transform = `translateY(${(p * -52).toFixed(1)}px) scale(${(1 + p * 0.1).toFixed(4)})`;
+      const headline = headlineRef.current;
+      if (headline) {
+        headline.style.opacity = clamp01(1 - p / 0.32).toFixed(4);
+        headline.style.transform = `translateY(${(p * -80).toFixed(1)}px) scale(${(1 + p * 0.06).toFixed(4)})`;
       }
-      if (target < SNAP_AT - 0.05) snapArmedRef.current = true;
-      lastTargetRef.current = target;
+      const cue = cueRef.current;
+      if (cue) cue.style.opacity = clamp01(1 - p / 0.06).toFixed(4);
+    };
 
-      // While the hand-off snap is animating the page, FREEZE the camera at its
-      // settled portal pose so it doesn't drift while the cards slide up.
-      if (snapActiveRef.current) {
-        if (performance.now() >= snapEndAtRef.current) snapActiveRef.current = false;
-        else return;
+    // Hard scroll lock for the duration of the flight ONLY. Paired with
+    // lenis.stop(); fully removed at hand-off so Lenis is never persistently
+    // blocked (a persistent blocker is what previously broke smooth scroll).
+    const blockScroll = (e: Event) => e.preventDefault();
+
+    const handoff = () => {
+      playRef.current = "done";
+      window.removeEventListener("wheel", blockScroll);
+      window.removeEventListener("touchmove", blockScroll);
+      const lenis = getLenis();
+      try {
+        lenis?.start();
+      } catch {
+        /* noop */
       }
-
-      const cur = appliedPRef.current;
-      let next = cur + (target - cur) * EASE;
-      if (Math.abs(target - next) < 0.0004) next = target;
-      appliedPRef.current = next;
-      if (
-        Math.abs(next - lastAppliedRef.current) > 0.00002 ||
-        pendingRef.current
-      ) {
-        pendingRef.current = false;
-        lastAppliedRef.current = next;
-        renderZoom(next);
+      const paths = document.getElementById("paths");
+      if (paths && lenis) {
+        // Land #paths FLUSH to the top: the 100svh hero (scene + backdrop)
+        // scrolls fully away, so the cards never appear over the galaxy.
+        lenis.scrollTo(paths, {
+          offset: 0,
+          duration: 0.7,
+          easing: (t: number) => 1 - Math.pow(1 - t, 3),
+        });
+      } else if (paths) {
+        paths.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+
+    const tick = (now: number) => {
+      if (playRef.current !== "playing") return;
+      const p = clamp01((now - startAt) / PLAY_MS);
+      applyFrame(p); // computeCam eases each phase, so a linear feed is smooth
+      if (p >= 1) {
+        handoff();
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    const startPlayback = () => {
+      if (playRef.current !== "idle") return;
+      // Never hijack on mobile / reduced-motion / before the scene is ready,
+      // and only from the top of the hero.
+      if (!splineRef.current || reducedRef.current || isMobileRef.current)
+        return;
+      if (window.scrollY > window.innerHeight * 0.5) return;
+      playRef.current = "playing";
+      const lenis = getLenis();
+      try {
+        lenis?.scrollTo(0, { immediate: true });
+        lenis?.stop();
+      } catch {
+        /* noop */
+      }
+      window.scrollTo(0, 0);
+      window.addEventListener("wheel", blockScroll, { passive: false });
+      window.addEventListener("touchmove", blockScroll, { passive: false });
+      startAt = performance.now();
+      raf = requestAnimationFrame(tick);
+    };
+
+    // ── First downward intent triggers the flight ──
+    const onWheel = (e: WheelEvent) => {
+      if (playRef.current !== "idle") return;
+      if (e.deltaY > 0) startPlayback();
+    };
+    let touchY = 0;
+    const onTouchStart = (e: TouchEvent) => {
+      touchY = e.touches[0]?.clientY ?? 0;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (playRef.current !== "idle") return;
+      const y = e.touches[0]?.clientY ?? 0;
+      if (touchY - y > 6) startPlayback();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (playRef.current !== "idle") return;
+      if (["ArrowDown", "PageDown", " ", "Spacebar"].includes(e.key)) {
+        if (
+          splineRef.current &&
+          !reducedRef.current &&
+          !isMobileRef.current &&
+          window.scrollY <= window.innerHeight * 0.5
+        )
+          e.preventDefault();
+        startPlayback();
+      }
+    };
+
+    // ── Reset at the very top so the flight can replay (reversible) ──
+    const onScroll = () => {
+      if (playRef.current === "playing") return;
+      if (window.scrollY < 8 && playRef.current === "done") {
+        playRef.current = "idle";
+        applyFrame(0);
+        const headline = headlineRef.current;
+        if (headline) {
+          headline.style.opacity = "1";
+          headline.style.transform = "none";
+        }
+        const cue = cueRef.current;
+        if (cue) cue.style.opacity = "1";
+      }
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("wheel", blockScroll);
+      window.removeEventListener("touchmove", blockScroll);
+      try {
+        getLenis()?.start();
+      } catch {
+        /* noop */
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -620,9 +673,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       /* noop */
     }
 
-    appliedPRef.current = getProgress();
-    pendingRef.current = true;
-    renderZoom(getProgress());
+    // Render the first frame at the flight's current progress (0 on a fresh
+    // load) so the camera sits on the authored welcome pose, ready for the
+    // first-scroll cinematic.
+    renderZoom(playPRef.current);
     // Tell the loading screen the heavy 3D scene has painted its first
     // frame so the splash holds until the galaxy is actually ready
     // (instead of lifting onto an empty backdrop that "pops in" later
@@ -648,121 +702,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     }
   };
 
-  // ── Scroll-linked camera zoom + fades — zero React re-renders ────────
-  useEffect(() => {
-    const section = sectionRef.current;
-    if (!section) return;
-    let lastKey = -1;
-
-    const update = () => {
-      const section = sectionRef.current;
-      if (!section) return;
-      const red = reducedRef.current;
-      const rect = section.getBoundingClientRect();
-      const denom = Math.max(1, section.offsetHeight - window.innerHeight);
-      const scrolledPast = -rect.top;                  // px scrolled into the hero
-      const progress = clamp01(scrolledPast / denom);  // 0→1 during the pinned fly-in
-
-      // Exit phase: once the camera has flown ALL the way into the portal
-      // (and held there), the hero un-pins and the path cards rise from
-      // directly below on their own normal background. The scene is hidden
-      // with a hard cut the instant exit > 0 (see below) — it is NOT faded
-      // and the cards do NOT come up over a still-visible galaxy. exitDist
-      // just defines how quickly `exit` saturates past the pin; only its
-      // sign (>0) matters now that the scene is a hard show/hide.
-      const exitDist = Math.max(1, window.innerHeight * 1.0);
-      const exit = clamp01((scrolledPast - denom) / exitDist);
-
-      // progress is constant (1) during the exit phase, so fold exit into
-      // the change key or the hand-off frames would be skipped.
-      const key = progress + exit;
-      if (Math.abs(key - lastKey) < 0.0005) return;
-      lastKey = key;
-
-      // Camera dolly is driven by the continuous eased RAF loop above, NOT
-      // here — this listener only handles the DOM parallax + fades.
-
-      // Owner rule: never fade the galaxy out (no opacity fade) AND no hard
-      // cut either. The scene stays FULLY visible the whole time; when the
-      // pinned hero ends, the sticky scene simply scrolls away as the path
-      // cards take over, so the hand-off is seamless instead of the galaxy
-      // blinking out. Fully reversible on scroll-up.
-      const scene = sceneRef.current;
-      if (scene) {
-        scene.style.opacity = "1";
-        scene.style.visibility = "visible";
-      }
-      const mob = mobileRef.current;
-      if (mob) {
-        mob.style.opacity = "1";
-        mob.style.visibility = "visible";
-      }
-
-      // Portal flash glow removed per owner (read as a "glow wash" over the
-      // zoom) — keep the overlay fully transparent at all times.
-      const portal = portalRef.current;
-      if (portal) portal.style.opacity = "0";
-
-      // Backdrop drifts slower than the scene → parallax depth.
-      const bd = backdropRef.current;
-      if (bd) {
-        bd.style.transform = red
-          ? "none"
-          : `translateY(${(progress * -52).toFixed(1)}px) scale(${(1 + progress * 0.1).toFixed(4)})`;
-      }
-
-      // Headline lifts away over the first ~32% of the scroll.
-      const headline = headlineRef.current;
-      if (headline) {
-        if (red) {
-          headline.style.transform = "none";
-          headline.style.opacity = "1";
-        } else {
-          headline.style.opacity = clamp01(1 - progress / 0.32).toFixed(4);
-          headline.style.transform = `translateY(${(progress * -80).toFixed(1)}px) scale(${(1 + progress * 0.06).toFixed(4)})`;
-        }
-      }
-
-      // Scroll cue fades out the moment the user starts moving.
-      const cue = cueRef.current;
-      if (cue) cue.style.opacity = clamp01(1 - progress / 0.06).toFixed(4);
-
-      // Hand-off is now a one-shot Lenis auto-snap to the path cards (driven by
-      // the eased RAF loop above) — no curtain wipe; the galaxy stays visible
-      // and the page rushes to the cards once the dive settles.
-    };
-
-    // Coalesce scroll/resize bursts into one rAF-aligned update.
-    let rafId = 0;
-    let ticking = false;
-    const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      rafId = requestAnimationFrame(() => {
-        ticking = false;
-        update();
-      });
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    update();
-    return () => {
-      cancelAnimationFrame(rafId);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, []);
-
-  // Hand-off: a ROBUST one-shot auto-snap (in the eased RAF loop above) rushes
-  // the page to the path cards the instant the dive finishes. The earlier snap
-  // was removed because it "zoomed back out and restarted" — a momentum wobble
-  // flipped the tracked direction to "up" and the back-snap yanked the camera
-  // to the hero top. This version avoids that: it fires off the RAW scroll
-  // crossing SNAP_AT (= dive complete), with a LATCHED downward direction (so a
-  // brief wobble can't flip it), only ONCE (re-armed solely after scrolling
-  // back up), snaps the camera to its end pose + freezes it during the glide,
-  // and NEVER snaps back up — so it can't fight the user or restart.
 
   const showSpline = mounted && !isMobile && !reduced && SCENE_URL.length > 0;
 
@@ -771,7 +710,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       ref={sectionRef}
       data-testid="cosmic-journey"
       className="relative w-full"
-      style={{ height: isMobile ? "150svh" : reduced ? "130svh" : "300svh" }}
+      style={{ height: isMobile ? "150svh" : reduced ? "130svh" : "100svh" }}
     >
       <div
         className="sticky top-0 grid w-full place-items-center overflow-hidden"
