@@ -687,6 +687,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       } catch {
         /* noop */
       }
+      // Hard-overwrite the camera to the flight's current frame the instant we
+      // resume, so a re-started ambient timeline can't briefly drift the camera
+      // before the flight RAF takes over (prevents any first-frame lurch).
+      applyFrame(playPRef.current);
       const lenis = getLenis();
       try {
         // Halt Lenis FIRST so the wheel delta it already captured on this same
