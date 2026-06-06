@@ -109,7 +109,16 @@ export default function GalaxyBackground() {
     // occluded → paused until the first scroll past it).
     syncVisible();
 
+    // Safety re-sync: this component lives in the persistent layout, so a
+    // client-side route change (e.g. home-top, where we're paused → another
+    // page) does NOT re-run this effect. Scroll/mouse usually re-sync it, but
+    // a pointer-less nav could otherwise leave the galaxy paused on the new
+    // page. A cheap poll (computeVisible only posts on an actual change)
+    // guarantees correctness without coupling to the router.
+    const visTimer = setInterval(syncVisible, 600);
+
     return () => {
+      clearInterval(visTimer);
       if (rafScroll) cancelAnimationFrame(rafScroll);
       if (rafMouse) cancelAnimationFrame(rafMouse);
       worker.postMessage({ type: "destroy" });
