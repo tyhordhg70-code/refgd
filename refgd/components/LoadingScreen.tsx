@@ -30,6 +30,20 @@ function markSessionLoaded() {
   try { sessionStorage.setItem(SESSION_GATE_KEY, "1"); } catch {}
 }
 
+/**
+ * Heavy-scene routes (the home Spline galaxy) must ALWAYS hold the splash
+ * until the scene has actually downloaded + painted — even on a same-session
+ * reload — otherwise the session gate skips the overlay, the site reveals
+ * instantly, and the 23 MB galaxy "pops in" a second or two later over a
+ * blank backdrop (owner: "scene takes a while to appear, it should be fully
+ * loaded in the loading screen before the site loads"). Light routes keep
+ * the fast once-per-session skip.
+ */
+function forceSplashThisRoute(): boolean {
+  if (typeof window === "undefined") return false;
+  try { return heavyAssetsForPath(window.location.pathname).length > 0; } catch { return false; }
+}
+
 /** Top-level routes the splash should warm up so subsequent client
  *  navigations are instant and never trigger a Suspense fallback. */
 const PREFETCH_ROUTES = [
@@ -53,7 +67,7 @@ const PREFETCH_ROUTES = [
 // otherwise entrance components on a soft-refreshed page would wait
 // for a `refgd:loading-complete` event that never comes (because
 // LoadingScreen never renders).
-if (typeof window !== "undefined" && !alreadyLoadedThisSession()) {
+if (typeof window !== "undefined" && (!alreadyLoadedThisSession() || forceSplashThisRoute())) {
   markLoadingActive();
 }
 
@@ -145,7 +159,9 @@ export default function LoadingScreen() {
 
   useEffect(() => {
     // Already done this session → don't even spin up the trackers.
-    if (alreadyLoadedThisSession()) {
+    // EXCEPTION: heavy-scene routes (home galaxy) always re-run so the
+    // splash holds until the Spline scene has painted, never popping in late.
+    if (alreadyLoadedThisSession() && !forceSplashThisRoute()) {
       // Make sure the entrance gate is open for any component that
       // mounted after us.
       markLoadingComplete();
