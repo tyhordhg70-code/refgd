@@ -5,8 +5,11 @@ import { useEffect, useRef, useState } from "react";
  * Custom cursor — bright halo + dot tracks the pointer with a snappy
  * ring follow-through. Only enabled on fine-pointer (mouse) devices.
  *
- *   – Dot tracks the cursor 1:1 (no smoothing).
- *   – Ring eases toward the dot at a high follow factor.
+ *   – Dot eases toward the cursor with LIGHT damping (alpha 0.7): it
+ *     catches up in ~2 frames, so a dropped compositor frame reads as a
+ *     tiny ease instead of a visible stutter. Subtle enough that it still
+ *     sits essentially on the pointer.
+ *   – Ring eases toward the cursor at a softer follow factor.
  *   – Animation uses transform-only (compositor-fast).
  *   – On touch devices we render nothing.
  *
@@ -75,6 +78,9 @@ export default function CustomCursor() {
     let my = window.innerHeight / 2;
     let rx = mx;
     let ry = my;
+    // Eased dot position (chases the raw pointer mx/my with light damping).
+    let dx = mx;
+    let dy = my;
     let raf = 0;
     let running = false;
 
@@ -94,16 +100,30 @@ export default function CustomCursor() {
     };
 
     const tick = () => {
+      // Light damping on the dot (alpha 0.7) — chases the raw pointer so a
+      // skipped compositor frame eases instead of jumping. The ring trails
+      // more softly behind it as before.
+      dx += (mx - dx) * 0.7;
+      dy += (my - dy) * 0.7;
+      const d = dotRef.current;
+      if (d) {
+        d.style.transform = `translate3d(${dx}px, ${dy}px, 0) translate(-50%, -50%)`;
+      }
       rx += (mx - rx) * 0.35;
       ry += (my - ry) * 0.35;
       const r = ringRef.current;
       if (r) {
         r.style.transform = `translate3d(${rx}px, ${ry}px, 0) translate(-50%, -50%)`;
       }
-      // Idle as soon as we're close enough to the cursor that further
-      // frames would be visually indistinguishable. This frees the
+      // Idle as soon as BOTH dot and ring are close enough to the cursor that
+      // further frames would be visually indistinguishable. This frees the
       // main thread until the next mousemove restarts the loop.
-      if (Math.abs(mx - rx) < 0.4 && Math.abs(my - ry) < 0.4) {
+      if (
+        Math.abs(mx - rx) < 0.4 &&
+        Math.abs(my - ry) < 0.4 &&
+        Math.abs(mx - dx) < 0.4 &&
+        Math.abs(my - dy) < 0.4
+      ) {
         running = false;
         return;
       }
@@ -111,10 +131,10 @@ export default function CustomCursor() {
     };
 
     const onMove = (e: MouseEvent | PointerEvent) => {
+      // Only update the TARGET; the eased dot/ring positions are written in
+      // tick() so the damping curve applies (see above).
       mx = e.clientX;
       my = e.clientY;
-      const d = dotRef.current;
-      if (d) d.style.transform = `translate3d(${mx}px, ${my}px, 0) translate(-50%, -50%)`;
       const lbl = labelRef.current;
       if (lbl) lbl.style.transform = `translate3d(${mx + 18}px, ${my + 18}px, 0)`;
       startLoop();

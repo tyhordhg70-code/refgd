@@ -131,7 +131,19 @@ export default function GalaxyBackground() {
   }, []);
 
   return (
-    <div aria-hidden="true" className="rg-ambient-bg pointer-events-none fixed inset-0 z-0">
+    <div
+      aria-hidden="true"
+      className="rg-ambient-bg pointer-events-none fixed inset-0 z-0"
+      // Contain the full-viewport `mix-blend-screen` canvas to its OWN
+      // compositing group. Without isolation the screen blend forces the
+      // browser off its fast compositor path for the whole page, so every
+      // composited frame (including ones driven only by the moving cursor)
+      // gets more expensive. Isolating it lets the rest of the page — and the
+      // top-layer custom cursor — composite cheaply again. Visually a no-op
+      // here: the only thing behind this backmost layer is the near-black body
+      // bg (#06030f), so screen-blended vs isolated is indistinguishable.
+      style={{ isolation: "isolate" }}
+    >
       {/* WebGL canvas — control is transferred to the Web Worker */}
       <canvas
         ref={canvasRef}
