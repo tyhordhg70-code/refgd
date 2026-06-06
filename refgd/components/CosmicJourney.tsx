@@ -593,6 +593,17 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       !isMobileRef.current &&
       window.scrollY <= window.innerHeight * 0.5;
     const onWheel = (e: WheelEvent) => {
+      // This listener is registered at MOUNT (capture phase), BEFORE Spline
+      // finishes loading and attaches its own wheel listener — so it reliably
+      // runs FIRST. During the flight, swallow here so Spline's authored camera
+      // animation never sees the event and can't fight computeCam. (blockScroll
+      // is added later than Spline in startPlayback, so it alone could run AFTER
+      // Spline — THIS is the reliable guard. See architect review.)
+      if (playRef.current === "playing") {
+        e.stopImmediatePropagation();
+        if (e.cancelable) e.preventDefault();
+        return;
+      }
       if (playRef.current !== "idle") return;
       if (e.deltaY > 0 && eligible()) {
         // Capture-phase: kill the TRIGGER gesture before Spline's own listener
@@ -607,6 +618,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       touchY = e.touches[0]?.clientY ?? 0;
     };
     const onTouchMove = (e: TouchEvent) => {
+      // Same reliable-first guard as onWheel (registered at mount, before Spline).
+      if (playRef.current === "playing") {
+        e.stopImmediatePropagation();
+        if (e.cancelable) e.preventDefault();
+        return;
+      }
       if (playRef.current !== "idle") return;
       const y = e.touches[0]?.clientY ?? 0;
       if (touchY - y > 6 && eligible()) {
