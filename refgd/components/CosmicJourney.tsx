@@ -351,6 +351,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
+  // Keep the heavy 3D scene MOUNTED only while the hero is on (or near) screen.
+  // Once you scroll past the hero it is unmounted, which disposes its WebGL
+  // context + worker pool + the continuous main-thread render loop the perf
+  // trace showed saturating the CPU — so the rest of the page runs with ONE
+  // WebGL context (the galaxy) instead of two, and the scene's hundreds of MB
+  // are released. It transparently re-mounts when the hero returns to view, so
+  // nothing is removed: the hero is byte-for-byte identical when on screen.
+  const [keepScene, setKeepScene] = useState(true);
 
   const sectionRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -416,6 +424,55 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
+
+  // ── Mount the heavy scene only while the hero is in/near the viewport ──
+  // The perf trace showed Spline's runtime pinning the main thread with a
+  // continuous render loop the WHOLE time, and once you scroll past the hero
+  // it kept running alongside the galaxy background (two WebGL contexts). An
+  // IntersectionObserver unmounts the scene a beat after the hero leaves view
+  // — disposing its WebGL context, worker pool and render loop — and re-mounts
+  // it (with a 300px head-start) as the hero comes back. The unmount is
+  // debounced so a quick scroll past-and-back never thrashes the GPU.
+  useEffect(() => {
+    if (typeof window === "undefined" || isMobile || reduced) return;
+    if (typeof IntersectionObserver === "undefined") return;
+    const el = sectionRef.current;
+    if (!el) return;
+    let unmountTimer = 0;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const e = entries[0];
+        if (!e) return;
+        if (e.isIntersecting) {
+          if (unmountTimer) {
+            clearTimeout(unmountTimer);
+            unmountTimer = 0;
+          }
+          setKeepScene(true);
+        } else {
+          if (unmountTimer) clearTimeout(unmountTimer);
+          unmountTimer = window.setTimeout(() => setKeepScene(false), 400);
+        }
+      },
+      { root: null, rootMargin: "300px 0px 300px 0px", threshold: 0 },
+    );
+    io.observe(el);
+    return () => {
+      if (unmountTimer) clearTimeout(unmountTimer);
+      io.disconnect();
+    };
+  }, [isMobile, reduced]);
+
+  // When the scene is unmounted, drop the stale runtime handles so the flight
+  // trigger correctly WAITS for the scene to reload before it can fire again
+  // (startPlayback guards on splineRef.current). onSplineLoad repopulates these
+  // when the scene re-mounts.
+  useEffect(() => {
+    if (!keepScene) {
+      splineRef.current = null;
+      camerasRef.current = [];
+    }
+  }, [keepScene]);
 
   // Apply a 0→1 scroll progress to the camera as a straight FORWARD dolly
   // along each camera's ORIGINAL view axis (validated in the live tester). zp
@@ -867,7 +924,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   };
 
 
-  const showSpline = mounted && !isMobile && !reduced && SCENE_URL.length > 0;
+  const showSpline =
+    mounted && !isMobile && !reduced && keepScene && SCENE_URL.length > 0;
 
   return (
     <section
