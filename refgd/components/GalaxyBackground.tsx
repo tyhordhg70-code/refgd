@@ -40,25 +40,78 @@ export default function GalaxyBackground() {
       [offscreen as unknown as Transferable],
     );
 
-    const onScroll = () =>
-      worker.postMessage({ type: "scroll", scrollPx: window.scrollY });
-    const onMouse = (e: MouseEvent) =>
-      worker.postMessage({
-        type: "mouse",
+    // ── Pause this WebGL context whenever it is fully occluded ──────────────
+    // On the home route the hero is a full-viewport OPAQUE Spline scene
+    // (its sticky container paints solid #05060a). While the user sits at the
+    // very top — i.e. during the idle welcome pose AND the entire 6 s scroll
+    // flight, which locks scrollY at 0 — this galaxy is 100% hidden behind it,
+    // yet a second WebGL context would otherwise keep rendering right when the
+    // Spline flight needs the whole GPU budget. So we pause the worker at
+    // dead-top of "/" and resume it the instant any scroll reveals the page
+    // below the hero. Every other route / scroll position renders normally,
+    // and tab-hidden always pauses. No visual change — it's invisible when paused.
+    let lastVisible = true;
+    const computeVisible = () => {
+      if (document.hidden) return false;
+      const onHome =
+        window.location.pathname === "/" || window.location.pathname === "";
+      if (onHome && window.scrollY < 4) return false;
+      return true;
+    };
+    const syncVisible = () => {
+      const v = computeVisible();
+      if (v !== lastVisible) {
+        lastVisible = v;
+        worker.postMessage({ type: "visibility", visible: v });
+      }
+    };
+
+    // rAF-coalesce scroll + mouse so we post AT MOST one message per frame
+    // (unthrottled mousemove/scroll spammed the worker every event = main-thread
+    // churn). The worker smooths these values internally, so one sample/frame
+    // is plenty.
+    let rafScroll = 0;
+    let rafMouse = 0;
+    let pendingScroll = 0;
+    let pendingMouse: { x: number; y: number } | null = null;
+
+    const onScroll = () => {
+      pendingScroll = window.scrollY;
+      if (rafScroll) return;
+      rafScroll = requestAnimationFrame(() => {
+        rafScroll = 0;
+        worker.postMessage({ type: "scroll", scrollPx: pendingScroll });
+        syncVisible();
+      });
+    };
+    const onMouse = (e: MouseEvent) => {
+      pendingMouse = {
         x: (e.clientX / window.innerWidth - 0.5) * 2,
         y: (e.clientY / window.innerHeight - 0.5) * 2,
+      };
+      if (rafMouse) return;
+      rafMouse = requestAnimationFrame(() => {
+        rafMouse = 0;
+        if (pendingMouse)
+          worker.postMessage({ type: "mouse", x: pendingMouse.x, y: pendingMouse.y });
       });
+    };
     const onResize = () =>
       worker.postMessage({ type: "resize", width: window.innerWidth, height: window.innerHeight });
-    const onVisibility = () =>
-      worker.postMessage({ type: "visibility", visible: !document.hidden });
+    const onVisibility = () => syncVisible();
 
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("mousemove", onMouse, { passive: true });
     window.addEventListener("resize", onResize);
     document.addEventListener("visibilitychange", onVisibility);
 
+    // Apply the correct initial state (landing on the home hero starts
+    // occluded → paused until the first scroll past it).
+    syncVisible();
+
     return () => {
+      if (rafScroll) cancelAnimationFrame(rafScroll);
+      if (rafMouse) cancelAnimationFrame(rafMouse);
       worker.postMessage({ type: "destroy" });
       worker.terminate();
       window.removeEventListener("scroll", onScroll);
