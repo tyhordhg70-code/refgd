@@ -114,6 +114,13 @@ const DIVE_LIFT = 150;
 // the camera curves AROUND the person instead of punching through them. Tester
 // value — confirmed centred by owner (was 80 = too head-on).
 const ARC_SIDE = 450;
+// Pushes the dive's END point sideways (along the same in-plane "right" vector)
+// so the camera finishes BESIDE the portal centre/figure instead of converging
+// onto it. ARC_SIDE only bows the midpoint; the path still landed on the centre
+// (where the person stands) at the end → the through-the-person render spike.
+// END_SIDE makes the final approach sweep PAST them. Look-at still tracks the
+// portal centre, so the portal stays framed. Tester starting value.
+const END_SIDE = 300;
 
 // zp = progress / ZOOM_COMPLETE_AT. Kept at 1.0 (no early saturation) so the
 // timed flight's phase splits map directly onto its 0→1 progress.
@@ -244,13 +251,19 @@ function computeCam(start: Vec3, startRot: Vec3, zp: number) {
     y: lerp(orbit.y, P.y + DIVE_LIFT, DOLLY_DEEP),
     z: lerp(orbit.z, P.z, DOLLY_DEEP),
   };
-  // Bézier control point: midpoint of (orbit→E) pushed out along the in-plane
-  // "right" vector so the flight path swings past the person.
+  // In-plane "right" vector of the orbit→portal approach — used to push the END
+  // sideways AND to bow the path's midpoint along the same axis.
   const dirx = E.x - orbit.x;
   const dirz = E.z - orbit.z;
   const dlen = Math.hypot(dirx, dirz) || 1;
   const rightx = -dirz / dlen;
   const rightz = dirx / dlen;
+  // Offset the END sideways so the final approach sweeps PAST the person rather
+  // than converging onto the portal centre where they stand.
+  E.x += rightx * END_SIDE;
+  E.z += rightz * END_SIDE;
+  // Bézier control point: midpoint of (orbit→E) pushed out along the same
+  // "right" vector so the whole flight path swings past the person.
   const cx = (orbit.x + E.x) / 2 + rightx * ARC_SIDE;
   const cy = (orbit.y + E.y) / 2;
   const cz = (orbit.z + E.z) / 2 + rightz * ARC_SIDE;
