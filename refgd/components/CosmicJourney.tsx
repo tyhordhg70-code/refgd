@@ -1071,50 +1071,91 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       playRef.current === "done" && !!startFrameRef.current;
     renderZoom(idleLoad || returningToStart ? 0 : playPRef.current);
 
-    // First idle load: persist THIS welcome pose (by camera name) as the
-    // canonical start frame so a later scroll-back-up re-mount restores the EXACT
-    // same frame instead of a freshly-drifted authored pose. (A flight launch
-    // re-saves it after its re-anchor; saving here covers a user who scrolls away
-    // BEFORE ever flying — they still come back to the same frame.)
-    if (idleLoad && !startFrameRef.current) {
-      try {
-        startFrameRef.current = camerasRef.current.map((c) => ({
-          name: (c.obj as unknown as { name?: string }).name ?? "",
-          start: { ...c.start },
-          startRot: { ...c.startRot },
-        }));
-      } catch {
-        /* noop */
-      }
-    }
-
     window.clearTimeout(freezeTimerRef.current);
     (window as unknown as { __refgdScenePending?: boolean }).__refgdScenePending = false;
-    // Paint the first real frame, THEN freeze the scene and announce ready — all
-    // on the SAME two-rAF boundary. Freezing right away (instead of after a ~1.4s
-    // settle) is the fix for the pre-scroll "jump cut": the scene's authored
-    // ambient no longer gets ~1.4s to drift/snap the camera off the welcome frame
-    // while the user just sits on the hero — they see the still start frame at
-    // once, identical on a fresh load and on a scroll-back-up re-mount. Two rAFs
-    // guarantee the first frame is committed before stop(), so the still galaxy is
-    // fully painted, never blank. Guarded on not-"playing" so a flight launched in
-    // this window is never frozen (startPlayback owns play()/stop() mid-flight).
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        if (playRef.current !== "playing") {
+
+    // Reveal on the next paint and freeze the scene. Two rAFs guarantee the first
+    // frame is committed before stop(), so the still galaxy is fully painted, never
+    // blank. Guarded on not-"playing" so a flight launched in this window is never
+    // frozen (startPlayback owns play()/stop() mid-flight).
+    const revealNow = () =>
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          if (playRef.current !== "playing") {
+            try {
+              splineRef.current?.stop?.();
+            } catch {
+              /* noop */
+            }
+          }
           try {
-            splineRef.current?.stop?.();
+            window.dispatchEvent(new Event("refgd:scene-ready"));
           } catch {
             /* noop */
           }
+        }),
+      );
+
+    if (idleLoad && !startFrameRef.current) {
+      // ── FRESH FIRST LOAD: start on the ZOOMED-OUT settled scene, no jump ──
+      // The hero's authored intro dollies the camera from a tight opening OUT to a
+      // wider "design" framing over ~1s. The old behaviour captured frame 0 at the
+      // load instant (the tight opening) and revealed it immediately, so the user
+      // watched that zoom-out play as a "jump cut" the moment the splash lifted —
+      // and a too-early stop() (~32ms, before the intro had even begun) failed to
+      // halt it. Instead we HOLD the loading splash up (scene-ready is not
+      // dispatched yet), let the intro settle behind it, then capture the END
+      // (zoomed-out) pose as the canonical start frame, stop() the scene now that
+      // the intro is actually running so it truly freezes, and pin to that pose.
+      // The hero then appears ALREADY at the zoomed-out scene with no visible
+      // camera move, and the flight (which re-anchors to this same live pose)
+      // starts on the exact frame the user is looking at. ~1.5s ≈ the intro length;
+      // bump SETTLE_MS if the reveal still catches the camera mid-zoom.
+      const SETTLE_MS = 1500;
+      freezeTimerRef.current = window.setTimeout(() => {
+        if (playRef.current !== "idle") return; // user scrolled/flew first
+        // Freeze now that the intro is actually running, so it truly halts.
+        try {
+          splineRef.current?.stop?.();
+        } catch {
+          /* noop */
         }
+        // Capture the settled (zoomed-out) pose as the canonical start frame, so a
+        // later scroll-back-up re-mount AND the flight launch both anchor to it.
+        try {
+          for (const c of camerasRef.current) {
+            if (!c.obj?.position) continue;
+            c.start = {
+              x: c.obj.position.x,
+              y: c.obj.position.y,
+              z: c.obj.position.z,
+            };
+            c.startRot = {
+              x: c.obj.rotation?.x ?? c.startRot.x,
+              y: c.obj.rotation?.y ?? c.startRot.y,
+              z: c.obj.rotation?.z ?? c.startRot.z,
+            };
+          }
+          startFrameRef.current = camerasRef.current.map((c) => ({
+            name: (c.obj as unknown as { name?: string }).name ?? "",
+            start: { ...c.start },
+            startRot: { ...c.startRot },
+          }));
+        } catch {
+          /* noop */
+        }
+        renderZoom(0); // pin + paint the settled pose
         try {
           window.dispatchEvent(new Event("refgd:scene-ready"));
         } catch {
           /* noop */
         }
-      }),
-    );
+      }, SETTLE_MS);
+    } else {
+      // Re-mount / mid-flight: the canonical (settled) pose is already restored and
+      // applied via renderZoom above — freeze + reveal on the next paint.
+      revealNow();
+    }
   };
 
 
