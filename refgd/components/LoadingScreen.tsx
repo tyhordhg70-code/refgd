@@ -506,12 +506,15 @@ export default function LoadingScreen() {
       : Promise.resolve();
 
     const ceilingPromise = new Promise<void>((r) => {
-      // Heavy-asset routes hold for a long safety window so the splash
-      // can wait for the full download + first paint; the real download
-      // and scene-ready signals normally win this race well before the
-      // ceiling. A dead/stalled network must never strand the user.
+      // Heavy-asset routes hold for a safety window so the splash can wait for
+      // the full download + first paint; the real download and scene-ready
+      // signals normally win this race well before the ceiling. A dead/stalled
+      // network must never strand the user. (Was 60s — far too long: when the
+      // scene-ready event was slow/never fired the bar visibly "stuck at 95%"
+      // for up to a minute. The postDownloadGrace below now bounds the common
+      // case; this is only the hard network-dead backstop.)
       if (hasHeavyAsset) {
-        window.setTimeout(r, 60000);
+        window.setTimeout(r, 30000);
         return;
       }
       window.setTimeout(() => {
@@ -519,6 +522,18 @@ export default function LoadingScreen() {
         else window.setTimeout(r, 4000);
       }, 4000);
     });
+    // Heavy routes: once the scene FILE has fully downloaded, give its first
+    // paint (refgd:scene-ready) a bounded grace, then proceed even if it hasn't
+    // fired. This caps the worst-case "stuck at 95%" stall at download-time +
+    // grace (instead of the 30s ceiling) while still letting the scene paint
+    // first on the common path (it usually parses within the grace), so the
+    // overlay rarely lifts onto a blank canvas. Never resolves on light routes
+    // (their Promise.all already wins the race instantly), so it can't interfere.
+    const postDownloadGrace: Promise<void> = hasHeavyAsset
+      ? assetsPromise.then(
+          () => new Promise<void>((r) => window.setTimeout(r, 9000)),
+        )
+      : new Promise<void>(() => {});
     Promise.race([
       Promise.all([
         fontsReadyPromise,
@@ -529,6 +544,7 @@ export default function LoadingScreen() {
         sceneReadyPromise,
         assetsPromise,
       ]).then(() => undefined),
+      postDownloadGrace,
       ceilingPromise,
     ]).then(() => {
       if (cancelled) return;

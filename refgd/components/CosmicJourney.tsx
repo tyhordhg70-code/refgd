@@ -495,8 +495,16 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // it kept running alongside the galaxy background (two WebGL contexts). An
   // IntersectionObserver unmounts the scene a beat after the hero leaves view
   // — disposing its WebGL context, worker pool and render loop — and re-mounts
-  // it (with a 300px head-start) as the hero comes back. The unmount is
-  // debounced so a quick scroll past-and-back never thrashes the GPU.
+  // it as the hero comes back. The unmount is debounced so a quick scroll
+  // past-and-back never thrashes the GPU.
+  // ⚠ The top rootMargin is kept at 0 ON PURPOSE: the scene is NEVER stop()ped
+  // while mounted (that would force a play() = the zoom-out jump cut), so a
+  // generous top margin (was 300px) kept the heavy ~510MB scene RENDERING for
+  // 300px into the path-cards section after the hero scrolled away — which is the
+  // "cursor lags / few-second delay hovering over a path card" the owner reported.
+  // Dropping the top margin to 0 unmounts the scene the instant the hero clears
+  // the viewport, so the cards run on the galaxy's single WebGL context alone.
+  // It re-mounts from the local scene cache when the hero scrolls back into view.
   useEffect(() => {
     if (typeof window === "undefined" || reduced) return;
     if (typeof IntersectionObserver === "undefined") return;
@@ -518,7 +526,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           unmountTimer = window.setTimeout(() => setKeepScene(false), 400);
         }
       },
-      { root: null, rootMargin: "300px 0px 300px 0px", threshold: 0 },
+      { root: null, rootMargin: "0px 0px 400px 0px", threshold: 0 },
     );
     io.observe(el);
     return () => {
@@ -953,6 +961,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     //  2) At the very top, do the full idle re-arm (re-show headline/cue, restart
     //     the idle-freeze) so the next downward scroll can fly again.
     let lastScrollY = window.scrollY;
+    // Has the hero genuinely been scrolled away since the flight handed off?
+    // Guards the return-to-top reset against firing during the hand-off auto-
+    // scroll (see the y<8 block below).
+    let leftHero = false;
     const onScroll = () => {
       const y = window.scrollY;
       const goingUp = y < lastScrollY - 0.5;
@@ -972,6 +984,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
       if (playRef.current === "playing") return;
       if (playRef.current !== "done") return;
+      // Mark that the hero has genuinely been scrolled away after the flight.
+      // The y<8 idle re-arm below MUST NOT fire during the hand-off auto-scroll
+      // (which BEGINS at y≈0, where y<8 is briefly true): doing so reset the
+      // state to idle, cancelled the freeze pin, and snapped the camera to frame
+      // 0 WHILE the auto-scroll was still gliding to the cards — exactly the
+      // "scene restarts / goes back to the first frame during auto scroll" the
+      // owner reported. Only after the hero has actually left view (a real round
+      // trip down to the cards and back up) may the return-to-top reset run.
+      if (y > window.innerHeight * 0.8) leftHero = true;
       if (goingUp && y < window.innerHeight && playPRef.current !== 0) {
         // Restore camera + headline + backdrop to the start frame as the hero
         // returns. applyFrame(0) renders on-demand even though the scene is
@@ -979,7 +1000,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         // rather than re-rendering on every scroll tick after we're already there.
         applyFrame(0);
       }
-      if (y < 8) {
+      if (y < 8 && leftHero) {
+        leftHero = false;
         playRef.current = "idle";
         window.clearTimeout(flightOffTimer);
         cancelAnimationFrame(pinRaf);
