@@ -938,6 +938,19 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const y = window.scrollY;
       const goingUp = y < lastScrollY - 0.5;
       lastScrollY = y;
+      // IDLE-CALM sync (deterministic, independent of the flight state machine).
+      // While idling — i.e. NOT mid-flight ("playing") and NOT post-flight scrolling
+      // away ("done", which the hand-off timer owns) — keep the ambient-bg freeze ON
+      // only near the hero top and RELEASE it the moment the user scrolls down toward
+      // the cards. This covers the paths the flight never fires on (scrollbar drag,
+      // mid-page entry) so `.hero-flight` can never get stuck ON over the cards.
+      if (
+        playRef.current === "idle" &&
+        !isMobileRef.current &&
+        !reducedRef.current
+      ) {
+        setFlight(y < window.innerHeight * 0.5);
+      }
       if (playRef.current === "playing") return;
       if (playRef.current !== "done") return;
       if (goingUp && y < window.innerHeight && playPRef.current !== 0) {
@@ -1200,7 +1213,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (
         !reducedRef.current &&
         !isMobileRef.current &&
-        window.scrollY < window.innerHeight
+        window.scrollY < window.innerHeight * 0.5
       ) {
         document.documentElement.classList.add("hero-flight");
       }
