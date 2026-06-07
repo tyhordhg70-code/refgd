@@ -294,6 +294,19 @@ class SplineErrorBoundary extends Component<
   static getDerivedStateFromError() {
     return { failed: true };
   }
+  componentDidCatch() {
+    // If the 3D scene fails to load/render (blocked CDN, chunk load error,
+    // WebGL unsupported/crashed) onSplineLoad never fires, so the loading
+    // splash would wait for a `refgd:scene-ready` that never comes — up to
+    // its 60s ceiling. Emit a terminal ready signal here so the overlay lifts
+    // promptly onto the solid backdrop instead of hanging on a dead scene.
+    try {
+      (window as unknown as { __refgdScenePending?: boolean }).__refgdScenePending = false;
+      window.dispatchEvent(new Event("refgd:scene-ready"));
+    } catch {
+      /* noop */
+    }
+  }
   render() {
     if (this.state.failed) return null;
     return this.props.children;
