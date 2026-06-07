@@ -627,21 +627,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // galaxy resume + card fly-ins don't pile onto the same frames; release
       // it once the cards have landed.
       flightOffTimer = window.setTimeout(() => setFlight(false), 850);
-      // ── TEMP diagnostic: where did cam0 ACTUALLY land vs the pivot? If it is
-      // near the pivot but the scene still looks zoomed out, cam0 isn't the
-      // active render camera; if it didn't move, the writes aren't landing. ──
-      try {
-        const c0 = camerasRef.current[0]?.obj;
-        if (c0?.position) {
-          const r = (v: number) => Math.round(v);
-          // eslint-disable-next-line no-console
-          console.log(
-            `[REFGD-CAM] HANDOFF cam0 actual=(${r(c0.position.x)},${r(c0.position.y)},${r(c0.position.z)}) vs pivot=(${PIVOT.x},${PIVOT.y},${PIVOT.z})`,
-          );
-        }
-      } catch {
-        /* noop */
-      }
       window.removeEventListener("wheel", blockScroll, { capture: true });
       window.removeEventListener("touchmove", blockScroll, { capture: true });
       const lenis = getLenis();
@@ -692,19 +677,53 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (window.scrollY > window.innerHeight * 0.5) return;
       playRef.current = "playing";
       setFlight(true);
-      // Cancel any pending idle-freeze and resume the scene's animation for the
-      // cinematic ("animates when I scroll"). play() also guarantees the runtime
-      // renders every flight frame even if a build's requestRender() were gated
-      // by the stopped state — so the fly-in can never freeze mid-dive.
+      // Cancel any pending idle-freeze and FREEZE the scene's heavy ambient
+      // animation for the whole flight. The camera dive is driven frame-by-frame
+      // by our own rAF via renderZoom()'s app.requestRender() — Spline's
+      // on-demand (auto-mode) render path renders a single frame even while the
+      // continuous loop is stopped (the same mechanism the idle-freeze and the
+      // scroll-to-top reset already rely on). Keeping the galaxy timeline FROZEN
+      // means every flight frame only re-renders the moved camera instead of
+      // re-evaluating the entire ambient scene each tick — that per-frame ambient
+      // work was the hero's share of the flight stutter, so the dive now glides.
+      // (Bonus: no play()-resume content jump at the start of the flight.)
       window.clearTimeout(freezeTimerRef.current);
       try {
-        splineRef.current?.play?.();
+        splineRef.current?.stop?.();
       } catch {
         /* noop */
       }
-      // Hard-overwrite the camera to the flight's current frame the instant we
-      // resume, so a re-started ambient timeline can't briefly drift the camera
-      // before the flight RAF takes over (prevents any first-frame lurch).
+      // ── Re-anchor the flight START to the camera's CURRENT (displayed, just-
+      // frozen) pose so the orbit→dive begins on EXACTLY the still frame the user
+      // was looking at — no jump-cut from the authored load pose. The scene's
+      // ambient/intro can drift the camera between load and the idle-freeze, so
+      // the captured load pose no longer matches what's on screen; re-reading the
+      // live pose here closes that gap. The dive still ends framed on the fixed
+      // PIVOT geometry, so this changes only the START, never the centred landing.
+      try {
+        for (const c of camerasRef.current) {
+          if (c.obj.position) {
+            c.start = {
+              x: c.obj.position.x,
+              y: c.obj.position.y,
+              z: c.obj.position.z,
+            };
+          }
+          if (c.obj.rotation) {
+            c.startRot = {
+              x: c.obj.rotation.x,
+              y: c.obj.rotation.y,
+              z: c.obj.rotation.z,
+            };
+          }
+        }
+      } catch {
+        /* noop */
+      }
+      // Hard-overwrite the camera to the flight's current frame (p=0 → exactly
+      // the pose we just re-anchored to) so nothing drifts it before the rAF
+      // takes over. With the re-anchor above this is now a true no-op visually
+      // (start == on-screen frame), which is the whole point: no lurch, no cut.
       applyFrame(playPRef.current);
       const lenis = getLenis();
       try {
@@ -915,30 +934,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         if (/camera|\bcam\b/i.test(o?.name ?? "")) pushCam(o);
       }
       camerasRef.current = cams;
-
-      // ── TEMP diagnostic (remove once centring is dialled in) ──────────────
-      // We tune this BLIND (no GPU in the build env), so the live scene must
-      // report what it actually exposes. Compare these numbers against the
-      // canvas tester's known-good values to pinpoint why the live diverges.
-      try {
-        const r = (v: number) => Math.round(v);
-        const list = cams
-          .map((c) => {
-            const nm =
-              (c.obj as unknown as { name?: string }).name ?? "?";
-            return `${nm}=(${r(c.start.x)},${r(c.start.y)},${r(c.start.z)})`;
-          })
-          .join("  ");
-        const c0 = cams[0];
-        const dive = c0 ? computeCam(c0.start, c0.startRot, PHASE_B_END) : null;
-        // eslint-disable-next-line no-console
-        console.log(
-          `[REFGD-CAM] cams=${cams.length} controls=${!!app.controls} :: ${list} :: pivot=(${PIVOT.x},${PIVOT.y},${PIVOT.z}) :: diveEnd(cam0)=${dive ? `(${r(dive.pos.x)},${r(dive.pos.y)},${r(dive.pos.z)})` : "n/a"}`,
-        );
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.log("[REFGD-CAM] diag failed", err);
-      }
 
       if (!cams.length) {
         // No camera object exposed — fall back to scrubbing a scene variable
