@@ -75,7 +75,17 @@ type SplineApp = {
 // ─────────────────────────────────────────────────────────────────────
 // Spline scene URL (exported `scene.splinecode`).
 // ─────────────────────────────────────────────────────────────────────
-const SCENE_URL = "https://prod.spline.design/mzZcfxXnOQsM5LXz/scene.splinecode";
+// Self-hosted, brotli-compressed copy of the scene, served SAME-ORIGIN with
+// immutable caching by app/hero-scene.splinecode/route.ts (which transparently
+// falls back to the Spline CDN if the local file can't be read on the host).
+// Why same-origin: the Spline CDN sends NO Cache-Control, so the browser
+// re-downloads the 23 MB file heuristically on repeat visits; serving it
+// ourselves with `Cache-Control: immutable` makes repeat visits load straight
+// from disk. Brotli also cuts the FIRST download ~36% (22.3MB -> 14.3MB),
+// fully lossless — the decoded scene is byte-identical, so quality/animation
+// are untouched. (This does NOT reduce runtime memory/lag — that needs a
+// lighter scene re-exported in Spline.)
+const SCENE_URL = "/hero-scene.splinecode";
 
 // ── CINEMATIC ORBIT → DIVE camera rig (validated in the live Spline tester) ──
 // The scene has zoom limits that clamp app.setZoom(), so the ONLY thing that

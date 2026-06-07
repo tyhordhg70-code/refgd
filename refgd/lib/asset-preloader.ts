@@ -22,8 +22,13 @@
  *     fetch of the same file from that cache).
  */
 
-export const HOME_SCENE_URL =
-  "https://prod.spline.design/mzZcfxXnOQsM5LXz/scene.splinecode";
+// Served same-origin (and brotli-compressed) by app/hero-scene.splinecode/
+// route.ts, which sets `Cache-Control: immutable` so the browser's own disk
+// cache reuses it on every repeat visit. (Legacy absolute CDN URLs are still
+// handled by the Cache Storage path below; same-origin relies on the HTTP
+// cache instead, which sidesteps the service-worker double-decode hazard a
+// Content-Encoding response would otherwise hit.)
+export const HOME_SCENE_URL = "/hero-scene.splinecode";
 
 /**
  * Cache Storage bucket the heavy scene is persisted into so it downloads ONCE
@@ -105,7 +110,11 @@ export async function downloadAsset(
   // Repeat-visit fast path: if the scene is already persisted in Cache Storage
   // (seeded on a previous visit), there is nothing to download — report
   // complete instantly so the splash never re-pulls the ~23 MB file.
-  if (isSceneAsset(asset.url) && typeof caches !== "undefined") {
+  if (
+    isSceneAsset(asset.url) &&
+    /^https?:/.test(asset.url) &&
+    typeof caches !== "undefined"
+  ) {
     try {
       const cache = await caches.open(SCENE_CACHE);
       const hit = await cache.match(asset.url, { ignoreVary: true });
@@ -138,7 +147,11 @@ export async function downloadAsset(
     // while the original is read below for progress. Seeding it here means even
     // the very first visit's download is reused — by Spline's own fetch and by
     // every future visit — instead of being pulled again.
-    if (isSceneAsset(asset.url) && typeof caches !== "undefined") {
+    if (
+      isSceneAsset(asset.url) &&
+      /^https?:/.test(asset.url) &&
+      typeof caches !== "undefined"
+    ) {
       void persistScene(asset.url, res.clone());
     }
     const lenHeader = res.headers.get("content-length");

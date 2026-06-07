@@ -43,13 +43,7 @@ export default async function HomePage() {
           and the lazy Spline chunk resolves. Next hoists these <link>s into
           <head>. The scene is still large — the durable fix is re-exporting it
           lighter in Spline — but this removes seconds of "blank backdrop". */}
-      <link rel="preconnect" href="https://prod.spline.design" crossOrigin="" />
-      <link
-        rel="preload"
-        as="fetch"
-        href="https://prod.spline.design/mzZcfxXnOQsM5LXz/scene.splinecode"
-        crossOrigin="anonymous"
-      />
+      <link rel="preload" as="fetch" href="/hero-scene.splinecode" />
 
       {/* HomeBackground (orbs + gradient particles + star field) REMOVED:
           it mounted `fixed inset-0 z-[1]` while the hero section carries no
