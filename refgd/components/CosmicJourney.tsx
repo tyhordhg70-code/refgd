@@ -632,10 +632,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       } catch {
         /* noop */
       }
-      // Keep the ambient bg frozen through the ~0.7s auto-scroll reveal so the
-      // galaxy resume + card fly-ins don't pile onto the same frames; release
-      // it once the cards have landed.
-      flightOffTimer = window.setTimeout(() => setFlight(false), 850);
+      // Keep the ambient bg frozen through the (now ~1.2s) auto-scroll reveal AND
+      // a beat past it: while the hero scrolls away the heavy frozen Spline canvas
+      // is still being composited every frame, so resuming the galaxy/Cosmic3D bg
+      // animations on top of that is what made the scene "stutter as it passes by".
+      // Hold the bg paused until the hero has essentially left view (the scene
+      // unmounts ~400ms after it does), then release so the cards land calmly.
+      flightOffTimer = window.setTimeout(() => setFlight(false), 1300);
       window.removeEventListener("wheel", blockScroll, { capture: true });
       window.removeEventListener("touchmove", blockScroll, { capture: true });
       const lenis = getLenis();
@@ -650,8 +653,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         // scrolls fully away, so the cards never appear over the galaxy.
         lenis.scrollTo(paths, {
           offset: 0,
-          duration: 0.7,
-          easing: (t: number) => 1 - Math.pow(1 - t, 3),
+          // Gentle, longer glide to the cards. The old easeOUT (1-(1-t)^3) starts
+          // at FULL speed, so the page lurched the instant the dive landed — that
+          // hard yank read as a jump cut. easeINOUT ramps up from a standstill and
+          // settles softly, so the hand-off is one continuous motion out of the
+          // dive instead of a cut. Longer duration gives the eye time to follow.
+          duration: 1.2,
+          easing: (t: number) =>
+            t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
         });
       } else if (paths) {
         paths.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1047,61 +1056,61 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       /* noop */
     }
 
-    // Render the first frame. On a fresh load playPRef is 0 → authored welcome
-    // pose. On a RE-MOUNT after a flight (scrolled away then back) playRef is
-    // still "done" and playPRef sits at the dive's end — but we want the hero
-    // to come back on its START frame, so force frame 0 (which now resolves to
-    // the restored canonical pose above) and freeze immediately so the ambient
-    // can't drift it away before the user arrives. The scroll handler does the
-    // full idle re-arm (headline/cue) once they reach the very top.
+    // ── Present a STATIC start frame the instant the scene loads ──
+    // Fresh load → render the welcome pose (frame 0). RE-MOUNT after a flight
+    // (scrolled away then back) → playRef is still "done" with playPRef at the
+    // dive's end, so force frame 0 (which resolves to the restored canonical pose
+    // captured above) so the hero ALWAYS returns on its start frame, never the
+    // zoomed-in dive end.
+    const idleLoad = playRef.current === "idle";
     const returningToStart =
       playRef.current === "done" && !!startFrameRef.current;
-    renderZoom(returningToStart ? 0 : playPRef.current);
-    if (returningToStart) {
+    renderZoom(idleLoad || returningToStart ? 0 : playPRef.current);
+
+    // First idle load: persist THIS welcome pose (by camera name) as the
+    // canonical start frame so a later scroll-back-up re-mount restores the EXACT
+    // same frame instead of a freshly-drifted authored pose. (A flight launch
+    // re-saves it after its re-anchor; saving here covers a user who scrolls away
+    // BEFORE ever flying — they still come back to the same frame.)
+    if (idleLoad && !startFrameRef.current) {
       try {
-        app.stop?.();
+        startFrameRef.current = camerasRef.current.map((c) => ({
+          name: (c.obj as unknown as { name?: string }).name ?? "",
+          start: { ...c.start },
+          startRot: { ...c.startRot },
+        }));
       } catch {
         /* noop */
       }
     }
-    // ── Idle-freeze: stop the looping ambient animation a beat after load ──
-    // While the user sits on the hero, the scene otherwise renders a frame every
-    // tick (its share of the cursor lag). Freeze it once any load/intro motion
-    // has settled; the flight's requestRender() still works while stopped, and
-    // startPlayback() resumes it on the first scroll. Only fires if still idle.
+
     window.clearTimeout(freezeTimerRef.current);
-    freezeTimerRef.current = window.setTimeout(() => {
-      if (playRef.current === "idle") {
-        try {
-          splineRef.current?.stop?.();
-        } catch {
-          /* noop */
-        }
-      }
-    }, 1400);
-    // Tell the loading screen the heavy 3D scene has painted its first
-    // frame so the splash holds until the galaxy is actually ready
-    // (instead of lifting onto an empty backdrop that "pops in" later
-    // on the first scroll).
-    try {
-      (window as unknown as { __refgdScenePending?: boolean }).__refgdScenePending = false;
-      // Announce readiness only AFTER the galaxy has actually painted.
-      // Dispatching straight from onSplineLoad can fire a frame before
-      // the canvas is visually present, letting the loading overlay lift
-      // onto a still-blank backdrop. Two rAF cycles guarantee the first
-      // real frame has been committed before we say "ready".
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => {
+    (window as unknown as { __refgdScenePending?: boolean }).__refgdScenePending = false;
+    // Paint the first real frame, THEN freeze the scene and announce ready — all
+    // on the SAME two-rAF boundary. Freezing right away (instead of after a ~1.4s
+    // settle) is the fix for the pre-scroll "jump cut": the scene's authored
+    // ambient no longer gets ~1.4s to drift/snap the camera off the welcome frame
+    // while the user just sits on the hero — they see the still start frame at
+    // once, identical on a fresh load and on a scroll-back-up re-mount. Two rAFs
+    // guarantee the first frame is committed before stop(), so the still galaxy is
+    // fully painted, never blank. Guarded on not-"playing" so a flight launched in
+    // this window is never frozen (startPlayback owns play()/stop() mid-flight).
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        if (playRef.current !== "playing") {
           try {
-            window.dispatchEvent(new Event("refgd:scene-ready"));
+            splineRef.current?.stop?.();
           } catch {
             /* noop */
           }
-        }),
-      );
-    } catch {
-      /* noop */
-    }
+        }
+        try {
+          window.dispatchEvent(new Event("refgd:scene-ready"));
+        } catch {
+          /* noop */
+        }
+      }),
+    );
   };
 
 
