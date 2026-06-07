@@ -15,12 +15,28 @@
  * This module is the single source of truth for:
  *   • which remote assets a route must fully download before reveal,
  *   • which routes mount a cinematic scene that announces `refgd:scene-ready`,
- *   • a streaming downloader that reports real byte progress and warms the
- *     HTTP cache so the scene component reuses it (no second download).
+ *   • a streaming downloader that reports real byte progress, warms the HTTP
+ *     cache, and persists the scene into the Cache Storage API so it is
+ *     downloaded ONCE and served locally on every future visit (paired with
+ *     the scene service worker in `public/sw.js`, which serves Spline's own
+ *     fetch of the same file from that cache).
  */
 
 export const HOME_SCENE_URL =
   "https://prod.spline.design/mzZcfxXnOQsM5LXz/scene.splinecode";
+
+/**
+ * Cache Storage bucket the heavy scene is persisted into so it downloads ONCE
+ * and is reused on every future visit. Must stay in sync with CACHE in
+ * `public/sw.js` — the service worker serves Spline's own fetch from the same
+ * bucket, while the preloader (below) seeds it from its progress download.
+ */
+const SCENE_CACHE = "refgd-scene-v1";
+
+/** True for the heavy remote Spline scene file (the only thing we persist). */
+function isSceneAsset(url: string): boolean {
+  return /\.splinecode(\?|$)/.test(url);
+}
 
 export type HeavyAsset = { url: string; bytesHint?: number };
 
@@ -86,6 +102,21 @@ export async function downloadAsset(
   onProgress?: (receivedBytes: number, totalBytes: number) => void,
   signal?: AbortSignal,
 ): Promise<void> {
+  // Repeat-visit fast path: if the scene is already persisted in Cache Storage
+  // (seeded on a previous visit), there is nothing to download — report
+  // complete instantly so the splash never re-pulls the ~23 MB file.
+  if (isSceneAsset(asset.url) && typeof caches !== "undefined") {
+    try {
+      const cache = await caches.open(SCENE_CACHE);
+      const hit = await cache.match(asset.url, { ignoreVary: true });
+      if (hit) {
+        onProgress?.(asset.bytesHint ?? 1, asset.bytesHint ?? 1);
+        return;
+      }
+    } catch {
+      /* Cache Storage unavailable — fall through to a normal network download */
+    }
+  }
   try {
     const res = await fetch(asset.url, {
       mode: "cors",
@@ -102,6 +133,14 @@ export async function downloadAsset(
       onProgress?.(asset.bytesHint ?? 1, asset.bytesHint ?? 1);
       return;
     }
+    // Persist the scene as it streams so it is downloaded ONCE: a clone is
+    // written to Cache Storage (the same bucket the service worker serves from)
+    // while the original is read below for progress. Seeding it here means even
+    // the very first visit's download is reused — by Spline's own fetch and by
+    // every future visit — instead of being pulled again.
+    if (isSceneAsset(asset.url) && typeof caches !== "undefined") {
+      void persistScene(asset.url, res.clone());
+    }
     const lenHeader = res.headers.get("content-length");
     const total = lenHeader ? parseInt(lenHeader, 10) : asset.bytesHint ?? 0;
     const reader = res.body.getReader();
@@ -116,6 +155,23 @@ export async function downloadAsset(
   } catch {
     // Aborted or network error — report "complete" so the gate proceeds.
     onProgress?.(asset.bytesHint ?? 1, asset.bytesHint ?? 1);
+  }
+}
+
+/**
+ * Persist a freshly fetched scene response into Cache Storage so it survives
+ * across visits. Takes a CLONE of the in-flight response (the original keeps
+ * streaming for progress), so this adds no extra network download. Best-effort:
+ * swallows quota / write errors. No-op if the scene is already cached.
+ */
+async function persistScene(url: string, res: Response): Promise<void> {
+  try {
+    if (!res.ok) return;
+    const cache = await caches.open(SCENE_CACHE);
+    const existing = await cache.match(url, { ignoreVary: true });
+    if (!existing) await cache.put(url, res);
+  } catch {
+    /* quota exceeded / Cache Storage unavailable — fine, the SW still caches it */
   }
 }
 

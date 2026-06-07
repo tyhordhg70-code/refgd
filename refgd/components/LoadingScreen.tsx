@@ -155,6 +155,13 @@ export default function LoadingScreen() {
     PREFETCH_ROUTES.forEach((r) => {
       try { router.prefetch(r); } catch { /* noop */ }
     });
+    // Register the scene-cache service worker so the heavy ~23 MB Spline
+    // galaxy is downloaded once and then served from the local cache on every
+    // future visit (it intercepts Spline's own fetch too). Scoped to only the
+    // scene file, so it never touches HTML/JS and can't serve a stale deploy.
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => { /* noop */ });
+    }
   }, [router]);
 
   useEffect(() => {
