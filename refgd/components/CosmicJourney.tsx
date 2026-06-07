@@ -461,7 +461,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // it (with a 300px head-start) as the hero comes back. The unmount is
   // debounced so a quick scroll past-and-back never thrashes the GPU.
   useEffect(() => {
-    if (typeof window === "undefined" || isMobile || reduced) return;
+    if (typeof window === "undefined" || reduced) return;
     if (typeof IntersectionObserver === "undefined") return;
     const el = sectionRef.current;
     if (!el) return;
@@ -1018,15 +1018,19 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   };
 
 
+  // The 3D hero now renders on mobile too (owner request). On mobile we never
+  // run the desktop scroll-flight (it hijacks touch and burns GPU) — the scene
+  // simply paints its welcome pose and the idle-freeze settles it to a static
+  // 3D render a beat after load, so it shows the real galaxy with no lag.
   const showSpline =
-    mounted && !isMobile && !reduced && keepScene && SCENE_URL.length > 0;
+    mounted && !reduced && keepScene && SCENE_URL.length > 0;
 
   return (
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
       className="relative w-full"
-      style={{ height: isMobile ? "150svh" : reduced ? "130svh" : "100svh" }}
+      style={{ height: isMobile ? "100svh" : reduced ? "130svh" : "100svh" }}
     >
       <div
         className="sticky top-0 grid w-full place-items-center overflow-hidden"
@@ -1060,8 +1064,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           </div>
         )}
 
-        {/* ── Mobile fallback star canvas ── */}
-        {isMobile && (
+        {/* ── Mobile fallback star canvas — only when the 3D scene can't show
+            (e.g. reduced-motion); otherwise the real Spline hero renders. ── */}
+        {isMobile && !showSpline && (
           <div
             ref={mobileRef}
             aria-hidden="true"
