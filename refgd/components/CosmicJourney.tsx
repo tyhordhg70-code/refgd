@@ -640,11 +640,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // it leaves view). Re-freeze the ambient animation so it doesn't keep
       // rendering during the hand-off reveal or while it lingers off-screen.
       window.clearTimeout(freezeTimerRef.current);
-      try {
-        splineRef.current?.stop?.();
-      } catch {
-        /* noop */
-      }
+      // ── TESTER MODEL: never stop() the Spline scene ─────────────────────
+      // Stopping the scene forced a play() on the next flight, and that play()
+      // ran the scene's authored zoom-out intro = the jump cut. Leaving the scene
+      // renderable lets requestRender keep painting and makes the flight cleanly
+      // reversible (scroll back up → fly again, with no play()/snap).
       // Keep the ambient bg frozen through the (now ~1.2s) auto-scroll reveal AND
       // a beat past it: while the hero scrolls away the heavy frozen Spline canvas
       // is still being composited every frame, so resuming the galaxy/Cosmic3D bg
@@ -761,17 +761,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       } catch {
         /* noop */
       }
-      // NOW resume the render loop — it PAINTS the moving dive frames and keeps
-      // the galaxy alive (the animated look is the whole point).
-      try {
-        splineRef.current?.play?.();
-      } catch {
-        /* noop */
-      }
-      // Re-assert the start frame AFTER play() (p=0 → exactly the pose we just
-      // re-anchored to) so the authored ambient's resume can't leave even a
-      // one-frame snapped pose before the rAF tick takes over the dive. Visually
-      // a no-op (start == on-screen frame): no lurch, no cut, same zoom as idle.
+      // ── TESTER MODEL: do NOT call play() ────────────────────────────────
+      // play() resumes the scene's authored "intro", which dollies the camera
+      // OUT to a wide pose and OVERRIDES our per-frame computeCam writes for the
+      // ENTIRE flight — THAT is the zoom-out jump cut (and why every pose tweak
+      // did "nothing": the authored timeline owned the camera). The scene is now
+      // NEVER stop()ped, so renderZoom()'s requestRender() paints the moving dive
+      // frames directly — exactly like the proven spline-tester, which never
+      // calls play()/stop(). Paint the first frame (the re-anchored start pose)
+      // before the rAF tick takes over.
       applyFrame(playPRef.current);
       const lenis = getLenis();
       try {
@@ -911,13 +909,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         // ambient animation stops rendering once it has settled on frame 0.
         window.clearTimeout(freezeTimerRef.current);
         freezeTimerRef.current = window.setTimeout(() => {
-          if (playRef.current === "idle") {
-            try {
-              splineRef.current?.stop?.();
-            } catch {
-              /* noop */
-            }
-          }
+          // TESTER MODEL: never stop() — keep the scene renderable so the dive
+          // paints via requestRender and the next flight never needs play()
+          // (which would re-run the authored zoom-out intro). See the play() site.
+          void playRef.current;
         }, 1400);
         const headline = headlineRef.current;
         if (headline) {
@@ -1144,13 +1139,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const revealNow = () =>
       requestAnimationFrame(() =>
         requestAnimationFrame(() => {
-          if (playRef.current !== "playing") {
-            try {
-              splineRef.current?.stop?.();
-            } catch {
-              /* noop */
-            }
-          }
+          // TESTER MODEL: never stop() the scene — keeping it renderable lets
+          // requestRender paint the flight, so the next dive never needs play()
+          // (which would re-run the authored zoom-out intro = the jump cut).
           try {
             window.dispatchEvent(new Event("refgd:scene-ready"));
           } catch {
@@ -1177,12 +1168,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const SETTLE_MS = 1500;
       freezeTimerRef.current = window.setTimeout(() => {
         if (playRef.current !== "idle") return; // user scrolled/flew first
-        // Freeze now that the intro is actually running, so it truly halts.
-        try {
-          splineRef.current?.stop?.();
-        } catch {
-          /* noop */
-        }
+        // TESTER MODEL: do NOT stop() the scene. The authored zoom-out intro is
+        // triggered by play() (which we no longer call), NOT by autoplay, so
+        // nothing is "running" to freeze here; keeping the scene renderable lets
+        // the flight paint via requestRender. We still re-capture + pin the
+        // (unified, tight) start pose below so a re-mount restores the same frame.
         // Capture the settled (zoomed-out) pose as the canonical start frame, so a
         // later scroll-back-up re-mount AND the flight launch both anchor to it.
         try {
