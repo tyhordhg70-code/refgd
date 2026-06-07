@@ -583,8 +583,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     if (typeof window === "undefined") return;
 
     const PLAY_MS = 6000; // total flight (slow + cinematic): orbit (≈0.2) then long dive (≈0.8)
-    let startAt = 0;
+    // Frame-spike-resistant clock: accumulate elapsed time with a CAPPED delta so
+    // a dropped frame can't make the camera jump forward to "catch up" (see tick).
+    let elapsed = 0;
+    let lastTickAt = 0;
     let raf = 0;
+    let pinRaf = 0; // holds the dive-END frame through the hand-off auto-scroll
     let flightOffTimer = 0;
     // Toggle a <html> flag that freezes the ambient background animations
     // (galaxy bgPulse + Cosmic3DShapes, both `.rg-ambient-bg`) so the Spline
@@ -678,11 +682,51 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       } else if (paths) {
         paths.scrollIntoView({ behavior: "smooth", block: "start" });
       }
+
+      // ── Freeze-frame the dive END through the hand-off auto-scroll ──
+      // The scene is NEVER stop()ped (stopping forces a play() on the next flight
+      // = the authored zoom-out jump cut). So the instant `tick` stops writing the
+      // camera, the scene's OWN render loop reclaims it and drifts back toward its
+      // authored welcome pose — visible as the hero "restarting from the beginning
+      // without animation" while it scrolls away. Keep WRITING the dive-end pose
+      // every frame until the hero is off-screen (or the user scrolls back up), so
+      // it holds a clean freeze-frame. The reset to frame 0 (so a scroll back up
+      // replays from the start) is owned by onScroll's upward branch + the re-mount
+      // restore — both of which run once the hero is actually gone / returning.
+      const endZp = playPRef.current;
+      const pinStart = performance.now();
+      const PIN_MS = 1500; // ≥ the 1.2s scrollTo, so the hero is fully gone first
+      let lastPinY = window.scrollY;
+      cancelAnimationFrame(pinRaf);
+      const pin = (now: number) => {
+        const y = window.scrollY;
+        const goingUp = y < lastPinY - 0.5;
+        lastPinY = y;
+        // Stop once the hero is off-screen, the user reverses, or a new
+        // state begins — onScroll/​re-mount then own the reset back to frame 0.
+        if (goingUp || playRef.current !== "done" || now - pinStart >= PIN_MS) {
+          pinRaf = 0;
+          return;
+        }
+        renderZoom(endZp);
+        pinRaf = requestAnimationFrame(pin);
+      };
+      pinRaf = requestAnimationFrame(pin);
     };
 
     const tick = (now: number) => {
       if (playRef.current !== "playing") return;
-      const p = clamp01((now - startAt) / PLAY_MS);
+      // Advance with a CAPPED per-frame delta. A render spike (e.g. the camera
+      // passing the dense person geometry near the portal) drops a frame; with
+      // absolute-time progress the NEXT frame would jump forward to catch up —
+      // that is the "slight jump cut forward that seems like lag" the owner saw.
+      // Capping the delta means a stalled frame only advances a little, so the
+      // dive stays continuous (the flight just lasts a hair longer on a drop,
+      // it never jumps). 50ms cap ≈ skip at most ~3 frames' worth of advance.
+      const dt = Math.min(Math.max(now - lastTickAt, 0), 50);
+      lastTickAt = now;
+      elapsed += dt;
+      const p = clamp01(elapsed / PLAY_MS);
       // Trapezoid ease (soft launch, CONSTANT-speed cruise, soft arrival) — no
       // midpoint velocity spike; computeCam is linear within each phase and the
       // phases are speed-matched, so the whole flight glides at one even pace.
@@ -761,7 +805,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       } catch {
         /* noop */
       }
-      // ── TESTER MODEL: do NOT call play() ────────────────────────────────
+      // ── TESTER MODEL: do NOT call play() ─────────────���──────────────────
       // play() resumes the scene's authored "intro", which dollies the camera
       // OUT to a wide pose and OVERRIDES our per-frame computeCam writes for the
       // ENTIRE flight — THAT is the zoom-out jump cut (and why every pose tweak
@@ -792,7 +836,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         passive: false,
         capture: true,
       });
-      startAt = performance.now();
+      elapsed = 0;
+      lastTickAt = performance.now();
+      cancelAnimationFrame(pinRaf);
+      pinRaf = 0;
       raf = requestAnimationFrame(tick);
     };
 
@@ -903,7 +950,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (y < 8) {
         playRef.current = "idle";
         window.clearTimeout(flightOffTimer);
-        setFlight(false);
+        cancelAnimationFrame(pinRaf);
+        pinRaf = 0;
+        // IDLE CALM: re-freeze the ambient bg now that the user is sitting on the
+        // hero again, so the Spline scene has the GPU to itself and the cursor
+        // stays smooth (see the load-time idle-calm note). Released again the
+        // moment the next flight hands off.
+        setFlight(true);
         applyFrame(0);
         // Back at the hero top and idle again — re-arm the idle-freeze so the
         // ambient animation stops rendering once it has settled on frame 0.
@@ -941,6 +994,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
     return () => {
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(pinRaf);
       window.clearTimeout(flightOffTimer);
       window.clearTimeout(freezeTimerRef.current);
       setFlight(false);
@@ -1131,6 +1185,28 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
     window.clearTimeout(freezeTimerRef.current);
     (window as unknown as { __refgdScenePending?: boolean }).__refgdScenePending = false;
+
+    // ── IDLE CALM: free the GPU for Spline while the user sits on the hero ──
+    // The spline-tester renders this SAME scene continuously and is smooth — so
+    // the live idle cursor lag is NOT Spline alone, it is Spline PLUS the galaxy
+    // gradient + Cosmic3DShapes ambient animations compositing on top of it. We
+    // do NOT stop() the Spline scene (stopping forces a play() on the next flight,
+    // which re-runs the authored zoom-out intro = the jump cut). Instead we pause
+    // ONLY the other ambient bg animations (the `.hero-flight` class → paused
+    // `.rg-ambient-bg`) while the hero is the active view, matching the tester's
+    // lean GPU budget. Desktop + motion-ok + at the top only; the flight keeps it
+    // on through hand-off, then releases it for the cards section.
+    try {
+      if (
+        !reducedRef.current &&
+        !isMobileRef.current &&
+        window.scrollY < window.innerHeight
+      ) {
+        document.documentElement.classList.add("hero-flight");
+      }
+    } catch {
+      /* noop */
+    }
 
     // Reveal on the next paint and freeze the scene. Two rAFs guarantee the first
     // frame is committed before stop(), so the still galaxy is fully painted, never
