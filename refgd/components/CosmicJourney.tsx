@@ -706,18 +706,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // whole flight visibly vanished and only the DOM welcome-text fade
       // remained. play() is what makes the perfected orbit→dive actually render.
       window.clearTimeout(freezeTimerRef.current);
-      try {
-        splineRef.current?.play?.();
-      } catch {
-        /* noop */
-      }
-      // ── Re-anchor the flight START to the camera's CURRENT (displayed, just-
-      // frozen) pose so the orbit→dive begins on EXACTLY the still frame the user
-      // was looking at — no jump-cut from the authored load pose. The scene's
-      // ambient/intro can drift the camera between load and the idle-freeze, so
-      // the captured load pose no longer matches what's on screen; re-reading the
-      // live pose here closes that gap. The dive still ends framed on the fixed
-      // PIVOT geometry, so this changes only the START, never the centred landing.
+      // ── Re-anchor the flight START to the camera's CURRENT (displayed, still-
+      // FROZEN) pose, BEFORE we resume the scene. This is the critical ordering:
+      // play() below restarts the authored ambient, which immediately snaps the
+      // camera off the static welcome frame. If we read the pose AFTER play(), the
+      // flight would begin from that snapped/drifted pose — i.e. the animation
+      // would start from a DIFFERENT zoom than the still scene the user was just
+      // looking at. Reading it here, while still frozen, makes the orbit→dive
+      // begin on EXACTLY the idle frame. The dive still ends framed on the fixed
+      // PIVOT geometry, so this only sets the START, never the centred landing.
       try {
         for (const c of camerasRef.current) {
           if (c.obj.position) {
@@ -751,10 +748,17 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       } catch {
         /* noop */
       }
-      // Hard-overwrite the camera to the flight's current frame (p=0 → exactly
-      // the pose we just re-anchored to) so nothing drifts it before the rAF
-      // takes over. With the re-anchor above this is now a true no-op visually
-      // (start == on-screen frame), which is the whole point: no lurch, no cut.
+      // NOW resume the render loop — it PAINTS the moving dive frames and keeps
+      // the galaxy alive (the animated look is the whole point).
+      try {
+        splineRef.current?.play?.();
+      } catch {
+        /* noop */
+      }
+      // Re-assert the start frame AFTER play() (p=0 → exactly the pose we just
+      // re-anchored to) so the authored ambient's resume can't leave even a
+      // one-frame snapped pose before the rAF tick takes over the dive. Visually
+      // a no-op (start == on-screen frame): no lurch, no cut, same zoom as idle.
       applyFrame(playPRef.current);
       const lenis = getLenis();
       try {
