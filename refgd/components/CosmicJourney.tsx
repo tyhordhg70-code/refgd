@@ -130,6 +130,19 @@ const ARC_SIDE = 450;
 // portal centre, so the portal stays framed. Tester starting value.
 const END_SIDE = 300;
 
+// ── Shared START framing ──────────────────────────────────────────────
+// The scene ships THREE cameras ("Camera"/"Camera 2"/"Camera 3") with
+// DIFFERENT authored poses, and play() can hand the render to a different
+// one than idle was showing → a hard zoom JUMP-CUT on the very first scroll
+// (idle = the tight welcome view, flight = a far-back pose with lots of dead
+// black). We collapse ALL cameras onto ONE canonical start (the most
+// zoomed-IN of them) so idle and the flight share the EXACT same framing no
+// matter which camera the runtime renders. START_PULL scales that shared
+// start's distance to the portal PIVOT: 1 = the closest camera's natural
+// framing, <1 zooms further IN (less dead black), >1 pulls back. Tune this
+// ALONE to dial the opening zoom; everything else stays put.
+const START_PULL = 1.0;
+
 // zp = progress / ZOOM_COMPLETE_AT. Kept at 1.0 (no early saturation) so the
 // timed flight's phase splits map directly onto its 0→1 progress.
 const ZOOM_COMPLETE_AT = 1.0;
@@ -1008,6 +1021,56 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             }
           }
         }
+      } catch {
+        /* noop */
+      }
+
+      // ── Collapse every camera onto ONE canonical START pose ──────────
+      // This is the fix for the first-scroll "jump cut zoom out": the three
+      // cameras have different authored framings, and play() can switch the
+      // active one, so the flight began on a DIFFERENT (far-back) camera than
+      // the idle view. Pick the most zoomed-IN camera (smallest distance to
+      // the portal PIVOT) and copy its pose onto ALL of them, scaled by
+      // START_PULL. Now idle and the flight start are pixel-identical whether
+      // the runtime renders "Camera", "Camera 2", or "Camera 3".
+      try {
+        if (camerasRef.current.length > 1) {
+          let ref = camerasRef.current[0];
+          let refLen = Number.POSITIVE_INFINITY;
+          for (const c of camerasRef.current) {
+            const len = Math.hypot(
+              c.start.x - PIVOT.x,
+              c.start.y - PIVOT.y,
+              c.start.z - PIVOT.z,
+            );
+            if (len < refLen) {
+              refLen = len;
+              ref = c;
+            }
+          }
+          const k = START_PULL;
+          const canonStart = {
+            x: PIVOT.x + (ref.start.x - PIVOT.x) * k,
+            y: PIVOT.y + (ref.start.y - PIVOT.y) * k,
+            z: PIVOT.z + (ref.start.z - PIVOT.z) * k,
+          };
+          for (const c of camerasRef.current) {
+            c.start = { ...canonStart };
+            c.startRot = { ...ref.startRot };
+          }
+        }
+      } catch {
+        /* noop */
+      }
+
+      // Persist the canonical start (by camera name) so a scroll-away/back
+      // re-mount restores the SAME shared frame instead of re-diverging.
+      try {
+        startFrameRef.current = camerasRef.current.map((c) => ({
+          name: (c.obj as unknown as { name?: string }).name ?? "",
+          start: { ...c.start },
+          startRot: { ...c.startRot },
+        }));
       } catch {
         /* noop */
       }
