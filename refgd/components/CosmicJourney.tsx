@@ -686,19 +686,19 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (window.scrollY > window.innerHeight * 0.5) return;
       playRef.current = "playing";
       setFlight(true);
-      // Cancel any pending idle-freeze and FREEZE the scene's heavy ambient
-      // animation for the whole flight. The camera dive is driven frame-by-frame
-      // by our own rAF via renderZoom()'s app.requestRender() — Spline's
-      // on-demand (auto-mode) render path renders a single frame even while the
-      // continuous loop is stopped (the same mechanism the idle-freeze and the
-      // scroll-to-top reset already rely on). Keeping the galaxy timeline FROZEN
-      // means every flight frame only re-renders the moved camera instead of
-      // re-evaluating the entire ambient scene each tick — that per-frame ambient
-      // work was the hero's share of the flight stutter, so the dive now glides.
-      // (Bonus: no play()-resume content jump at the start of the flight.)
+      // RESUME the scene's render loop for the whole flight. The dive is driven
+      // by writing each camera's position/rotation every rAF (renderZoom), and
+      // it is the CONTINUOUS loop that actually PAINTS those moving frames AND
+      // keeps the galaxy alive during the dive — that animated look is the entire
+      // point of the hero.
+      // ⚠ Do NOT stop() the scene here. An earlier attempt froze the scene to
+      // shave per-frame ambient cost and relied on requestRender() alone to paint
+      // the dive; on the live site that left the camera move UNPAINTED — the
+      // whole flight visibly vanished and only the DOM welcome-text fade
+      // remained. play() is what makes the perfected orbit→dive actually render.
       window.clearTimeout(freezeTimerRef.current);
       try {
-        splineRef.current?.stop?.();
+        splineRef.current?.play?.();
       } catch {
         /* noop */
       }
