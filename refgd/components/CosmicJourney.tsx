@@ -637,6 +637,23 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       e.stopImmediatePropagation();
       if (e.cancelable) e.preventDefault();
     };
+    // Stateful, idempotent attach/release of the capture-phase wheel/touch swallow.
+    // The swallow MUST be torn down on EVERY path that leaves the flight/freeze —
+    // pin end, scroll-to-top reset, and effect cleanup — or it would stay attached
+    // and permanently break Lenis wheel/touch scrolling (architect review).
+    let blockScrollOn = false;
+    const attachBlockScroll = () => {
+      if (blockScrollOn) return;
+      blockScrollOn = true;
+      window.addEventListener("wheel", blockScroll, { passive: false, capture: true });
+      window.addEventListener("touchmove", blockScroll, { passive: false, capture: true });
+    };
+    const releaseBlockScroll = () => {
+      if (!blockScrollOn) return;
+      blockScrollOn = false;
+      window.removeEventListener("wheel", blockScroll, { capture: true });
+      window.removeEventListener("touchmove", blockScroll, { capture: true });
+    };
 
     const handoff = () => {
       playRef.current = "done";
@@ -714,8 +731,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           pinRaf = 0;
           // Freeze-frame is over (hero gone / user reversed) — NOW release the
           // wheel/touch swallow so normal scrolling resumes for the cards.
-          window.removeEventListener("wheel", blockScroll, { capture: true });
-          window.removeEventListener("touchmove", blockScroll, { capture: true });
+          releaseBlockScroll();
           return;
         }
         renderZoom(endZp);
@@ -838,14 +854,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       } catch {
         /* noop */
       }
-      window.addEventListener("wheel", blockScroll, {
-        passive: false,
-        capture: true,
-      });
-      window.addEventListener("touchmove", blockScroll, {
-        passive: false,
-        capture: true,
-      });
+      attachBlockScroll();
       elapsed = 0;
       lastTickAt = performance.now();
       cancelAnimationFrame(pinRaf);
@@ -975,6 +984,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         window.clearTimeout(flightOffTimer);
         cancelAnimationFrame(pinRaf);
         pinRaf = 0;
+        // Back at the top before the pin's own teardown ran (e.g. keyboard Home /
+        // fast reverse during the freeze window) — release the swallow here too,
+        // or wheel/touch scrolling would stay permanently blocked.
+        releaseBlockScroll();
         // IDLE CALM: re-freeze the ambient bg now that the user is sitting on the
         // hero again, so the Spline scene has the GPU to itself and the cursor
         // stays smooth (see the load-time idle-calm note). Released again the
@@ -1026,8 +1039,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       window.removeEventListener("touchmove", onTouchMove, { capture: true });
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("wheel", blockScroll, { capture: true });
-      window.removeEventListener("touchmove", blockScroll, { capture: true });
+      releaseBlockScroll();
       try {
         getLenis()?.start();
       } catch {
