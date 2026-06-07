@@ -408,6 +408,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // `camTargetRef` as scroll progresses (moving an inactive camera is a no-op).
   // This is what actually flies into the portal (setZoom is clamped).
   const camerasRef = useRef<Array<{ obj: SplineObj; start: Vec3; startRot: Vec3 }>>([]);
+  // The canonical "start frame": the EXACT per-camera pose the flight begins
+  // from, saved (by camera name, as plain numbers) the first time a flight
+  // launches. The live camera objects are thrown away when the hero unmounts
+  // (scroll far away) and rebuilt on re-mount, so we keep the pose VALUES here
+  // to restore the camera to the same welcome frame whenever the user comes
+  // back up — the hero returns on the frame it flies from, never the dive end.
+  const startFrameRef = useRef<
+    Array<{ name: string; start: Vec3; startRot: Vec3 }> | null
+  >(null);
   // Fallback only (used when no camera object is exposed): a scene variable
   // whose name looks like a scroll/zoom driver, scrubbed with progress.
   const scrubVarRef = useRef<string | null>(null);
@@ -720,6 +729,19 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       } catch {
         /* noop */
       }
+      // Persist this exact start frame (by camera name) so that after the user
+      // scrolls past the hero — which unmounts the scene and disposes these
+      // camera objects — a later re-mount can put the camera back on the SAME
+      // welcome frame instead of a freshly-drifted authored pose.
+      try {
+        startFrameRef.current = camerasRef.current.map((c) => ({
+          name: (c.obj as unknown as { name?: string }).name ?? "",
+          start: { ...c.start },
+          startRot: { ...c.startRot },
+        }));
+      } catch {
+        /* noop */
+      }
       // Hard-overwrite the camera to the flight's current frame (p=0 → exactly
       // the pose we just re-anchored to) so nothing drifts it before the rAF
       // takes over. With the re-anchor above this is now a true no-op visually
@@ -831,10 +853,30 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
     };
 
-    // ── Reset at the very top so the flight can replay (reversible) ──
+    // ── Reset as the user comes back UP so the flight replays (reversible) ──
+    // Two things happen on the way back up after a flight:
+    //  1) As soon as they scroll UP toward the hero, snap the camera back to the
+    //     start frame (frame 0 == the re-anchored welcome pose). Without this the
+    //     hero would scroll back into view still showing the zoomed-in DIVE END
+    //     until the very top — the "wrong frame on the way up". Upward-only, so
+    //     the handoff's own downward auto-scroll to #paths never trips it.
+    //  2) At the very top, do the full idle re-arm (re-show headline/cue, restart
+    //     the idle-freeze) so the next downward scroll can fly again.
+    let lastScrollY = window.scrollY;
     const onScroll = () => {
+      const y = window.scrollY;
+      const goingUp = y < lastScrollY - 0.5;
+      lastScrollY = y;
       if (playRef.current === "playing") return;
-      if (window.scrollY < 8 && playRef.current === "done") {
+      if (playRef.current !== "done") return;
+      if (goingUp && y < window.innerHeight && playPRef.current !== 0) {
+        // Restore camera + headline + backdrop to the start frame as the hero
+        // returns. applyFrame(0) renders on-demand even though the scene is
+        // frozen; the playPRef!==0 guard means we paint it ONCE on the way up
+        // rather than re-rendering on every scroll tick after we're already there.
+        applyFrame(0);
+      }
+      if (y < 8) {
         playRef.current = "idle";
         window.clearTimeout(flightOffTimer);
         setFlight(false);
@@ -935,6 +977,28 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
       camerasRef.current = cams;
 
+      // If a previous flight already established the canonical start frame,
+      // restore each freshly-rebuilt camera to it (matched by name). Without
+      // this, a re-mount (scroll away then back) re-captures whatever pose the
+      // ambient happens to have drifted to, so the hero would come back on a
+      // DIFFERENT frame than the one it flies from. This is what makes "scroll
+      // back up → same start frame" hold across an unmount/re-mount.
+      try {
+        const saved = startFrameRef.current;
+        if (saved) {
+          for (const c of cams) {
+            const nm = (c.obj as unknown as { name?: string }).name ?? "";
+            const m = saved.find((s) => s.name === nm);
+            if (m) {
+              c.start = { ...m.start };
+              c.startRot = { ...m.startRot };
+            }
+          }
+        }
+      } catch {
+        /* noop */
+      }
+
       if (!cams.length) {
         // No camera object exposed — fall back to scrubbing a scene variable
         // whose name looks like a scroll/zoom driver, if one exists.
@@ -983,10 +1047,23 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       /* noop */
     }
 
-    // Render the first frame at the flight's current progress (0 on a fresh
-    // load) so the camera sits on the authored welcome pose, ready for the
-    // first-scroll cinematic.
-    renderZoom(playPRef.current);
+    // Render the first frame. On a fresh load playPRef is 0 → authored welcome
+    // pose. On a RE-MOUNT after a flight (scrolled away then back) playRef is
+    // still "done" and playPRef sits at the dive's end — but we want the hero
+    // to come back on its START frame, so force frame 0 (which now resolves to
+    // the restored canonical pose above) and freeze immediately so the ambient
+    // can't drift it away before the user arrives. The scroll handler does the
+    // full idle re-arm (headline/cue) once they reach the very top.
+    const returningToStart =
+      playRef.current === "done" && !!startFrameRef.current;
+    renderZoom(returningToStart ? 0 : playPRef.current);
+    if (returningToStart) {
+      try {
+        app.stop();
+      } catch {
+        /* noop */
+      }
+    }
     // ── Idle-freeze: stop the looping ambient animation a beat after load ──
     // While the user sits on the hero, the scene otherwise renders a frame every
     // tick (its share of the cursor lag). Freeze it once any load/intro motion
