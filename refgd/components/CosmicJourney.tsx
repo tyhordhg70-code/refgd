@@ -961,10 +961,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     //  2) At the very top, do the full idle re-arm (re-show headline/cue, restart
     //     the idle-freeze) so the next downward scroll can fly again.
     let lastScrollY = window.scrollY;
-    // Has the hero genuinely been scrolled away since the flight handed off?
-    // Guards the return-to-top reset against firing during the hand-off auto-
-    // scroll (see the y<8 block below).
-    let leftHero = false;
     const onScroll = () => {
       const y = window.scrollY;
       const goingUp = y < lastScrollY - 0.5;
@@ -984,15 +980,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
       if (playRef.current === "playing") return;
       if (playRef.current !== "done") return;
-      // Mark that the hero has genuinely been scrolled away after the flight.
-      // The y<8 idle re-arm below MUST NOT fire during the hand-off auto-scroll
-      // (which BEGINS at y≈0, where y<8 is briefly true): doing so reset the
-      // state to idle, cancelled the freeze pin, and snapped the camera to frame
-      // 0 WHILE the auto-scroll was still gliding to the cards — exactly the
-      // "scene restarts / goes back to the first frame during auto scroll" the
-      // owner reported. Only after the hero has actually left view (a real round
-      // trip down to the cards and back up) may the return-to-top reset run.
-      if (y > window.innerHeight * 0.8) leftHero = true;
       if (goingUp && y < window.innerHeight && playPRef.current !== 0) {
         // Restore camera + headline + backdrop to the start frame as the hero
         // returns. applyFrame(0) renders on-demand even though the scene is
@@ -1000,8 +987,19 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         // rather than re-rendering on every scroll tick after we're already there.
         applyFrame(0);
       }
-      if (y < 8 && leftHero) {
-        leftHero = false;
+      // ⚠ Gate the return-to-top idle re-arm on `pinRaf === 0`. The hand-off
+      // auto-scroll BEGINS at y≈0 (startPlayback pinned the page to the top) with
+      // playRef already "done", so the first ticks of the programmatic glide
+      // satisfy y<8 — running this block then reset the state to idle, cancelled
+      // the freeze pin, and snapped the camera to frame 0 WHILE the auto-scroll
+      // was still gliding to the cards = the "scene restarts / goes back to the
+      // first frame during auto scroll" the owner reported. The freeze pin
+      // (pinRaf) is active for the WHOLE hand-off glide and is the precise
+      // discriminator: pinRaf !== 0 ⇒ mid-hand-off (skip); pinRaf === 0 ⇒ the pin
+      // has ended (hero left view, OR the user reversed — the pin self-terminates
+      // on goingUp), i.e. a genuine return to the top, so the reset is safe and
+      // replay is never deadlocked.
+      if (y < 8 && pinRaf === 0) {
         playRef.current = "idle";
         window.clearTimeout(flightOffTimer);
         cancelAnimationFrame(pinRaf);
