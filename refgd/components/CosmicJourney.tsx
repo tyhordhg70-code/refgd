@@ -656,8 +656,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // Hold the bg paused until the hero has essentially left view (the scene
       // unmounts ~400ms after it does), then release so the cards land calmly.
       flightOffTimer = window.setTimeout(() => setFlight(false), 1300);
-      window.removeEventListener("wheel", blockScroll, { capture: true });
-      window.removeEventListener("touchmove", blockScroll, { capture: true });
+      // ⚠ Do NOT release the wheel/touch swallow yet. The hand-off auto-scroll
+      // below is a PROGRAMMATIC lenis.scrollTo (no wheel events needed), but the
+      // user's flick that launched the flight still has residual momentum, and
+      // any wheel/touch that reaches the scene now wakes its OWN authored camera
+      // animation — which yanks the camera off the frozen dive-end = the "scene
+      // restarts itself during the auto-scroll" the owner reported. Keep blockScroll
+      // attached through the freeze-frame pin (released when the pin ends) so the
+      // dive-end is the ONLY thing on screen while the hero scrolls away.
       const lenis = getLenis();
       try {
         lenis?.start();
@@ -703,9 +709,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         const goingUp = y < lastPinY - 0.5;
         lastPinY = y;
         // Stop once the hero is off-screen, the user reverses, or a new
-        // state begins — onScroll/​re-mount then own the reset back to frame 0.
+        // state begins — onScroll/re-mount then own the reset back to frame 0.
         if (goingUp || playRef.current !== "done" || now - pinStart >= PIN_MS) {
           pinRaf = 0;
+          // Freeze-frame is over (hero gone / user reversed) — NOW release the
+          // wheel/touch swallow so normal scrolling resumes for the cards.
+          window.removeEventListener("wheel", blockScroll, { capture: true });
+          window.removeEventListener("touchmove", blockScroll, { capture: true });
           return;
         }
         renderZoom(endZp);
@@ -1239,65 +1249,21 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         }),
       );
 
-    if (idleLoad && !startFrameRef.current) {
-      // ── FRESH FIRST LOAD: start on the ZOOMED-OUT settled scene, no jump ──
-      // The hero's authored intro dollies the camera from a tight opening OUT to a
-      // wider "design" framing over ~1s. The old behaviour captured frame 0 at the
-      // load instant (the tight opening) and revealed it immediately, so the user
-      // watched that zoom-out play as a "jump cut" the moment the splash lifted —
-      // and a too-early stop() (~32ms, before the intro had even begun) failed to
-      // halt it. Instead we HOLD the loading splash up (scene-ready is not
-      // dispatched yet), let the intro settle behind it, then capture the END
-      // (zoomed-out) pose as the canonical start frame, stop() the scene now that
-      // the intro is actually running so it truly freezes, and pin to that pose.
-      // The hero then appears ALREADY at the zoomed-out scene with no visible
-      // camera move, and the flight (which re-anchors to this same live pose)
-      // starts on the exact frame the user is looking at. ~1.5s ≈ the intro length;
-      // bump SETTLE_MS if the reveal still catches the camera mid-zoom.
-      const SETTLE_MS = 1500;
-      freezeTimerRef.current = window.setTimeout(() => {
-        if (playRef.current !== "idle") return; // user scrolled/flew first
-        // TESTER MODEL: do NOT stop() the scene. The authored zoom-out intro is
-        // triggered by play() (which we no longer call), NOT by autoplay, so
-        // nothing is "running" to freeze here; keeping the scene renderable lets
-        // the flight paint via requestRender. We still re-capture + pin the
-        // (unified, tight) start pose below so a re-mount restores the same frame.
-        // Capture the settled (zoomed-out) pose as the canonical start frame, so a
-        // later scroll-back-up re-mount AND the flight launch both anchor to it.
-        try {
-          for (const c of camerasRef.current) {
-            if (!c.obj?.position) continue;
-            c.start = {
-              x: c.obj.position.x,
-              y: c.obj.position.y,
-              z: c.obj.position.z,
-            };
-            c.startRot = {
-              x: c.obj.rotation?.x ?? c.startRot.x,
-              y: c.obj.rotation?.y ?? c.startRot.y,
-              z: c.obj.rotation?.z ?? c.startRot.z,
-            };
-          }
-          startFrameRef.current = camerasRef.current.map((c) => ({
-            name: (c.obj as unknown as { name?: string }).name ?? "",
-            start: { ...c.start },
-            startRot: { ...c.startRot },
-          }));
-        } catch {
-          /* noop */
-        }
-        renderZoom(0); // pin + paint the settled pose
-        try {
-          window.dispatchEvent(new Event("refgd:scene-ready"));
-        } catch {
-          /* noop */
-        }
-      }, SETTLE_MS);
-    } else {
-      // Re-mount / mid-flight: the canonical (settled) pose is already restored and
-      // applied via renderZoom above — freeze + reveal on the next paint.
-      revealNow();
-    }
+    // FRESH LOAD or re-mount: the canonical ZOOMED-IN start pose is already
+    // established above — onSplineLoad collapses all cameras onto the most
+    // zoomed-in camera's pose (the "before" framing the owner liked) and line
+    // ~1197 painted it via renderZoom(0). Just reveal on the next paint.
+    //
+    // ⚠ Do NOT re-capture the camera pose after a delay here. The old code held
+    // the splash ~1.5s and then re-read the live camera as the "canonical start"
+    // — that made sense ONLY in the old play() model, where play() ran the
+    // authored intro that dollied the camera OUT and we wanted to freeze on that
+    // settled (zoomed-out) end. In the never-play() model nothing dollies the
+    // camera, so that re-capture just baked in whatever drift had happened (e.g.
+    // a stray wheel waking the scene's own animation) — which is exactly why the
+    // hero "started way too zoomed out". Keeping the collapsed zoomed-in pose and
+    // revealing immediately restores the original framing.
+    revealNow();
   };
 
 
