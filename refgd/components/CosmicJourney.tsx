@@ -429,7 +429,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   // backdrop that the scene then "pops into" several seconds later.
   useEffect(() => {
     if (typeof window === "undefined" || reduced) return;
-    if (window.matchMedia("(max-width: 768px)").matches) return; // no scene on mobile
+    // The 3D scene now mounts on mobile too, so announce it as pending there
+    // as well — this holds the loading splash until the galaxy has actually
+    // painted on mobile (no more pop-in after the overlay lifts).
     try {
       (window as unknown as { __refgdScenePending?: boolean }).__refgdScenePending = true;
       window.dispatchEvent(new Event("refgd:scene-pending"));

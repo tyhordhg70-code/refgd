@@ -32,15 +32,15 @@ function norm(pathname: string): string {
 }
 
 /**
- * The heavy Spline galaxy only loads on a real pointer device with motion
- * allowed — CosmicJourney never mounts the scene on mobile or for
- * prefers-reduced-motion, so we must NOT download 23 MB there nor wait on
- * a scene-ready event that will never fire.
+ * The heavy Spline galaxy now mounts on mobile too (it renders a static,
+ * idle-frozen hero there). So the only case where the scene is NOT shown —
+ * and therefore where we must NOT download 23 MB nor wait on a scene-ready
+ * event that will never fire — is prefers-reduced-motion, which falls back to
+ * the lightweight MobileStars canvas.
  */
 export function sceneEligible(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    if (window.matchMedia("(max-width: 768px)").matches) return false;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return false;
   } catch {
     /* matchMedia unavailable — assume eligible */
