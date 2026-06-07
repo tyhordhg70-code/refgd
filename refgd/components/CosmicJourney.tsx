@@ -1059,7 +1059,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     renderZoom(returningToStart ? 0 : playPRef.current);
     if (returningToStart) {
       try {
-        app.stop();
+        app.stop?.();
       } catch {
         /* noop */
       }
