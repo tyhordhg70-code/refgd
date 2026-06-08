@@ -4,32 +4,27 @@ import { motion, useReducedMotion } from "framer-motion";
 import KineticText from "./KineticText";
 
 /**
- * CosmicJourney — scroll-scrubbed cinematic hero.
+ * CosmicJourney — first-scroll timed cinematic hero.
  *
- * The previous version mounted a ~23 MB Spline WebGL galaxy and drove its
- * camera with a time-based flight. That scene pinned the main thread with a
- * continuous render loop (cursor lag on the live site) and forced a multi-second
- * loading screen while the 23 MB `scene.splinecode` downloaded.
+ * The original hero mounted a ~23 MB Spline WebGL galaxy and flew its camera
+ * into a portal. That scene pinned the main thread (cursor lag) and forced a
+ * multi-second loading splash while the scene downloaded.
  *
- * This version renders the SAME perfected fly-in (wide portal → orbit/dolly →
- * avatar walk → dive into the vortex) as a pre-rendered WebP image sequence
- * (~2.4 MB total, 101 frames) painted onto a <canvas>, SCRUBBED by scroll
- * position. There is no WebGL, no render loop, and no heavy download — frames
- * only repaint when the user scrolls, so the hero is effectively free at idle
- * and there is nothing to wait on (the first frame paints instantly).
+ * This version plays the SAME perfected fly-in as a pre-rendered WebP image
+ * sequence (101 frames) painted onto a <canvas> — no WebGL, no render loop, no
+ * heavy download. The cinematic is driven like a short film, NOT scrubbed:
  *
- * Behaviour:
- *   • A tall section gives the scroll runway; a `position: sticky` child pins a
- *     full-viewport canvas while the user scrolls THROUGH that runway. Native
- *     CSS sticky means NO scroll-jacking — the page scrolls normally and the
- *     frame index simply tracks how far through the section you are.
- *   • Frame 0 is drawn the instant it loads, so the hero is never blank and
- *     there is no scene-tied loading splash.
- *   • The welcome headline + scroll cue fade out over the first slice of the
- *     scrub so the cinematic takes over, then the paths section scrolls up.
- *   • prefers-reduced-motion → a single static frame, no pin, no scrub.
- *   • All per-frame work is direct canvas/DOM mutation inside one rAF-coalesced
- *     passive scroll listener (zero React re-renders per frame).
+ *   • Desktop: the hero sits on its opening frame. The user's FIRST downward
+ *     scroll TRIGGERS the fly-in, which then plays through on its own timer
+ *     (~6 s) while the page is held still; when it lands, the page AUTO-SCROLLS
+ *     down to the paths section. One scroll = the whole cinematic + hand-off.
+ *     This is the behaviour the original Spline hero had (not parallax scrub).
+ *   • Mobile: the sequence auto-plays once when the hero is on screen, with no
+ *     scroll-locking and no auto-scroll (the page scrolls normally).
+ *   • prefers-reduced-motion: a single static frame, no motion at all.
+ *
+ * All per-frame work is direct canvas/DOM mutation inside rAF (zero React
+ * re-renders per frame).
  */
 
 const FRAME_COUNT = 101;
@@ -38,7 +33,26 @@ const FRAME_BASE = "/hero-frames";
 const frameUrl = (i: number) =>
   `${FRAME_BASE}/f_${String(i + 1).padStart(3, "0")}.webp`;
 
+// How long the fly-in takes to play through, in ms. (6 s read as the right
+// pace for the original Spline flight; lower = faster.)
+const PLAY_MS = 6000;
+
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
+
+// Trapezoid velocity profile: soft ramp-up, constant cruise, soft ramp-down —
+// no mid-flight speed surge (which a plain smoothstep would introduce).
+const RAMP = 0.22;
+function easeFlight(p: number): number {
+  if (p <= 0) return 0;
+  if (p >= 1) return 1;
+  const v = 1 / (1 - RAMP); // cruise velocity so total distance == 1
+  if (p < RAMP) return (v * p * p) / (2 * RAMP);
+  if (p > 1 - RAMP) {
+    const q = 1 - p;
+    return 1 - (v * q * q) / (2 * RAMP);
+  }
+  return v * (p - RAMP / 2);
+}
 
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
@@ -46,7 +60,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const [isMobile, setIsMobile] = useState(false);
 
   const sectionRef = useRef<HTMLElement | null>(null);
-  const stickyRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const headlineRef = useRef<HTMLDivElement | null>(null);
@@ -65,7 +78,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     reducedRef.current = !!reduced;
   }, [reduced]);
 
-  // Viewport size watcher (mobile gets a shorter scroll runway).
+  // Viewport size watcher (mobile uses the no-jack autoplay path).
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(max-width: 768px)");
@@ -75,10 +88,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // ── Preload frames + wire the scroll scrubber ──
+  // ── Preload frames + wire the cinematic driver ──
   useEffect(() => {
     if (typeof window === "undefined" || !mounted) return;
-
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -142,19 +154,16 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       ctxRef.current = ctx;
       if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
-
     setupCanvas();
 
-    // Kick off loading every frame. They are tiny (~24 KB avg) so the whole
-    // sequence buffers quickly; frame 0 paints the moment it arrives.
+    // Kick off loading every frame. They are tiny so the whole sequence buffers
+    // quickly; frame 0 paints the moment it arrives.
     let firstPainted = false;
     const imgs: HTMLImageElement[] = new Array(FRAME_COUNT);
     for (let i = 0; i < FRAME_COUNT; i++) {
       const img = new Image();
       img.decoding = "async";
       img.onload = () => {
-        // First frame in → paint it immediately and tell the loader the hero
-        // has rendered (in case the splash is still up).
         if (i === 0 && !firstPainted) {
           firstPainted = true;
           requestRender();
@@ -164,7 +173,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             /* noop */
           }
         }
-        // If this newly-loaded frame is what we currently want, repaint.
         if (i === desiredIdxRef.current || drawnIdxRef.current < 0)
           requestRender();
       };
@@ -173,122 +181,266 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     }
     imgsRef.current = imgs;
 
-    // ── Reduced motion: one static frame, no scrub, no pin ──
-    if (reducedRef.current) {
-      desiredIdxRef.current = 0;
+    // Apply the visual fades for a given eased progress.
+    const applyFades = (e: number) => {
+      const headline = headlineRef.current;
+      if (headline) {
+        headline.style.opacity = clamp01(1 - e / 0.18).toFixed(3);
+        headline.style.transform = `translateY(${(e * -60).toFixed(1)}px)`;
+      }
+      const cue = cueRef.current;
+      if (cue) cue.style.opacity = clamp01(1 - e / 0.1).toFixed(3);
+    };
+    const restoreFades = () => {
+      const headline = headlineRef.current;
+      if (headline) {
+        headline.style.opacity = "1";
+        headline.style.transform = "translateY(0px)";
+      }
+      const cue = cueRef.current;
+      if (cue) cue.style.opacity = "1";
+    };
+
+    const onResize = () => {
+      setupCanvas();
       requestRender();
-      const onResize = () => {
-        setupCanvas();
-        requestRender();
-      };
-      window.addEventListener("resize", onResize, { passive: true });
+    };
+    window.addEventListener("resize", onResize, { passive: true });
+
+    // Paint the opening frame.
+    desiredIdxRef.current = 0;
+    requestRender();
+
+    // ── Reduced motion: one static frame, nothing else ──
+    if (reducedRef.current) {
       return () => {
         cancelAnimationFrame(rafRef.current);
         window.removeEventListener("resize", onResize);
       };
     }
 
-    // ── Scroll scrubber ──
-    const computeProgress = () => {
-      const sec = sectionRef.current;
-      if (!sec) return 0;
-      // The sticky child is pinned for exactly (section height − sticky height)
-      // of scroll, so basing the denominator on the sticky child's MEASURED
-      // height (not window.innerHeight) makes progress hit 1 precisely at unpin
-      // on every device — including mobile, where 100svh ≠ innerHeight while the
-      // browser chrome is expanded/collapsed.
-      const stickyH = stickyRef.current?.clientHeight ?? window.innerHeight;
-      const denom = sec.offsetHeight - stickyH;
-      if (denom <= 0) return 0;
-      const rect = sec.getBoundingClientRect();
-      return clamp01(-rect.top / denom);
-    };
-
-    const apply = () => {
-      const p = computeProgress();
-      desiredIdxRef.current = Math.round(p * (FRAME_COUNT - 1));
-      const headline = headlineRef.current;
-      if (headline) {
-        const o = clamp01(1 - p / 0.14);
-        headline.style.opacity = o.toFixed(3);
-        headline.style.transform = `translateY(${(p * -60).toFixed(1)}px)`;
-      }
-      const cue = cueRef.current;
-      if (cue) cue.style.opacity = clamp01(1 - p / 0.08).toFixed(3);
-      // Pause the global ambient background while the hero owns the viewport.
+    const setHeroFlight = (on: boolean) => {
       try {
-        const pinned = p > 0 && p < 1;
-        document.documentElement.classList.toggle("hero-flight", pinned);
+        document.documentElement.classList.toggle("hero-flight", on);
       } catch {
         /* noop */
       }
+    };
+
+    // ── Shared timed playback ──
+    type State = "idle" | "playing" | "done";
+    let state: State = "idle";
+    let elapsed = 0;
+    let lastAt = 0;
+    let flightRaf = 0;
+    let blockOn = false;
+
+    const lenis = () =>
+      (window as unknown as { __lenis?: { stop?: () => void; start?: () => void; scrollTo?: (t: unknown, o?: unknown) => void } }).__lenis;
+
+    // Capture-phase swallow of scroll input during the locked desktop flight.
+    const swallow = (ev: Event) => {
+      if (ev.cancelable) ev.preventDefault();
+      ev.stopPropagation();
+    };
+    const blockKeys = (ev: KeyboardEvent) => {
+      const k = ev.key;
+      if (
+        k === "ArrowDown" || k === "ArrowUp" || k === "PageDown" ||
+        k === "PageUp" || k === " " || k === "Home" || k === "End"
+      ) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+    };
+    const attachBlock = () => {
+      if (blockOn) return;
+      blockOn = true;
+      window.addEventListener("wheel", swallow, { passive: false, capture: true });
+      window.addEventListener("touchmove", swallow, { passive: false, capture: true });
+      window.addEventListener("keydown", blockKeys, { capture: true });
+    };
+    const releaseBlock = () => {
+      if (!blockOn) return;
+      blockOn = false;
+      window.removeEventListener("wheel", swallow, { capture: true } as EventListenerOptions);
+      window.removeEventListener("touchmove", swallow, { capture: true } as EventListenerOptions);
+      window.removeEventListener("keydown", blockKeys, { capture: true } as EventListenerOptions);
+    };
+
+    const handoffDesktop = () => {
+      state = "done";
+      releaseBlock();
+      setHeroFlight(false);
+      const l = lenis();
+      const target = document.getElementById("paths");
+      if (l && l.start) l.start();
+      if (l && l.scrollTo && target) {
+        l.scrollTo(target, {
+          offset: 0,
+          duration: 0.7,
+          easing: (t: number) => 1 - Math.pow(1 - t, 3),
+        });
+      } else if (target) {
+        target.scrollIntoView({ behavior: "smooth" });
+      }
+    };
+
+    const tick = (now: number) => {
+      const dt = Math.min(Math.max(now - lastAt, 0), 50);
+      lastAt = now;
+      elapsed += dt;
+      const p = clamp01(elapsed / PLAY_MS);
+      const e = easeFlight(p);
+      desiredIdxRef.current = Math.round(e * (FRAME_COUNT - 1));
+      applyFades(e);
       requestRender();
+      if (p >= 1) {
+        flightRaf = 0;
+        if (isMobile) {
+          state = "done";
+          setHeroFlight(false);
+        } else {
+          handoffDesktop();
+        }
+        return;
+      }
+      flightRaf = requestAnimationFrame(tick);
     };
 
-    let scrollRaf = 0;
-    const onScroll = () => {
-      if (scrollRaf) return;
-      scrollRaf = requestAnimationFrame(() => {
-        scrollRaf = 0;
-        apply();
-      });
-    };
-    const onResize = () => {
-      setupCanvas();
-      apply();
+    const startPlayback = (lock: boolean) => {
+      if (state !== "idle") return;
+      state = "playing";
+      elapsed = 0;
+      lastAt = performance.now();
+      setHeroFlight(true);
+      if (lock) {
+        const l = lenis();
+        if (l && l.stop) l.stop();
+        window.scrollTo(0, 0);
+        attachBlock();
+      }
+      cancelAnimationFrame(flightRaf);
+      flightRaf = requestAnimationFrame(tick);
     };
 
-    apply();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onResize, { passive: true });
+    // ── Desktop: trigger on first downward intent, then play locked ──
+    let cleanupTriggers = () => {};
+    if (!isMobile) {
+      const atTop = () => window.scrollY <= 2;
+      const onWheel = (ev: WheelEvent) => {
+        if (state !== "idle") return;
+        if (ev.deltaY > 0 && atTop()) {
+          if (ev.cancelable) ev.preventDefault();
+          startPlayback(true);
+        }
+      };
+      const onKey = (ev: KeyboardEvent) => {
+        if (state !== "idle" || !atTop()) return;
+        if (
+          ev.key === "ArrowDown" || ev.key === "PageDown" ||
+          ev.key === " " || ev.key === "End"
+        ) {
+          ev.preventDefault();
+          startPlayback(true);
+        }
+      };
+      // Fallback for scrollbar drags / any scroll that slips past wheel.
+      // Only fire on a genuine DOWNWARD move that STARTED at the very top, so a
+      // restored mid-page scroll position on load can never auto-trigger it.
+      let prevY = window.scrollY;
+      const onScrollTrigger = () => {
+        const y = window.scrollY;
+        const goingDown = y > prevY;
+        const wasAtTop = prevY <= 2;
+        prevY = y;
+        if (state === "idle" && goingDown && wasAtTop && y > 2 && y < window.innerHeight * 0.6) {
+          startPlayback(true);
+        }
+      };
+      // Re-arm when the user returns to the very top after a flight.
+      const onScrollReset = () => {
+        if (state === "done" && window.scrollY < 8) {
+          state = "idle";
+          elapsed = 0;
+          desiredIdxRef.current = 0;
+          restoreFades();
+          setHeroFlight(false);
+          requestRender();
+        }
+      };
+      window.addEventListener("wheel", onWheel, { passive: false });
+      window.addEventListener("keydown", onKey);
+      window.addEventListener("scroll", onScrollTrigger, { passive: true });
+      window.addEventListener("scroll", onScrollReset, { passive: true });
+      cleanupTriggers = () => {
+        window.removeEventListener("wheel", onWheel);
+        window.removeEventListener("keydown", onKey);
+        window.removeEventListener("scroll", onScrollTrigger);
+        window.removeEventListener("scroll", onScrollReset);
+      };
+    } else {
+      // ── Mobile: autoplay once, no scroll-lock, no auto-scroll ──
+      let started = false;
+      let mobileTimer = 0;
+      const startOnce = () => {
+        if (started) return;
+        started = true;
+        startPlayback(false);
+      };
+      const onFirst = () => {
+        window.removeEventListener("refgd:scene-ready", onFirst);
+        mobileTimer = window.setTimeout(startOnce, 200);
+      };
+      // Play as soon as the first frame is ready (it's on screen at load).
+      if (isReady(imgs[0])) {
+        mobileTimer = window.setTimeout(startOnce, 350);
+      } else {
+        window.addEventListener("refgd:scene-ready", onFirst);
+      }
+      cleanupTriggers = () => {
+        window.clearTimeout(mobileTimer);
+        window.removeEventListener("refgd:scene-ready", onFirst);
+      };
+    }
 
     return () => {
       cancelAnimationFrame(rafRef.current);
-      cancelAnimationFrame(scrollRaf);
-      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(flightRaf);
+      releaseBlock();
+      cleanupTriggers();
       window.removeEventListener("resize", onResize);
-      try {
-        document.documentElement.classList.remove("hero-flight");
-      } catch {
-        /* noop */
-      }
+      const l = lenis();
+      if (l && l.start) l.start();
+      setHeroFlight(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, reduced, isMobile]);
-
-  // Tall section = scroll runway for the scrub. The sticky child below pins a
-  // full-viewport canvas while the user scrolls through this height. Reduced
-  // motion collapses to a single static viewport.
-  const sectionHeight = reduced ? "100svh" : isMobile ? "200svh" : "260svh";
 
   return (
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      className="relative w-full"
-      style={{ height: sectionHeight }}
+      className="relative w-full overflow-hidden"
+      style={{ height: "100svh" }}
     >
+      {/* Solid near-black backdrop so the hero is never blank before the first
+          frame paints. */}
       <div
-        ref={stickyRef}
-        className="sticky top-0 grid w-full place-items-center overflow-hidden"
-        style={{ height: "100svh", contain: "layout paint", background: "#05060a" }}
-      >
-        {/* Solid near-black backdrop so the hero is never blank before the first
-            frame paints. */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0"
-          style={{ background: "#05060a" }}
-        />
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "#05060a" }}
+      />
 
-        {/* ── Scroll-scrubbed cinematic frame sequence ── */}
-        <canvas
-          ref={canvasRef}
-          aria-hidden="true"
-          className="absolute inset-0 h-full w-full"
-          style={{ display: "block" }}
-        />
+      {/* ── Cinematic frame sequence ── */}
+      <canvas
+        ref={canvasRef}
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full"
+        style={{ display: "block" }}
+      />
 
+      <div className="absolute inset-0 grid place-items-center">
         {/* ── WELCOME headline ── */}
         <motion.div
           ref={headlineRef}
@@ -306,39 +458,39 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             delay={0.15}
           />
         </motion.div>
+      </div>
 
-        {/* ── Bold, unmissable scroll cue ── */}
-        <div
-          ref={cueRef}
-          data-testid="hero-scroll-indicator"
-          className="absolute bottom-10 z-[6] flex flex-col items-center gap-3 text-white"
-          style={{ opacity: 1 }}
+      {/* ── Bold, unmissable scroll cue ── */}
+      <div
+        ref={cueRef}
+        data-testid="hero-scroll-indicator"
+        className="absolute bottom-10 left-1/2 z-[6] flex -translate-x-1/2 flex-col items-center gap-3 text-white"
+        style={{ opacity: 1 }}
+      >
+        <style>{`
+          @keyframes cj-cue-bounce {
+            0%, 100% { transform: translateY(0); opacity: 1; }
+            50%      { transform: translateY(7px); opacity: 0.55; }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .cj-cue-chevron { animation: none !important; }
+          }
+        `}</style>
+        <span
+          className="heading-display rounded-full border border-amber-200/40 bg-black/30 px-5 py-2 text-[11px] font-bold uppercase tracking-[0.4em] backdrop-blur-sm sm:text-sm"
+          style={{ textShadow: "0 2px 14px rgba(0,0,0,0.95), 0 0 22px rgba(255,237,180,0.55)" }}
         >
-          <style>{`
-            @keyframes cj-cue-bounce {
-              0%, 100% { transform: translateY(0); opacity: 1; }
-              50%      { transform: translateY(7px); opacity: 0.55; }
-            }
-            @media (prefers-reduced-motion: reduce) {
-              .cj-cue-chevron { animation: none !important; }
-            }
-          `}</style>
-          <span
-            className="heading-display rounded-full border border-amber-200/40 bg-black/30 px-5 py-2 text-[11px] font-bold uppercase tracking-[0.4em] backdrop-blur-sm sm:text-sm"
-            style={{ textShadow: "0 2px 14px rgba(0,0,0,0.95), 0 0 22px rgba(255,237,180,0.55)" }}
-          >
-            Scroll to choose your path
-          </span>
-          <svg
-            className="cj-cue-chevron h-6 w-6 text-amber-200"
-            viewBox="0 0 24 24"
-            fill="none"
-            aria-hidden="true"
-            style={{ animation: "cj-cue-bounce 1.6s ease-in-out infinite", filter: "drop-shadow(0 0 8px rgba(255,237,180,0.7))" }}
-          >
-            <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
+          Scroll to begin
+        </span>
+        <svg
+          className="cj-cue-chevron h-6 w-6 text-amber-200"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+          style={{ animation: "cj-cue-bounce 1.6s ease-in-out infinite", filter: "drop-shadow(0 0 8px rgba(255,237,180,0.7))" }}
+        >
+          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </div>
     </section>
   );
