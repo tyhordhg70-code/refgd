@@ -46,6 +46,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const [isMobile, setIsMobile] = useState(false);
 
   const sectionRef = useRef<HTMLElement | null>(null);
+  const stickyRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const headlineRef = useRef<HTMLDivElement | null>(null);
@@ -191,7 +192,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const computeProgress = () => {
       const sec = sectionRef.current;
       if (!sec) return 0;
-      const denom = sec.offsetHeight - window.innerHeight;
+      // The sticky child is pinned for exactly (section height − sticky height)
+      // of scroll, so basing the denominator on the sticky child's MEASURED
+      // height (not window.innerHeight) makes progress hit 1 precisely at unpin
+      // on every device — including mobile, where 100svh ≠ innerHeight while the
+      // browser chrome is expanded/collapsed.
+      const stickyH = stickyRef.current?.clientHeight ?? window.innerHeight;
+      const denom = sec.offsetHeight - stickyH;
       if (denom <= 0) return 0;
       const rect = sec.getBoundingClientRect();
       return clamp01(-rect.top / denom);
@@ -262,6 +269,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       style={{ height: sectionHeight }}
     >
       <div
+        ref={stickyRef}
         className="sticky top-0 grid w-full place-items-center overflow-hidden"
         style={{ height: "100svh", contain: "layout paint", background: "#05060a" }}
       >
