@@ -66,6 +66,16 @@ const nextConfig = {
               { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
             ],
           },
+          {
+            // Scroll-scrubbed hero frame sequence (f_001.webp … f_101.webp).
+            // Content-stable and 1-indexed, so cache them for a year — the
+            // browser reuses every frame on repeat visits instead of re-pulling
+            // the whole sequence. public/ otherwise serves with max-age=0.
+            source: "/hero-frames/:path*",
+            headers: [
+              { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+            ],
+          },
         ];
       },
       async redirects() {

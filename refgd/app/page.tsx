@@ -37,13 +37,12 @@ export default async function HomePage() {
 
   return (
     <>
-      {/* Start streaming the heavy 3D hero scene at the very first byte of the
-          page (home only) so the ~23 MB scene.splinecode downloads in parallel
-          with hydration instead of starting late, after the React tree mounts
-          and the lazy Spline chunk resolves. Next hoists these <link>s into
-          <head>. The scene is still large — the durable fix is re-exporting it
-          lighter in Spline — but this removes seconds of "blank backdrop". */}
-      <link rel="preload" as="fetch" href="/hero-scene.splinecode" />
+      {/* The hero is now a scroll-scrubbed WebP image sequence (~2.4 MB total)
+          instead of the ~23 MB Spline WebGL scene — no heavy download, no render
+          loop, no scene-tied loading screen. Preload only the FIRST frame so the
+          hero paints the instant the page reveals; the remaining frames stream
+          in behind it and are served immutably (see next.config headers). */}
+      <link rel="preload" as="image" href="/hero-frames/f_001.webp" />
 
       {/* HomeBackground (orbs + gradient particles + star field) REMOVED:
           it mounted `fixed inset-0 z-[1]` while the hero section carries no

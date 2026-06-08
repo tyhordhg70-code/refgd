@@ -75,10 +75,11 @@ export function sceneEligible(): boolean {
  * same-origin assets (e.g. the evade frame sequence) are handled by their
  * own component plus the scene-ready signal and don't need listing here.
  */
-export function heavyAssetsForPath(pathname: string): HeavyAsset[] {
-  if (norm(pathname) === "/" && sceneEligible()) {
-    return [{ url: HOME_SCENE_URL, bytesHint: 23_000_000 }];
-  }
+export function heavyAssetsForPath(_pathname: string): HeavyAsset[] {
+  // The home hero no longer pulls the ~23 MB Spline scene — it is now a tiny
+  // (~2.4 MB) scroll-scrubbed WebP frame sequence that paints its first frame
+  // instantly and streams the rest behind the page. So there is no heavy
+  // cross-network asset to gate the reveal on; the loader uses its fast path.
   return [];
 }
 
@@ -90,7 +91,9 @@ export function heavyAssetsForPath(pathname: string): HeavyAsset[] {
  */
 export function pathHasScene(pathname: string): boolean {
   const p = norm(pathname);
-  if (p === "/") return sceneEligible();
+  // Home no longer mounts a WebGL scene that announces `refgd:scene-ready`; its
+  // hero is a canvas frame sequence that paints immediately, so the loader must
+  // NOT wait on a scene-ready signal here (it would never resolve the long way).
   if (p === "/evade-cancelations") return true;
   return false;
 }
