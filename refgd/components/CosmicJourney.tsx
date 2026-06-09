@@ -262,6 +262,42 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       handoffRaf = requestAnimationFrame(drive);
     };
 
+    // ── Reverse handoff: upward intent near the hero/#paths boundary glides
+    //    all the way back to the very TOP so the visitor is never parked
+    //    between the hero and the first section. Mirror of startHandoff. ──
+    const startHandoffUp = () => {
+      if (state !== "done") return;
+      state = "handoff";
+      setHeroFlight(true);
+      attachBlock();
+      const l = lenis();
+      if (l && l.start) l.start();
+      if (l && l.scrollTo) {
+        l.scrollTo(0, {
+          offset: 0,
+          duration: HANDOFF_MS / 1000,
+          easing: (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
+        });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      const t0 = performance.now();
+      const drive = (now: number) => {
+        const e = clamp01((now - t0) / HANDOFF_MS);
+        // Ease the welcome text back IN (1 → 0 = faded → fully visible).
+        applyFades(1 - e);
+        if (e >= 1) {
+          state = "idle";
+          releaseBlock();
+          setHeroFlight(false);
+          restoreFades();
+          return;
+        }
+        handoffRaf = requestAnimationFrame(drive);
+      };
+      handoffRaf = requestAnimationFrame(drive);
+    };
+
     // ── Off-screen suspend (perf): stop loop AND sampling when hero leaves ──
     const io = new IntersectionObserver(
       ([entry]) => {
@@ -285,21 +321,32 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     let cleanupTriggers = () => {};
     if (!isMobileRef.current) {
       const atTop = () => window.scrollY <= 2;
+      // Upward intent counts only while still inside the hero/#paths boundary
+      // zone (≈ one viewport below the top). Scrolling up from deeper in the
+      // page navigates normally and never yanks the visitor to the top.
+      const nearBoundary = () => window.scrollY <= window.innerHeight * 1.15;
       const onWheel = (ev: WheelEvent) => {
-        if (state !== "idle") return;
-        if (ev.deltaY > 0 && atTop()) {
+        if (state === "idle" && ev.deltaY > 0 && atTop()) {
           if (ev.cancelable) ev.preventDefault();
           startHandoff();
+        } else if (state === "done" && ev.deltaY < 0 && nearBoundary()) {
+          if (ev.cancelable) ev.preventDefault();
+          startHandoffUp();
         }
       };
       const onKey = (ev: KeyboardEvent) => {
-        if (state !== "idle" || !atTop()) return;
         if (
-          ev.key === "ArrowDown" || ev.key === "PageDown" ||
-          ev.key === " " || ev.key === "End"
+          state === "idle" && atTop() &&
+          (ev.key === "ArrowDown" || ev.key === "PageDown" || ev.key === " " || ev.key === "End")
         ) {
           ev.preventDefault();
           startHandoff();
+        } else if (
+          state === "done" && nearBoundary() &&
+          (ev.key === "ArrowUp" || ev.key === "PageUp" || ev.key === "Home")
+        ) {
+          ev.preventDefault();
+          startHandoffUp();
         }
       };
       // Fallback for scrollbar drags: only a genuine DOWNWARD move that STARTED
@@ -428,6 +475,21 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           background:
             "radial-gradient(115% 115% at 50% 50%, transparent 34%, rgba(var(--glow), 0.45) 66%, rgba(var(--glow), 0.85) 92%, rgba(var(--glow), 0.95) 100%)",
           filter: "blur(55px)",
+          mixBlendMode: "screen",
+          transition: "background 0.25s linear",
+        }}
+      />
+
+      {/* Extra CORNER glow — four radial pools anchored to each corner so the
+          color reads strongest in the corners (on top of the edge band). */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute"
+        style={{
+          inset: "-12%",
+          background:
+            "radial-gradient(46% 46% at 0% 0%, rgba(var(--glow), 0.9), transparent 72%), radial-gradient(46% 46% at 100% 0%, rgba(var(--glow), 0.9), transparent 72%), radial-gradient(46% 46% at 0% 100%, rgba(var(--glow), 0.9), transparent 72%), radial-gradient(46% 46% at 100% 100%, rgba(var(--glow), 0.9), transparent 72%)",
+          filter: "blur(45px)",
           mixBlendMode: "screen",
           transition: "background 0.25s linear",
         }}
