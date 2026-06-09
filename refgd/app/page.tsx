@@ -37,12 +37,13 @@ export default async function HomePage() {
 
   return (
     <>
-      {/* The hero is now a single pre-rendered cinematic clip (~5.5 MB webm)
-          instead of the ~23 MB Spline WebGL scene or the WebP frame sequence —
-          no render loop, no scene-tied loading screen. Preload it so it is
-          buffered and ready to play on the first scroll; it is served immutably
-          (see next.config headers). */}
-      <link rel="preload" as="video" href="/sphere-montage.mp4" type="video/mp4" />
+      {/* The hero is a looping sphere montage played via <video>. We do NOT
+          high-priority preload the clip — a `rel=preload as=video` forces the
+          whole multi-MB file to fetch ahead of the page's own HTML/JS and makes
+          first paint feel stuck. The <video preload="auto"> tag fetches it at a
+          normal priority after the page is usable, and a lightweight poster
+          (sphere-poster.webp) shows instantly. The clip is cached immutably
+          (next.config headers + the middleware static-asset bypass). */}
 
       {/* HomeBackground (orbs + gradient particles + star field) REMOVED:
           it mounted `fixed inset-0 z-[1]` while the hero section carries no

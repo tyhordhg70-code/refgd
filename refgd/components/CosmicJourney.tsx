@@ -390,6 +390,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         autoPlay={!reduced}
         playsInline
         preload="auto"
+        poster="/sphere-poster.webp"
         style={{
           height: "94%",
           maxWidth: "100%",
@@ -405,27 +406,30 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         <source src={VIDEO_SRC_MP4} type="video/mp4" />
       </video>
 
-      {/* Soft blurred gradient EDGES, tinted to the sphere color. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute"
-        style={{
-          inset: "-10%",
-          background:
-            "radial-gradient(120% 120% at 50% 50%, transparent 42%, rgba(var(--glow), 0.20) 82%, rgba(var(--glow), 0.42) 100%)",
-          filter: "blur(45px)",
-          mixBlendMode: "screen",
-          transition: "background 0.25s linear",
-        }}
-      />
-
-      {/* Dark scrim behind the text for white-text legibility. */}
+      {/* Dark scrim behind the text for white-text legibility. Rendered BEFORE
+          the colored edges so the edge glow paints on top and stays vivid
+          instead of being darkened by the scrim at the borders. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{
           background:
             "radial-gradient(60% 45% at 50% 42%, rgba(0,0,0,0.55), transparent 70%), linear-gradient(to bottom, rgba(0,0,0,0.38), transparent 30%, transparent 68%, rgba(0,0,0,0.48))",
+        }}
+      />
+
+      {/* Soft blurred gradient EDGES, tinted live to the sphere color. Wide,
+          strong band so the color is clearly visible around the whole frame. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute"
+        style={{
+          inset: "-12%",
+          background:
+            "radial-gradient(115% 115% at 50% 50%, transparent 34%, rgba(var(--glow), 0.45) 66%, rgba(var(--glow), 0.85) 92%, rgba(var(--glow), 0.95) 100%)",
+          filter: "blur(55px)",
+          mixBlendMode: "screen",
+          transition: "background 0.25s linear",
         }}
       />
 

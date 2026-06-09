@@ -48,6 +48,17 @@ export function middleware(req: NextRequest) {
   const url = req.nextUrl;
   const p = url.pathname;
 
+  // Static public assets MUST stay cacheable. Forcing no-store on them (the
+  // matcher below catches everything outside /_next) re-downloads multi-MB
+  // files — notably the hero video — on EVERY visit and refresh, which makes
+  // the site feel like it never loads and makes the video stutter. Let
+  // next.config.mjs headers() govern caching for these instead.
+  if (
+    /\.(?:mp4|webm|mov|m4v|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|mp3|wav|css|js|mjs|map|txt|json|pdf)$/i.test(p)
+  ) {
+    return NextResponse.next();
+  }
+
   if (adminPath === "admin") return withNoStore(NextResponse.next());
 
   // Rewrite /<adminPath>(/...) → /admin(/...) — keeps the obscure URL
