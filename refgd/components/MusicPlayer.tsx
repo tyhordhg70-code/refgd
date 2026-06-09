@@ -264,7 +264,17 @@ export default function MusicPlayer() {
           a.volume = 0;
         }
         const p = a.play();
-        if (p) p.catch(() => {});
+        if (p) {
+          p.then(() => {
+            // If canplay successfully started audio for a non-muted
+            // visitor, fade in and drop the interaction listeners so they
+            // don't linger — the gesture-driven unmute is no longer needed.
+            if (cancelled || mutedRef.current) return;
+            a.muted = false;
+            fadeVolumeTo(TARGET_VOLUME, FADE_MS);
+            detach();
+          }).catch(() => {});
+        }
       }
     };
     a.addEventListener("canplay", onCanPlay, { once: true });
