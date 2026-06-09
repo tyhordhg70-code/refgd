@@ -166,9 +166,26 @@ export default function MusicPlayer() {
       // mobile browsers actually authorise sound. Don't depend on the
       // muted-attempt above already running.
       const p = a.play();
-      if (p) p.catch(() => {});
-      fadeVolumeTo(TARGET_VOLUME, FADE_MS);
-      detach();
+      if (p) {
+        p.then(() => {
+          if (cancelled) return;
+          fadeVolumeTo(TARGET_VOLUME, FADE_MS);
+          // Only stop listening once sound is ACTUALLY playing.
+          detach();
+        }).catch(() => {
+          // The gesture didn't start audio (commonly the clip wasn't
+          // buffered yet at that instant, or the browser refused this
+          // particular gesture). Previously we detached here regardless,
+          // which left the page permanently silent — no listeners, no
+          // retry. Now we KEEP the listeners attached so the visitor's
+          // NEXT gesture tries again, and the canplay handler below also
+          // retries the moment enough audio has buffered.
+        });
+      } else {
+        // Legacy browsers: play() returns void → assume it started.
+        fadeVolumeTo(TARGET_VOLUME, FADE_MS);
+        detach();
+      }
     };
 
     function attachUnmuteListeners() {
