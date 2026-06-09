@@ -86,6 +86,15 @@ const nextConfig = {
               { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
             ],
           },
+          {
+            // Looping color-changing sphere montage (current hero clip).
+            // Content-stable single file → cache for a year so it is reused on
+            // repeat visits instead of re-pulling ~13 MB every time.
+            source: "/sphere-montage.mp4",
+            headers: [
+              { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+            ],
+          },
         ];
       },
       async redirects() {

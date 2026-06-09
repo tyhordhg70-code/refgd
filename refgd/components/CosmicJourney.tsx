@@ -4,29 +4,30 @@ import { motion, useReducedMotion } from "framer-motion";
 import KineticText from "./KineticText";
 
 /**
- * CosmicJourney — first-scroll timed cinematic hero.
+ * CosmicJourney — looping color-changing sphere hero.
  *
- * Earlier versions mounted a ~23 MB Spline WebGL galaxy, then a 101-frame WebP
- * <canvas> sequence. This version plays a single pre-rendered cinematic clip
- * (`/hero-cinematic.webm`) — the perfected portal fly-in recorded on the
- * owner's GPU — through a <video> element. No WebGL, no per-frame canvas work.
+ * History: this hero was a ~23 MB Spline WebGL galaxy, then a 101-frame WebP
+ * <canvas> sequence, then a one-shot pre-rendered cinematic clip. It now loops
+ * the owner's "magic spheres" montage through a <video> element, with the page
+ * chrome reacting to the sphere's changing color:
  *
- * The clip is driven like a short film, NOT scrubbed:
- *
- *   • Desktop: the hero holds on the opening frame. The user's FIRST downward
- *     scroll TRIGGERS the clip, which plays through on its own while the page is
- *     held still; when it ends, the page AUTO-SCROLLS down to the paths section.
- *     One scroll = the whole cinematic + hand-off. Scroll back to the very top
- *     and it re-arms.
- *   • Mobile: the clip auto-plays once when the hero is on screen, with no
- *     scroll-locking and no auto-scroll (the page scrolls normally).
- *   • prefers-reduced-motion: a single static opening frame, no motion at all.
+ *   • The sphere clip LOOPS continuously while the hero is on screen.
+ *   • A tiny hidden canvas samples the video a few times a second and takes a
+ *     luminance-weighted average that ignores the black background and locks
+ *     onto the vivid orb color. That color drives a single CSS variable
+ *     (`--glow`) — no React re-renders — which tints an ambient glow behind the
+ *     orb, the soft blurred screen edges, and the paths-section wash.
+ *   • The WHITE welcome text sits over a soft dark scrim + text-shadow so it
+ *     stays legible no matter what color the sphere becomes.
+ *   • Hand-off: on the first downward intent (desktop) the page AUTO-SCROLLS
+ *     straight to the paths section, so the loop is never caught mid-scroll.
+ *     Scroll back to the very top and it re-arms. Mobile scrolls normally.
+ *   • The video pauses + sampling stops when the hero leaves the viewport, and
+ *     prefers-reduced-motion shows a single static frame.
  */
 
-// H.264 MP4 is hardware-decoded in every browser → smooth playback. The webm is
-// kept only as a fallback for the rare engine without MP4 support.
-const VIDEO_SRC_MP4 = "/hero-cinematic.mp4";
-const VIDEO_SRC_WEBM = "/hero-cinematic.webm";
+// H.264 MP4 is hardware-decoded in every browser → smooth playback.
+const VIDEO_SRC_MP4 = "/sphere-montage.mp4";
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
@@ -40,6 +41,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const headlineRef = useRef<HTMLDivElement | null>(null);
   const cueRef = useRef<HTMLDivElement | null>(null);
   const reducedRef = useRef(false);
+  const isMobileRef = useRef(false);
+  const sampleRafRef = useRef(0);
+  const inViewRef = useRef(true);
 
   useEffect(() => {
     setMounted(true);
@@ -47,8 +51,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   useEffect(() => {
     reducedRef.current = !!reduced;
   }, [reduced]);
+  useEffect(() => {
+    isMobileRef.current = isMobile;
+  }, [isMobile]);
 
-  // Viewport size watcher (mobile uses the no-jack autoplay path).
+  // Viewport size watcher (mobile scrolls normally, no auto-scroll hand-off).
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(max-width: 768px)");
@@ -58,21 +65,78 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // ── Wire the cinematic driver ──
+  // ── Dynamic color sampling → drives the --glow CSS variable ──
+  useEffect(() => {
+    if (typeof window === "undefined" || !mounted) return;
+    if (reducedRef.current) return;
+    const video = videoRef.current;
+    const root = sectionRef.current;
+    if (!video || !root) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 40;
+    canvas.height = 24;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+    let cur = [90, 130, 255]; // start on a cool blue
+    let last = 0;
+
+    const tick = (t: number) => {
+      sampleRafRef.current = requestAnimationFrame(tick);
+      if (!ctx || video.readyState < 2 || video.paused || !inViewRef.current) return;
+      if (t - last < 90) return; // ~11 Hz
+      last = t;
+      try {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let rs = 0, gs = 0, bs = 0, ws = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const lum = r + g + b;
+          if (lum < 70) continue; // skip the near-black background
+          const w = lum * lum; // emphasize the bright vivid core
+          rs += r * w; gs += g * w; bs += b * w; ws += w;
+        }
+        if (ws > 0) {
+          let r = rs / ws, g = gs / ws, b = bs / ws;
+          const avg = (r + g + b) / 3;
+          const k = 1.4; // saturation boost so the edge glow reads as a real color
+          r = Math.min(255, avg + (r - avg) * k);
+          g = Math.min(255, avg + (g - avg) * k);
+          b = Math.min(255, avg + (b - avg) * k);
+          cur = [
+            cur[0] + (r - cur[0]) * 0.12,
+            cur[1] + (g - cur[1]) * 0.12,
+            cur[2] + (b - cur[2]) * 0.12,
+          ];
+          root.style.setProperty(
+            "--glow",
+            `${Math.round(cur[0])}, ${Math.round(cur[1])}, ${Math.round(cur[2])}`,
+          );
+        }
+      } catch {
+        /* sampling can briefly throw before metadata is ready */
+      }
+    };
+    sampleRafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(sampleRafRef.current);
+  }, [mounted, reduced]);
+
+  // ── Loop playback, hand-off, and off-screen pause ──
   useEffect(() => {
     if (typeof window === "undefined" || !mounted) return;
     const video = videoRef.current;
-    if (!video) return;
+    const section = sectionRef.current;
+    if (!video || !section) return;
 
-    // Apply the visual fades for a given clip progress (0..1).
     const applyFades = (e: number) => {
       const headline = headlineRef.current;
       if (headline) {
-        headline.style.opacity = clamp01(1 - e / 0.18).toFixed(3);
-        headline.style.transform = `translateY(${(e * -60).toFixed(1)}px)`;
+        headline.style.opacity = clamp01(1 - e / 0.7).toFixed(3);
+        headline.style.transform = `translateY(${(e * -50).toFixed(1)}px)`;
       }
       const cue = cueRef.current;
-      if (cue) cue.style.opacity = clamp01(1 - e / 0.1).toFixed(3);
+      if (cue) cue.style.opacity = clamp01(1 - e / 0.4).toFixed(3);
     };
     const restoreFades = () => {
       const headline = headlineRef.current;
@@ -83,14 +147,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const cue = cueRef.current;
       if (cue) cue.style.opacity = "1";
     };
-
-    // Hold the clip on its opening frame until playback is triggered.
-    try {
-      video.pause();
-      video.currentTime = 0;
-    } catch {
-      /* noop */
-    }
 
     // Announce readiness for the loading screen (harmless if home isn't gated).
     let announced = false;
@@ -103,23 +159,29 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         /* noop */
       }
     };
-    const onLoadedData = () => {
-      try {
-        if (video.currentTime !== 0) video.currentTime = 0;
-      } catch {
-        /* noop */
-      }
-      announce();
-    };
+    const onLoadedData = () => announce();
     if (video.readyState >= 2) onLoadedData();
     else video.addEventListener("loadeddata", onLoadedData);
 
-    // ── Reduced motion: one static frame, nothing else ──
+    // ── Reduced motion: one static frame, no loop, no listeners ──
     if (reducedRef.current) {
+      try {
+        video.pause();
+        video.currentTime = 0;
+      } catch {
+        /* noop */
+      }
       return () => {
         video.removeEventListener("loadeddata", onLoadedData);
       };
     }
+
+    // Keep the sphere looping while it is on screen.
+    const playLoop = () => {
+      const p = video.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    };
+    playLoop();
 
     const setHeroFlight = (on: boolean) => {
       try {
@@ -129,16 +191,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
     };
 
-    // ── Shared timed playback ──
-    type State = "idle" | "playing" | "done";
-    let state: State = "idle";
-    let flightRaf = 0;
-    let blockOn = false;
-
     const lenis = () =>
       (window as unknown as { __lenis?: { stop?: () => void; start?: () => void; scrollTo?: (t: unknown, o?: unknown) => void } }).__lenis;
 
-    // Capture-phase swallow of scroll input during the locked desktop flight.
+    type State = "idle" | "handoff" | "done";
+    let state: State = "idle";
+    let handoffRaf = 0;
+    let blockOn = false;
+
+    // Capture-phase swallow of scroll input during the short auto-scroll glide.
     const swallow = (ev: Event) => {
       if (ev.cancelable) ev.preventDefault();
       ev.stopPropagation();
@@ -168,82 +229,61 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       window.removeEventListener("keydown", blockKeys, { capture: true } as EventListenerOptions);
     };
 
-    const handoffDesktop = () => {
-      state = "done";
-      releaseBlock();
-      setHeroFlight(false);
+    // Ease the welcome text out over the glide for a clean hand-off.
+    const HANDOFF_MS = 900;
+    const startHandoff = () => {
+      if (state !== "idle") return;
+      state = "handoff";
+      setHeroFlight(true);
+      attachBlock();
       const l = lenis();
       const target = document.getElementById("paths");
       if (l && l.start) l.start();
       if (l && l.scrollTo && target) {
         l.scrollTo(target, {
           offset: 0,
-          duration: 0.7,
-          easing: (t: number) => 1 - Math.pow(1 - t, 3),
+          duration: HANDOFF_MS / 1000,
+          easing: (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
         });
       } else if (target) {
         target.scrollIntoView({ behavior: "smooth" });
       }
+      const t0 = performance.now();
+      const drive = (now: number) => {
+        const e = clamp01((now - t0) / HANDOFF_MS);
+        applyFades(e);
+        if (e >= 1) {
+          state = "done";
+          releaseBlock();
+          setHeroFlight(false);
+          return;
+        }
+        handoffRaf = requestAnimationFrame(drive);
+      };
+      handoffRaf = requestAnimationFrame(drive);
     };
 
-    const finish = () => {
-      if (state !== "playing") return;
-      flightRaf = 0;
-      applyFades(1);
-      if (isMobile) {
-        state = "done";
-        setHeroFlight(false);
-      } else {
-        handoffDesktop();
-      }
-    };
+    // ── Off-screen pause (perf): stop the loop + sampling when the hero leaves ──
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        inViewRef.current = entry.isIntersecting;
+        if (reducedRef.current) return;
+        if (entry.isIntersecting) playLoop();
+        else video.pause();
+      },
+      { threshold: 0.2 },
+    );
+    io.observe(section);
 
-    // Drive the headline/cue fades from the clip's own playback position.
-    const tick = () => {
-      if (state !== "playing") return;
-      const dur = video.duration || 6;
-      const e = clamp01(video.currentTime / dur);
-      applyFades(e);
-      if (video.ended || e >= 0.999) {
-        finish();
-        return;
-      }
-      flightRaf = requestAnimationFrame(tick);
-    };
-
-    const onEnded = () => finish();
-    video.addEventListener("ended", onEnded);
-
-    const startPlayback = (lock: boolean) => {
-      if (state !== "idle") return;
-      state = "playing";
-      setHeroFlight(true);
-      if (lock) {
-        const l = lenis();
-        if (l && l.stop) l.stop();
-        window.scrollTo(0, 0);
-        attachBlock();
-      }
-      try {
-        video.currentTime = 0;
-        const p = video.play();
-        if (p && typeof p.catch === "function") p.catch(() => {});
-      } catch {
-        /* noop */
-      }
-      cancelAnimationFrame(flightRaf);
-      flightRaf = requestAnimationFrame(tick);
-    };
-
-    // ── Desktop: trigger on first downward intent, then play locked ──
+    // ── Desktop: first downward intent at the top → glide to #paths ──
     let cleanupTriggers = () => {};
-    if (!isMobile) {
+    if (!isMobileRef.current) {
       const atTop = () => window.scrollY <= 2;
       const onWheel = (ev: WheelEvent) => {
         if (state !== "idle") return;
         if (ev.deltaY > 0 && atTop()) {
           if (ev.cancelable) ev.preventDefault();
-          startPlayback(true);
+          startHandoff();
         }
       };
       const onKey = (ev: KeyboardEvent) => {
@@ -253,12 +293,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           ev.key === " " || ev.key === "End"
         ) {
           ev.preventDefault();
-          startPlayback(true);
+          startHandoff();
         }
       };
-      // Fallback for scrollbar drags / any scroll that slips past wheel.
-      // Only fire on a genuine DOWNWARD move that STARTED at the very top, so a
-      // restored mid-page scroll position on load can never auto-trigger it.
+      // Fallback for scrollbar drags: only a genuine DOWNWARD move that STARTED
+      // at the very top, so a restored mid-page scroll on load can't trigger it.
       let prevY = window.scrollY;
       const onScrollTrigger = () => {
         const y = window.scrollY;
@@ -266,20 +305,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         const wasAtTop = prevY <= 2;
         prevY = y;
         if (state === "idle" && goingDown && wasAtTop && y > 2 && y < window.innerHeight * 0.6) {
-          startPlayback(true);
+          startHandoff();
         }
       };
-      // Re-arm when the user returns to the very top after a flight.
+      // Re-arm when the user returns to the very top.
       const onScrollReset = () => {
         if (state === "done" && window.scrollY < 8) {
           state = "idle";
-          cancelAnimationFrame(flightRaf);
-          try {
-            video.pause();
-            video.currentTime = 0;
-          } catch {
-            /* noop */
-          }
+          cancelAnimationFrame(handoffRaf);
           restoreFades();
           setHeroFlight(false);
         }
@@ -294,36 +327,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         window.removeEventListener("scroll", onScrollTrigger);
         window.removeEventListener("scroll", onScrollReset);
       };
-    } else {
-      // ── Mobile: autoplay once, no scroll-lock, no auto-scroll ──
-      let started = false;
-      let mobileTimer = 0;
-      const startOnce = () => {
-        if (started) return;
-        started = true;
-        startPlayback(false);
-      };
-      const onFirst = () => {
-        window.removeEventListener("refgd:scene-ready", onFirst);
-        mobileTimer = window.setTimeout(startOnce, 200);
-      };
-      if (video.readyState >= 2) {
-        mobileTimer = window.setTimeout(startOnce, 350);
-      } else {
-        window.addEventListener("refgd:scene-ready", onFirst);
-      }
-      cleanupTriggers = () => {
-        window.clearTimeout(mobileTimer);
-        window.removeEventListener("refgd:scene-ready", onFirst);
-      };
     }
 
     return () => {
-      cancelAnimationFrame(flightRaf);
+      cancelAnimationFrame(handoffRaf);
       releaseBlock();
       cleanupTriggers();
+      io.disconnect();
       video.removeEventListener("loadeddata", onLoadedData);
-      video.removeEventListener("ended", onEnded);
       const l = lenis();
       if (l && l.start) l.start();
       setHeroFlight(false);
@@ -336,7 +347,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       ref={sectionRef}
       data-testid="cosmic-journey"
       className="relative w-full overflow-hidden"
-      style={{ height: "100svh" }}
+      style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >
       {/* Solid near-black backdrop so the hero is never blank before the first
           frame paints. */}
@@ -346,19 +357,70 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         style={{ background: "#05060a" }}
       />
 
-      {/* ── Cinematic clip ── */}
+      {/* Ambient glow behind the sphere — tinted to its current color. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-1/2"
+        style={{
+          width: "72vmin",
+          height: "72vmin",
+          transform: "translate(-50%, -50%)",
+          borderRadius: "50%",
+          background:
+            "radial-gradient(circle, rgba(var(--glow), 0.55), rgba(var(--glow), 0.12) 45%, transparent 68%)",
+          filter: "blur(70px)",
+          transition: "background 0.25s linear",
+        }}
+      />
+
+      {/* ── Looping sphere clip ── */}
       <video
         ref={videoRef}
         aria-hidden="true"
-        className="absolute inset-0 h-full w-full object-cover"
+        className="absolute left-1/2 top-1/2"
         muted
+        loop
+        autoPlay
         playsInline
         preload="auto"
-        style={{ display: "block" }}
+        style={{
+          height: "94%",
+          maxWidth: "100%",
+          transform: "translate(-50%, -50%)",
+          objectFit: "contain",
+          display: "block",
+          WebkitMaskImage:
+            "radial-gradient(circle at 50% 50%, #000 52%, transparent 72%)",
+          maskImage:
+            "radial-gradient(circle at 50% 50%, #000 52%, transparent 72%)",
+        }}
       >
         <source src={VIDEO_SRC_MP4} type="video/mp4" />
-        <source src={VIDEO_SRC_WEBM} type="video/webm" />
       </video>
+
+      {/* Soft blurred gradient EDGES, tinted to the sphere color. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute"
+        style={{
+          inset: "-10%",
+          background:
+            "radial-gradient(120% 120% at 50% 50%, transparent 42%, rgba(var(--glow), 0.20) 82%, rgba(var(--glow), 0.42) 100%)",
+          filter: "blur(45px)",
+          mixBlendMode: "screen",
+          transition: "background 0.25s linear",
+        }}
+      />
+
+      {/* Dark scrim behind the text for white-text legibility. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(60% 45% at 50% 42%, rgba(0,0,0,0.55), transparent 70%), linear-gradient(to bottom, rgba(0,0,0,0.38), transparent 30%, transparent 68%, rgba(0,0,0,0.48))",
+        }}
+      />
 
       <div className="absolute inset-0 grid place-items-center">
         {/* ── WELCOME headline ── */}

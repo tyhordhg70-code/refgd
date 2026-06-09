@@ -42,7 +42,7 @@ export default async function HomePage() {
           no render loop, no scene-tied loading screen. Preload it so it is
           buffered and ready to play on the first scroll; it is served immutably
           (see next.config headers). */}
-      <link rel="preload" as="video" href="/hero-cinematic.mp4" type="video/mp4" />
+      <link rel="preload" as="video" href="/sphere-montage.mp4" type="video/mp4" />
 
       {/* HomeBackground (orbs + gradient particles + star field) REMOVED:
           it mounted `fixed inset-0 z-[1]` while the hero section carries no
