@@ -52,7 +52,8 @@ function pickTrack() {
 
 function readMutePref() {
   if (typeof window === "undefined") return false;
-  try { return localStorage.getItem(MUTE_KEY) === "1"; } catch { return false; }
+  // Session-scoped so a stale mute from a prior visit never silences a new tab.
+  try { return sessionStorage.getItem(MUTE_KEY) === "1"; } catch { return false; }
 }
 
 export default function MusicPlayer() {
@@ -332,7 +333,7 @@ export default function MusicPlayer() {
     }
     const a = audioRef.current;
     if (!a || !track) return;
-    try { localStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch {}
+    try { sessionStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch {}
 
     if (muted) {
       // v6.13.37 — set element-level muted IMMEDIATELY so any stray

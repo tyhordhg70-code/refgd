@@ -317,14 +317,39 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     playLoop();
     startSampling();
 
-    // ── Desktop: first downward intent at the top → glide to #paths ──
-    let cleanupTriggers = () => {};
+    // ── Scroll snap — works on BOTH mobile (scroll events) and desktop ──
+    // Fires on every native scroll: down from top → glide to #paths;
+    // up near the boundary → glide back to top. Never yanks from deep content.
+    const atTop = () => window.scrollY <= 2;
+    const nearBoundary = () => window.scrollY <= window.innerHeight * 1.15;
+    let prevY = window.scrollY;
+    const onScrollTrigger = () => {
+      const y = window.scrollY;
+      const goingDown = y > prevY;
+      const goingUp = y < prevY;
+      const wasAtTop = prevY <= 2;
+      prevY = y;
+      if (state === "idle" && goingDown && wasAtTop && y > 2 && y < window.innerHeight * 0.6) {
+        startHandoff();
+      } else if (state === "done" && goingUp && nearBoundary()) {
+        startHandoffUp();
+      }
+    };
+    // Re-arm when the user returns to the very top manually.
+    const onScrollReset = () => {
+      if (state === "done" && window.scrollY < 8) {
+        state = "idle";
+        cancelAnimationFrame(handoffRaf);
+        restoreFades();
+        setHeroFlight(false);
+      }
+    };
+    window.addEventListener("scroll", onScrollTrigger, { passive: true });
+    window.addEventListener("scroll", onScrollReset, { passive: true });
+
+    // ── Desktop only: precise wheel/keyboard triggers on top of scroll ──
+    let cleanupDesktop = () => {};
     if (!isMobileRef.current) {
-      const atTop = () => window.scrollY <= 2;
-      // Upward intent counts only while still inside the hero/#paths boundary
-      // zone (≈ one viewport below the top). Scrolling up from deeper in the
-      // page navigates normally and never yanks the visitor to the top.
-      const nearBoundary = () => window.scrollY <= window.innerHeight * 1.15;
       const onWheel = (ev: WheelEvent) => {
         if (state === "idle" && ev.deltaY > 0 && atTop()) {
           if (ev.cancelable) ev.preventDefault();
@@ -349,38 +374,19 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           startHandoffUp();
         }
       };
-      // Fallback for scrollbar drags: only a genuine DOWNWARD move that STARTED
-      // at the very top, so a restored mid-page scroll on load can't trigger it.
-      let prevY = window.scrollY;
-      const onScrollTrigger = () => {
-        const y = window.scrollY;
-        const goingDown = y > prevY;
-        const wasAtTop = prevY <= 2;
-        prevY = y;
-        if (state === "idle" && goingDown && wasAtTop && y > 2 && y < window.innerHeight * 0.6) {
-          startHandoff();
-        }
-      };
-      // Re-arm when the user returns to the very top.
-      const onScrollReset = () => {
-        if (state === "done" && window.scrollY < 8) {
-          state = "idle";
-          cancelAnimationFrame(handoffRaf);
-          restoreFades();
-          setHeroFlight(false);
-        }
-      };
       window.addEventListener("wheel", onWheel, { passive: false });
       window.addEventListener("keydown", onKey);
-      window.addEventListener("scroll", onScrollTrigger, { passive: true });
-      window.addEventListener("scroll", onScrollReset, { passive: true });
-      cleanupTriggers = () => {
+      cleanupDesktop = () => {
         window.removeEventListener("wheel", onWheel);
         window.removeEventListener("keydown", onKey);
-        window.removeEventListener("scroll", onScrollTrigger);
-        window.removeEventListener("scroll", onScrollReset);
       };
     }
+
+    let cleanupTriggers = () => {
+      window.removeEventListener("scroll", onScrollTrigger);
+      window.removeEventListener("scroll", onScrollReset);
+      cleanupDesktop();
+    };
 
     return () => {
       cancelAnimationFrame(handoffRaf);
@@ -439,10 +445,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         preload="auto"
         poster="/sphere-poster.webp"
         style={{
-          height: "94%",
-          maxWidth: "100%",
+          width: "100%",
+          height: "100%",
           transform: "translate(-50%, -50%)",
-          objectFit: "contain",
+          objectFit: "cover",
           display: "block",
           WebkitMaskImage:
             "radial-gradient(circle at 50% 50%, #000 52%, transparent 72%)",
