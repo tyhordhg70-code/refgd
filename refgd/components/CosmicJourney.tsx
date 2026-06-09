@@ -352,8 +352,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         muted
         playsInline
         preload="auto"
-        // @ts-expect-error — non-standard attr, but harmless and used by iOS
-        webkit-playsinline="true"
         style={{ display: "block" }}
       />
 
