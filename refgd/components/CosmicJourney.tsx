@@ -16,14 +16,15 @@ import KineticText from "./KineticText";
  *     luminance-weighted average that ignores the black background and locks
  *     onto the vivid orb color. That color drives a single CSS variable
  *     (`--glow`) — no React re-renders — which tints an ambient glow behind the
- *     orb, the soft blurred screen edges, and the paths-section wash.
+ *     orb and the soft blurred screen edges.
  *   • The WHITE welcome text sits over a soft dark scrim + text-shadow so it
  *     stays legible no matter what color the sphere becomes.
  *   • Hand-off: on the first downward intent (desktop) the page AUTO-SCROLLS
  *     straight to the paths section, so the loop is never caught mid-scroll.
  *     Scroll back to the very top and it re-arms. Mobile scrolls normally.
- *   • The video pauses + sampling stops when the hero leaves the viewport, and
- *     prefers-reduced-motion shows a single static frame.
+ *   • The video AND the color sampling both stop when the hero leaves the
+ *     viewport (no idle work); prefers-reduced-motion shows a static frame
+ *     with no playback, no sampling, and no listeners.
  */
 
 // H.264 MP4 is hardware-decoded in every browser → smooth playback.
@@ -42,8 +43,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const cueRef = useRef<HTMLDivElement | null>(null);
   const reducedRef = useRef(false);
   const isMobileRef = useRef(false);
-  const sampleRafRef = useRef(0);
-  const inViewRef = useRef(true);
 
   useEffect(() => {
     setMounted(true);
@@ -65,64 +64,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // ── Dynamic color sampling → drives the --glow CSS variable ──
-  useEffect(() => {
-    if (typeof window === "undefined" || !mounted) return;
-    if (reducedRef.current) return;
-    const video = videoRef.current;
-    const root = sectionRef.current;
-    if (!video || !root) return;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = 40;
-    canvas.height = 24;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
-    let cur = [90, 130, 255]; // start on a cool blue
-    let last = 0;
-
-    const tick = (t: number) => {
-      sampleRafRef.current = requestAnimationFrame(tick);
-      if (!ctx || video.readyState < 2 || video.paused || !inViewRef.current) return;
-      if (t - last < 90) return; // ~11 Hz
-      last = t;
-      try {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        let rs = 0, gs = 0, bs = 0, ws = 0;
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i + 1], b = data[i + 2];
-          const lum = r + g + b;
-          if (lum < 70) continue; // skip the near-black background
-          const w = lum * lum; // emphasize the bright vivid core
-          rs += r * w; gs += g * w; bs += b * w; ws += w;
-        }
-        if (ws > 0) {
-          let r = rs / ws, g = gs / ws, b = bs / ws;
-          const avg = (r + g + b) / 3;
-          const k = 1.4; // saturation boost so the edge glow reads as a real color
-          r = Math.min(255, avg + (r - avg) * k);
-          g = Math.min(255, avg + (g - avg) * k);
-          b = Math.min(255, avg + (b - avg) * k);
-          cur = [
-            cur[0] + (r - cur[0]) * 0.12,
-            cur[1] + (g - cur[1]) * 0.12,
-            cur[2] + (b - cur[2]) * 0.12,
-          ];
-          root.style.setProperty(
-            "--glow",
-            `${Math.round(cur[0])}, ${Math.round(cur[1])}, ${Math.round(cur[2])}`,
-          );
-        }
-      } catch {
-        /* sampling can briefly throw before metadata is ready */
-      }
-    };
-    sampleRafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(sampleRafRef.current);
-  }, [mounted, reduced]);
-
-  // ── Loop playback, hand-off, and off-screen pause ──
+  // ── Loop playback, color sampling, hand-off, and off-screen suspend ──
   useEffect(() => {
     if (typeof window === "undefined" || !mounted) return;
     const video = videoRef.current;
@@ -163,7 +105,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     if (video.readyState >= 2) onLoadedData();
     else video.addEventListener("loadeddata", onLoadedData);
 
-    // ── Reduced motion: one static frame, no loop, no listeners ──
+    // ── Reduced motion: one static frame, no loop, no sampling, no listeners ──
     if (reducedRef.current) {
       try {
         video.pause();
@@ -176,12 +118,69 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       };
     }
 
+    // ── Color sampling → drives the --glow CSS variable (no React re-renders) ──
+    const canvas = document.createElement("canvas");
+    canvas.width = 40;
+    canvas.height = 24;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    let cur = [90, 130, 255]; // start on a cool blue
+    let lastSample = 0;
+    let sampleRaf = 0;
+    let sampling = false;
+
+    const sampleTick = (t: number) => {
+      if (!sampling) return;
+      sampleRaf = requestAnimationFrame(sampleTick);
+      if (!ctx || video.readyState < 2 || video.paused) return;
+      if (t - lastSample < 90) return; // ~11 Hz
+      lastSample = t;
+      try {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let rs = 0, gs = 0, bs = 0, ws = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const lum = r + g + b;
+          if (lum < 70) continue; // skip the near-black background
+          const w = lum * lum; // emphasize the bright vivid core
+          rs += r * w; gs += g * w; bs += b * w; ws += w;
+        }
+        if (ws > 0) {
+          let r = rs / ws, g = gs / ws, b = bs / ws;
+          const avg = (r + g + b) / 3;
+          const k = 1.4; // saturation boost so the edge glow reads as a real color
+          r = Math.min(255, avg + (r - avg) * k);
+          g = Math.min(255, avg + (g - avg) * k);
+          b = Math.min(255, avg + (b - avg) * k);
+          cur = [
+            cur[0] + (r - cur[0]) * 0.12,
+            cur[1] + (g - cur[1]) * 0.12,
+            cur[2] + (b - cur[2]) * 0.12,
+          ];
+          section.style.setProperty(
+            "--glow",
+            `${Math.round(cur[0])}, ${Math.round(cur[1])}, ${Math.round(cur[2])}`,
+          );
+        }
+      } catch {
+        /* sampling can briefly throw before metadata is ready */
+      }
+    };
+    const startSampling = () => {
+      if (sampling) return;
+      sampling = true;
+      sampleRaf = requestAnimationFrame(sampleTick);
+    };
+    const stopSampling = () => {
+      sampling = false;
+      cancelAnimationFrame(sampleRaf);
+    };
+
     // Keep the sphere looping while it is on screen.
     const playLoop = () => {
       const p = video.play();
       if (p && typeof p.catch === "function") p.catch(() => {});
     };
-    playLoop();
 
     const setHeroFlight = (on: boolean) => {
       try {
@@ -263,17 +262,24 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       handoffRaf = requestAnimationFrame(drive);
     };
 
-    // ── Off-screen pause (perf): stop the loop + sampling when the hero leaves ──
+    // ── Off-screen suspend (perf): stop loop AND sampling when hero leaves ──
     const io = new IntersectionObserver(
       ([entry]) => {
-        inViewRef.current = entry.isIntersecting;
-        if (reducedRef.current) return;
-        if (entry.isIntersecting) playLoop();
-        else video.pause();
+        if (entry.isIntersecting) {
+          playLoop();
+          startSampling();
+        } else {
+          video.pause();
+          stopSampling();
+        }
       },
       { threshold: 0.2 },
     );
     io.observe(section);
+
+    // Kick things off immediately (the IO callback also fires shortly after).
+    playLoop();
+    startSampling();
 
     // ── Desktop: first downward intent at the top → glide to #paths ──
     let cleanupTriggers = () => {};
@@ -331,6 +337,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
     return () => {
       cancelAnimationFrame(handoffRaf);
+      stopSampling();
       releaseBlock();
       cleanupTriggers();
       io.disconnect();
@@ -379,8 +386,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         aria-hidden="true"
         className="absolute left-1/2 top-1/2"
         muted
-        loop
-        autoPlay
+        loop={!reduced}
+        autoPlay={!reduced}
         playsInline
         preload="auto"
         style={{
