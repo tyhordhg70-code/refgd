@@ -23,7 +23,10 @@ import KineticText from "./KineticText";
  *   • prefers-reduced-motion: a single static opening frame, no motion at all.
  */
 
-const VIDEO_SRC = "/hero-cinematic.webm";
+// H.264 MP4 is hardware-decoded in every browser → smooth playback. The webm is
+// kept only as a fallback for the rare engine without MP4 support.
+const VIDEO_SRC_MP4 = "/hero-cinematic.mp4";
+const VIDEO_SRC_WEBM = "/hero-cinematic.webm";
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
@@ -348,12 +351,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         ref={videoRef}
         aria-hidden="true"
         className="absolute inset-0 h-full w-full object-cover"
-        src={VIDEO_SRC}
         muted
         playsInline
         preload="auto"
         style={{ display: "block" }}
-      />
+      >
+        <source src={VIDEO_SRC_MP4} type="video/mp4" />
+        <source src={VIDEO_SRC_WEBM} type="video/webm" />
+      </video>
 
       <div className="absolute inset-0 grid place-items-center">
         {/* ── WELCOME headline ── */}
