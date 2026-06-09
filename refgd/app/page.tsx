@@ -37,12 +37,12 @@ export default async function HomePage() {
 
   return (
     <>
-      {/* The hero is now a scroll-scrubbed WebP image sequence (~2.4 MB total)
-          instead of the ~23 MB Spline WebGL scene — no heavy download, no render
-          loop, no scene-tied loading screen. Preload only the FIRST frame so the
-          hero paints the instant the page reveals; the remaining frames stream
-          in behind it and are served immutably (see next.config headers). */}
-      <link rel="preload" as="image" href="/hero-frames/f_001.webp" />
+      {/* The hero is now a single pre-rendered cinematic clip (~5.5 MB webm)
+          instead of the ~23 MB Spline WebGL scene or the WebP frame sequence —
+          no render loop, no scene-tied loading screen. Preload it so it is
+          buffered and ready to play on the first scroll; it is served immutably
+          (see next.config headers). */}
+      <link rel="preload" as="video" href="/hero-cinematic.webm" type="video/webm" />
 
       {/* HomeBackground (orbs + gradient particles + star field) REMOVED:
           it mounted `fixed inset-0 z-[1]` while the hero section carries no

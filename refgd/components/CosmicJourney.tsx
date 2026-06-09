@@ -6,53 +6,26 @@ import KineticText from "./KineticText";
 /**
  * CosmicJourney — first-scroll timed cinematic hero.
  *
- * The original hero mounted a ~23 MB Spline WebGL galaxy and flew its camera
- * into a portal. That scene pinned the main thread (cursor lag) and forced a
- * multi-second loading splash while the scene downloaded.
+ * Earlier versions mounted a ~23 MB Spline WebGL galaxy, then a 101-frame WebP
+ * <canvas> sequence. This version plays a single pre-rendered cinematic clip
+ * (`/hero-cinematic.webm`) — the perfected portal fly-in recorded on the
+ * owner's GPU — through a <video> element. No WebGL, no per-frame canvas work.
  *
- * This version plays the SAME perfected fly-in as a pre-rendered WebP image
- * sequence (101 frames) painted onto a <canvas> — no WebGL, no render loop, no
- * heavy download. The cinematic is driven like a short film, NOT scrubbed:
+ * The clip is driven like a short film, NOT scrubbed:
  *
- *   • Desktop: the hero sits on its opening frame. The user's FIRST downward
- *     scroll TRIGGERS the fly-in, which then plays through on its own timer
- *     (~6 s) while the page is held still; when it lands, the page AUTO-SCROLLS
- *     down to the paths section. One scroll = the whole cinematic + hand-off.
- *     This is the behaviour the original Spline hero had (not parallax scrub).
- *   • Mobile: the sequence auto-plays once when the hero is on screen, with no
+ *   • Desktop: the hero holds on the opening frame. The user's FIRST downward
+ *     scroll TRIGGERS the clip, which plays through on its own while the page is
+ *     held still; when it ends, the page AUTO-SCROLLS down to the paths section.
+ *     One scroll = the whole cinematic + hand-off. Scroll back to the very top
+ *     and it re-arms.
+ *   • Mobile: the clip auto-plays once when the hero is on screen, with no
  *     scroll-locking and no auto-scroll (the page scrolls normally).
- *   • prefers-reduced-motion: a single static frame, no motion at all.
- *
- * All per-frame work is direct canvas/DOM mutation inside rAF (zero React
- * re-renders per frame).
+ *   • prefers-reduced-motion: a single static opening frame, no motion at all.
  */
 
-const FRAME_COUNT = 101;
-const FRAME_BASE = "/hero-frames";
-// 3-digit, 1-indexed: f_001.webp … f_101.webp
-const frameUrl = (i: number) =>
-  `${FRAME_BASE}/f_${String(i + 1).padStart(3, "0")}.webp`;
-
-// How long the fly-in takes to play through, in ms. (6 s read as the right
-// pace for the original Spline flight; lower = faster.)
-const PLAY_MS = 6000;
+const VIDEO_SRC = "/hero-cinematic.webm";
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
-
-// Trapezoid velocity profile: soft ramp-up, constant cruise, soft ramp-down —
-// no mid-flight speed surge (which a plain smoothstep would introduce).
-const RAMP = 0.22;
-function easeFlight(p: number): number {
-  if (p <= 0) return 0;
-  if (p >= 1) return 1;
-  const v = 1 / (1 - RAMP); // cruise velocity so total distance == 1
-  if (p < RAMP) return (v * p * p) / (2 * RAMP);
-  if (p > 1 - RAMP) {
-    const q = 1 - p;
-    return 1 - (v * q * q) / (2 * RAMP);
-  }
-  return v * (p - RAMP / 2);
-}
 
 export default function CosmicJourney({ kicker }: { kicker: string }) {
   const reduced = useReducedMotion();
@@ -60,15 +33,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
   const [isMobile, setIsMobile] = useState(false);
 
   const sectionRef = useRef<HTMLElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const headlineRef = useRef<HTMLDivElement | null>(null);
   const cueRef = useRef<HTMLDivElement | null>(null);
-
-  const imgsRef = useRef<HTMLImageElement[]>([]);
-  const desiredIdxRef = useRef(0);
-  const drawnIdxRef = useRef(-1);
-  const rafRef = useRef(0);
   const reducedRef = useRef(false);
 
   useEffect(() => {
@@ -88,100 +55,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // ── Preload frames + wire the cinematic driver ──
+  // ── Wire the cinematic driver ──
   useEffect(() => {
     if (typeof window === "undefined" || !mounted) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const video = videoRef.current;
+    if (!video) return;
 
-    // Cover-fit draw (fill the viewport, crop overflow — fullscreen hero).
-    const drawCover = (img: HTMLImageElement) => {
-      const ctx = ctxRef.current;
-      if (!ctx) return;
-      const cw = canvas.clientWidth;
-      const ch = canvas.clientHeight;
-      const iw = img.naturalWidth || 1280;
-      const ih = img.naturalHeight || 720;
-      const scale = Math.max(cw / iw, ch / ih);
-      const dw = iw * scale;
-      const dh = ih * scale;
-      const dx = (cw - dw) / 2;
-      const dy = (ch - dh) / 2;
-      ctx.clearRect(0, 0, cw, ch);
-      ctx.drawImage(img, dx, dy, dw, dh);
-    };
-
-    const isReady = (img: HTMLImageElement | undefined) =>
-      !!img && img.complete && img.naturalWidth > 0;
-
-    // Paint the closest loaded frame to the desired index (so an unbuffered
-    // frame never blanks the hero — we hold the nearest neighbour instead).
-    const render = () => {
-      rafRef.current = 0;
-      const imgs = imgsRef.current;
-      const want = desiredIdxRef.current;
-      let idx = -1;
-      if (isReady(imgs[want])) idx = want;
-      else {
-        for (let r = 1; r < imgs.length; r++) {
-          if (want - r >= 0 && isReady(imgs[want - r])) {
-            idx = want - r;
-            break;
-          }
-          if (want + r < imgs.length && isReady(imgs[want + r])) {
-            idx = want + r;
-            break;
-          }
-        }
-      }
-      if (idx < 0) return;
-      drawCover(imgs[idx]);
-      drawnIdxRef.current = idx;
-    };
-    const requestRender = () => {
-      if (rafRef.current) return;
-      rafRef.current = requestAnimationFrame(render);
-    };
-
-    // Size the canvas backing store to its CSS box (DPR-aware, capped at 2).
-    const setupCanvas = () => {
-      const cw = canvas.clientWidth;
-      const ch = canvas.clientHeight;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.max(1, Math.round(cw * dpr));
-      canvas.height = Math.max(1, Math.round(ch * dpr));
-      const ctx = canvas.getContext("2d");
-      ctxRef.current = ctx;
-      if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-    setupCanvas();
-
-    // Kick off loading every frame. They are tiny so the whole sequence buffers
-    // quickly; frame 0 paints the moment it arrives.
-    let firstPainted = false;
-    const imgs: HTMLImageElement[] = new Array(FRAME_COUNT);
-    for (let i = 0; i < FRAME_COUNT; i++) {
-      const img = new Image();
-      img.decoding = "async";
-      img.onload = () => {
-        if (i === 0 && !firstPainted) {
-          firstPainted = true;
-          requestRender();
-          try {
-            window.dispatchEvent(new Event("refgd:scene-ready"));
-          } catch {
-            /* noop */
-          }
-        }
-        if (i === desiredIdxRef.current || drawnIdxRef.current < 0)
-          requestRender();
-      };
-      img.src = frameUrl(i);
-      imgs[i] = img;
-    }
-    imgsRef.current = imgs;
-
-    // Apply the visual fades for a given eased progress.
+    // Apply the visual fades for a given clip progress (0..1).
     const applyFades = (e: number) => {
       const headline = headlineRef.current;
       if (headline) {
@@ -201,21 +81,40 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (cue) cue.style.opacity = "1";
     };
 
-    const onResize = () => {
-      setupCanvas();
-      requestRender();
-    };
-    window.addEventListener("resize", onResize, { passive: true });
+    // Hold the clip on its opening frame until playback is triggered.
+    try {
+      video.pause();
+      video.currentTime = 0;
+    } catch {
+      /* noop */
+    }
 
-    // Paint the opening frame.
-    desiredIdxRef.current = 0;
-    requestRender();
+    // Announce readiness for the loading screen (harmless if home isn't gated).
+    let announced = false;
+    const announce = () => {
+      if (announced) return;
+      announced = true;
+      try {
+        window.dispatchEvent(new Event("refgd:scene-ready"));
+      } catch {
+        /* noop */
+      }
+    };
+    const onLoadedData = () => {
+      try {
+        if (video.currentTime !== 0) video.currentTime = 0;
+      } catch {
+        /* noop */
+      }
+      announce();
+    };
+    if (video.readyState >= 2) onLoadedData();
+    else video.addEventListener("loadeddata", onLoadedData);
 
     // ── Reduced motion: one static frame, nothing else ──
     if (reducedRef.current) {
       return () => {
-        cancelAnimationFrame(rafRef.current);
-        window.removeEventListener("resize", onResize);
+        video.removeEventListener("loadeddata", onLoadedData);
       };
     }
 
@@ -230,8 +129,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // ── Shared timed playback ──
     type State = "idle" | "playing" | "done";
     let state: State = "idle";
-    let elapsed = 0;
-    let lastAt = 0;
     let flightRaf = 0;
     let blockOn = false;
 
@@ -286,39 +183,50 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
     };
 
-    const tick = (now: number) => {
-      const dt = Math.min(Math.max(now - lastAt, 0), 50);
-      lastAt = now;
-      elapsed += dt;
-      const p = clamp01(elapsed / PLAY_MS);
-      const e = easeFlight(p);
-      desiredIdxRef.current = Math.round(e * (FRAME_COUNT - 1));
+    const finish = () => {
+      if (state !== "playing") return;
+      flightRaf = 0;
+      applyFades(1);
+      if (isMobile) {
+        state = "done";
+        setHeroFlight(false);
+      } else {
+        handoffDesktop();
+      }
+    };
+
+    // Drive the headline/cue fades from the clip's own playback position.
+    const tick = () => {
+      if (state !== "playing") return;
+      const dur = video.duration || 6;
+      const e = clamp01(video.currentTime / dur);
       applyFades(e);
-      requestRender();
-      if (p >= 1) {
-        flightRaf = 0;
-        if (isMobile) {
-          state = "done";
-          setHeroFlight(false);
-        } else {
-          handoffDesktop();
-        }
+      if (video.ended || e >= 0.999) {
+        finish();
         return;
       }
       flightRaf = requestAnimationFrame(tick);
     };
 
+    const onEnded = () => finish();
+    video.addEventListener("ended", onEnded);
+
     const startPlayback = (lock: boolean) => {
       if (state !== "idle") return;
       state = "playing";
-      elapsed = 0;
-      lastAt = performance.now();
       setHeroFlight(true);
       if (lock) {
         const l = lenis();
         if (l && l.stop) l.stop();
         window.scrollTo(0, 0);
         attachBlock();
+      }
+      try {
+        video.currentTime = 0;
+        const p = video.play();
+        if (p && typeof p.catch === "function") p.catch(() => {});
+      } catch {
+        /* noop */
       }
       cancelAnimationFrame(flightRaf);
       flightRaf = requestAnimationFrame(tick);
@@ -362,11 +270,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const onScrollReset = () => {
         if (state === "done" && window.scrollY < 8) {
           state = "idle";
-          elapsed = 0;
-          desiredIdxRef.current = 0;
+          cancelAnimationFrame(flightRaf);
+          try {
+            video.pause();
+            video.currentTime = 0;
+          } catch {
+            /* noop */
+          }
           restoreFades();
           setHeroFlight(false);
-          requestRender();
         }
       };
       window.addEventListener("wheel", onWheel, { passive: false });
@@ -392,8 +304,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         window.removeEventListener("refgd:scene-ready", onFirst);
         mobileTimer = window.setTimeout(startOnce, 200);
       };
-      // Play as soon as the first frame is ready (it's on screen at load).
-      if (isReady(imgs[0])) {
+      if (video.readyState >= 2) {
         mobileTimer = window.setTimeout(startOnce, 350);
       } else {
         window.addEventListener("refgd:scene-ready", onFirst);
@@ -405,11 +316,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     }
 
     return () => {
-      cancelAnimationFrame(rafRef.current);
       cancelAnimationFrame(flightRaf);
       releaseBlock();
       cleanupTriggers();
-      window.removeEventListener("resize", onResize);
+      video.removeEventListener("loadeddata", onLoadedData);
+      video.removeEventListener("ended", onEnded);
       const l = lenis();
       if (l && l.start) l.start();
       setHeroFlight(false);
@@ -432,11 +343,17 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         style={{ background: "#05060a" }}
       />
 
-      {/* ── Cinematic frame sequence ── */}
-      <canvas
-        ref={canvasRef}
+      {/* ── Cinematic clip ── */}
+      <video
+        ref={videoRef}
         aria-hidden="true"
-        className="absolute inset-0 h-full w-full"
+        className="absolute inset-0 h-full w-full object-cover"
+        src={VIDEO_SRC}
+        muted
+        playsInline
+        preload="auto"
+        // @ts-expect-error — non-standard attr, but harmless and used by iOS
+        webkit-playsinline="true"
         style={{ display: "block" }}
       />
 

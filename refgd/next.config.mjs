@@ -76,6 +76,15 @@ const nextConfig = {
               { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
             ],
           },
+          {
+            // Pre-rendered hero cinematic clip. Content-stable single file, so
+            // cache it for a year — the browser reuses it on repeat visits
+            // instead of re-pulling ~5.5 MB. public/ otherwise serves max-age=0.
+            source: "/hero-cinematic.webm",
+            headers: [
+              { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+            ],
+          },
         ];
       },
       async redirects() {
