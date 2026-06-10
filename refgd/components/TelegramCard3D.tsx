@@ -48,9 +48,20 @@ export default function TelegramCard3D({ children }: { children: ReactNode }) {
     return (
       <div ref={ref}>
         <motion.div
-          initial={reduced ? false : { opacity: 0, y: 28 }}
+          // rotateX/rotateY/scale are pinned to neutral here on PURPOSE.
+          // The desktop branch renders first (isMobile starts false for
+          // hydration parity), so framer reuses this same motion.div when we
+          // swap to the mobile branch — the desktop hidden values
+          // (rotateX 30 / rotateY -16 / scale .86) would otherwise linger and
+          // leave the card permanently squashed. Listing them in the target
+          // forces framer to drive them back to flat.
+          initial={
+            reduced ? false : { opacity: 0, y: 28, rotateX: 0, rotateY: 0, scale: 1 }
+          }
           animate={
-            inView || reduced ? { opacity: 1, y: 0 } : { opacity: 0, y: 28 }
+            inView || reduced
+              ? { opacity: 1, y: 0, rotateX: 0, rotateY: 0, scale: 1 }
+              : { opacity: 0, y: 28, rotateX: 0, rotateY: 0, scale: 1 }
           }
           transition={
             reduced ? { duration: 0 } : { duration: 0.7, ease: [0.16, 1, 0.3, 1] }
