@@ -397,7 +397,12 @@ export default function MusicPlayer() {
           />
         )}
         {/* Music controls — fixed bottom-right, on every page */}
-        <div className="fixed bottom-5 right-5 z-[60] flex items-end gap-1.5 sm:bottom-6 sm:right-6">
+        {/* v6.14.x — On mobile the control sat at bottom:20px, which on
+            iOS Safari falls UNDER the bottom browser toolbar / home
+            indicator, so the sound button "disappeared". Raise it clear of
+            that chrome (safe-area inset + extra lift) on phones; desktop
+            keeps its original bottom-right rest position. */}
+        <div className="fixed right-5 z-[60] flex items-end gap-1.5 bottom-[max(1.25rem,calc(env(safe-area-inset-bottom,0px)+4.5rem))] sm:bottom-6 sm:right-6">
           {/* Small × close button above the mute button */}
           <div className="flex flex-col items-center gap-1">
             <button

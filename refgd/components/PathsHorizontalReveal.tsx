@@ -332,10 +332,16 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
 
   // ── Pointer-event swipe handler with vertical-scroll release ──
   // Horizontal by default; release to vertical scroll if the user
-  // has moved ≥ 10 px vertically AND |dy| > 1.7·|dx|. Commit the
-  // rotation on pointerup based on horizontal distance (≥ 60 px
-  // or ≥ 25 % of stage width). No mid-gesture follow.
+  // has moved ≥ 10 px vertically AND |dy| > 1.7·|dx|.
+  // v6.14.x — Live cube-follow: once a gesture commits to horizontal,
+  // the prism rotates UNDER the finger in real time (transform-only,
+  // transition disabled) so it reads like turning an actual cube. On
+  // release it eases to the nearest face (or rolls back if the swipe
+  // was short). Previously the prism only jumped on pointerup with no
+  // mid-gesture follow, which the user reported as "a bit sharp, not
+  // like an actual cube rotation."
   const stageRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
   const startX = useRef<number | null>(null);
   const startY = useRef(0);
   const decided = useRef<"h" | "v" | null>(null);
@@ -390,9 +396,30 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
       if (ax >= 18 && ax > ay * 2.0) {
         decided.current = "h";
         try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch {}
+        // fall through to live-follow on this very move
+      } else {
+        // Anything else — keep waiting, don't lock.
         return;
       }
-      // Anything else — keep waiting, don't lock.
+    }
+    // ── Live cube-follow (only after committing to horizontal) ──
+    // Rotate the prism under the finger, transform-only with the easing
+    // transition OFF, so the cube turns 1:1 with the drag.
+    if (decided.current === "h") {
+      const w = stageRef.current?.offsetWidth || faceWidth || 320;
+      // A full stage-width drag turns exactly one face (theta).
+      let deg = (dx / w) * theta;
+      // Edge resistance: damp dragging past the first / last face so the
+      // cube feels like it has ends rather than wrapping.
+      if ((active === 0 && deg > 0) || (active === N - 1 && deg < 0)) deg *= 0.35;
+      // Never spin more than one neighbour away mid-drag.
+      if (deg > theta) deg = theta;
+      else if (deg < -theta) deg = -theta;
+      const node = innerRef.current;
+      if (node) {
+        node.style.transition = "none";
+        node.style.transform = `translateZ(${-r}px) rotateY(${prismRotation + deg}deg)`;
+      }
     }
   };
 
@@ -403,6 +430,7 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
       return;
     }
     const dx = (e?.clientX ?? startX.current) - startX.current;
+    const wasHorizontal = decided.current === "h";
     startX.current = null;
     decided.current = null;
     const w = stageRef.current?.offsetWidth ?? 320;
@@ -411,8 +439,26 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
     // and even on browser-native overscroll gestures. ~32% width
     // (~140 px on a 440 px stage) requires a deliberate flick.
     const threshold = Math.min(85, w * 0.32);
-    if (dx <= -threshold) goTo(Math.min(N - 1, active + 1));
-    else if (dx >= threshold) goTo(Math.max(0, active - 1));
+    let next = active;
+    if (dx <= -threshold) next = Math.min(N - 1, active + 1);
+    else if (dx >= threshold) next = Math.max(0, active - 1);
+
+    // Ease the live-dragged prism to the resolved face. Writing the target
+    // transform inline first (WITH the easing transition restored) animates
+    // from the current finger position; the setActive() re-render below
+    // produces the identical transform string, so there is no snap/flash.
+    // A sub-threshold swipe (next === active) simply rolls smoothly back.
+    if (wasHorizontal) {
+      const node = innerRef.current;
+      if (node) {
+        node.style.transition = reduced
+          ? "none"
+          : "transform 600ms cubic-bezier(0.22, 1, 0.36, 1)";
+        node.style.transform = `translateZ(${-r}px) rotateY(${-next * theta}deg)`;
+      }
+    }
+    if (next !== active) setActive(next);
+
     if (e && activePointerId.current !== null) {
       try { (e.target as Element).releasePointerCapture?.(activePointerId.current); } catch {}
     }
@@ -516,6 +562,7 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
       >
         {/* Inner prism wrapper — this is the rotating rigid body. */}
         <div
+          ref={innerRef}
           className="absolute inset-0"
           style={{
             transformStyle: "preserve-3d",

@@ -317,9 +317,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     playLoop();
     startSampling();
 
-    // ── Scroll snap — works on BOTH mobile (scroll events) and desktop ──
-    // Fires on every native scroll: down from top → glide to #paths;
-    // up near the boundary → glide back to top. Never yanks from deep content.
+    // ── Scroll-snap handoff (DESKTOP ONLY — see attachment below) ──
+    // Down from top → glide to #paths; up near the boundary → glide back.
+    // Never yanks from deep content.
     const atTop = () => window.scrollY <= 2;
     const nearBoundary = () => window.scrollY <= window.innerHeight * 1.15;
     let prevY = window.scrollY;
@@ -344,12 +344,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         setHeroFlight(false);
       }
     };
-    window.addEventListener("scroll", onScrollTrigger, { passive: true });
-    window.addEventListener("scroll", onScrollReset, { passive: true });
-
-    // ── Desktop only: precise wheel/keyboard triggers on top of scroll ──
-    let cleanupDesktop = () => {};
+    // ── Handoff triggers are DESKTOP-ONLY ──
+    // On mobile, Lenis is disabled (SmoothScroll bails on coarse pointers), so
+    // startHandoff() fell back to scrollIntoView WHILE the capture-phase
+    // touchmove blocker swallowed the user's own finger scroll for 900 ms.
+    // That fight between forced glide + native momentum was the "autoscroll
+    // feels very janky on mobile" report. Phones now scroll the hero 100%
+    // natively — no forced glide, no input blocking, no jank.
+    let cleanupTriggers = () => {};
     if (!isMobileRef.current) {
+      window.addEventListener("scroll", onScrollTrigger, { passive: true });
+      window.addEventListener("scroll", onScrollReset, { passive: true });
+
       const onWheel = (ev: WheelEvent) => {
         if (state === "idle" && ev.deltaY > 0 && atTop()) {
           if (ev.cancelable) ev.preventDefault();
@@ -376,17 +382,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       };
       window.addEventListener("wheel", onWheel, { passive: false });
       window.addEventListener("keydown", onKey);
-      cleanupDesktop = () => {
+      cleanupTriggers = () => {
+        window.removeEventListener("scroll", onScrollTrigger);
+        window.removeEventListener("scroll", onScrollReset);
         window.removeEventListener("wheel", onWheel);
         window.removeEventListener("keydown", onKey);
       };
     }
-
-    let cleanupTriggers = () => {
-      window.removeEventListener("scroll", onScrollTrigger);
-      window.removeEventListener("scroll", onScrollReset);
-      cleanupDesktop();
-    };
 
     return () => {
       cancelAnimationFrame(handoffRaf);
@@ -448,7 +450,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           width: "100%",
           height: "100%",
           transform: "translate(-50%, -50%)",
-          objectFit: "cover",
+          // Mobile portrait: `cover` scaled the landscape sphere clip to fill
+          // the tall viewport, blowing the orb up so it spilled past the screen
+          // edges. `contain` fits the WHOLE sphere inside the viewport (it sits
+          // smaller, centred, with the near-black backdrop showing top/bottom)
+          // — "shrink the sphere so it fits". Desktop keeps the full-bleed cover.
+          objectFit: isMobile ? "contain" : "cover",
           display: "block",
           WebkitMaskImage:
             "radial-gradient(circle at 50% 50%, #000 52%, transparent 72%)",
@@ -466,8 +473,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{
-          background:
-            "radial-gradient(60% 45% at 50% 42%, rgba(0,0,0,0.55), transparent 70%), linear-gradient(to bottom, rgba(0,0,0,0.38), transparent 30%, transparent 68%, rgba(0,0,0,0.48))",
+          // Mobile: the tight 60%×45% radial read as a hard-edged dark
+          // oval — the "black faded box on the welcome text". Widened to a
+          // soft full-bleed wash (lower opacity, later falloff) so there is
+          // no visible edge; the heading keeps its own text-shadow for
+          // legibility. Desktop keeps the original focused vignette.
+          background: isMobile
+            ? "radial-gradient(125% 85% at 50% 40%, rgba(0,0,0,0.34), transparent 80%), linear-gradient(to bottom, rgba(0,0,0,0.30), transparent 26%, transparent 74%, rgba(0,0,0,0.40))"
+            : "radial-gradient(60% 45% at 50% 42%, rgba(0,0,0,0.55), transparent 70%), linear-gradient(to bottom, rgba(0,0,0,0.38), transparent 30%, transparent 68%, rgba(0,0,0,0.48))",
         }}
       />
 
