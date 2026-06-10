@@ -73,6 +73,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const section = sectionRef.current;
     if (!video || !section) return;
 
+    // During a hand-off glide we suspend the per-frame colour sampler: its
+    // ctx.getImageData() is a synchronous GPU→CPU readback that stalls the
+    // compositor on iOS and was a residual source of the "auto scroll
+    // stutters" report. `heroVisible` lets us resume it only when the hero is
+    // actually back on screen after the glide.
+    let gliding = false;
+    let heroVisible = false;
+
     const applyFades = (e: number) => {
       const headline = headlineRef.current;
       if (headline) {
@@ -169,7 +177,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
     };
     const startSampling = () => {
-      if (sampling) return;
+      if (sampling || gliding) return;
       sampling = true;
       sampleRaf = requestAnimationFrame(sampleTick);
     };
@@ -260,6 +268,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const startHandoff = () => {
       if (state !== "idle") return;
       state = "handoff";
+      gliding = true;
+      stopSampling();
       setHeroFlight(true);
       attachBlock();
       const l = lenis();
@@ -283,6 +293,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         applyFades(e);
         if (e >= 1) {
           state = "done";
+          gliding = false;
+          // Hero is now off-screen at #paths, so leave the sampler paused;
+          // the IntersectionObserver restarts it if the hero returns to view.
+          if (heroVisible) startSampling();
           releaseBlock();
           setHeroFlight(false);
           return;
@@ -298,6 +312,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const startHandoffUp = () => {
       if (state !== "done") return;
       state = "handoff";
+      gliding = true;
+      stopSampling();
       setHeroFlight(true);
       attachBlock();
       const l = lenis();
@@ -318,6 +334,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         applyFades(1 - e);
         if (e >= 1) {
           state = "idle";
+          gliding = false;
+          // Hero is back at the top and on screen — resume the loop + sampler.
+          if (heroVisible) { playLoop(); startSampling(); }
           releaseBlock();
           setHeroFlight(false);
           restoreFades();
@@ -331,6 +350,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // ── Off-screen suspend (perf): stop loop AND sampling when hero leaves ──
     const io = new IntersectionObserver(
       ([entry]) => {
+        heroVisible = entry.isIntersecting;
         if (entry.isIntersecting) {
           playLoop();
           startSampling();
@@ -423,17 +443,31 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // MOBILE: touch-driven hand-off. Catch the first drag before the native
       // scroll runs so there is no momentum to fight the rAF glide.
       let touchY = 0;
+      let touchX = 0;
       const onTouchStart = (ev: TouchEvent) => {
         touchY = ev.touches[0]?.clientY ?? 0;
+        touchX = ev.touches[0]?.clientX ?? 0;
       };
       const onTouchMove = (ev: TouchEvent) => {
         const y = ev.touches[0]?.clientY ?? touchY;
+        const x = ev.touches[0]?.clientX ?? touchX;
         const dy = y - touchY;
+        const dx = x - touchX;
+        const ax = Math.abs(dx);
+        const ay = Math.abs(dy);
+        // Only a CLEARLY VERTICAL drag may drive the section hand-off. A
+        // horizontal / diagonal swipe belongs to the path-card carousel —
+        // honouring those here was yanking the page to the top mid-swipe
+        // ("swiping on cards causes issues") and read as an auto-scroll
+        // "stutter" as the page lurched. Bail unless vertical dominates.
+        if (ay < ax * 1.5) return;
         // finger UP (dy < 0) → intent to scroll DOWN; finger DOWN → scroll up.
         if (state === "idle" && atTop() && dy < -6) {
           if (ev.cancelable) ev.preventDefault();
           startHandoff();
-        } else if (state === "done" && nearBoundary() && dy > 6) {
+        } else if (state === "done" && nearBoundary() && dy > 24) {
+          // Require a deliberate downward pull (24px, was 6) so a gentle
+          // vertical nudge while reading the path cards never glides to top.
           if (ev.cancelable) ev.preventDefault();
           startHandoffUp();
         }
@@ -507,7 +541,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         poster="/sphere-poster.webp"
         style={{
           width: "100%",
-          height: "100%",
+          // Mobile: REDUCE THE ELEMENT HEIGHT (a transform-scale can't change a
+          // `cover` crop — the crop fraction is fixed by the element's aspect
+          // ratio). A shorter, still-full-width box lowers the landscape clip's
+          // cover scale factor so more of its width fits and the sphere's
+          // left/right edges stop being cropped by the narrow portrait viewport
+          // ("sphere edges a bit cut off"). Width stays 100% so it never
+          // becomes the rejected centred "contain" band; the freed top/bottom
+          // is absorbed by the radial mask falloff + near-black hero behind it.
+          height: isMobile ? "78%" : "100%",
           transform: "translate(-50%, -50%)",
           // `cover` fills the viewport on EVERY device. `contain` was tried on
           // mobile but it letterboxed the landscape clip into a small centred
