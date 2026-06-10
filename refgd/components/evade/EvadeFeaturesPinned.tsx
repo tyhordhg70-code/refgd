@@ -73,11 +73,11 @@ export default function EvadeFeaturesPinned() {
                   delay={0.06 * i}
                   duration={0.8}
                   className={[
-                    "relative p-6 sm:p-7",
-                    "border-white/8",
-                    i % 2 === 0 ? "sm:border-r" : "",
-                    i < 2 ? "border-b" : "sm:border-b-0 border-b",
-                    i === 2 ? "border-b sm:border-b-0" : "",
+                    "relative p-6 sm:p-7 border-white/8",
+                    // 2-col grid (rows [0,1] / [2,3]): vertical rule on the left
+                    // column, horizontal rule between rows on desktop; on mobile
+                    // a single divider between stacked entries (none after the last).
+                    ["border-b sm:border-r", "border-b", "border-b sm:border-r sm:border-b-0", ""][i],
                   ].join(" ")}
                 >
                   {/* mono prompt */}
