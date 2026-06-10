@@ -16,7 +16,7 @@ export default function AnimatedTelegramBox() {
     <div
       aria-hidden="true"
       data-testid="animated-telegram-box"
-      className="absolute inset-0 overflow-hidden"
+      className="tg-inner-clip absolute inset-0 overflow-hidden"
       style={{
         background:
           "radial-gradient(ellipse at 50% 40%, rgba(99,77,180,0.42), transparent 60%)," +

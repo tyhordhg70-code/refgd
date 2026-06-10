@@ -1631,6 +1631,12 @@ html { overflow-anchor: none; }
     transform: translateZ(0);
     isolation: isolate;
   }
+  /* Belt-and-suspenders: round the inner full-bleed panel itself so that
+     even if the outer rounded clip is dropped by iOS, the panel can never
+     show a square corner past the card's rounded edge. */
+  .tg-inner-clip {
+    border-radius: 2.5rem;
+  }
 }
 
 /* ── No vertical scroll-snap on mobile ──
