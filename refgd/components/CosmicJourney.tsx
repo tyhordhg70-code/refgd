@@ -380,6 +380,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       let touching = false;
       let tweening = false;
       let tweenRaf = 0;
+      // Scroll position when the current gesture began (finger-down). Used to
+      // derive the gesture's NET travel direction so the post-gesture glide
+      // never reverses a deliberate swipe.
+      let gestureStartY = window.scrollY;
 
       // Section anchors, computed live (the iOS URL bar resizes the viewport).
       const sectionTargets = (): number[] => {
@@ -427,14 +431,39 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
       const settle = () => {
         if (touching || tweening) return;
+        const targets = sectionTargets();
+        if (targets.length < 2) return;
         const y = window.scrollY;
-        let nearest = 0;
+
+        // Already resting on a section — nothing to do.
+        let nearest = targets[0];
         let best = Infinity;
-        for (const t of sectionTargets()) {
+        for (const t of targets) {
           const d = Math.abs(t - y);
           if (d < best) { best = d; nearest = t; }
         }
-        if (best > DEAD_ZONE) tweenTo(nearest);
+        if (best <= DEAD_ZONE) return;
+
+        // Direction-aware snap. Plain nearest-snap was the historical "it yanks
+        // me backward" bug: a 200 px downward swipe could land closer to the
+        // section behind and get pulled back UP against the gesture. Instead we
+        // bracket the current position between the section below/above it and
+        // bias by the gesture's NET direction: once the finger crossed ~1/3 of
+        // the gap toward the next section we commit forward; otherwise we fall
+        // back to the one behind. Tiny/zero-net moves use plain nearest.
+        const dir = Math.sign(y - gestureStartY);
+        let below = targets[0];
+        let above = targets[targets.length - 1];
+        for (const t of targets) if (t <= y && t > below) below = t;
+        for (const t of targets) if (t >= y && t < above) above = t;
+        const gap = above - below;
+        if (gap <= 0) { tweenTo(nearest); return; }
+        const progress = (y - below) / gap; // 0 at `below`, 1 at `above`
+        let target: number;
+        if (dir > 0) target = progress >= 1 / 3 ? above : below;
+        else if (dir < 0) target = progress <= 2 / 3 ? below : above;
+        else target = nearest;
+        tweenTo(target);
       };
       const queueSettle = () => {
         clearTimeout(settleTimer);
@@ -446,7 +475,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         if (tweening) return; // ignore our own programmatic scroll writes
         queueSettle();
       };
-      const onTouchStart = () => { touching = true; cancelTween(); clearTimeout(settleTimer); };
+      const onTouchStart = () => { touching = true; gestureStartY = window.scrollY; cancelTween(); clearTimeout(settleTimer); };
       const onTouchEnd = () => { touching = false; queueSettle(); };
       const onWheelCancel = () => { cancelTween(); };
 

@@ -325,8 +325,27 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
   //      background + backface-visibility hidden on each face.
 
   const [active, setActive] = useState(0);
+  // v6.15 — Multi-step dot jumps (e.g. card 0 → card 4) rotate the prism
+  // through every intermediate face. The back-face guard (faceVisible below)
+  // keeps non-adjacent faces visibility:hidden, which would leave the prism
+  // looking EMPTY mid-swing on a long jump (the UI advertises "tap a dot to
+  // rotate"). While such a jump animates we reveal every face, then restore
+  // the guard once the 600ms rotation settles.
+  const [spinning, setSpinning] = useState(false);
+  const spinTimer = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (spinTimer.current !== null) clearTimeout(spinTimer.current);
+    },
+    [],
+  );
   const goTo = (next: number) => {
     if (next === active || next < 0 || next >= N) return;
+    if (Math.abs(next - active) > 1) {
+      setSpinning(true);
+      if (spinTimer.current !== null) clearTimeout(spinTimer.current);
+      spinTimer.current = window.setTimeout(() => setSpinning(false), 640);
+    }
     setActive(next);
   };
 
@@ -579,6 +598,7 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
             // show behind the front card. Neighbours stay visible so the
             // rotation to the next card is never blank mid-swing.
             const faceVisible =
+              spinning ||
               i === active ||
               i === (active + 1) % N ||
               i === (active - 1 + N) % N;
