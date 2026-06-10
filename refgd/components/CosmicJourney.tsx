@@ -537,14 +537,28 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         // Own the gesture: drive scroll 1:1 with the finger so native momentum
         // never engages (no fight) and there is no dead-zone before movement.
         if (ev.cancelable) ev.preventDefault();
-        const next = clamp(startScrollY - dyTotal, 0, pathsTargetY);
+        // Upper bound is max(pathsTargetY, startScrollY): if an UP gesture armed
+        // a little BELOW the boundary (the up-zone extends 0.25vh past it), the
+        // finger must not snap the page UP to pathsTargetY on the first tracked
+        // move — it can only travel from where it started toward the welcome.
+        const next = clamp(
+          startScrollY - dyTotal,
+          0,
+          Math.max(pathsTargetY, startScrollY),
+        );
         window.scrollTo(0, next);
         applyFades(clamp01(next / Math.max(1, pathsTargetY)));
       };
 
       const onTouchEnd = () => {
         if (!dragging) return;
-        const committed = Math.abs(dyTotal) > PULL_COMMIT;
+        // Direction-AWARE commit: a down-glide only commits on a net UPWARD
+        // drag (finger up = scroll down) and an up-glide only on a net DOWNWARD
+        // drag. A bare Math.abs() would commit a wrong-direction reversal — arm
+        // up at the top with a 5px nudge, then drag DOWN 70px, and abs(+70)>60
+        // used to yank the visitor to #paths against their clear intent.
+        const committed =
+          dir === "down" ? dyTotal < -PULL_COMMIT : dyTotal > PULL_COMMIT;
         dragging = false;
         state = "handoff";
         if (dir === "down") {
