@@ -1,83 +1,127 @@
 "use client";
 import EditableText from "@/components/EditableText";
 import EditableImage from "@/components/EditableImage";
-import ChapterPill from "@/components/ChapterPill";
 import KineticText from "@/components/KineticText";
 import SafeReveal from "@/components/SafeReveal";
+import HudEyebrow from "./HudEyebrow";
+import HudFrame from "./HudFrame";
 
 const BODIES = [
-  { id: "evade.intro.body1", accent: "rgba(34,211,238,0.95)",  label: "01 · DEEP DIVE",   body: "Dive into a comprehensive overview of each store's anti-fraud system and their ability to detect suspicious user behaviour. Stores invest hundreds of thousands each year to fight against refunders and are equipped with advanced machine learning algorithms to identify potential fraud — even if you are not banned." },
-  { id: "evade.intro.body2", accent: "rgba(167,139,250,0.95)", label: "02 · FRAUD SCORE", body: "During the checkout process, you are assigned a fraud score, and if it reaches a certain threshold, your current and future orders may be cancelled." },
+  { id: "evade.intro.body1", rgb: "34,211,238",  label: "01 · DEEP DIVE",   code: "0x01", body: "Dive into a comprehensive overview of each store's anti-fraud system and their ability to detect suspicious user behaviour. Stores invest hundreds of thousands each year to fight against refunders and are equipped with advanced machine learning algorithms to identify potential fraud — even if you are not banned." },
+  { id: "evade.intro.body2", rgb: "167,139,250", label: "02 · FRAUD SCORE", code: "0x02", body: "During the checkout process, you are assigned a fraud score, and if it reaches a certain threshold, your current and future orders may be cancelled." },
 ];
 
 /**
- * EvadeIntroEditorial — chapter 1. Unified cyan-bordered editorial frame
- * matching EvadeShieldMoment: eyebrow + KineticText heading + body blocks
- * on the left, vault image on the right. Vault no longer has its own
- * competing gradient-border card.
+ * EvadeIntroEditorial — chapter 1, redesigned as a CLASSIFIED DOSSIER.
+ *
+ * Replaces the gradient glass panel + corner blobs with a HudFrame
+ * dossier: an oversized backdrop "01", monospace file metadata, the
+ * vault art presented as evidence behind a corner-bracket reticle, and
+ * the two intel paragraphs styled as numbered file entries. Distinct
+ * silhouette from every other section.
+ *
+ * Preserved editIds: evade.ch1.eyebrow / .title, evade.intro.body1/2,
+ * evade.intro.vault (identical defaultSrc + alt). Body labels are the
+ * same decorative strings as before.
  */
 export default function EvadeIntroEditorial() {
   return (
     <section className="relative z-10 pt-16 pb-12 sm:pt-24 sm:pb-16">
       <div className="container-wide">
-        <div
-          className="relative overflow-hidden rounded-[2rem] border border-cyan-300/25 px-6 py-12 sm:px-12 sm:py-16 lg:px-16 lg:py-20"
-          style={{
-            background:
-              "linear-gradient(160deg, rgba(34,211,238,0.14), rgba(167,139,250,0.10) 50%, rgba(10,8,22,0.94))",
-            boxShadow:
-              "0 60px 140px -30px rgba(0,0,0,0.85), 0 0 90px -25px rgba(34,211,238,0.40), inset 0 1px 0 rgba(255,255,255,0.08)",
-          }}
+        <HudFrame
+          accent="cyan"
+          variant="panel"
+          tag="DOSSIER // EVADE.01"
+          status="● CLASSIFIED"
+          className="overflow-hidden rounded-2xl px-6 py-12 sm:px-12 sm:py-16 lg:px-16 lg:py-20"
         >
-          <span aria-hidden className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full"
-            style={{ background: "radial-gradient(circle at 50% 50%, rgba(34,211,238,0.30), transparent 70%)", filter: "blur(20px)" }} />
-          <span aria-hidden className="pointer-events-none absolute -right-20 -bottom-20 h-72 w-72 rounded-full"
-            style={{ background: "radial-gradient(circle at 50% 50%, rgba(167,139,250,0.26), transparent 70%)", filter: "blur(20px)" }} />
+          {/* oversized backdrop numeral */}
+          <span
+            aria-hidden
+            className="editorial-display pointer-events-none absolute -bottom-10 -left-3 select-none font-black leading-none"
+            style={{ fontSize: "clamp(9rem,22vw,20rem)", color: "rgba(34,211,238,0.05)", letterSpacing: "-0.06em" }}
+          >
+            01
+          </span>
 
           <div className="relative grid items-center gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-14">
             <div>
-              <ChapterPill editId="evade.ch1.eyebrow" defaultValue="chapter 01 / evade" accent="cyan" size="md" />
+              <HudEyebrow editId="evade.ch1.eyebrow" defaultValue="chapter 01 / evade" accent="cyan" />
               <KineticText
                 as="h2"
                 text="Evade like a PRO."
                 editId="evade.ch1.title"
-                className="editorial-display mt-8 max-w-xl text-balance uppercase text-white text-[clamp(2rem,5vw,3.8rem)]"
+                className="editorial-display mt-7 max-w-xl text-balance uppercase text-white text-[clamp(2rem,5vw,3.8rem)]"
                 style={{
                   textShadow: "0 6px 36px rgba(0,0,0,0.95), 0 2px 6px rgba(0,0,0,0.95)",
                   letterSpacing: "-0.025em",
-                  lineHeight: 1.15,
+                  lineHeight: 1.12,
                 }}
               />
-              <div className="mt-8 flex flex-col gap-7">
+              <div className="mt-9 flex flex-col gap-6">
                 {BODIES.map((blk) => (
-                  <div key={blk.id} className="relative pl-6">
-                    <span aria-hidden className="absolute left-0 top-1 bottom-1 w-[2px] rounded-full"
-                      style={{ background: `linear-gradient(180deg, ${blk.accent}, transparent)`, boxShadow: `0 0 18px ${blk.accent}` }} />
-                    <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.32em]" style={{ color: blk.accent }}>
-                      {blk.label}
+                  <SafeReveal key={blk.id} kind="slideRight" duration={0.9}>
+                    <div
+                      className="relative rounded-lg border border-white/10 bg-white/[0.02] p-5 pl-6"
+                      style={{ boxShadow: `inset 2px 0 0 rgba(${blk.rgb},0.85)` }}
+                    >
+                      <div className="mb-2 flex items-center justify-between">
+                        <span
+                          className="text-[11px] font-bold uppercase tracking-[0.3em]"
+                          style={{ fontFamily: '"JetBrains Mono", ui-monospace, monospace', color: `rgba(${blk.rgb},0.95)` }}
+                        >
+                          {blk.label}
+                        </span>
+                        <span
+                          aria-hidden
+                          className="text-[10px] tracking-[0.2em] text-white/30"
+                          style={{ fontFamily: '"JetBrains Mono", ui-monospace, monospace' }}
+                        >
+                          {blk.code}
+                        </span>
+                      </div>
+                      <EditableText id={blk.id} defaultValue={blk.body} as="p" multiline
+                        className="text-base leading-[1.75] text-white/90" />
                     </div>
-                    <EditableText id={blk.id} defaultValue={blk.body} as="p" multiline
-                      className="text-base leading-[1.75] text-white/95" />
-                  </div>
+                  </SafeReveal>
                 ))}
               </div>
             </div>
 
             <SafeReveal kind="flip3d" delay={0.15} duration={1.15} className="relative">
-              <div className="relative">
+              <div className="relative mx-auto w-full max-w-[440px]">
+                {/* corner brackets framing the evidence */}
+                {(["tl", "tr", "bl", "br"] as const).map((p) => (
+                  <span
+                    key={p}
+                    aria-hidden
+                    className="absolute z-10 h-6 w-6 border-cyan-300/50"
+                    style={{
+                      top: p[0] === "t" ? -6 : undefined,
+                      bottom: p[0] === "b" ? -6 : undefined,
+                      left: p[1] === "l" ? -6 : undefined,
+                      right: p[1] === "r" ? -6 : undefined,
+                      borderTopWidth: p[0] === "t" ? 2 : 0,
+                      borderBottomWidth: p[0] === "b" ? 2 : 0,
+                      borderLeftWidth: p[1] === "l" ? 2 : 0,
+                      borderRightWidth: p[1] === "r" ? 2 : 0,
+                      borderStyle: "solid",
+                    }}
+                  />
+                ))}
                 <span aria-hidden className="pointer-events-none absolute inset-x-8 -bottom-4 h-14 rounded-[100%]"
-                  style={{ background: "radial-gradient(ellipse 60% 100% at 50% 0%, rgba(34,211,238,0.50), transparent 70%)", filter: "blur(24px)" }} />
+                  style={{ background: "radial-gradient(ellipse 60% 100% at 50% 0%, rgba(34,211,238,0.45), transparent 70%)", filter: "blur(24px)" }} />
                 <EditableImage
                   id="evade.intro.vault"
                   defaultSrc="/uploads/evade-vault.webp"
                   alt="Evade — vault art"
                   wrapperClassName="relative block mx-auto w-full"
-                  className="mx-auto block h-auto w-full max-w-[420px] lg:max-w-none object-contain drop-shadow-[0_30px_60px_rgba(34,211,238,0.45)]"
+                  className="mx-auto block h-auto w-full object-contain drop-shadow-[0_30px_60px_rgba(34,211,238,0.45)]"
                 />
               </div>
             </SafeReveal>
           </div>
-        </div>
+        </HudFrame>
       </div>
     </section>
   );

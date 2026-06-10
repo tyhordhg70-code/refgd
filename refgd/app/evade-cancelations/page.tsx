@@ -14,7 +14,7 @@
   import YouTubeTheater from "@/components/YouTubeTheater";
   import PixelRainCosmic from "@/components/PixelRainCosmic";
   import TrailerTitle3D from "@/components/TrailerTitle3D";
-  import EvadeImmersiveBg from "@/components/EvadeImmersiveBg";
+  import CyberSubstrate from "@/components/evade/CyberSubstrate";
 
   import EvadeIntroEditorial from "@/components/evade/EvadeIntroEditorial";
   import EvadeSolutionsStack from "@/components/evade/EvadeSolutionsStack";
@@ -78,7 +78,7 @@
   export default function EvadePage() {
     return (
       <ReorderableContainer pageId="evade-cancelations">
-        <EvadeImmersiveBg />
+        <CyberSubstrate />
 
         <ReorderableSection sectionId="hero">
           <ChipScroll
