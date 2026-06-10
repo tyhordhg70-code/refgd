@@ -144,11 +144,8 @@ export default function PixelRainCosmic({
 
     // ── rAF loop ────────────────────────────────────────────────────
     function loop() {
-      if (!visibleRef.current) {
-        if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-        return;
-      }
+      rafRef.current = null;
+      if (!visibleRef.current) return;
       timeRef.current += 1;
       if (rampRef.current < RAMP_TICKS) rampRef.current += 1;
       const raw = rampRef.current / RAMP_TICKS;
@@ -156,12 +153,17 @@ export default function PixelRainCosmic({
       draw(p);
       rafRef.current = requestAnimationFrame(loop);
     }
+    function start() {
+      if (rafRef.current != null) return; // already running — never a second chain
+      rafRef.current = requestAnimationFrame(loop);
+    }
 
     // ── IntersectionObserver — pause when off-screen ─────────────────
     const io = new IntersectionObserver(
-      ([e]) => {
+      (entries) => {
+        const e = entries[entries.length - 1];
         visibleRef.current = e.isIntersecting;
-        if (visibleRef.current) loop();
+        if (visibleRef.current) start();
       },
       { rootMargin: "200px 0px 400px 0px" }
     );

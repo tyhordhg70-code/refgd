@@ -74,7 +74,7 @@ export default function EvadeHeroPortal({
   useEffect(() => {
     const el = wrapRef.current;
     if (!el || typeof window === "undefined") return;
-    const io = new IntersectionObserver(([e]) => setPaused(!e.isIntersecting), {
+    const io = new IntersectionObserver((entries) => setPaused(!entries[entries.length - 1].isIntersecting), {
       threshold: 0,
     });
     io.observe(el);
