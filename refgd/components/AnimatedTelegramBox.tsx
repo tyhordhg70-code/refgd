@@ -1,5 +1,6 @@
 "use client";
 import { useReducedMotion } from "framer-motion";
+import { useEffect, useState } from "react";
 
 /**
  * AnimatedTelegramBox v4 — synced to TelegramCard3D fly-in.
@@ -11,6 +12,18 @@ import { useReducedMotion } from "framer-motion";
  */
 export default function AnimatedTelegramBox() {
   const reduced = useReducedMotion();
+
+  // Mobile gets a blur-free glow halo (see below). A large `filter: blur()`
+  // inside the rounded, clipped CTA card renders as a solid black rectangle on
+  // iOS WebKit — the prime suspect for the "black overlay on the bottom half".
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   return (
     <div
@@ -96,16 +109,22 @@ export default function AnimatedTelegramBox() {
         </>
       )}
 
-      {/* Glow halo — starts pulsing at 1.65 s (after card settled) */}
+      {/* Glow halo — starts pulsing at 1.65 s (after card settled). On mobile
+          we DROP the heavy filter:blur(): a large blur inside the rounded,
+          clipped card renders as a solid black rectangle on iOS WebKit. A
+          wider, softer radial-gradient (alpha→0, not the `transparent` keyword
+          which iOS treats as rgba(0,0,0,0)) reads as the same glow with no
+          compositor blur layer. Desktop keeps the blurred halo unchanged. */}
       <div
         style={{
           position: "absolute", left: "50%", top: "44%",
-          width: 210, height: 210,
+          width: isMobile ? 260 : 210, height: isMobile ? 260 : 210,
           transform: "translate(-50%,-50%)",
           borderRadius: "50%",
-          background:
-            "radial-gradient(circle at 50% 50%, rgba(99,77,220,0.68), rgba(34,211,238,0.32) 55%, transparent 80%)",
-          filter: "blur(34px)",
+          background: isMobile
+            ? "radial-gradient(circle at 50% 50%, rgba(99,77,220,0.40), rgba(34,211,238,0.18) 48%, rgba(34,211,238,0) 78%)"
+            : "radial-gradient(circle at 50% 50%, rgba(99,77,220,0.68), rgba(34,211,238,0.32) 55%, transparent 80%)",
+          filter: isMobile ? undefined : "blur(34px)",
           animation: reduced ? undefined : "tg3-glow-pulse 3.8s 1.65s ease-in-out infinite",
           opacity: reduced ? 0.55 : 0.45,
           pointerEvents: "none",

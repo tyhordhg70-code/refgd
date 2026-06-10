@@ -360,8 +360,21 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         setHeroFlight(false);
       }
     };
-    window.addEventListener("scroll", onScrollTrigger, { passive: true });
-    window.addEventListener("scroll", onScrollReset, { passive: true });
+    // ── Mobile: NO scroll-jacking. The hero welcome text fades + lifts as a
+    //    passive function of scroll position and re-appears on scroll back up.
+    //    Scrolling stays 100% native — it can never yank, stick mid-section, or
+    //    land cut off ("scroll in one go to each section" = let the browser do
+    //    it). Desktop keeps the wheel/key auto-scroll handoff below,
+    //    byte-for-byte. ──
+    const onScrollFadeMobile = () => {
+      applyFades(clamp01(window.scrollY / (window.innerHeight * 0.65)));
+    };
+    if (isMobileRef.current) {
+      window.addEventListener("scroll", onScrollFadeMobile, { passive: true });
+    } else {
+      window.addEventListener("scroll", onScrollTrigger, { passive: true });
+      window.addEventListener("scroll", onScrollReset, { passive: true });
+    }
 
     // ── Desktop only: precise wheel/keyboard triggers on top of scroll ──
     let cleanupDesktop = () => {};
@@ -401,6 +414,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     let cleanupTriggers = () => {
       window.removeEventListener("scroll", onScrollTrigger);
       window.removeEventListener("scroll", onScrollReset);
+      window.removeEventListener("scroll", onScrollFadeMobile);
       cleanupDesktop();
     };
 
