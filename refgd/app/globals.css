@@ -1654,7 +1654,6 @@ html { overflow-anchor: none; }
   animation-name: floatOrb;
   animation-iteration-count: infinite;
   animation-timing-function: ease-in-out;
-  will-change: transform, opacity;
 }
 
 @keyframes cubeFloat {
@@ -1681,6 +1680,32 @@ html { overflow-anchor: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .float-orb, .cube-float, .constellation-dot { animation: none; }
+}
+
+
+/* ── Telegram CTA 3D card (mobile-only flatten) ──────────────────
+ * Desktop keeps the full preserve-3d fly-in (byte-for-byte). On
+ * mobile WebKit, preserve-3d z-sorts the card's children at z=0 so
+ * the CTA button z-fights the absolute-inset background and vanishes,
+ * and the 3D context makes the rounded overflow clip drop composited
+ * children so the card bottom breaks past its corner. Flattening on
+ * mobile fixes both WITHOUT removing the rotateX/rotateY fly-in
+ * (perspective lives on the parent). Do NOT force-promote this subtree
+ * (translateZ(0)/isolation) — that freezes the fly-in mid-frame. */
+.tg-card-3d {
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
+@media (max-width: 768px) {
+  .tg-card-3d {
+    transform-style: flat;
+    will-change: auto;
+  }
+  /* Round the full-bleed inner panel itself so even if iOS drops the
+     outer rounded clip, no square corner can show past the card. */
+  .tg-inner-clip {
+    border-radius: 2.5rem;
+  }
 }
 
 

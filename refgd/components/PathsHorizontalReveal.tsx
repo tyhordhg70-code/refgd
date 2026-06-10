@@ -222,7 +222,7 @@ function MobileFloatOrbs() {
             height: orb.size,
             left: orb.left,
             top: orb.top,
-            background: orb.color,
+            background: `radial-gradient(circle, ${orb.color}, transparent 68%)`,
             animationDuration: `${orb.dur}s`,
             animationDelay: `${orb.delay}s`,
             // Per-orb keyframe variables (read by the .float-orb @keyframes
@@ -525,7 +525,6 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
             transition: reduced
               ? "none"
               : "transform 600ms cubic-bezier(0.22, 1, 0.36, 1)",
-            willChange: "transform",
           }}
         >
           {cards.map((card, i) => {

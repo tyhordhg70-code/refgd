@@ -217,7 +217,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (blockOn) return;
       blockOn = true;
       window.addEventListener("wheel", swallow, { passive: false, capture: true });
-      window.addEventListener("touchmove", swallow, { passive: false, capture: true });
+      // Mobile: do NOT swallow touchmove during the glide — a deliberate
+      // finger swipe must be able to interrupt/override the auto-scroll so
+      // it never feels like a locked "yank". Desktop still swallows wheel.
+      if (!isMobileRef.current) {
+        window.addEventListener("touchmove", swallow, { passive: false, capture: true });
+      }
       window.addEventListener("keydown", blockKeys, { capture: true });
     };
     const releaseBlock = () => {
@@ -322,6 +327,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // up near the boundary → glide back to top. Never yanks from deep content.
     const atTop = () => window.scrollY <= 2;
     const nearBoundary = () => window.scrollY <= window.innerHeight * 1.15;
+    // Mobile: the up-handoff must NOT fire while browsing the path cards.
+    // #paths starts ~1 viewport down, so the 1.15 boundary catches the
+    // cards and yanks back to the top on any small upward swipe. On mobile
+    // require the hero to actually be re-entering view (<= 0.5vh). Desktop
+    // keeps 1.15 so wheel/keyboard handoff stays byte-for-byte unchanged.
+    const nearBoundaryUp = () =>
+      window.scrollY <= window.innerHeight * (isMobileRef.current ? 0.5 : 1.15);
     let prevY = window.scrollY;
     const onScrollTrigger = () => {
       const y = window.scrollY;
@@ -331,7 +343,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       prevY = y;
       if (state === "idle" && goingDown && wasAtTop && y > 2 && y < window.innerHeight * 0.6) {
         startHandoff();
-      } else if (state === "done" && goingUp && nearBoundary()) {
+      } else if (state === "done" && goingUp && nearBoundaryUp()) {
         startHandoffUp();
       }
     };
