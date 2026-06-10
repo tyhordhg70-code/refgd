@@ -9,7 +9,7 @@
      editable. */
   export const dynamic = "force-dynamic";
 
-  import ChipScroll from "@/components/ChipScroll";
+  import EvadeHeroPortal from "@/components/EvadeHeroPortal";
   import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
   import YouTubeTheater from "@/components/YouTubeTheater";
   import PixelRainCosmic from "@/components/PixelRainCosmic";
@@ -81,12 +81,7 @@
         <CyberSubstrate />
 
         <ReorderableSection sectionId="hero">
-          <ChipScroll
-            dir="/sequence/evade"
-            frameCount={0}
-            background="transparent"
-            accent="#22d3ee"
-            fallbackKind="shield"
+          <EvadeHeroPortal
             caption="Experience Online Freedom."
             subCaption="Say goodbye to order cancelations, bans, rebills, failed refunds due to fraud detections & more. Trusted by clients worldwide."
           />
@@ -108,7 +103,9 @@
         </ReorderableSection>
 
         <ReorderableSection sectionId="pixel-rain">
-          <PixelRainCosmic accent="#7dd3fc" />
+          <div className="pointer-events-none relative z-[1] -mt-[10vh] -mb-[8vh] sm:-mt-[14vh] sm:-mb-[12vh]">
+            <PixelRainCosmic accent="#7dd3fc" className="h-[56vh] sm:h-[64vh]" />
+          </div>
         </ReorderableSection>
 
         {/* CHAPTER 01 — editorial layout (oversized 01, vault art, excerpts) */}

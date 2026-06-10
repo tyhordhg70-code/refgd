@@ -91,18 +91,22 @@ export default function SafeReveal({
     const el = ref.current;
     if (!el || typeof window === "undefined") return;
 
+    // Hide immediately if it's not already in view so the entrance plays the
+    // first time it scrolls in. If it IS in view on mount, leave it visible
+    // (no flash) — the observer below still re-hides it once it leaves.
     const r = el.getBoundingClientRect();
-    if (r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0) return;
-    setHidden(true);
+    const inViewNow =
+      r.top < (window.innerHeight || 0) * 0.95 && r.bottom > 0;
+    if (!inViewNow) setHidden(true);
 
+    // RE-TRIGGER ON RESCROLL: instead of revealing once and disconnecting,
+    // keep observing and toggle the hidden state every time the element
+    // enters/leaves the viewport. Scrolling back up and down replays the
+    // entrance animation.
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
-          if (e.isIntersecting) {
-            setHidden(false);
-            io.disconnect();
-            break;
-          }
+          setHidden(!e.isIntersecting);
         }
       },
       { rootMargin: "0px 0px -5% 0px", threshold: 0.05 },

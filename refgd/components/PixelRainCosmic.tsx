@@ -3,15 +3,18 @@
 import { useEffect, useRef } from "react";
 
 /**
- * PixelRainCosmic v7.2 — self-playing cinematic transition.
+ * PixelRainCosmic v7.3 — self-playing cinematic TRANSITION.
  *
- * Container: h-screen (no scroll runway). Progress is TIME-driven:
- * density ramps 0 → 1 over ~1.5 s once the section enters the viewport.
- * No scroll listener, no Lenis dependency, no dead-scroll zone.
- * scrollLength prop kept for call-site compatibility but is ignored.
+ * Height is now controlled by the caller via `className` (no hardcoded
+ * h-screen) so it can sit as a short transition band between two sections
+ * rather than a full-screen runaway panel. A built-in vertical fade mask
+ * makes the rain emerge at the top and dissolve at the bottom, so it reads
+ * as digital rain falling THROUGH the boundary between sections.
  *
- * TS fix (v7.1 → v7.2): ctx also assigned to an explicit alias after
- * its null-guard so all closures use the non-null typed reference.
+ * Progress is TIME-driven: density ramps 0 → 1 over ~1.5 s once the section
+ * enters the viewport. No scroll listener, no Lenis dependency, no dead
+ * scroll zone. `scrollLength` prop kept for call-site compatibility but is
+ * ignored.
  */
 
 type Props = {
@@ -179,8 +182,16 @@ export default function PixelRainCosmic({
   return (
     <div
       ref={wrapRef}
-      className={`relative h-screen w-full overflow-hidden ${className}`}
-      style={{ background: "transparent" }}
+      className={`relative w-full overflow-hidden ${className}`}
+      style={{
+        background: "transparent",
+        // Vertical fade so the rain emerges at the top and dissolves at the
+        // bottom — it reads as a transition between sections, not a panel.
+        WebkitMaskImage:
+          "linear-gradient(to bottom, transparent 0%, #000 16%, #000 82%, transparent 100%)",
+        maskImage:
+          "linear-gradient(to bottom, transparent 0%, #000 16%, #000 82%, transparent 100%)",
+      }}
       aria-hidden="true"
     >
       <canvas
