@@ -360,17 +360,111 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         setHeroFlight(false);
       }
     };
-    // ── Mobile: NO scroll-jacking. The hero welcome text fades + lifts as a
-    //    passive function of scroll position and re-appears on scroll back up.
-    //    Scrolling stays 100% native — it can never yank, stick mid-section, or
-    //    land cut off ("scroll in one go to each section" = let the browser do
-    //    it). Desktop keeps the wheel/key auto-scroll handoff below,
-    //    byte-for-byte. ──
+    // ── Mobile: auto-scroll-to-section as a ROBUST snap-on-settle ──
+    //    Native scrolling stays 100% in the finger's control; we only glide to
+    //    the NEAREST section AFTER the gesture AND its momentum have completely
+    //    settled (no active touch + no scroll event for SETTLE_MS). A finger-
+    //    down, wheel, or fresh scroll cancels any in-flight glide instantly, so
+    //    it can never yank mid-gesture, get stuck, or land cut off. Targets are
+    //    clamped to maxScroll so a short final section is never overshot. The
+    //    hero welcome text still fades passively with scroll position. ──
     const onScrollFadeMobile = () => {
       applyFades(clamp01(window.scrollY / (window.innerHeight * 0.65)));
     };
+    let cleanupMobile = () => {};
     if (isMobileRef.current) {
-      window.addEventListener("scroll", onScrollFadeMobile, { passive: true });
+      const SETTLE_MS = 150;
+      const DEAD_ZONE = 26;
+      const TWEEN_MS = 520;
+      let settleTimer = 0;
+      let touching = false;
+      let tweening = false;
+      let tweenRaf = 0;
+
+      // Section anchors, computed live (the iOS URL bar resizes the viewport).
+      const sectionTargets = (): number[] => {
+        const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        const raw = [0];
+        const paths = document.getElementById("paths");
+        const tg = document.getElementById("telegram");
+        if (paths) raw.push(Math.round(paths.getBoundingClientRect().top + window.scrollY));
+        if (tg) raw.push(Math.round(tg.getBoundingClientRect().top + window.scrollY));
+        raw.push(max);
+        const out: number[] = [];
+        raw
+          .map((y) => Math.min(Math.max(0, y), max))
+          .sort((a, b) => a - b)
+          .forEach((y) => { if (!out.length || y - out[out.length - 1] > 8) out.push(y); });
+        return out;
+      };
+
+      const cancelTween = () => {
+        tweening = false;
+        cancelAnimationFrame(tweenRaf);
+        document.documentElement.style.scrollBehavior = "";
+      };
+      // Our OWN rAF tween — never native smooth scroll (iOS can't cancel that,
+      // and html{scroll-behavior:smooth} would compound it). A finger-down
+      // cancels it instantly via cancelTween().
+      const tweenTo = (target: number) => {
+        cancelAnimationFrame(tweenRaf);
+        const start = window.scrollY;
+        const dist = target - start;
+        if (Math.abs(dist) < 2) return;
+        document.documentElement.style.scrollBehavior = "auto";
+        tweening = true;
+        const t0 = performance.now();
+        const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+        const step = (now: number) => {
+          if (!tweening) return;
+          const e = clamp01((now - t0) / TWEEN_MS);
+          window.scrollTo(0, Math.round(start + dist * easeOut(e)));
+          if (e >= 1) { cancelTween(); return; }
+          tweenRaf = requestAnimationFrame(step);
+        };
+        tweenRaf = requestAnimationFrame(step);
+      };
+
+      const settle = () => {
+        if (touching || tweening) return;
+        const y = window.scrollY;
+        let nearest = 0;
+        let best = Infinity;
+        for (const t of sectionTargets()) {
+          const d = Math.abs(t - y);
+          if (d < best) { best = d; nearest = t; }
+        }
+        if (best > DEAD_ZONE) tweenTo(nearest);
+      };
+      const queueSettle = () => {
+        clearTimeout(settleTimer);
+        settleTimer = window.setTimeout(settle, SETTLE_MS);
+      };
+
+      const onScroll = () => {
+        onScrollFadeMobile();
+        if (tweening) return; // ignore our own programmatic scroll writes
+        queueSettle();
+      };
+      const onTouchStart = () => { touching = true; cancelTween(); clearTimeout(settleTimer); };
+      const onTouchEnd = () => { touching = false; queueSettle(); };
+      const onWheelCancel = () => { cancelTween(); };
+
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("touchstart", onTouchStart, { passive: true });
+      window.addEventListener("touchend", onTouchEnd, { passive: true });
+      window.addEventListener("touchcancel", onTouchEnd, { passive: true });
+      window.addEventListener("wheel", onWheelCancel, { passive: true });
+
+      cleanupMobile = () => {
+        clearTimeout(settleTimer);
+        cancelTween();
+        window.removeEventListener("scroll", onScroll);
+        window.removeEventListener("touchstart", onTouchStart);
+        window.removeEventListener("touchend", onTouchEnd);
+        window.removeEventListener("touchcancel", onTouchEnd);
+        window.removeEventListener("wheel", onWheelCancel);
+      };
     } else {
       window.addEventListener("scroll", onScrollTrigger, { passive: true });
       window.addEventListener("scroll", onScrollReset, { passive: true });
@@ -414,7 +508,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     let cleanupTriggers = () => {
       window.removeEventListener("scroll", onScrollTrigger);
       window.removeEventListener("scroll", onScrollReset);
-      window.removeEventListener("scroll", onScrollFadeMobile);
+      cleanupMobile();
       cleanupDesktop();
     };
 

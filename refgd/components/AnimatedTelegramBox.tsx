@@ -31,10 +31,19 @@ export default function AnimatedTelegramBox() {
       data-testid="animated-telegram-box"
       className="tg-inner-clip absolute inset-0 overflow-hidden"
       style={{
-        background:
-          "radial-gradient(ellipse at 50% 40%, rgba(99,77,180,0.42), transparent 60%)," +
-          "radial-gradient(ellipse at 75% 65%, rgba(34,211,238,0.22), transparent 55%)," +
-          "linear-gradient(160deg, #07071a 0%, #12102a 50%, #07071a 100%)",
+        // iOS WebKit treats the `transparent` keyword in a gradient as
+        // rgba(0,0,0,0) (transparent BLACK), so each radial layer fades toward
+        // black and the stacked layers read as a dark slab ("black overlay").
+        // On mobile we fade to an explicit in-hue rgba(...,0) instead, which
+        // interpolates cleanly with no black cast. Desktop keeps the original
+        // byte-for-byte.
+        background: isMobile
+          ? "radial-gradient(ellipse at 50% 40%, rgba(99,77,180,0.42), rgba(99,77,180,0) 60%)," +
+            "radial-gradient(ellipse at 75% 65%, rgba(34,211,238,0.22), rgba(34,211,238,0) 55%)," +
+            "linear-gradient(160deg, #07071a 0%, #12102a 50%, #07071a 100%)"
+          : "radial-gradient(ellipse at 50% 40%, rgba(99,77,180,0.42), transparent 60%)," +
+            "radial-gradient(ellipse at 75% 65%, rgba(34,211,238,0.22), transparent 55%)," +
+            "linear-gradient(160deg, #07071a 0%, #12102a 50%, #07071a 100%)",
       }}
     >
       <style>{`
@@ -146,9 +155,14 @@ export default function AnimatedTelegramBox() {
         <div
           style={{
             animation: reduced ? undefined : "tg3-float 5.5s 1.7s ease-in-out infinite",
-            filter:
-              "drop-shadow(0 0 22px rgba(99,77,255,0.62))" +
-              " drop-shadow(0 0 50px rgba(34,211,238,0.36))",
+            // iOS WebKit renders `filter: drop-shadow()` inside the rounded,
+            // clipped, composited CTA card as a black box (same class of bug as
+            // the blur() halo). Drop it on mobile — the blur-free radial halo
+            // behind the logo already supplies the glow. Desktop unchanged.
+            filter: isMobile
+              ? undefined
+              : "drop-shadow(0 0 22px rgba(99,77,255,0.62))" +
+                " drop-shadow(0 0 50px rgba(34,211,238,0.36))",
           }}
         >
           <svg width="112" height="112" viewBox="0 0 240 240" fill="none">

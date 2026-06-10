@@ -462,16 +462,58 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
   }, []);
   const r = faceWidth * inradiusFactor;
 
+  // Halo colour per active card. Covers every accent the path cards actually
+  // use (gold/cyan/violet/orange/fuchsia) plus amber/emerald aliases; unknown
+  // values fall back to gold so the lookup can never yield invalid CSS.
+  const ACCENT_RGB: Record<string, string> = {
+    gold: "245,185,69",
+    amber: "245,185,69",
+    orange: "251,146,60",
+    fuchsia: "232,121,249",
+    violet: "167,139,250",
+    cyan: "34,211,238",
+    emerald: "52,211,153",
+  };
+  const accentOf = (card: ReactNode): string =>
+    isValidElement(card)
+      ? ((card as ReactElement<{ accent?: string }>).props.accent ?? "gold")
+      : "gold";
+  const haloRgb = ACCENT_RGB[accentOf(cards[active])] ?? "245,185,69";
+
   return (
     <motion.div
       data-testid="paths-mobile-track"
       className="mx-auto"
-      style={{ width: "min(92vw, 440px)" }}
+      style={{ width: "min(92vw, 440px)", position: "relative" }}
       initial={reduced ? false : { opacity: 0, y: 60, scale: 0.88 }}
       whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, amount: 0.25 }}
       transition={{ duration: 0.95, ease: [0.22, 1, 0.36, 1] }}
     >
+      {/* v6.14 — Mobile path-card GLOW: a sibling halo BEHIND the prism
+          clipPath wrapper so it can never be clipped (the box-shadow pulse-glow
+          halos were cut on left/right/bottom, leaving the cards looking flat /
+          "glow broken"). Pure radial-gradient opacity pulse — no box-shadow, no
+          filter:blur — keyed to the active card's accent. Mobile-only, so
+          desktop is untouched. */}
+      {!reduced && (
+        <>
+          <style>{`@keyframes pcGlowFade {0%,100%{opacity:.55}50%{opacity:.95}}`}</style>
+          <div
+            aria-hidden="true"
+            data-testid="paths-mobile-glow"
+            className="pointer-events-none absolute"
+            style={{
+              left: -36, right: -36, top: -30, bottom: -24,
+              zIndex: 0,
+              borderRadius: 40,
+              background: `radial-gradient(ellipse 72% 64% at 50% 50%, rgba(${haloRgb},0.5), rgba(${haloRgb},0.16) 46%, rgba(${haloRgb},0) 72%)`,
+              transition: "background 420ms ease",
+              animation: "pcGlowFade 4.8s ease-in-out infinite",
+            }}
+          />
+        </>
+      )}
       {/*
         v6.13.1: prism wrapper with overflow:hidden. The user
         reported "tiny bit of next/previous card visible at the
@@ -486,6 +528,8 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
       */}
       <div
         style={{
+          position: "relative",
+          zIndex: 1,
           aspectRatio: "1 / 1.42",
           perspective: "1400px",
           // v6.13.58 — Removed the solid rgb(8,8,16) background that was
@@ -528,25 +572,16 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
           }}
         >
           {cards.map((card, i) => {
-            // v6.13.9 — derive the per-card accent so the prism
-            // face's backstop can match each card's colour family
-            // instead of the previous flat near-black. The user
-            // reported the dark padding read as a "weird black
-            // outline" — replacing it with an accent-tinted radial
-            // glow makes the breathing room feel like a deliberate
-            // halo around the card rather than a frame.
-            const accent =
-              (isValidElement(card)
-                ? ((card as ReactElement<{ accent?: string }>).props.accent ??
-                    "amber")
-                : "amber") as "amber" | "violet" | "emerald" | "cyan";
-            const ACCENT_RGB: Record<typeof accent, string> = {
-              amber: "245,185,69",
-              violet: "167,139,250",
-              emerald: "52,211,153",
-              cyan: "34,211,238",
-            };
-            const rgb = ACCENT_RGB[accent];
+            // v6.14 — iOS backface-visibility under preserve-3d is unreliable,
+            // so back faces can bleed through as dark shapes ("dark overlay on
+            // the cards"). Belt-and-braces: only the active face and its two
+            // neighbours paint; the rest are visibility:hidden so nothing can
+            // show behind the front card. Neighbours stay visible so the
+            // rotation to the next card is never blank mid-swing.
+            const faceVisible =
+              i === active ||
+              i === (active + 1) % N ||
+              i === (active - 1 + N) % N;
             return (
             <div
               key={i}
@@ -585,6 +620,8 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
                 // Only the active face accepts pointer/touch — the
                 // others are visually hidden behind the prism.
                 pointerEvents: i === active ? "auto" : "none",
+                // iOS back-face bleed guard (see faceVisible above).
+                visibility: faceVisible ? "visible" : "hidden",
               }}
             >
               {renderCard(card, i)}
