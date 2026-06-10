@@ -73,6 +73,12 @@ export default function MusicPlayer() {
 
   // Mount-time bootstrap: pick track + read mute preference.
   const [dismissed, setDismissed] = useState<boolean>(false);
+  // Coarse-pointer (phone / tablet) detection. On touch devices we NEVER honour
+  // the dismiss flag and NEVER render the tiny × — it sits one fat-finger-tap
+  // above the mute button, so a single accidental tap permanently hid the whole
+  // control (localStorage), which is why the sound button "vanished" on mobile
+  // while the music kept playing. Phones therefore always show the button.
+  const [coarse, setCoarse] = useState<boolean>(false);
 
   useEffect(() => {
     setTrack(pickTrack());
@@ -80,6 +86,7 @@ export default function MusicPlayer() {
     setMuted(initial);
     mutedRef.current = initial;
     try { if (localStorage.getItem(DISMISSED_KEY) === "1") setDismissed(true); } catch {}
+    try { setCoarse(window.matchMedia("(pointer: coarse), (max-width: 768px)").matches); } catch {}
   }, []);
 
   function cancelFade() {
@@ -375,8 +382,10 @@ export default function MusicPlayer() {
     return () => window.removeEventListener("refgd:music-dim", onDim as EventListener);
   }, []);
 
-    // If dismissed: render audio-only (music keeps playing, controls hidden)
-    if (dismissed) {
+    // If dismissed: render audio-only (music keeps playing, controls hidden).
+    // Never honour dismissal on touch devices (see `coarse` above) so the
+    // sound button is always reachable on phones.
+    if (dismissed && !coarse) {
       return track ? (
         <audio ref={audioRef} src={track.src} loop autoPlay muted preload="auto"
           aria-label={`Background music — ${track.label}`} />
@@ -403,24 +412,27 @@ export default function MusicPlayer() {
             that chrome (safe-area inset + extra lift) on phones; desktop
             keeps its original bottom-right rest position. */}
         <div className="fixed right-5 z-[60] flex items-end gap-1.5 bottom-[max(1.25rem,calc(env(safe-area-inset-bottom,0px)+4.5rem))] sm:bottom-6 sm:right-6">
-          {/* Small × close button above the mute button */}
+          {/* Small × close button above the mute button — desktop only. On
+              touch it is a fat-finger hazard that permanently hides the player. */}
           <div className="flex flex-col items-center gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                setDismissed(true);
-                try { localStorage.setItem(DISMISSED_KEY, "1"); } catch {}
-              }}
-              aria-label="Hide music controls"
-              data-cursor="link"
-              data-cursor-label="hide player"
-              className="grid h-6 w-6 place-items-center rounded-full border border-white/20 bg-ink-900/80 text-white/50 backdrop-blur-sm transition hover:border-white/40 hover:text-white/80 active:scale-95"
-            >
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+            {!coarse && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDismissed(true);
+                  try { localStorage.setItem(DISMISSED_KEY, "1"); } catch {}
+                }}
+                aria-label="Hide music controls"
+                data-cursor="link"
+                data-cursor-label="hide player"
+                className="grid h-6 w-6 place-items-center rounded-full border border-white/20 bg-ink-900/80 text-white/50 backdrop-blur-sm transition hover:border-white/40 hover:text-white/80 active:scale-95"
+              >
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            )}
             {/* Mute / unmute button */}
             <button
               type="button"

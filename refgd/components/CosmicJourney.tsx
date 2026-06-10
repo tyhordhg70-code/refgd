@@ -21,7 +21,8 @@ import KineticText from "./KineticText";
  *     stays legible no matter what color the sphere becomes.
  *   • Hand-off: on the first downward intent (desktop) the page AUTO-SCROLLS
  *     straight to the paths section, so the loop is never caught mid-scroll.
- *     Scroll back to the very top and it re-arms. Mobile scrolls normally.
+ *     Scroll back to the very top and it re-arms. Desktop drives it through
+ *     Lenis; mobile intercepts the first finger drag and glides with a tween.
  *   • The video AND the color sampling both stop when the hero leaves the
  *     viewport (no idle work); prefers-reduced-motion shows a static frame
  *     with no playback, no sampling, and no listeners.
@@ -54,7 +55,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     isMobileRef.current = isMobile;
   }, [isMobile]);
 
-  // Viewport size watcher (mobile scrolls normally, no auto-scroll hand-off).
+  // Viewport size watcher — desktop uses wheel/scroll/key via Lenis; mobile
+  // uses a touch-driven rAF glide (both wired in the effect below).
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(max-width: 768px)");
@@ -193,6 +195,31 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const lenis = () =>
       (window as unknown as { __lenis?: { stop?: () => void; start?: () => void; scrollTo?: (t: unknown, o?: unknown) => void } }).__lenis;
 
+    // Smooth rAF scroll tween for when Lenis is absent (mobile / coarse
+    // pointers). Drives window.scrollTo every frame so there is exactly ONE
+    // scroll source — no native momentum fighting a forced glide, which was
+    // the "autoscroll feels janky on mobile" report.
+    let tweenRaf = 0;
+    const cancelTween = () => {
+      if (tweenRaf) cancelAnimationFrame(tweenRaf);
+      tweenRaf = 0;
+    };
+    const easeInOutCubic = (t: number) =>
+      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const smoothScrollTo = (targetY: number, dur: number) => {
+      cancelTween();
+      const startY = window.scrollY;
+      const dist = targetY - startY;
+      const t0 = performance.now();
+      const step = (now: number) => {
+        const e = clamp01((now - t0) / dur);
+        window.scrollTo(0, Math.round(startY + dist * easeInOutCubic(e)));
+        if (e < 1) tweenRaf = requestAnimationFrame(step);
+        else tweenRaf = 0;
+      };
+      tweenRaf = requestAnimationFrame(step);
+    };
+
     type State = "idle" | "handoff" | "done";
     let state: State = "idle";
     let handoffRaf = 0;
@@ -245,7 +272,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           easing: (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
         });
       } else if (target) {
-        target.scrollIntoView({ behavior: "smooth" });
+        // Mobile / no-Lenis: deterministic single-source rAF glide.
+        // scrollIntoView's "smooth" fought iOS momentum and stuttered.
+        const targetY = window.scrollY + target.getBoundingClientRect().top;
+        smoothScrollTo(targetY, HANDOFF_MS);
       }
       const t0 = performance.now();
       const drive = (now: number) => {
@@ -279,7 +309,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           easing: (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
         });
       } else {
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        smoothScrollTo(0, HANDOFF_MS);
       }
       const t0 = performance.now();
       const drive = (now: number) => {
@@ -344,13 +374,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         setHeroFlight(false);
       }
     };
-    // ── Handoff triggers are DESKTOP-ONLY ──
-    // On mobile, Lenis is disabled (SmoothScroll bails on coarse pointers), so
-    // startHandoff() fell back to scrollIntoView WHILE the capture-phase
-    // touchmove blocker swallowed the user's own finger scroll for 900 ms.
-    // That fight between forced glide + native momentum was the "autoscroll
-    // feels very janky on mobile" report. Phones now scroll the hero 100%
-    // natively — no forced glide, no input blocking, no jank.
+    // ── Hand-off triggers ──
+    // DESKTOP drives the glide from wheel/scroll/keyboard through Lenis.
+    // MOBILE has no Lenis (SmoothScroll bails on coarse pointers). The old
+    // mobile path triggered from the `scroll` event AFTER native momentum had
+    // already started, then blocked touchmove mid-flick — that fight was the
+    // "autoscroll feels janky on mobile" report. Phones now intercept the
+    // FIRST finger drag (touchmove, before momentum builds), preventDefault
+    // it, and glide with the single-source rAF tween above — smooth, no fight.
     let cleanupTriggers = () => {};
     if (!isMobileRef.current) {
       window.addEventListener("scroll", onScrollTrigger, { passive: true });
@@ -388,10 +419,38 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         window.removeEventListener("wheel", onWheel);
         window.removeEventListener("keydown", onKey);
       };
+    } else {
+      // MOBILE: touch-driven hand-off. Catch the first drag before the native
+      // scroll runs so there is no momentum to fight the rAF glide.
+      let touchY = 0;
+      const onTouchStart = (ev: TouchEvent) => {
+        touchY = ev.touches[0]?.clientY ?? 0;
+      };
+      const onTouchMove = (ev: TouchEvent) => {
+        const y = ev.touches[0]?.clientY ?? touchY;
+        const dy = y - touchY;
+        // finger UP (dy < 0) → intent to scroll DOWN; finger DOWN → scroll up.
+        if (state === "idle" && atTop() && dy < -6) {
+          if (ev.cancelable) ev.preventDefault();
+          startHandoff();
+        } else if (state === "done" && nearBoundary() && dy > 6) {
+          if (ev.cancelable) ev.preventDefault();
+          startHandoffUp();
+        }
+      };
+      window.addEventListener("touchstart", onTouchStart, { passive: true });
+      window.addEventListener("touchmove", onTouchMove, { passive: false });
+      window.addEventListener("scroll", onScrollReset, { passive: true });
+      cleanupTriggers = () => {
+        window.removeEventListener("touchstart", onTouchStart);
+        window.removeEventListener("touchmove", onTouchMove);
+        window.removeEventListener("scroll", onScrollReset);
+      };
     }
 
     return () => {
       cancelAnimationFrame(handoffRaf);
+      cancelTween();
       stopSampling();
       releaseBlock();
       cleanupTriggers();
@@ -450,12 +509,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           width: "100%",
           height: "100%",
           transform: "translate(-50%, -50%)",
-          // Mobile portrait: `cover` scaled the landscape sphere clip to fill
-          // the tall viewport, blowing the orb up so it spilled past the screen
-          // edges. `contain` fits the WHOLE sphere inside the viewport (it sits
-          // smaller, centred, with the near-black backdrop showing top/bottom)
-          // — "shrink the sphere so it fits". Desktop keeps the full-bleed cover.
-          objectFit: isMobile ? "contain" : "cover",
+          // `cover` fills the viewport on EVERY device. `contain` was tried on
+          // mobile but it letterboxed the landscape clip into a small centred
+          // band on a portrait phone — "landscape mode on portrait ruins it".
+          // The orb is full-bleed and centred again; the radial mask below
+          // fades its edges so nothing reads as spilling off the screen.
+          objectFit: "cover",
           display: "block",
           WebkitMaskImage:
             "radial-gradient(circle at 50% 50%, #000 52%, transparent 72%)",
