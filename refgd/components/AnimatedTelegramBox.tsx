@@ -16,7 +16,7 @@ export default function AnimatedTelegramBox() {
     <div
       aria-hidden="true"
       data-testid="animated-telegram-box"
-      className="tg-inner-clip absolute inset-0 overflow-hidden"
+      className="absolute inset-0 overflow-hidden"
       style={{
         background:
           "radial-gradient(ellipse at 50% 40%, rgba(99,77,180,0.42), transparent 60%)," +
@@ -98,7 +98,6 @@ export default function AnimatedTelegramBox() {
 
       {/* Glow halo — starts pulsing at 1.65 s (after card settled) */}
       <div
-        className="tg-halo"
         style={{
           position: "absolute", left: "50%", top: "44%",
           width: 210, height: 210,
@@ -126,7 +125,6 @@ export default function AnimatedTelegramBox() {
         }}
       >
         <div
-          className="tg-logo-glow"
           style={{
             animation: reduced ? undefined : "tg3-float 5.5s 1.7s ease-in-out infinite",
             filter:

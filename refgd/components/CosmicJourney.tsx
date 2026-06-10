@@ -21,8 +21,7 @@ import KineticText from "./KineticText";
  *     stays legible no matter what color the sphere becomes.
  *   • Hand-off: on the first downward intent (desktop) the page AUTO-SCROLLS
  *     straight to the paths section, so the loop is never caught mid-scroll.
- *     Scroll back to the very top and it re-arms. Desktop drives it through
- *     Lenis; mobile intercepts the first finger drag and glides with a tween.
+ *     Scroll back to the very top and it re-arms. Mobile scrolls normally.
  *   • The video AND the color sampling both stop when the hero leaves the
  *     viewport (no idle work); prefers-reduced-motion shows a static frame
  *     with no playback, no sampling, and no listeners.
@@ -55,8 +54,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     isMobileRef.current = isMobile;
   }, [isMobile]);
 
-  // Viewport size watcher — desktop uses wheel/scroll/key via Lenis; mobile
-  // uses a touch-driven rAF glide (both wired in the effect below).
+  // Viewport size watcher (mobile scrolls normally, no auto-scroll hand-off).
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(max-width: 768px)");
@@ -195,37 +193,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const lenis = () =>
       (window as unknown as { __lenis?: { stop?: () => void; start?: () => void; scrollTo?: (t: unknown, o?: unknown) => void } }).__lenis;
 
-    // Smooth rAF scroll tween for when Lenis is absent (mobile / coarse
-    // pointers). Drives window.scrollTo every frame so there is exactly ONE
-    // scroll source — no native momentum fighting a forced glide, which was
-    // the "autoscroll feels janky on mobile" report.
-    let tweenRaf = 0;
-    const cancelTween = () => {
-      if (tweenRaf) cancelAnimationFrame(tweenRaf);
-      tweenRaf = 0;
-    };
-    const easeInOutCubic = (t: number) =>
-      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-    const smoothScrollTo = (targetY: number, dur: number) => {
-      cancelTween();
-      const startY = window.scrollY;
-      const dist = targetY - startY;
-      const t0 = performance.now();
-      const step = (now: number) => {
-        const e = clamp01((now - t0) / dur);
-        window.scrollTo(0, Math.round(startY + dist * easeInOutCubic(e)));
-        if (e < 1) tweenRaf = requestAnimationFrame(step);
-        else tweenRaf = 0;
-      };
-      tweenRaf = requestAnimationFrame(step);
-    };
-
     type State = "idle" | "handoff" | "done";
     let state: State = "idle";
     let handoffRaf = 0;
     let blockOn = false;
-    let blockSafetyTimer = 0;
 
     // Capture-phase swallow of scroll input during the short auto-scroll glide.
     const swallow = (ev: Event) => {
@@ -245,18 +216,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const attachBlock = () => {
       if (blockOn) return;
       blockOn = true;
-      // SAFETY: if the driving rAF is throttled (e.g. the tab is backgrounded
-      // mid-glide) the completion branch that calls releaseBlock() may never
-      // run — on desktop that would leave the capture swallow below
-      // permanently scroll-locking the page. Always release after the glide's
-      // worst-case duration no matter what.
-      blockSafetyTimer = window.setTimeout(releaseBlock, HANDOFF_MS + 300);
-      // MOBILE deliberately does NOT swallow touch. A touchstart during the
-      // glide interrupts it and hands control straight back to the finger (see
-      // onTouchStart) — swallowing every touchmove was the old "no agency /
-      // feels like a yank" behaviour. Desktop keeps the wheel/key/touch capture
-      // so its glide stays uninterrupted.
-      if (isMobileRef.current) return;
       window.addEventListener("wheel", swallow, { passive: false, capture: true });
       window.addEventListener("touchmove", swallow, { passive: false, capture: true });
       window.addEventListener("keydown", blockKeys, { capture: true });
@@ -264,7 +223,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const releaseBlock = () => {
       if (!blockOn) return;
       blockOn = false;
-      if (blockSafetyTimer) { clearTimeout(blockSafetyTimer); blockSafetyTimer = 0; }
       window.removeEventListener("wheel", swallow, { capture: true } as EventListenerOptions);
       window.removeEventListener("touchmove", swallow, { capture: true } as EventListenerOptions);
       window.removeEventListener("keydown", blockKeys, { capture: true } as EventListenerOptions);
@@ -287,10 +245,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           easing: (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
         });
       } else if (target) {
-        // Mobile / no-Lenis: deterministic single-source rAF glide.
-        // scrollIntoView's "smooth" fought iOS momentum and stuttered.
-        const targetY = window.scrollY + target.getBoundingClientRect().top;
-        smoothScrollTo(targetY, HANDOFF_MS);
+        target.scrollIntoView({ behavior: "smooth" });
       }
       const t0 = performance.now();
       const drive = (now: number) => {
@@ -324,7 +279,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           easing: (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
         });
       } else {
-        smoothScrollTo(0, HANDOFF_MS);
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }
       const t0 = performance.now();
       const drive = (now: number) => {
@@ -362,9 +317,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     playLoop();
     startSampling();
 
-    // ── Scroll-snap handoff (DESKTOP ONLY — see attachment below) ──
-    // Down from top → glide to #paths; up near the boundary → glide back.
-    // Never yanks from deep content.
+    // ── Scroll snap — works on BOTH mobile (scroll events) and desktop ──
+    // Fires on every native scroll: down from top → glide to #paths;
+    // up near the boundary → glide back to top. Never yanks from deep content.
     const atTop = () => window.scrollY <= 2;
     const nearBoundary = () => window.scrollY <= window.innerHeight * 1.15;
     let prevY = window.scrollY;
@@ -389,19 +344,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         setHeroFlight(false);
       }
     };
-    // ── Hand-off triggers ──
-    // DESKTOP drives the glide from wheel/scroll/keyboard through Lenis.
-    // MOBILE has no Lenis (SmoothScroll bails on coarse pointers). The old
-    // mobile path triggered from the `scroll` event AFTER native momentum had
-    // already started, then blocked touchmove mid-flick — that fight was the
-    // "autoscroll feels janky on mobile" report. Phones now intercept the
-    // FIRST finger drag (touchmove, before momentum builds), preventDefault
-    // it, and glide with the single-source rAF tween above — smooth, no fight.
-    let cleanupTriggers = () => {};
-    if (!isMobileRef.current) {
-      window.addEventListener("scroll", onScrollTrigger, { passive: true });
-      window.addEventListener("scroll", onScrollReset, { passive: true });
+    window.addEventListener("scroll", onScrollTrigger, { passive: true });
+    window.addEventListener("scroll", onScrollReset, { passive: true });
 
+    // ── Desktop only: precise wheel/keyboard triggers on top of scroll ──
+    let cleanupDesktop = () => {};
+    if (!isMobileRef.current) {
       const onWheel = (ev: WheelEvent) => {
         if (state === "idle" && ev.deltaY > 0 && atTop()) {
           if (ev.cancelable) ev.preventDefault();
@@ -428,131 +376,20 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       };
       window.addEventListener("wheel", onWheel, { passive: false });
       window.addEventListener("keydown", onKey);
-      cleanupTriggers = () => {
-        window.removeEventListener("scroll", onScrollTrigger);
-        window.removeEventListener("scroll", onScrollReset);
+      cleanupDesktop = () => {
         window.removeEventListener("wheel", onWheel);
         window.removeEventListener("keydown", onKey);
       };
-    } else {
-      // ── MOBILE hand-off: intent-triggered SMOOTH glide (both directions) ──
-      // The hero hands off to #paths on the first deliberate DOWNWARD swipe,
-      // and glides back to the welcome on a deliberate UPWARD swipe taken near
-      // the hero/#paths boundary. Each hand-off is a SINGLE eased rAF tween —
-      // NOT per-frame 1:1 finger tracking. (That 1:1 tracking, which drove
-      // window.scrollTo on every touchmove while fighting native momentum, was
-      // the "swiping back up works extremely poorly" report; and DOWN had been
-      // left fully native, which removed the auto-scroll the user wanted kept.)
-      // A new touch cancels an in-flight glide and hands control straight back
-      // to native. Every non-triggering gesture stays 100% native — reading the
-      // cards, scrolling mid-page, etc. all behave normally.
-      const DOWN_COMMIT = 22; // light downward intent hands off to #paths
-      const UP_COMMIT = 55; // returning to welcome needs a firmer, deliberate pull
-
-      const pathsY = () => {
-        const el = document.getElementById("paths");
-        return el ? window.scrollY + el.getBoundingClientRect().top : window.innerHeight;
-      };
-
-      let startTouchY = 0;
-      let startScrollY = 0;
-      let committed = false; // an eased glide currently owns this gesture
-
-      // Welcome-text fade driven straight off scroll position (rAF-throttled) so
-      // a plain native partial scroll still fades the headline and it restores
-      // at the very top.
-      let fadeRaf = 0;
-      const onScrollFade = () => {
-        if (fadeRaf) return;
-        fadeRaf = requestAnimationFrame(() => {
-          fadeRaf = 0;
-          applyFades(clamp01(window.scrollY / Math.max(1, window.innerHeight)));
-        });
-      };
-
-      // Eased glide from the current scroll position to `to`, driving the
-      // welcome-text fade off the live scroll position the whole way. ease-OUT
-      // so it starts with pace and settles softly (no abrupt "yank").
-      const glideTo = (to: number, dur: number) => {
-        cancelTween();
-        setHeroFlight(true);
-        const startY = window.scrollY;
-        const dist = to - startY;
-        const t0 = performance.now();
-        const step = (now: number) => {
-          const e = clamp01((now - t0) / dur);
-          const y = Math.round(startY + dist * easeOutCubic(e));
-          window.scrollTo(0, y);
-          applyFades(clamp01(y / Math.max(1, window.innerHeight)));
-          if (e < 1) {
-            tweenRaf = requestAnimationFrame(step);
-          } else {
-            tweenRaf = 0;
-            setHeroFlight(false);
-          }
-        };
-        tweenRaf = requestAnimationFrame(step);
-      };
-
-      const onTouchStart = (ev: TouchEvent) => {
-        // Touch during a glide = interrupt → control straight back to native.
-        if (tweenRaf) {
-          cancelTween();
-          setHeroFlight(false);
-        }
-        startTouchY = ev.touches[0]?.clientY ?? 0;
-        startScrollY = window.scrollY;
-        committed = false;
-      };
-
-      const onTouchMove = (ev: TouchEvent) => {
-        if (committed) {
-          // The glide owns the gesture; stop native scroll from fighting it.
-          if (ev.cancelable) ev.preventDefault();
-          return;
-        }
-        const dy = (ev.touches[0]?.clientY ?? startTouchY) - startTouchY;
-        const ady = Math.abs(dy);
-        if (ady < DOWN_COMMIT) return; // nothing commits below the smaller bar
-        const swipingUp = dy < 0; // finger moves UP → content scrolls DOWN
-        const swipingDown = dy > 0; // finger moves DOWN → content scrolls UP
-        const atTopNow = startScrollY <= 4;
-        // Tight up-zone: only a swipe that STARTS right around the hero/#paths
-        // boundary returns to welcome. A small up-drag deep in the cards never
-        // throws the visitor to the top.
-        const inUpZone =
-          startScrollY > 4 &&
-          startScrollY <= pathsY() + window.innerHeight * 0.25;
-        if (swipingUp && atTopNow) {
-          // Down hand-off: a light, deliberate downward swipe at the very top.
-          committed = true;
-          if (ev.cancelable) ev.preventDefault();
-          glideTo(pathsY(), 640);
-        } else if (swipingDown && inUpZone && ady >= UP_COMMIT) {
-          // Return to welcome needs a firmer pull (UP_COMMIT) so a casual
-          // up-nudge while reading the first cards never yanks back to the top.
-          committed = true;
-          if (ev.cancelable) ev.preventDefault();
-          glideTo(0, 620);
-        }
-        // Any other gesture stays fully native (no preventDefault).
-      };
-
-      window.addEventListener("touchstart", onTouchStart, { passive: true });
-      window.addEventListener("touchmove", onTouchMove, { passive: false });
-      // Drive the welcome-text fade off scroll position for native scrolls too.
-      window.addEventListener("scroll", onScrollFade, { passive: true });
-      cleanupTriggers = () => {
-        window.removeEventListener("touchstart", onTouchStart);
-        window.removeEventListener("touchmove", onTouchMove);
-        window.removeEventListener("scroll", onScrollFade);
-        if (fadeRaf) cancelAnimationFrame(fadeRaf);
-      };
     }
+
+    let cleanupTriggers = () => {
+      window.removeEventListener("scroll", onScrollTrigger);
+      window.removeEventListener("scroll", onScrollReset);
+      cleanupDesktop();
+    };
 
     return () => {
       cancelAnimationFrame(handoffRaf);
-      cancelTween();
       stopSampling();
       releaseBlock();
       cleanupTriggers();
@@ -610,13 +447,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         style={{
           width: "100%",
           transform: "translate(-50%, -50%)",
-          // `cover` fills the box on every device. The element HEIGHT (desktop
-          // 100% / mobile 78% so the landscape clip's cover-crop stops cutting
-          // the sphere's left/right edges) and the soft edge MASK live in CSS
-          // (.cj-hero-video). On mobile the mask is dropped — iOS Safari ignores
-          // -webkit-mask-image on a hardware-decoded <video>, which left the
-          // video rectangle's own near-black showing as a hard box — and is
-          // replaced by the painted .cj-hero-vignette below.
           objectFit: "cover",
           display: "block",
         }}
@@ -636,9 +466,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       {/* Dark scrim behind the text for white-text legibility. The mobile vs
           desktop gradients live in CSS (.cj-hero-scrim) — NOT a React isMobile
           flag — so phones paint the soft mobile wash on the very first frame
-          instead of briefly showing the desktop hard-edged oval (that flash
-          WAS the "black box on the welcome text"). Rendered before the colored
-          edges so the edge glow paints on top and stays vivid. */}
+          instead of briefly showing the desktop hard-edged oval. Rendered
+          before the colored edges so the edge glow paints on top. */}
       <div
         aria-hidden="true"
         className="cj-hero-scrim pointer-events-none absolute inset-0"
