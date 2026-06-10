@@ -572,7 +572,12 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
             transition: reduced
               ? "none"
               : "transform 600ms cubic-bezier(0.22, 1, 0.36, 1)",
-            willChange: "transform",
+            // v6.13.59 — Removed permanent `willChange:"transform"`. Keeping the
+            // prism's rotating body promoted to its own GPU layer at all times made
+            // iOS Safari re-rasterise a STALE opaque backing store when the prism
+            // scrolled out of view and back — painting a black rectangle over the
+            // cards. Dropping the hint lets the browser tear the 3D layer down
+            // between rotations (worst case: a one-frame hitch at rotation start).
           }}
         >
           {cards.map((card, i) => {

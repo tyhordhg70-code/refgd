@@ -207,8 +207,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const easeInOutCubic = (t: number) =>
       t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-    const clamp = (n: number, lo: number, hi: number) =>
-      n < lo ? lo : n > hi ? hi : n;
     const smoothScrollTo = (targetY: number, dur: number) => {
       cancelTween();
       const startY = window.scrollY;
@@ -437,20 +435,19 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         window.removeEventListener("keydown", onKey);
       };
     } else {
-      // ── MOBILE hand-off (1:1 finger tracking + release tween) ────────────
-      // The page follows the finger from the FIRST pixel — there is no frozen
-      // "measure" dead-zone before a sudden auto-fly (that takeover was the
-      // "yank"). On release a short ease-OUT tween finishes the trip (the page
-      // already has velocity, so ease-IN would visibly hitch). BIDIRECTIONAL:
-      //   • down from the very top            → glide to #paths
-      //   • up, but ONLY when the gesture STARTS in a tight zone right at the
-      //     hero/#paths boundary             → glide back to the welcome
-      // The tight up-zone is the fix for the old reverse "yank": the previous
-      // nearBoundary() (innerHeight*1.15) covered the whole first screen of
-      // cards, so a small up-drag while reading threw the visitor to the top.
-      // Touching mid-glide interrupts and hands control back to the finger.
-      // Every other gesture stays 100% native (no preventDefault).
-      const PULL_COMMIT = 60; // px of deliberate pull needed to commit a glide
+      // ── MOBILE hand-off: intent-triggered SMOOTH glide (both directions) ──
+      // The hero hands off to #paths on the first deliberate DOWNWARD swipe,
+      // and glides back to the welcome on a deliberate UPWARD swipe taken near
+      // the hero/#paths boundary. Each hand-off is a SINGLE eased rAF tween —
+      // NOT per-frame 1:1 finger tracking. (That 1:1 tracking, which drove
+      // window.scrollTo on every touchmove while fighting native momentum, was
+      // the "swiping back up works extremely poorly" report; and DOWN had been
+      // left fully native, which removed the auto-scroll the user wanted kept.)
+      // A new touch cancels an in-flight glide and hands control straight back
+      // to native. Every non-triggering gesture stays 100% native — reading the
+      // cards, scrolling mid-page, etc. all behave normally.
+      const DOWN_COMMIT = 22; // light downward intent hands off to #paths
+      const UP_COMMIT = 55; // returning to welcome needs a firmer, deliberate pull
 
       const pathsY = () => {
         const el = document.getElementById("paths");
@@ -459,13 +456,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
       let startTouchY = 0;
       let startScrollY = 0;
-      let dyTotal = 0;
-      let pathsTargetY = 0;
-      let armed = false; // true only while an up-glide drag is tracking the finger
+      let committed = false; // an eased glide currently owns this gesture
 
-      // Welcome-text fade driven straight off scroll position (rAF-throttled), so
-      // it fades out on native down-scroll and restores at the top. Replaces the
-      // old state-machine fade juggling now that DOWN is fully native.
+      // Welcome-text fade driven straight off scroll position (rAF-throttled) so
+      // a plain native partial scroll still fades the headline and it restores
+      // at the very top.
       let fadeRaf = 0;
       const onScrollFade = () => {
         if (fadeRaf) return;
@@ -475,10 +470,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         });
       };
 
-      // Short ease-OUT glide from the current position to `to`, driving the
-      // welcome-text fade off the scroll position the whole way.
-      const tweenTo = (to: number, dur: number) => {
+      // Eased glide from the current scroll position to `to`, driving the
+      // welcome-text fade off the live scroll position the whole way. ease-OUT
+      // so it starts with pace and settles softly (no abrupt "yank").
+      const glideTo = (to: number, dur: number) => {
         cancelTween();
+        setHeroFlight(true);
         const startY = window.scrollY;
         const dist = to - startY;
         const t0 = performance.now();
@@ -505,56 +502,49 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         }
         startTouchY = ev.touches[0]?.clientY ?? 0;
         startScrollY = window.scrollY;
-        dyTotal = 0;
-        armed = false;
-        pathsTargetY = pathsY();
+        committed = false;
       };
 
       const onTouchMove = (ev: TouchEvent) => {
-        dyTotal = (ev.touches[0]?.clientY ?? startTouchY) - startTouchY;
-        if (!armed) {
-          if (Math.abs(dyTotal) < 5) return; // wait for a real, intentional move
-          // Arm ONLY an upward return: finger moving DOWN (dyTotal > 0 = scroll
-          // up), started in a tight zone right at the hero/#paths boundary with
-          // the hero just above. DOWN and every out-of-zone gesture stay 100%
-          // native (no preventDefault) — that forced down auto-fly was the yank.
-          const inUpZone =
-            dyTotal > 0 &&
-            startScrollY > 2 &&
-            startScrollY <= pathsTargetY + window.innerHeight * 0.25;
-          if (!inUpZone) return;
-          armed = true;
-          setHeroFlight(true);
+        if (committed) {
+          // The glide owns the gesture; stop native scroll from fighting it.
+          if (ev.cancelable) ev.preventDefault();
+          return;
         }
-        // Own the gesture: drive scroll 1:1 with the finger toward the top so
-        // native momentum never fights the glide.
-        if (ev.cancelable) ev.preventDefault();
-        const next = clamp(startScrollY - dyTotal, 0, startScrollY);
-        window.scrollTo(0, next);
-        applyFades(clamp01(next / Math.max(1, window.innerHeight)));
-      };
-
-      const onTouchEnd = () => {
-        if (!armed) return;
-        armed = false;
-        // Commit the return to welcome only on a deliberate downward pull;
-        // otherwise settle back to exactly where the gesture started (never
-        // jump to #paths).
-        if (dyTotal > PULL_COMMIT) tweenTo(0, 600);
-        else tweenTo(startScrollY, 260);
+        const dy = (ev.touches[0]?.clientY ?? startTouchY) - startTouchY;
+        const ady = Math.abs(dy);
+        if (ady < DOWN_COMMIT) return; // nothing commits below the smaller bar
+        const swipingUp = dy < 0; // finger moves UP → content scrolls DOWN
+        const swipingDown = dy > 0; // finger moves DOWN → content scrolls UP
+        const atTopNow = startScrollY <= 4;
+        // Tight up-zone: only a swipe that STARTS right around the hero/#paths
+        // boundary returns to welcome. A small up-drag deep in the cards never
+        // throws the visitor to the top.
+        const inUpZone =
+          startScrollY > 4 &&
+          startScrollY <= pathsY() + window.innerHeight * 0.25;
+        if (swipingUp && atTopNow) {
+          // Down hand-off: a light, deliberate downward swipe at the very top.
+          committed = true;
+          if (ev.cancelable) ev.preventDefault();
+          glideTo(pathsY(), 640);
+        } else if (swipingDown && inUpZone && ady >= UP_COMMIT) {
+          // Return to welcome needs a firmer pull (UP_COMMIT) so a casual
+          // up-nudge while reading the first cards never yanks back to the top.
+          committed = true;
+          if (ev.cancelable) ev.preventDefault();
+          glideTo(0, 620);
+        }
+        // Any other gesture stays fully native (no preventDefault).
       };
 
       window.addEventListener("touchstart", onTouchStart, { passive: true });
       window.addEventListener("touchmove", onTouchMove, { passive: false });
-      window.addEventListener("touchend", onTouchEnd, { passive: true });
-      window.addEventListener("touchcancel", onTouchEnd, { passive: true });
-      // Drive the welcome-text fade off scroll position (down is native now).
+      // Drive the welcome-text fade off scroll position for native scrolls too.
       window.addEventListener("scroll", onScrollFade, { passive: true });
       cleanupTriggers = () => {
         window.removeEventListener("touchstart", onTouchStart);
         window.removeEventListener("touchmove", onTouchMove);
-        window.removeEventListener("touchend", onTouchEnd);
-        window.removeEventListener("touchcancel", onTouchEnd);
         window.removeEventListener("scroll", onScrollFade);
         if (fadeRaf) cancelAnimationFrame(fadeRaf);
       };
