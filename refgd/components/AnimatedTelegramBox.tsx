@@ -98,6 +98,7 @@ export default function AnimatedTelegramBox() {
 
       {/* Glow halo — starts pulsing at 1.65 s (after card settled) */}
       <div
+        className="tg-halo"
         style={{
           position: "absolute", left: "50%", top: "44%",
           width: 210, height: 210,
@@ -125,6 +126,7 @@ export default function AnimatedTelegramBox() {
         }}
       >
         <div
+          className="tg-logo-glow"
           style={{
             animation: reduced ? undefined : "tg3-float 5.5s 1.7s ease-in-out infinite",
             filter:

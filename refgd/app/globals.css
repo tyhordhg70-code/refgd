@@ -1609,6 +1609,28 @@ html { overflow-anchor: none; }
   .telegram-star {
     opacity: 0.55;
   }
+  /* ── Telegram CTA box: fix the "breaks from the bottom" on iOS ──
+     The card is `overflow:hidden` + `rounded-[2.5rem]`. iOS Safari
+     fails to clip COMPOSITED descendants (anything with a `filter`)
+     to a rounded `overflow:hidden` ancestor, so the inner square-
+     cornered dark panel poked past the bottom rounded corners. This
+     happens with the animation OFF too, because the filters exist
+     regardless of motion. Two guards, MOBILE ONLY (desktop stays
+     byte-for-byte unchanged):
+       1. Drop the filters that force those composite layers — the
+          blur(34px) halo and the logo drop-shadows. The halo's
+          radial-gradient already fades to transparent, so it stays
+          soft without the blur.
+       2. Promote the clip container to its own compositing layer so
+          iOS applies the rounded clip at composite time. */
+  .tg-halo,
+  .tg-logo-glow {
+    filter: none !important;
+  }
+  .tg-card-clip {
+    transform: translateZ(0);
+    isolation: isolate;
+  }
 }
 
 /* ── No vertical scroll-snap on mobile ──

@@ -209,7 +209,7 @@ export default async function HomePage() {
                     AnimatedTelegramBox both still fire on view, so
                     the section keeps its kinetic energy without the
                     always-on accent halo. */}
-                <div className="relative overflow-hidden rounded-[2.5rem] border border-white/[0.10] sm:shadow-[0_30px_80px_-20px_rgba(0,0,0,0.85)]">
+                <div className="tg-card-clip relative overflow-hidden rounded-[2.5rem] border border-white/[0.10] sm:shadow-[0_30px_80px_-20px_rgba(0,0,0,0.85)]">
                   {/*
                     v6.13.1: removed the mobile aspect-[4/5] lock.
                     The previous 4:5 aspect ratio + overflow:hidden
