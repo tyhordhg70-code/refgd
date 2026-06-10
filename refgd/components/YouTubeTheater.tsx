@@ -58,6 +58,11 @@ export default function YouTubeTheater({
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const fsTargetRef = useRef<HTMLDivElement | null>(null);
   const [inView, setInView] = useState(false);
+  // Live mirrors read by async postMessage handlers (plain state would be stale
+  // inside them). inViewRef = is the player currently on-screen; readyRef = has
+  // the YT IFrame API fired onReady so play/pause commands will be honoured.
+  const inViewRef = useRef(false);
+  const readyRef = useRef(false);
   const [activated, setActivated] = useState(false); // mounts iframe after first reveal
   const [mounted, setMounted] = useState(false); // for portal SSR-safety
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -72,6 +77,20 @@ export default function YouTubeTheater({
     // Lenis smooth-scroll.
     const [entrancePlayed, setEntrancePlayed] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+
+  // Send a play/pause command to the YouTube IFrame API. Safe to call before
+  // the player is ready — it's a no-op then, and the onReady handler re-applies
+  // the correct state once the API is live.
+  const sendCmd = (func: "playVideo" | "pauseVideo") => {
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        JSON.stringify({ event: "command", func, args: [] }),
+        "*",
+      );
+    } catch {
+      /* cross-origin before load — ignore */
+    }
+  };
 
     // Safety timer — entrance fires even if IO is blocked (Lenis, hidden tab, etc.)
     useEffect(() => {
@@ -89,9 +108,11 @@ export default function YouTubeTheater({
     const el = wrapRef.current;
     if (!el) return;
     const io = new IntersectionObserver(
-      ([e]) => {
+      (entries) => {
+        const e = entries[entries.length - 1];
         // Treat the player as "engaged" once it's at least 45% visible.
         const visible = e.intersectionRatio >= 0.45;
+        inViewRef.current = visible;
         setInView(visible);
         if (visible) setActivated(true);
       },
@@ -108,19 +129,16 @@ export default function YouTubeTheater({
       new CustomEvent("refgd:music-dim", { detail: { dim: inView } })
     );
 
-    // Pause the iframe video when we leave view (postMessage to the
-    // YouTube embed). When we re-enter, the iframe re-mounts (we
-    // include inView in the iframe's `src`), so playback resumes
-    // naturally. The pause-on-exit is just defensive.
-    if (!inView && iframeRef.current) {
-      try {
-        iframeRef.current.contentWindow?.postMessage(
-          JSON.stringify({ event: "command", func: "pauseVideo", args: [] }),
-          "*"
-        );
-      } catch {
-        /* ignore — cross-origin is expected */
-      }
+    // Drive playback off the CURRENT visibility. Pausing on exit is always
+    // safe (it's a no-op before the player is ready). We only issue play once
+    // the player has signalled onReady; if it isn't ready yet, the onReady
+    // handler applies the latest inViewRef state. This is what stops the
+    // trailer from autostarting (with delayed sound) after you've already
+    // scrolled past it.
+    if (!inView) {
+      sendCmd("pauseVideo");
+    } else if (readyRef.current) {
+      sendCmd("playVideo");
     }
   }, [inView]);
 
@@ -220,6 +238,8 @@ export default function YouTubeTheater({
   // and auto-exit fullscreen back to portrait.
   useEffect(() => {
     if (!activated) return;
+    // A fresh iframe (first activation or a videoId swap) starts not-ready.
+    readyRef.current = false;
     const onLoad = () => {
       try {
         iframeRef.current?.contentWindow?.postMessage(
@@ -248,18 +268,43 @@ export default function YouTubeTheater({
       ) {
         return;
       }
+      let data: any;
       try {
-        const data =
-          typeof e.data === "string" ? JSON.parse(e.data) : e.data;
-        // YT player state 0 === ENDED
-        if (
-          data?.event === "onStateChange" &&
-          (data?.info === 0 || data?.info?.playerState === 0)
-        ) {
-          exitFullscreen();
-        }
+        data = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
       } catch {
-        /* not JSON — ignore */
+        return; // not JSON — ignore
+      }
+      if (!data) return;
+
+      // Player has booted: apply whatever the CURRENT visibility demands. If
+      // the visitor already scrolled past during the iframe's (slow) load,
+      // this pauses it the instant it's controllable instead of letting it
+      // blare out of view.
+      if (data.event === "onReady") {
+        readyRef.current = true;
+        sendCmd(inViewRef.current ? "playVideo" : "pauseVideo");
+        return;
+      }
+
+      // The embed reports state via either `onStateChange` (info is the state
+      // int) or `infoDelivery` (info.playerState) depending on version.
+      const state =
+        data.event === "onStateChange"
+          ? typeof data.info === "number"
+            ? data.info
+            : data.info?.playerState
+          : data.event === "infoDelivery"
+            ? data.info?.playerState
+            : undefined;
+
+      if (state === 0) {
+        // ENDED → exit fullscreen back to portrait.
+        exitFullscreen();
+      } else if (state === 1 && !inViewRef.current) {
+        // Began PLAYING while off-screen — i.e. a late autoplay that fired
+        // after a fast scroll-past. Stop it. This is the definitive guard
+        // against delayed out-of-view sound, independent of message timing.
+        sendCmd("pauseVideo");
       }
     };
     window.addEventListener("message", onMessage);

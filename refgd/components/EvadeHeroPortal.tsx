@@ -23,6 +23,18 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 
+// Drifting data particles for the foreground parallax layer. Weighted to the
+// left/right thirds so they never crowd the centred caption. Desktop-only.
+const PARTICLES = [
+  { left: "9%",  top: "74%", dur: "7s",   delay: "0s",   size: "3px" },
+  { left: "18%", top: "86%", dur: "9.5s", delay: "1.4s", size: "2px" },
+  { left: "27%", top: "66%", dur: "8s",   delay: "0.6s", size: "2px" },
+  { left: "73%", top: "80%", dur: "10s",  delay: "2.1s", size: "3px" },
+  { left: "82%", top: "70%", dur: "8.5s", delay: "0.9s", size: "2px" },
+  { left: "91%", top: "88%", dur: "11s",  delay: "1.8s", size: "3px" },
+  { left: "63%", top: "62%", dur: "9s",   delay: "3s",   size: "2px" },
+] as const;
+
 export default function EvadeHeroPortal({
   caption,
   subCaption,
@@ -51,6 +63,15 @@ export default function EvadeHeroPortal({
     [0, 0.08, 0.18],
     [1, 1, 0],
   );
+
+  // Multi-layer parallax depth: each layer travels at a different rate so the
+  // scroll reads as flying THROUGH a cyber tunnel — not just an icon shrinking.
+  // (back → front: tunnel grid slow, particles fastest = nearest the camera.)
+  const tunnelY = useTransform(scrollYProgress, [0, 1], [0, -130]);
+  const tunnelScale = useTransform(scrollYProgress, [0, 1], [1, 1.18]);
+  const tunnelOpacity = useTransform(scrollYProgress, [0, 0.78, 1], [1, 1, 0]);
+  const fxY = useTransform(scrollYProgress, [0, 1], [0, -320]);
+  const fxOpacity = useTransform(scrollYProgress, [0, 0.7, 1], [1, 1, 0]);
 
   // Tell LoadingScreen the hero scene is ready (this route waits for it).
   useEffect(() => {
@@ -90,6 +111,42 @@ export default function EvadeHeroPortal({
           paused ? "ev-hero-paused" : ""
         }`}
       >
+        {/* ───────── CYBER TUNNEL (parallax depth floor + ceiling) ───────── */}
+        <motion.div
+          aria-hidden="true"
+          className="ev-hero-tunnel"
+          style={{ y: tunnelY, scale: tunnelScale, opacity: tunnelOpacity }}
+          suppressHydrationWarning
+        >
+          <span className="ev-hero-grid ev-hero-grid-floor" />
+          <span className="ev-hero-grid ev-hero-grid-ceil ev-hero-desk" />
+        </motion.div>
+
+        {/* drifting data particles — fastest parallax = nearest the camera */}
+        <motion.div
+          aria-hidden="true"
+          className="ev-hero-fx ev-hero-desk"
+          style={{ y: fxY, opacity: fxOpacity }}
+          suppressHydrationWarning
+        >
+          {PARTICLES.map((p, i) => (
+            <span
+              key={i}
+              className="ev-hero-particle"
+              style={{
+                left: p.left,
+                top: p.top,
+                ["--d" as any]: p.dur,
+                ["--delay" as any]: p.delay,
+                ["--s" as any]: p.size,
+              }}
+            />
+          ))}
+        </motion.div>
+
+        {/* slow scanning sweep travelling down the hero (desktop) */}
+        <span aria-hidden="true" className="ev-hero-sweep ev-hero-desk" />
+
         {/* Seat the emblem over the site-wide ambient cube */}
         <motion.div
           aria-hidden="true"
@@ -313,6 +370,70 @@ export default function EvadeHeroPortal({
           background: radial-gradient(circle at 50% 50%, rgba(11,18,32,0.85) 0%, rgba(8,11,20,0.5) 42%, transparent 70%);
           pointer-events: none;
         }
+
+        /* ── Cyber tunnel (neon perspective grid, floor + ceiling) ── */
+        .ev-hero-tunnel {
+          position: absolute; inset: 0;
+          perspective: 540px;
+          pointer-events: none;
+          will-change: transform, opacity;
+        }
+        .ev-hero-grid { position: absolute; left: 50%; width: 260%; height: 62%; overflow: hidden; }
+        .ev-hero-grid-floor {
+          bottom: -2%;
+          transform: translateX(-50%) rotateX(76deg);
+          transform-origin: 50% 100%;
+          -webkit-mask-image: linear-gradient(to top, #000 0%, #000 6%, transparent 72%);
+                  mask-image: linear-gradient(to top, #000 0%, #000 6%, transparent 72%);
+        }
+        .ev-hero-grid-ceil {
+          top: -2%;
+          transform: translateX(-50%) rotateX(-76deg);
+          transform-origin: 50% 0%;
+          -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 6%, transparent 72%);
+                  mask-image: linear-gradient(to bottom, #000 0%, #000 6%, transparent 72%);
+        }
+        .ev-hero-grid::before {
+          content: ""; position: absolute; left: -25%; right: -25%; top: -80%; bottom: -80%;
+          background:
+            repeating-linear-gradient(to right, rgba(34,211,238,0.32) 0 1px, transparent 1px 52px),
+            repeating-linear-gradient(to bottom, rgba(34,211,238,0.22) 0 1px, transparent 1px 52px);
+          animation: evhGrid 5.5s linear infinite;
+          will-change: transform;
+        }
+        .ev-hero-grid-ceil::before { animation-direction: reverse; opacity: 0.7; }
+        @keyframes evhGrid { to { transform: translateY(52px); } }
+
+        /* ── Foreground data particles ── */
+        .ev-hero-fx { position: absolute; inset: 0; pointer-events: none; will-change: transform, opacity; }
+        .ev-hero-particle {
+          position: absolute; width: var(--s, 3px); height: var(--s, 3px);
+          border-radius: 50%;
+          background: radial-gradient(circle, #eafeff 0%, #7be7ff 50%, rgba(34,211,238,0) 72%);
+          opacity: 0;
+          animation: evhRise var(--d, 8s) linear infinite;
+          animation-delay: var(--delay, 0s);
+          will-change: transform, opacity;
+        }
+        @keyframes evhRise {
+          0%   { transform: translateY(30px) scale(0.7); opacity: 0; }
+          12%  { opacity: 0.85; }
+          85%  { opacity: 0.65; }
+          100% { transform: translateY(-260px) scale(1); opacity: 0; }
+        }
+
+        /* ── Scanning sweep ── */
+        .ev-hero-sweep {
+          position: absolute; left: 0; right: 0; top: 0; height: 32%;
+          background: linear-gradient(to bottom, transparent, rgba(125,231,255,0.07) 46%, rgba(125,231,255,0.11) 50%, transparent);
+          animation: evhSweep 9s ease-in-out infinite;
+          will-change: transform; pointer-events: none;
+        }
+        @keyframes evhSweep {
+          0%, 100% { transform: translateY(-40%); }
+          50%      { transform: translateY(320%); }
+        }
+
         .ev-hero-emblem {
           position: relative;
           width: clamp(280px, 42vw, 560px);
@@ -414,19 +535,25 @@ export default function EvadeHeroPortal({
         .ev-hero-paused .ev-hero-orbit,
         .ev-hero-paused .ev-hero-orbit-2,
         .ev-hero-paused .ev-hero-scan,
+        .ev-hero-paused .ev-hero-grid::before,
+        .ev-hero-paused .ev-hero-particle,
+        .ev-hero-paused .ev-hero-sweep,
         .ev-hero-paused .ev-hero-core { animation-play-state: paused !important; }
 
         @media (hover: none) and (max-width: 1366px) {
-          .ev-hero-radar, .ev-hero-scan { display: none !important; }
+          .ev-hero-radar, .ev-hero-scan,
+          .ev-hero-fx, .ev-hero-grid-ceil, .ev-hero-sweep { display: none !important; }
         }
         @media (max-width: 860px) {
           .ev-hero-desk { display: none !important; }
           .ev-hero-mid  { animation-duration: 150s; }
+          .ev-hero-grid::before { animation-duration: 8s; }
         }
         @media (prefers-reduced-motion: reduce) {
           .ev-hero-halo, .ev-hero-radar, .ev-hero-outer, .ev-hero-mid,
           .ev-hero-dial, .ev-hero-trace, .ev-hero-orbit, .ev-hero-orbit-2,
-          .ev-hero-scan, .ev-hero-core { animation: none !important; }
+          .ev-hero-scan, .ev-hero-core,
+          .ev-hero-grid::before, .ev-hero-particle, .ev-hero-sweep { animation: none !important; }
         }
       `}</style>
     </section>
