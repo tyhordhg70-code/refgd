@@ -47,6 +47,7 @@ export default function TelegramCard3D({ children }: { children: ReactNode }) {
     return (
       <div ref={ref}>
         <motion.div
+          key="tg-m"
           className="tg-card-3d"
           initial="hidden"
           animate={inView ? "visible" : "hidden"}
@@ -63,6 +64,7 @@ export default function TelegramCard3D({ children }: { children: ReactNode }) {
     /* Perspective wrapper — keeps the card's own stacking context clean */
     <div ref={ref} style={{ perspective: "1100px", perspectiveOrigin: "50% 60%" }}>
       <motion.div
+        key="tg-d"
         className="tg-card-3d"
         initial="hidden"
         animate={inView ? "visible" : "hidden"}
