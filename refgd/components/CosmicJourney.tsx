@@ -243,7 +243,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const l = lenis();
       const target = document.getElementById("paths");
       if (l && l.start) l.start();
-      if (l && l.scrollTo && target) {
+      if (!isMobileRef.current && l && l.scrollTo && target) {
         l.scrollTo(target, {
           offset: 0,
           duration: HANDOFF_MS / 1000,
@@ -277,7 +277,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       attachBlock();
       const l = lenis();
       if (l && l.start) l.start();
-      if (l && l.scrollTo) {
+      // Mobile: use NATIVE smooth scroll, not lenis.scrollTo — a lenis rAF
+      // tween isn't cancelled by a finger swipe (it fights the user for the
+      // full glide = "yank, can't stop it"); native smooth scroll IS
+      // interrupted by a touch-scroll. Desktop keeps lenis (byte-for-byte).
+      if (!isMobileRef.current && l && l.scrollTo) {
         l.scrollTo(0, {
           offset: 0,
           duration: HANDOFF_MS / 1000,
