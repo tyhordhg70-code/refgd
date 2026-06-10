@@ -73,14 +73,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const section = sectionRef.current;
     if (!video || !section) return;
 
-    // During a hand-off glide we suspend the per-frame colour sampler: its
-    // ctx.getImageData() is a synchronous GPU→CPU readback that stalls the
-    // compositor on iOS and was a residual source of the "auto scroll
-    // stutters" report. `heroVisible` lets us resume it only when the hero is
-    // actually back on screen after the glide.
-    let gliding = false;
-    let heroVisible = false;
-
     const applyFades = (e: number) => {
       const headline = headlineRef.current;
       if (headline) {
@@ -177,7 +169,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
     };
     const startSampling = () => {
-      if (sampling || gliding) return;
+      if (sampling) return;
       sampling = true;
       sampleRaf = requestAnimationFrame(sampleTick);
     };
@@ -232,6 +224,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     let state: State = "idle";
     let handoffRaf = 0;
     let blockOn = false;
+    let blockSafetyTimer = 0;
 
     // Capture-phase swallow of scroll input during the short auto-scroll glide.
     const swallow = (ev: Event) => {
@@ -251,6 +244,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const attachBlock = () => {
       if (blockOn) return;
       blockOn = true;
+      // SAFETY: if the driving rAF is throttled (e.g. the tab is backgrounded
+      // mid-glide) the completion branch that calls releaseBlock() may never
+      // run — on desktop that would leave the capture swallow below
+      // permanently scroll-locking the page. Always release after the glide's
+      // worst-case duration no matter what.
+      blockSafetyTimer = window.setTimeout(releaseBlock, HANDOFF_MS + 300);
+      // MOBILE deliberately does NOT swallow touch. A touchstart during the
+      // glide interrupts it and hands control straight back to the finger (see
+      // onTouchStart) — swallowing every touchmove was the old "no agency /
+      // feels like a yank" behaviour. Desktop keeps the wheel/key/touch capture
+      // so its glide stays uninterrupted.
+      if (isMobileRef.current) return;
       window.addEventListener("wheel", swallow, { passive: false, capture: true });
       window.addEventListener("touchmove", swallow, { passive: false, capture: true });
       window.addEventListener("keydown", blockKeys, { capture: true });
@@ -258,6 +263,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const releaseBlock = () => {
       if (!blockOn) return;
       blockOn = false;
+      if (blockSafetyTimer) { clearTimeout(blockSafetyTimer); blockSafetyTimer = 0; }
       window.removeEventListener("wheel", swallow, { capture: true } as EventListenerOptions);
       window.removeEventListener("touchmove", swallow, { capture: true } as EventListenerOptions);
       window.removeEventListener("keydown", blockKeys, { capture: true } as EventListenerOptions);
@@ -268,8 +274,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const startHandoff = () => {
       if (state !== "idle") return;
       state = "handoff";
-      gliding = true;
-      stopSampling();
       setHeroFlight(true);
       attachBlock();
       const l = lenis();
@@ -293,10 +297,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         applyFades(e);
         if (e >= 1) {
           state = "done";
-          gliding = false;
-          // Hero is now off-screen at #paths, so leave the sampler paused;
-          // the IntersectionObserver restarts it if the hero returns to view.
-          if (heroVisible) startSampling();
           releaseBlock();
           setHeroFlight(false);
           return;
@@ -312,8 +312,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const startHandoffUp = () => {
       if (state !== "done") return;
       state = "handoff";
-      gliding = true;
-      stopSampling();
       setHeroFlight(true);
       attachBlock();
       const l = lenis();
@@ -334,9 +332,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         applyFades(1 - e);
         if (e >= 1) {
           state = "idle";
-          gliding = false;
-          // Hero is back at the top and on screen — resume the loop + sampler.
-          if (heroVisible) { playLoop(); startSampling(); }
           releaseBlock();
           setHeroFlight(false);
           restoreFades();
@@ -350,7 +345,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // ── Off-screen suspend (perf): stop loop AND sampling when hero leaves ──
     const io = new IntersectionObserver(
       ([entry]) => {
-        heroVisible = entry.isIntersecting;
         if (entry.isIntersecting) {
           playLoop();
           startSampling();
@@ -440,36 +434,74 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         window.removeEventListener("keydown", onKey);
       };
     } else {
-      // MOBILE: touch-driven hand-off. Catch the first drag before the native
-      // scroll runs so there is no momentum to fight the rAF glide.
+      // ── MOBILE hand-off (rewritten) ──────────────────────────────────────
+      // ONE direction only: a deliberate downward pull at the very top glides
+      // to #paths. There is NO reverse (up) hand-off on mobile. Its trigger
+      // zone necessarily covered the ENTIRE #paths section (nearBoundary), so a
+      // small vertical drag while reading the path cards threw the visitor all
+      // the way back to the very top — that throw-to-top WAS the "yank". Going
+      // back to the hero is now plain native scrolling; onScrollReset re-arms
+      // the forward glide once the visitor is back at the top.
+      //
+      // The forward glide is also INTERRUPTIBLE: touching the screen mid-glide
+      // cancels it and hands control straight back to the finger, so the
+      // visitor never loses agency (the old version swallowed every touch).
       let touchY = 0;
       let touchX = 0;
+      let armed = false;     // gesture began at the very top while idle
+      let aborted = false;   // this gesture is not a downward hero-exit
+      let committed = false; // this gesture fired the glide (keep eating it)
       const onTouchStart = (ev: TouchEvent) => {
+        // A touch DURING the glide = interrupt: stop the tween + drive loop and
+        // give control straight back to native scrolling.
+        if (state === "handoff") {
+          cancelTween();
+          cancelAnimationFrame(handoffRaf);
+          releaseBlock();
+          setHeroFlight(false);
+          // We are now parked somewhere between the hero and #paths; treat the
+          // hero as dismissed so we don't immediately re-arm and yank again.
+          // onScrollReset re-arms (state→idle) once the user is back at top.
+          state = "done";
+          committed = false;
+          return;
+        }
         touchY = ev.touches[0]?.clientY ?? 0;
         touchX = ev.touches[0]?.clientX ?? 0;
+        armed = state === "idle" && atTop();
+        aborted = false;
+        committed = false;
       };
       const onTouchMove = (ev: TouchEvent) => {
-        const y = ev.touches[0]?.clientY ?? touchY;
-        const x = ev.touches[0]?.clientX ?? touchX;
-        const dy = y - touchY;
-        const dx = x - touchX;
+        // Our committing finger is still down during the glide: keep native
+        // scroll suppressed so Android can't re-engage and fight the tween
+        // (iOS already suppresses it for the rest of the gesture once the first
+        // move was prevented). Release the finger once the glide has finished.
+        if (committed) {
+          if (state === "handoff") { if (ev.cancelable) ev.preventDefault(); return; }
+          committed = false;
+          return;
+        }
+        if (!armed || aborted || state !== "idle") return;
+        const dy = (ev.touches[0]?.clientY ?? touchY) - touchY;
+        const dx = (ev.touches[0]?.clientX ?? touchX) - touchX;
         const ax = Math.abs(dx);
         const ay = Math.abs(dy);
-        // Only a CLEARLY VERTICAL drag may drive the section hand-off. A
-        // horizontal / diagonal swipe belongs to the path-card carousel —
-        // honouring those here was yanking the page to the top mid-swipe
-        // ("swiping on cards causes issues") and read as an auto-scroll
-        // "stutter" as the page lurched. Bail unless vertical dominates.
-        if (ay < ax * 1.5) return;
-        // finger UP (dy < 0) → intent to scroll DOWN; finger DOWN → scroll up.
-        if (state === "idle" && atTop() && dy < -6) {
-          if (ev.cancelable) ev.preventDefault();
+        // Anything that is not a dominantly-vertical DOWNWARD pull (finger up,
+        // dy < 0) is left to native scrolling — and once abandoned this gesture
+        // never re-engages, so a diagonal flick can't later trigger the glide.
+        if (dy > 0 || ax > ay) { aborted = true; return; }
+        // Hold native momentum off while we measure the pull. iOS ignores
+        // preventDefault once native scrolling has already begun, so it must be
+        // called from the first qualifying move, not only after the threshold.
+        if (ev.cancelable) ev.preventDefault();
+        // Commit only after a deliberate 40px pull. A real scroll clears this
+        // easily; a tiny nudge (eaten invisibly at the very top of the
+        // full-screen hero) never fires the glide.
+        if (dy < -40) {
+          armed = false;
+          committed = true;
           startHandoff();
-        } else if (state === "done" && nearBoundary() && dy > 24) {
-          // Require a deliberate downward pull (24px, was 6) so a gentle
-          // vertical nudge while reading the path cards never glides to top.
-          if (ev.cancelable) ev.preventDefault();
-          startHandoffUp();
         }
       };
       window.addEventListener("touchstart", onTouchStart, { passive: true });

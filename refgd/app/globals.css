@@ -2116,7 +2116,15 @@ html { overflow-anchor: none; }
      internally.
    ──────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  [data-section-id]:not([data-section-id="hero"]) {
+  /* Telegram is EXCLUDED. content-visibility:auto skips paint for off-screen
+     sections and is supposed to resume on re-entry, but on iOS Safari the
+     telegram CTA (absolute inset-0 overlay + filter:blur glow + an
+     overflow-hidden rounded clip) frequently FAILS to re-rasterise after it
+     has been scrolled out of view and back — it came back blank/broken. That
+     is the "telegram box breaks on rescroll" report; it is a render-skip bug,
+     NOT the 3D fly-in animation. Excluding only this one section keeps the
+     mobile perf win on every other section. */
+  [data-section-id]:not([data-section-id="hero"]):not([data-section-id="telegram"]) {
     content-visibility: auto;
     contain-intrinsic-size: auto 800px;
   }

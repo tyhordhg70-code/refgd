@@ -21,43 +21,21 @@
  * itself the breakage, so it is gone: one tree, one animation, all sizes.
  *
  * Triggers once on intersection (≥ 15 % in view). Reduced-motion: instant.
- *
- * ── iOS "breaks on rescroll" fix ────────────────────────────────────────
- * Once the fly-in SETTLES we tear down the entire 3D rendering context:
- * the parent `perspective` is dropped and the element's `transform-style:
- * preserve-3d` + permanent `will-change: transform` are removed. Leaving a
- * preserve-3d layer with `will-change` promoted forever made iOS Safari keep
- * the card on a composited backing store; the inner rounded-`overflow:hidden`
- * clip + the `filter: blur()` glow inside AnimatedTelegramBox would then fail
- * to re-rasterise when the card scrolled out and back ("telegram box breaks on
- * rescroll"). After the entrance the card is plain flat 2D content, so none of
- * the 3D machinery is needed and the WebKit compositing bug can't fire. The
- * card sits at the identity transform either way, so dropping the context is
- * visually seamless.
  */
 import { motion, useReducedMotion, useInView } from "framer-motion";
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
 export default function TelegramCard3D({ children }: { children: ReactNode }) {
   const ref  = useRef<HTMLDivElement>(null);
   const inView  = useInView(ref, { once: true, amount: 0.15 });
   const reduced = useReducedMotion();
-  // Once the entrance finishes we leave 3D mode entirely (see header note).
-  const [settled, setSettled] = useState(false);
 
   return (
-    /* Perspective wrapper — only while the fly-in is in flight. Removed once
-       settled so the card is plain 2D content (no lingering 3D context). */
-    <div
-      ref={ref}
-      style={settled ? undefined : { perspective: "1100px", perspectiveOrigin: "50% 60%" }}
-    >
+    /* Perspective wrapper — keeps the card's own stacking context clean */
+    <div ref={ref} style={{ perspective: "1100px", perspectiveOrigin: "50% 60%" }}>
       <motion.div
         initial="hidden"
         animate={inView ? "visible" : "hidden"}
-        onAnimationComplete={(def) => {
-          if (def === "visible") setSettled(true);
-        }}
         variants={{
           hidden: {
             opacity: 0,
@@ -87,14 +65,7 @@ export default function TelegramCard3D({ children }: { children: ReactNode }) {
                 scale:    { duration: 1.4,  ease: [0.16, 1, 0.3, 1] },
               }
         }
-        // While flying: full 3D layer. After settle: drop preserve-3d AND the
-        // permanent will-change so iOS de-promotes the layer and the inner
-        // rounded-clip + blur glow re-rasterise cleanly on every later scroll.
-        style={
-          settled
-            ? undefined
-            : { transformStyle: "preserve-3d", willChange: "transform, opacity" }
-        }
+        style={{ transformStyle: "preserve-3d", willChange: "transform, opacity" }}
       >
         {children}
       </motion.div>

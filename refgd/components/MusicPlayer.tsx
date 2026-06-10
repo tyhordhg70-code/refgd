@@ -56,6 +56,21 @@ function readMutePref() {
   try { return sessionStorage.getItem(MUTE_KEY) === "1"; } catch { return false; }
 }
 
+// Where the × dismissal is persisted. PERMANENT on desktop (localStorage —
+// byte-for-byte the original behaviour) but only SESSION-scoped on touch /
+// mobile, where the × is newly shown and an accidental tap must never hide the
+// player for good. Uses the same media query the player used for its old
+// `coarse` check so desktop is treated exactly as before.
+function dismissalStore(): Storage | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const touch = window.matchMedia("(pointer: coarse), (max-width: 768px)").matches;
+    return touch ? window.sessionStorage : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 export default function MusicPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fadeRafRef = useRef<number | null>(null);
@@ -73,20 +88,16 @@ export default function MusicPlayer() {
 
   // Mount-time bootstrap: pick track + read mute preference.
   const [dismissed, setDismissed] = useState<boolean>(false);
-  // Coarse-pointer (phone / tablet) detection. On touch devices we NEVER honour
-  // the dismiss flag and NEVER render the tiny × — it sits one fat-finger-tap
-  // above the mute button, so a single accidental tap permanently hid the whole
-  // control (localStorage), which is why the sound button "vanished" on mobile
-  // while the music kept playing. Phones therefore always show the button.
-  const [coarse, setCoarse] = useState<boolean>(false);
 
   useEffect(() => {
     setTrack(pickTrack());
     const initial = readMutePref();
     setMuted(initial);
     mutedRef.current = initial;
-    try { if (localStorage.getItem(DISMISSED_KEY) === "1") setDismissed(true); } catch {}
-    try { setCoarse(window.matchMedia("(pointer: coarse), (max-width: 768px)").matches); } catch {}
+    // Desktop persists permanently (localStorage, unchanged from before);
+    // touch/mobile only for the session, so the newly-shown × can never hide
+    // the player for good (see dismissalStore).
+    try { if (dismissalStore()?.getItem(DISMISSED_KEY) === "1") setDismissed(true); } catch {}
   }, []);
 
   function cancelFade() {
@@ -383,9 +394,9 @@ export default function MusicPlayer() {
   }, []);
 
     // If dismissed: render audio-only (music keeps playing, controls hidden).
-    // Never honour dismissal on touch devices (see `coarse` above) so the
-    // sound button is always reachable on phones.
-    if (dismissed && !coarse) {
+    // On touch/mobile dismissal is session-scoped so this self-heals next visit;
+    // on desktop it persists (localStorage), exactly as before.
+    if (dismissed) {
       return track ? (
         <audio ref={audioRef} src={track.src} loop autoPlay muted preload="auto"
           aria-label={`Background music — ${track.label}`} />
@@ -412,27 +423,30 @@ export default function MusicPlayer() {
             that chrome (safe-area inset + extra lift) on phones; desktop
             keeps its original bottom-right rest position. */}
         <div className="fixed right-5 z-[60] flex items-end gap-1.5 bottom-[max(1.25rem,calc(env(safe-area-inset-bottom,0px)+4.5rem))] sm:bottom-6 sm:right-6">
-          {/* Small × close button above the mute button — desktop only. On
-              touch it is a fat-finger hazard that permanently hides the player. */}
-          <div className="flex flex-col items-center gap-1">
-            {!coarse && (
-              <button
-                type="button"
-                onClick={() => {
-                  setDismissed(true);
-                  try { localStorage.setItem(DISMISSED_KEY, "1"); } catch {}
-                }}
-                aria-label="Hide music controls"
-                data-cursor="link"
-                data-cursor-label="hide player"
-                className="grid h-6 w-6 place-items-center rounded-full border border-white/20 bg-ink-900/80 text-white/50 backdrop-blur-sm transition hover:border-white/40 hover:text-white/80 active:scale-95"
-              >
-                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            )}
+          {/* Small × close button above the mute button — shown on EVERY device.
+              On mobile it uses a ≥40px tap target (h-10) with extra separation
+              (gap-3) from the gold mute button below, so it is reachable without
+              being a fat-finger hazard; desktop keeps its original 24px target.
+              Dismissal persists on desktop (localStorage) but is session-scoped
+              on touch (see dismissalStore) so an accidental tap is never
+              permanent there. */}
+          <div className="flex flex-col items-center gap-3 sm:gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                setDismissed(true);
+                try { dismissalStore()?.setItem(DISMISSED_KEY, "1"); } catch {}
+              }}
+              aria-label="Hide music controls"
+              data-cursor="link"
+              data-cursor-label="hide player"
+              className="grid h-10 w-10 sm:h-6 sm:w-6 place-items-center rounded-full border border-white/20 bg-ink-900/80 text-white/50 backdrop-blur-sm transition hover:border-white/40 hover:text-white/80 active:scale-95"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" className="sm:h-[9px] sm:w-[9px]">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
             {/* Mute / unmute button */}
             <button
               type="button"
