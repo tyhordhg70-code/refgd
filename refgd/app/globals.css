@@ -468,6 +468,51 @@ html.hero-flight .rg-ambient-bg,
 html.hero-flight .rg-ambient-bg * {
   animation-play-state: paused !important;
 }
+
+/* ── CosmicJourney hero overlays (mobile vs desktop) ──────────────────────
+   These differences MUST live in CSS, NOT a React isMobile flag: phones were
+   first-painting the DESKTOP overlay (hard 60%×45% black oval scrim + masked
+   100%-height video) until hydration flipped the flag, and that flash read as
+   the "black box on the welcome text". CSS media queries paint the correct
+   variant on the very first frame. Desktop values below are byte-for-byte the
+   originals. */
+.cj-hero-scrim {
+  background:
+    radial-gradient(60% 45% at 50% 42%, rgba(0,0,0,0.55), transparent 70%),
+    linear-gradient(to bottom, rgba(0,0,0,0.38), transparent 30%, transparent 68%, rgba(0,0,0,0.48));
+}
+.cj-hero-video {
+  height: 100%;
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 52%, transparent 72%);
+          mask-image: radial-gradient(circle at 50% 50%, #000 52%, transparent 72%);
+}
+/* Painted edge fallback for the video — OFF on desktop (the mask handles it). */
+.cj-hero-vignette { display: none; }
+
+@media (max-width: 768px) {
+  /* Soft full-bleed wash (no hard oval edge); the heading keeps its own
+     text-shadow for legibility. */
+  .cj-hero-scrim {
+    background:
+      radial-gradient(125% 85% at 50% 40%, rgba(0,0,0,0.34), transparent 80%),
+      linear-gradient(to bottom, rgba(0,0,0,0.30), transparent 26%, transparent 74%, rgba(0,0,0,0.40));
+  }
+  /* Shorter box so the landscape clip's cover-crop stops cutting the sphere's
+     sides; mask OFF — iOS <video> ignores -webkit-mask-image and showed the
+     rectangle's own black as a hard box. */
+  .cj-hero-video {
+    height: 78%;
+    -webkit-mask-image: none;
+            mask-image: none;
+  }
+  /* The mask's job done with a plain gradient iOS always honours: fade the
+     video rectangle into the #05060a hero backdrop so there is no black box. */
+  .cj-hero-vignette {
+    display: block;
+    background:
+      radial-gradient(circle at 50% 50%, transparent 50%, rgba(5,6,10,0.55) 68%, #05060a 82%);
+  }
+}
 /* v6.13.6 — Cinematic 3D entrance for the "Stop wasting time" hero
    illustration. The previous opacity+scale was too plain; this
    sweeps the figure in from a tilted plane with a chromatic-glow
@@ -2091,44 +2136,18 @@ html { overflow-anchor: none; }
 
 
 /* ────────────────────────────────────────────────────────────────
-   MOBILE PERFORMANCE — content-visibility off-screen skip
+   MOBILE PERFORMANCE — content-visibility off-screen skip: REMOVED
    ────────────────────────────────────────────────────────────────
-   The single biggest mobile win possible without removing animations.
-
-   The home page has multiple long sections (cosmic hero, paths cube,
-   chapters, telegram CTA, footer). On mobile the browser was paying
-   layout + paint + style cost for ALL of them on every scroll frame,
-   even though only one section is visible at a time. With
-   `content-visibility: auto`, the browser SKIPS that work entirely
-   for sections that aren't near the viewport — and resumes it
-   automatically when the user scrolls them into view.
-
-   - Targets `[data-section-id]` on every <ReorderableSection> wrapper.
-   - The hero section is excluded so the first scene paints
-     immediately on initial load (no placeholder flash).
-   - `contain-intrinsic-size: auto 800px` reserves a believable
-     placeholder height so the scrollbar/page geometry doesn't jump
-     as sections render. The `auto` keyword lets the browser cache
-     the real measured size after first render.
-   - framer-motion's `whileInView` / IntersectionObserver still fires
-     correctly when sections enter the viewport — content-visibility
-     auto delegates to the same intersection logic the browser uses
-     internally.
+   We previously set `content-visibility: auto` + `contain-intrinsic-size`
+   on every off-screen [data-section-id] on mobile to skip their layout/paint
+   cost. On iOS Safari that optimization repeatedly FAILED to re-rasterise
+   sections on scroll-back — first the telegram CTA, then the path cards —
+   leaving a blank/black box over them ("telegram breaks on rescroll",
+   "black overlay over path cards"). Removing it cannot cause a visual bug;
+   keeping it caused two. The home page has only three sections, so the perf
+   cost of dropping the skip is negligible. DO NOT re-add content-visibility
+   to these sections.
    ──────────────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
-  /* Telegram is EXCLUDED. content-visibility:auto skips paint for off-screen
-     sections and is supposed to resume on re-entry, but on iOS Safari the
-     telegram CTA (absolute inset-0 overlay + filter:blur glow + an
-     overflow-hidden rounded clip) frequently FAILS to re-rasterise after it
-     has been scrolled out of view and back — it came back blank/broken. That
-     is the "telegram box breaks on rescroll" report; it is a render-skip bug,
-     NOT the 3D fly-in animation. Excluding only this one section keeps the
-     mobile perf win on every other section. */
-  [data-section-id]:not([data-section-id="hero"]):not([data-section-id="telegram"]) {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 800px;
-  }
-}
 
 /* ────────────────────────────────────────────────────────────────
    GLASS CARD REVEAL — 6 LUSION-STYLE VARIED ENTRANCES (CSS-only)

@@ -206,6 +206,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
     const easeInOutCubic = (t: number) =>
       t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+    const clamp = (n: number, lo: number, hi: number) =>
+      n < lo ? lo : n > hi ? hi : n;
     const smoothScrollTo = (targetY: number, dur: number) => {
       cancelTween();
       const startY = window.scrollY;
@@ -367,6 +370,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const atTop = () => window.scrollY <= 2;
     const nearBoundary = () => window.scrollY <= window.innerHeight * 1.15;
     let prevY = window.scrollY;
+    // True only while a mobile hand-off drag is actively tracking the finger,
+    // so the shared onScrollReset below can't reset state mid-drag.
+    let dragging = false;
     const onScrollTrigger = () => {
       const y = window.scrollY;
       const goingDown = y > prevY;
@@ -381,6 +387,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
     // Re-arm when the user returns to the very top manually.
     const onScrollReset = () => {
+      if (dragging) return;
       if (state === "done" && window.scrollY < 8) {
         state = "idle";
         cancelAnimationFrame(handoffRaf);
@@ -434,82 +441,133 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         window.removeEventListener("keydown", onKey);
       };
     } else {
-      // ── MOBILE hand-off (rewritten) ──────────────────────────────────────
-      // ONE direction only: a deliberate downward pull at the very top glides
-      // to #paths. There is NO reverse (up) hand-off on mobile. Its trigger
-      // zone necessarily covered the ENTIRE #paths section (nearBoundary), so a
-      // small vertical drag while reading the path cards threw the visitor all
-      // the way back to the very top — that throw-to-top WAS the "yank". Going
-      // back to the hero is now plain native scrolling; onScrollReset re-arms
-      // the forward glide once the visitor is back at the top.
-      //
-      // The forward glide is also INTERRUPTIBLE: touching the screen mid-glide
-      // cancels it and hands control straight back to the finger, so the
-      // visitor never loses agency (the old version swallowed every touch).
-      let touchY = 0;
-      let touchX = 0;
-      let armed = false;     // gesture began at the very top while idle
-      let aborted = false;   // this gesture is not a downward hero-exit
-      let committed = false; // this gesture fired the glide (keep eating it)
+      // ── MOBILE hand-off (1:1 finger tracking + release tween) ────────────
+      // The page follows the finger from the FIRST pixel — there is no frozen
+      // "measure" dead-zone before a sudden auto-fly (that takeover was the
+      // "yank"). On release a short ease-OUT tween finishes the trip (the page
+      // already has velocity, so ease-IN would visibly hitch). BIDIRECTIONAL:
+      //   • down from the very top            → glide to #paths
+      //   • up, but ONLY when the gesture STARTS in a tight zone right at the
+      //     hero/#paths boundary             → glide back to the welcome
+      // The tight up-zone is the fix for the old reverse "yank": the previous
+      // nearBoundary() (innerHeight*1.15) covered the whole first screen of
+      // cards, so a small up-drag while reading threw the visitor to the top.
+      // Touching mid-glide interrupts and hands control back to the finger.
+      // Every other gesture stays 100% native (no preventDefault).
+      const PULL_COMMIT = 60; // px of deliberate pull needed to commit a glide
+
+      const pathsY = () => {
+        const el = document.getElementById("paths");
+        return el ? window.scrollY + el.getBoundingClientRect().top : window.innerHeight;
+      };
+
+      let dir: "down" | "up" | null = null;
+      let decided = false;
+      let startTouchY = 0;
+      let startScrollY = 0;
+      let dyTotal = 0;
+      let pathsTargetY = 0;
+
+      // Short ease-OUT glide from the current position to `to`, driving the
+      // welcome-text fade off the scroll position the whole way.
+      const tweenTo = (to: number, dur: number, endState: State) => {
+        cancelTween();
+        const startY = window.scrollY;
+        const dist = to - startY;
+        const denom = Math.max(1, pathsTargetY);
+        const t0 = performance.now();
+        const step = (now: number) => {
+          const e = clamp01((now - t0) / dur);
+          const y = Math.round(startY + dist * easeOutCubic(e));
+          window.scrollTo(0, y);
+          applyFades(clamp01(y / denom));
+          if (e < 1) {
+            tweenRaf = requestAnimationFrame(step);
+          } else {
+            tweenRaf = 0;
+            state = endState;
+            setHeroFlight(false);
+            if (endState === "idle") restoreFades();
+          }
+        };
+        tweenRaf = requestAnimationFrame(step);
+      };
+
       const onTouchStart = (ev: TouchEvent) => {
-        // A touch DURING the glide = interrupt: stop the tween + drive loop and
-        // give control straight back to native scrolling.
+        // Touch during a glide = interrupt → control straight back to native.
         if (state === "handoff") {
           cancelTween();
-          cancelAnimationFrame(handoffRaf);
-          releaseBlock();
           setHeroFlight(false);
-          // We are now parked somewhere between the hero and #paths; treat the
-          // hero as dismissed so we don't immediately re-arm and yank again.
-          // onScrollReset re-arms (state→idle) once the user is back at top.
+          // Parked between hero and #paths; onScrollReset re-arms at the top.
           state = "done";
-          committed = false;
-          return;
         }
-        touchY = ev.touches[0]?.clientY ?? 0;
-        touchX = ev.touches[0]?.clientX ?? 0;
-        armed = state === "idle" && atTop();
-        aborted = false;
-        committed = false;
+        startTouchY = ev.touches[0]?.clientY ?? 0;
+        startScrollY = window.scrollY;
+        dyTotal = 0;
+        decided = false;
+        dragging = false;
+        dir = null;
+        pathsTargetY = pathsY();
       };
+
       const onTouchMove = (ev: TouchEvent) => {
-        // Our committing finger is still down during the glide: keep native
-        // scroll suppressed so Android can't re-engage and fight the tween
-        // (iOS already suppresses it for the rest of the gesture once the first
-        // move was prevented). Release the finger once the glide has finished.
-        if (committed) {
-          if (state === "handoff") { if (ev.cancelable) ev.preventDefault(); return; }
-          committed = false;
-          return;
+        dyTotal = (ev.touches[0]?.clientY ?? startTouchY) - startTouchY;
+        if (!decided) {
+          if (Math.abs(dyTotal) < 5) return; // wait for a real, intentional move
+          decided = true;
+          if (state === "idle" && startScrollY <= 2 && dyTotal < 0) {
+            // at the very top, finger up = scroll down → arm the forward glide
+            dragging = true;
+            dir = "down";
+            setHeroFlight(true);
+          } else if (
+            state === "done" && dyTotal > 0 && startScrollY > 2 &&
+            startScrollY <= pathsTargetY + window.innerHeight * 0.25
+          ) {
+            // near the boundary, finger down = scroll up → arm the return glide
+            dragging = true;
+            dir = "up";
+            setHeroFlight(true);
+          } else {
+            dragging = false; // not a hand-off gesture → leave it to native
+            dir = null;
+          }
         }
-        if (!armed || aborted || state !== "idle") return;
-        const dy = (ev.touches[0]?.clientY ?? touchY) - touchY;
-        const dx = (ev.touches[0]?.clientX ?? touchX) - touchX;
-        const ax = Math.abs(dx);
-        const ay = Math.abs(dy);
-        // Anything that is not a dominantly-vertical DOWNWARD pull (finger up,
-        // dy < 0) is left to native scrolling — and once abandoned this gesture
-        // never re-engages, so a diagonal flick can't later trigger the glide.
-        if (dy > 0 || ax > ay) { aborted = true; return; }
-        // Hold native momentum off while we measure the pull. iOS ignores
-        // preventDefault once native scrolling has already begun, so it must be
-        // called from the first qualifying move, not only after the threshold.
+        if (!dragging) return;
+        // Own the gesture: drive scroll 1:1 with the finger so native momentum
+        // never engages (no fight) and there is no dead-zone before movement.
         if (ev.cancelable) ev.preventDefault();
-        // Commit only after a deliberate 40px pull. A real scroll clears this
-        // easily; a tiny nudge (eaten invisibly at the very top of the
-        // full-screen hero) never fires the glide.
-        if (dy < -40) {
-          armed = false;
-          committed = true;
-          startHandoff();
-        }
+        const next = clamp(startScrollY - dyTotal, 0, pathsTargetY);
+        window.scrollTo(0, next);
+        applyFades(clamp01(next / Math.max(1, pathsTargetY)));
       };
+
+      const onTouchEnd = () => {
+        if (!dragging) return;
+        const committed = Math.abs(dyTotal) > PULL_COMMIT;
+        dragging = false;
+        state = "handoff";
+        if (dir === "down") {
+          if (committed) tweenTo(pathsTargetY, 600, "done");
+          else tweenTo(0, 260, "idle"); // not enough pull → settle back to top
+        } else {
+          if (committed) tweenTo(0, 600, "idle");
+          else tweenTo(pathsTargetY, 260, "done"); // settle back to the cards
+        }
+        dir = null;
+      };
+
       window.addEventListener("touchstart", onTouchStart, { passive: true });
       window.addEventListener("touchmove", onTouchMove, { passive: false });
+      window.addEventListener("touchend", onTouchEnd, { passive: true });
+      window.addEventListener("touchcancel", onTouchEnd, { passive: true });
+      // Re-arm the forward glide once the visitor is back at the very top.
       window.addEventListener("scroll", onScrollReset, { passive: true });
       cleanupTriggers = () => {
         window.removeEventListener("touchstart", onTouchStart);
         window.removeEventListener("touchmove", onTouchMove);
+        window.removeEventListener("touchend", onTouchEnd);
+        window.removeEventListener("touchcancel", onTouchEnd);
         window.removeEventListener("scroll", onScrollReset);
       };
     }
@@ -564,7 +622,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       <video
         ref={videoRef}
         aria-hidden="true"
-        className="absolute left-1/2 top-1/2"
+        className="cj-hero-video absolute left-1/2 top-1/2"
         muted
         loop={!reduced}
         autoPlay={!reduced}
@@ -573,48 +631,39 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         poster="/sphere-poster.webp"
         style={{
           width: "100%",
-          // Mobile: REDUCE THE ELEMENT HEIGHT (a transform-scale can't change a
-          // `cover` crop — the crop fraction is fixed by the element's aspect
-          // ratio). A shorter, still-full-width box lowers the landscape clip's
-          // cover scale factor so more of its width fits and the sphere's
-          // left/right edges stop being cropped by the narrow portrait viewport
-          // ("sphere edges a bit cut off"). Width stays 100% so it never
-          // becomes the rejected centred "contain" band; the freed top/bottom
-          // is absorbed by the radial mask falloff + near-black hero behind it.
-          height: isMobile ? "78%" : "100%",
           transform: "translate(-50%, -50%)",
-          // `cover` fills the viewport on EVERY device. `contain` was tried on
-          // mobile but it letterboxed the landscape clip into a small centred
-          // band on a portrait phone — "landscape mode on portrait ruins it".
-          // The orb is full-bleed and centred again; the radial mask below
-          // fades its edges so nothing reads as spilling off the screen.
+          // `cover` fills the box on every device. The element HEIGHT (desktop
+          // 100% / mobile 78% so the landscape clip's cover-crop stops cutting
+          // the sphere's left/right edges) and the soft edge MASK live in CSS
+          // (.cj-hero-video). On mobile the mask is dropped — iOS Safari ignores
+          // -webkit-mask-image on a hardware-decoded <video>, which left the
+          // video rectangle's own near-black showing as a hard box — and is
+          // replaced by the painted .cj-hero-vignette below.
           objectFit: "cover",
           display: "block",
-          WebkitMaskImage:
-            "radial-gradient(circle at 50% 50%, #000 52%, transparent 72%)",
-          maskImage:
-            "radial-gradient(circle at 50% 50%, #000 52%, transparent 72%)",
         }}
       >
         <source src={VIDEO_SRC_MP4} type="video/mp4" />
       </video>
 
-      {/* Dark scrim behind the text for white-text legibility. Rendered BEFORE
-          the colored edges so the edge glow paints on top and stays vivid
-          instead of being darkened by the scrim at the borders. */}
+      {/* MOBILE-only painted edge vignette (.cj-hero-vignette). Fades the video
+          rectangle into the #05060a hero backdrop with a plain background
+          gradient iOS always honours, doing the job the unreliable <video>
+          mask can't. Hidden on desktop, where the mask handles the edges. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          // Mobile: the tight 60%×45% radial read as a hard-edged dark
-          // oval — the "black faded box on the welcome text". Widened to a
-          // soft full-bleed wash (lower opacity, later falloff) so there is
-          // no visible edge; the heading keeps its own text-shadow for
-          // legibility. Desktop keeps the original focused vignette.
-          background: isMobile
-            ? "radial-gradient(125% 85% at 50% 40%, rgba(0,0,0,0.34), transparent 80%), linear-gradient(to bottom, rgba(0,0,0,0.30), transparent 26%, transparent 74%, rgba(0,0,0,0.40))"
-            : "radial-gradient(60% 45% at 50% 42%, rgba(0,0,0,0.55), transparent 70%), linear-gradient(to bottom, rgba(0,0,0,0.38), transparent 30%, transparent 68%, rgba(0,0,0,0.48))",
-        }}
+        className="cj-hero-vignette pointer-events-none absolute inset-0"
+      />
+
+      {/* Dark scrim behind the text for white-text legibility. The mobile vs
+          desktop gradients live in CSS (.cj-hero-scrim) — NOT a React isMobile
+          flag — so phones paint the soft mobile wash on the very first frame
+          instead of briefly showing the desktop hard-edged oval (that flash
+          WAS the "black box on the welcome text"). Rendered before the colored
+          edges so the edge glow paints on top and stays vivid. */}
+      <div
+        aria-hidden="true"
+        className="cj-hero-scrim pointer-events-none absolute inset-0"
       />
 
       {/* Soft blurred gradient EDGES, tinted live to the sphere color. Wide,
