@@ -202,6 +202,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     let state: State = "idle";
     let handoffRaf = 0;
     let blockOn = false;
+    // Hero visibility (kept current by the IntersectionObserver) + timestamp of
+    // the last completed DOWN handoff. Used to (a) resume video/sampling only
+    // when the hero is actually on screen, and (b) debounce an immediate
+    // down->up bounce right after the down glide lands.
+    let heroVisible = true;
+    let doneAt = 0;
 
     // Capture-phase swallow of scroll input during the short auto-scroll glide.
     const swallow = (ev: Event) => {
@@ -245,6 +251,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       state = "handoff";
       setHeroFlight(true);
       attachBlock();
+      // Free the GPU/main-thread during the glide: stop colour sampling so the
+      // 11Hz --glow writes (which retint three blur layers via a 250ms CSS
+      // transition = a per-frame re-raster storm) pause, and pause the hero
+      // video so iOS isn't decoding + compositing while smooth-scrolling.
+      // Resumed on completion only if the hero is still on screen.
+      video.pause();
+      stopSampling();
       const l = lenis();
       const target = document.getElementById("paths");
       if (l && l.start) l.start();
@@ -263,8 +276,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         applyFades(e);
         if (e >= 1) {
           state = "done";
+          doneAt = now;
           releaseBlock();
           setHeroFlight(false);
+          if (heroVisible) { playLoop(); startSampling(); }
           return;
         }
         handoffRaf = requestAnimationFrame(drive);
@@ -280,6 +295,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       state = "handoff";
       setHeroFlight(true);
       attachBlock();
+      // Same glide perf-freeze as startHandoff (resumed below once the hero
+      // has settled back into view).
+      video.pause();
+      stopSampling();
       const l = lenis();
       if (l && l.start) l.start();
       // Mobile: use NATIVE smooth scroll, not lenis.scrollTo — a lenis rAF
@@ -305,6 +324,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           releaseBlock();
           setHeroFlight(false);
           restoreFades();
+          if (heroVisible) { playLoop(); startSampling(); }
           return;
         }
         handoffRaf = requestAnimationFrame(drive);
@@ -315,6 +335,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // ── Off-screen suspend (perf): stop loop AND sampling when hero leaves ──
     const io = new IntersectionObserver(
       ([entry]) => {
+        heroVisible = entry.isIntersecting;
+        // Don't fight an in-progress glide: the handoff owns play/pause during
+        // the flight and resumes once the hero has settled. Without this guard
+        // the IO would un-pause the video the instant the hero re-enters view
+        // on the UP glide, defeating the perf-freeze.
+        if (state === "handoff") return;
         if (entry.isIntersecting) {
           playLoop();
           startSampling();
@@ -336,13 +362,17 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // up near the boundary → glide back to top. Never yanks from deep content.
     const atTop = () => window.scrollY <= 2;
     const nearBoundary = () => window.scrollY <= window.innerHeight * 1.15;
-    // Mobile: the up-handoff must NOT fire while browsing the path cards.
-    // #paths starts ~1 viewport down, so the 1.15 boundary catches the
-    // cards and yanks back to the top on any small upward swipe. On mobile
-    // require the hero to actually be re-entering view (<= 0.5vh). Desktop
-    // keeps 1.15 so wheel/keyboard handoff stays byte-for-byte unchanged.
+    // Mobile: the up-handoff must commit to the very top as soon as the hero
+    // starts re-appearing, so the visitor can't rest "half hero / half cards".
+    // #paths starts ~1 viewport down, so any scrollY below ~0.85vh means a
+    // strip of hero is showing while going up -> glide home. Kept just under
+    // 1.0vh (not at it) so the down-handoff's landing point can't instantly
+    // bounce back up (paired with the doneAt cooldown below); 0.85 also clears
+    // the 100svh-vs-innerHeight gap on iOS. Deep card browsing (scrollY >=
+    // ~1.0vh) is never touched. Desktop keeps 1.15 so the wheel/keyboard
+    // handoff stays byte-for-byte unchanged.
     const nearBoundaryUp = () =>
-      window.scrollY <= window.innerHeight * (isMobileRef.current ? 0.5 : 1.15);
+      window.scrollY <= window.innerHeight * (isMobileRef.current ? 0.85 : 1.15);
     let prevY = window.scrollY;
     const onScrollTrigger = () => {
       const y = window.scrollY;
@@ -352,7 +382,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       prevY = y;
       if (state === "idle" && goingDown && wasAtTop && y > 2 && y < window.innerHeight * 0.6) {
         startHandoff();
-      } else if (state === "done" && goingUp && nearBoundaryUp()) {
+      } else if (
+        state === "done" && goingUp && nearBoundaryUp() &&
+        performance.now() - doneAt > 400
+      ) {
         startHandoffUp();
       }
     };
@@ -431,7 +464,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-revert-7"
+      data-hero-build="mobile-revert-8"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >
