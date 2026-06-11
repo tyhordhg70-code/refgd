@@ -9,21 +9,17 @@
  *   • y        90 → 0 px    • scale  0.86 → 1     • opacity 0 → 1
  *   duration 1.4 s, ease [0.16, 1, 0.3, 1]
  *
- * MOBILE (<=768px) is handled ENTIRELY in CSS — never with a React flag here.
- * globals.css nullifies the perspective (.tg-card-3d-wrap { perspective:none })
- * and every transform write (.tg-card-3d { transform:none !important }) inside a
- * max-width:768px media query. framer writes transforms via inline element.style
- * (which carries no !important), so the !important media rules beat them on EVERY
- * frame, from the very FIRST paint (before hydration). That kills two iOS-Safari
- * bugs at once: (1) the stale 3D transform that left the card frozen tilted/shrunk
- * ("stuck mid animation"), and (2) the transform/perspective ancestor above the
- * card's rounded overflow:hidden clip that made iOS drop the card's composited
- * children (the bottom half + the CTA button vanish). Opacity is left untouched,
- * so mobile still gets a clean opacity fade-in.
+ * The SAME 3D fly-in plays on mobile AND desktop. We deliberately do NOT branch
+ * on a React `isMobile` flag: it starts false, so framer would paint the desktop
+ * 3D transform first and then never clear it on a variant swap — that stale
+ * transform was the "stuck mid animation" freeze we kept looping on. With a
+ * single always-3D path (no flag, no variant swap) there is no stale state, so
+ * the fly-in runs cleanly on mobile too.
  *
- * We deliberately do NOT branch on a React `isMobile` flag: it starts false, so
- * framer would paint the desktop 3D transform first and then never clear it —
- * which is exactly the freeze we kept looping on. CSS is correct from frame 0.
+ * The only mobile-specific tweak lives in globals.css (max-width:768px): the
+ * card's descendants are flattened (transform-style:flat) so iOS WebKit does not
+ * z-sort/drop the children (CTA button), and the inner panel is rounded as a clip
+ * safety. Neither touches the element's own transform, so the fly-in is intact.
  *
  * Triggers once on intersection (>= 15 % in view). Reduced-motion: instant.
  */

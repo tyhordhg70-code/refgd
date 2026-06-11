@@ -1701,39 +1701,29 @@ html { overflow-anchor: none; }
 }
 
 
-/* ── Telegram CTA 3D card (mobile-only flatten) ──────────────────
- * Desktop keeps the full preserve-3d fly-in (byte-for-byte). On
- * mobile WebKit, preserve-3d z-sorts the card's children at z=0 so
- * the CTA button z-fights the absolute-inset background and vanishes,
- * and the 3D context makes the rounded overflow clip drop composited
- * children so the card bottom breaks past its corner. Flattening on
- * mobile fixes both WITHOUT removing the rotateX/rotateY fly-in
- * (perspective lives on the parent). Do NOT force-promote this subtree
- * (translateZ(0)/isolation) — that freezes the fly-in mid-frame. */
+/* ── Telegram CTA 3D card ────────────────────────────────────────
+ * Desktop AND mobile both play the full rotateX/rotateY/scale/y fly-in
+ * (perspective lives on the .tg-card-3d-wrap parent; the card itself
+ * carries the animated transform). On mobile we ONLY flatten the card's
+ * descendants (transform-style:flat) so iOS WebKit does not z-sort the
+ * children at z=0 — that z-sort made the CTA button z-fight the inset
+ * background and vanish. transform-style:flat affects how DESCENDANTS
+ * share 3D space, NOT the element's own transform, so the fly-in still
+ * tilts on mobile. Do NOT force-promote this subtree (translateZ(0)/
+ * isolation) — that freezes the fly-in mid-frame. */
 .tg-card-3d {
   transform-style: preserve-3d;
   will-change: transform, opacity;
 }
 @media (max-width: 768px) {
-  /* iOS kill-switch (decisive). framer-motion writes the fly-in transform via
-     inline element.style, which carries no !important — so these !important
-     media rules nullify every frame's write, from the FIRST paint and before
-     hydration. perspective:none removes the 3D ancestor and transform:none
-     removes the transform ancestor, so (1) the card can never freeze in a stale
-     tilted/shrunk pose ("stuck mid animation"), and (2) there is no transform/
-     perspective ancestor above the rounded overflow clip, so iOS stops dropping
-     the card's composited children (bottom half + CTA button). Opacity is left
-     untouched, so the opacity fade-in still plays on mobile. */
-  .tg-card-3d-wrap {
-    perspective: none !important;
-  }
+  /* Keep the 3D fly-in on mobile (the fly-in was never the bug — the old
+     freeze came from a React isMobile flag's stale-transform variant swap,
+     which no longer exists). Only flatten descendants so iOS WebKit does not
+     drop/z-fight the card's children, and round the inner panel as a clip
+     safety. Neither touches the element's own rotateX/rotateY/scale fly-in. */
   .tg-card-3d {
-    transform: none !important;
     transform-style: flat;
-    will-change: auto !important;
   }
-  /* Round the full-bleed inner panel itself so even if iOS drops the
-     outer rounded clip, no square corner can show past the card. */
   .tg-inner-clip {
     border-radius: 2.5rem;
   }
