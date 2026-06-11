@@ -504,9 +504,12 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
       data-testid="paths-mobile-track"
       className="mx-auto"
       style={{ width: "min(92vw, 440px)", position: "relative" }}
-      initial={reduced ? false : { opacity: 0, y: 60, scale: 0.88 }}
-      whileInView={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, amount: 0.25 }}
+      // Mobile: render FULLY VISIBLE from first paint (initial={false}), never a
+      // hidden→visible fly-in. A whileInView entrance that starts at opacity:0
+      // can stick at 0 if its intersection trigger mis-fires during native
+      // momentum scrolling, leaving the dark prism stage as a "dark overlay
+      // over the cards" (owner-reported on every device). Working > fancy here.
+      initial={false}
       transition={{ duration: 0.95, ease: [0.22, 1, 0.36, 1] }}
     >
       {/* v6.14 — Mobile path-card GLOW: a sibling halo BEHIND the prism

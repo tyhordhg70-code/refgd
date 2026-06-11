@@ -42,20 +42,17 @@ export default function TelegramCard3D({ children }: { children: ReactNode }) {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // ── Mobile: flat, opacity-only entrance (no perspective, no transform) ──
+  // ── Mobile: render FULLY VISIBLE immediately — no entrance gate ──
+  // A hidden→visible entrance driven by an intersection trigger can leave the
+  // card stuck at opacity:0 if the trigger mis-fires during native momentum
+  // scrolling, so the box's dark inner panel reads as a "black overlay / broken"
+  // CTA (owner-reported on every device). No perspective/transform either, so
+  // the rounded overflow:hidden clip is never dropped (the old iOS "black slab
+  // on the bottom"). Plain, always-on, working.
   if (isMobile) {
     return (
-      <div ref={ref}>
-        <motion.div
-          key="tg-m"
-          className="tg-card-3d"
-          initial="hidden"
-          animate={inView ? "visible" : "hidden"}
-          variants={{ hidden: { opacity: 0 }, visible: { opacity: 1 } }}
-          transition={reduced ? { duration: 0 } : { duration: 0.7, ease: "easeOut" }}
-        >
-          {children}
-        </motion.div>
+      <div ref={ref} className="tg-card-3d">
+        {children}
       </div>
     );
   }

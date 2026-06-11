@@ -373,126 +373,21 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
     let cleanupMobile = () => {};
     if (isMobileRef.current) {
-      const SETTLE_MS = 150;
-      const DEAD_ZONE = 26;
-      const TWEEN_MS = 520;
-      let settleTimer = 0;
-      let touching = false;
-      let tweening = false;
-      let tweenRaf = 0;
-      // Scroll position when the current gesture began (finger-down). Used to
-      // derive the gesture's NET travel direction so the post-gesture glide
-      // never reverses a deliberate swipe.
-      let gestureStartY = window.scrollY;
-
-      // Section anchors, computed live (the iOS URL bar resizes the viewport).
-      const sectionTargets = (): number[] => {
-        const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-        const raw = [0];
-        const paths = document.getElementById("paths");
-        const tg = document.getElementById("telegram");
-        if (paths) raw.push(Math.round(paths.getBoundingClientRect().top + window.scrollY));
-        if (tg) raw.push(Math.round(tg.getBoundingClientRect().top + window.scrollY));
-        raw.push(max);
-        const out: number[] = [];
-        raw
-          .map((y) => Math.min(Math.max(0, y), max))
-          .sort((a, b) => a - b)
-          .forEach((y) => { if (!out.length || y - out[out.length - 1] > 8) out.push(y); });
-        return out;
-      };
-
-      const cancelTween = () => {
-        tweening = false;
-        cancelAnimationFrame(tweenRaf);
-        document.documentElement.style.scrollBehavior = "";
-      };
-      // Our OWN rAF tween — never native smooth scroll (iOS can't cancel that,
-      // and html{scroll-behavior:smooth} would compound it). A finger-down
-      // cancels it instantly via cancelTween().
-      const tweenTo = (target: number) => {
-        cancelAnimationFrame(tweenRaf);
-        const start = window.scrollY;
-        const dist = target - start;
-        if (Math.abs(dist) < 2) return;
-        document.documentElement.style.scrollBehavior = "auto";
-        tweening = true;
-        const t0 = performance.now();
-        const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
-        const step = (now: number) => {
-          if (!tweening) return;
-          const e = clamp01((now - t0) / TWEEN_MS);
-          window.scrollTo(0, Math.round(start + dist * easeOut(e)));
-          if (e >= 1) { cancelTween(); return; }
-          tweenRaf = requestAnimationFrame(step);
-        };
-        tweenRaf = requestAnimationFrame(step);
-      };
-
-      const settle = () => {
-        if (touching || tweening) return;
-        const targets = sectionTargets();
-        if (targets.length < 2) return;
-        const y = window.scrollY;
-
-        // Already resting on a section — nothing to do.
-        let nearest = targets[0];
-        let best = Infinity;
-        for (const t of targets) {
-          const d = Math.abs(t - y);
-          if (d < best) { best = d; nearest = t; }
-        }
-        if (best <= DEAD_ZONE) return;
-
-        // Direction-aware snap. Plain nearest-snap was the historical "it yanks
-        // me backward" bug: a 200 px downward swipe could land closer to the
-        // section behind and get pulled back UP against the gesture. Instead we
-        // bracket the current position between the section below/above it and
-        // bias by the gesture's NET direction: once the finger crossed ~1/3 of
-        // the gap toward the next section we commit forward; otherwise we fall
-        // back to the one behind. Tiny/zero-net moves use plain nearest.
-        const dir = Math.sign(y - gestureStartY);
-        let below = targets[0];
-        let above = targets[targets.length - 1];
-        for (const t of targets) if (t <= y && t > below) below = t;
-        for (const t of targets) if (t >= y && t < above) above = t;
-        const gap = above - below;
-        if (gap <= 0) { tweenTo(nearest); return; }
-        const progress = (y - below) / gap; // 0 at `below`, 1 at `above`
-        let target: number;
-        if (dir > 0) target = progress >= 1 / 3 ? above : below;
-        else if (dir < 0) target = progress <= 2 / 3 ? below : above;
-        else target = nearest;
-        tweenTo(target);
-      };
-      const queueSettle = () => {
-        clearTimeout(settleTimer);
-        settleTimer = window.setTimeout(settle, SETTLE_MS);
-      };
-
-      const onScroll = () => {
-        onScrollFadeMobile();
-        if (tweening) return; // ignore our own programmatic scroll writes
-        queueSettle();
-      };
-      const onTouchStart = () => { touching = true; gestureStartY = window.scrollY; cancelTween(); clearTimeout(settleTimer); };
-      const onTouchEnd = () => { touching = false; queueSettle(); };
-      const onWheelCancel = () => { cancelTween(); };
-
-      window.addEventListener("scroll", onScroll, { passive: true });
-      window.addEventListener("touchstart", onTouchStart, { passive: true });
-      window.addEventListener("touchend", onTouchEnd, { passive: true });
-      window.addEventListener("touchcancel", onTouchEnd, { passive: true });
-      window.addEventListener("wheel", onWheelCancel, { passive: true });
-
+      // ── Mobile: NATIVE scroll ONLY (proven-working baseline) ──
+      // The regression the owner pinpointed traces to the resize commit
+      // (91335fb4 "full-screen portrait video, mobile scroll snap"), which
+      // enabled a programmatic scroll-snap handoff on phones. ANY JS that
+      // calls window.scrollTo()/preventDefault during a touch gesture fights
+      // the browser's native momentum scrolling — that is exactly the
+      // owner-reported "auto-scroll yanks back / gets stuck / lands cut off"
+      // on EVERY iOS and Android device. Before that change the page scrolled
+      // natively and the whole home worked. So on mobile we do NOT snap,
+      // auto-advance, tween, or move the page at all. We keep ONLY a passive
+      // listener that fades the hero welcome text with scroll position; it
+      // never calls scrollTo or preventDefault, so it cannot fight the user.
+      window.addEventListener("scroll", onScrollFadeMobile, { passive: true });
       cleanupMobile = () => {
-        clearTimeout(settleTimer);
-        cancelTween();
-        window.removeEventListener("scroll", onScroll);
-        window.removeEventListener("touchstart", onTouchStart);
-        window.removeEventListener("touchend", onTouchEnd);
-        window.removeEventListener("touchcancel", onTouchEnd);
-        window.removeEventListener("wheel", onWheelCancel);
+        window.removeEventListener("scroll", onScrollFadeMobile);
       };
     } else {
       window.addEventListener("scroll", onScrollTrigger, { passive: true });
