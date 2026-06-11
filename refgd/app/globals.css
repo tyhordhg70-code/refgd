@@ -544,18 +544,19 @@ html.hero-flight .rg-ambient-bg * {
 @media (max-width: 768px) {
   .cj-glow-edge-mobile {
     display: block;
+    /* LINEAR edge bands (deterministic — % stops run along the box dimension,
+       no radial aspect-ratio math) for the four edges; the corners naturally
+       brighten where two bands overlap, plus tight radial pools round them off.
+       Many stops fake the desktop blur's softness without filter:blur. */
     background:
-      radial-gradient(135% 135% at 50% 50%,
-        rgba(var(--glow), 0) 50%,
-        rgba(var(--glow), 0.08) 62%,
-        rgba(var(--glow), 0.22) 74%,
-        rgba(var(--glow), 0.42) 85%,
-        rgba(var(--glow), 0.62) 94%,
-        rgba(var(--glow), 0.8) 100%),
-      radial-gradient(46% 46% at 0% 0%, rgba(var(--glow), 0.8), rgba(var(--glow), 0.34) 44%, rgba(var(--glow), 0) 72%),
-      radial-gradient(46% 46% at 100% 0%, rgba(var(--glow), 0.8), rgba(var(--glow), 0.34) 44%, rgba(var(--glow), 0) 72%),
-      radial-gradient(46% 46% at 0% 100%, rgba(var(--glow), 0.8), rgba(var(--glow), 0.34) 44%, rgba(var(--glow), 0) 72%),
-      radial-gradient(46% 46% at 100% 100%, rgba(var(--glow), 0.8), rgba(var(--glow), 0.34) 44%, rgba(var(--glow), 0) 72%);
+      linear-gradient(to bottom, rgba(var(--glow), 0.55), rgba(var(--glow), 0.46) 4%, rgba(var(--glow), 0.22) 11%, rgba(var(--glow), 0.07) 16%, rgba(var(--glow), 0) 22%),
+      linear-gradient(to top, rgba(var(--glow), 0.55), rgba(var(--glow), 0.46) 4%, rgba(var(--glow), 0.22) 11%, rgba(var(--glow), 0.07) 16%, rgba(var(--glow), 0) 22%),
+      linear-gradient(to right, rgba(var(--glow), 0.5), rgba(var(--glow), 0.42) 4%, rgba(var(--glow), 0.2) 12%, rgba(var(--glow), 0.06) 20%, rgba(var(--glow), 0) 28%),
+      linear-gradient(to left, rgba(var(--glow), 0.5), rgba(var(--glow), 0.42) 4%, rgba(var(--glow), 0.2) 12%, rgba(var(--glow), 0.06) 20%, rgba(var(--glow), 0) 28%),
+      radial-gradient(30% 30% at 0% 0%, rgba(var(--glow), 0.5), rgba(var(--glow), 0.2) 50%, rgba(var(--glow), 0) 100%),
+      radial-gradient(30% 30% at 100% 0%, rgba(var(--glow), 0.5), rgba(var(--glow), 0.2) 50%, rgba(var(--glow), 0) 100%),
+      radial-gradient(30% 30% at 0% 100%, rgba(var(--glow), 0.5), rgba(var(--glow), 0.2) 50%, rgba(var(--glow), 0) 100%),
+      radial-gradient(30% 30% at 100% 100%, rgba(var(--glow), 0.5), rgba(var(--glow), 0.2) 50%, rgba(var(--glow), 0) 100%);
   }
 }
 /* v6.13.6 — Cinematic 3D entrance for the "Stop wasting time" hero

@@ -388,6 +388,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const QUIET_MS = 120; // fallback: fire this long after the last scroll event
     const SLOW_DELTA = 8; // px/event under which momentum counts as "nearly done"
     const SLOW_HITS = 2; // consecutive slow events that trigger the fast fire
+    const MIN_TRAVEL = 40; // min net gesture travel (px) before honoring lastDir
     let settleTimer = 0;
     let guardTimer = 0;
     let lastY = Math.max(0, window.scrollY);
@@ -417,13 +418,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // True only where a snap should commit: inside the one transition viewport,
     // OR a down gesture that began in the hero and overshot a little past the
     // cards' top (corrected back so "down" always lands on "Choose your path").
-    // A hard fling that blows DEEP past pt (>0.6vh) is left alone, and any
-    // settle at/below the cards from a non-hero gesture stays native — so the
-    // snap can never reach the telegram box and never fights card browsing.
+    // A hard fling that blows DEEP past pt (>0.9vh, i.e. well into the cards /
+    // toward telegram) is left alone, and any settle at/below the cards from a
+    // non-hero gesture stays native — so the snap can never reach the telegram
+    // box and never fights card browsing. 0.9vh (kept under a full vh) keeps the
+    // pull-back inside #paths even on the shortest cards layout.
     const eligible = (y: number, pt: number) => {
       if (y <= SNAP_TOL) return false; // already committed at the very top
       if (y < pt - SNAP_MIN) return true; // inside the hero <-> cards zone
-      return downEligibleStart && lastDir > 0 && y < pt + window.innerHeight * 0.6;
+      return downEligibleStart && lastDir > 0 && y < pt + window.innerHeight * 0.9;
     };
     const runSnap = () => {
       if (settleTimer) {
@@ -436,15 +439,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (pt == null) return;
       const y = Math.max(0, window.scrollY);
       if (!eligible(y, pt)) return;
-      // DIRECTION WINS (no nearest-edge bands): the last travel direction is the
-      // user's true final intent — it tracks the momentum tail after lift. Down
-      // -> cards (pt), up -> top (0). A pure tap that cancelled a glide WITHOUT
-      // moving (gestureMoved=false) has no direction, so fall back to the nearer
-      // edge.
+      // DIRECTION WINS, but only for a gesture that actually MOVED a meaningful
+      // distance: the last travel direction is the user's true final intent — it
+      // tracks the momentum tail after lift. Down -> cards (pt), up -> top (0).
+      // A pure tap that cancelled a glide (gestureMoved=false) OR a sub-MIN_TRAVEL
+      // jitter (a carousel-swipe drift or iOS toolbar-resize scroll while resting
+      // at the cards) has no real intent, so fall back to the NEARER edge — never
+      // a full-viewport yank in the drift direction.
+      const traveled = Math.abs(y - gestureStartY);
+      const decisive = gestureMoved && traveled >= MIN_TRAVEL;
       let target: number;
-      if (!gestureMoved) target = y < pt / 2 ? 0 : pt;
-      else if (lastDir > 0) target = pt;
-      else if (lastDir < 0) target = 0;
+      if (decisive && lastDir > 0) target = pt;
+      else if (decisive && lastDir < 0) target = 0;
       else target = y < pt / 2 ? 0 : pt;
       if (Math.abs(y - target) <= SNAP_MIN) return;
       snapAnimating = true;
@@ -616,7 +622,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-snap-5"
+      data-hero-build="mobile-snap-6"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >
