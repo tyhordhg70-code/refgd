@@ -6,7 +6,7 @@
  * flies to its natural flat position when it enters view. Perspective is on
  * the PARENT div (not the animated element) so the 3D distortion is correct.
  *
- * Animation breakdown (DESKTOP, byte-for-byte unchanged):
+ * Animation breakdown:
  *   • rotateX  30 → 0 deg  (tips from leaning-back to flat)
  *   • rotateY -16 → 0 deg  (slight horizontal spin from right-of-screen)
  *   • y        90 → 0 px   (rises up into place)
@@ -14,55 +14,26 @@
  *   • opacity   0 → 1      (fast fade, complete at ~0.6 s)
  *   duration: 1.4 s, ease [0.16, 1, 0.3, 1] (strong pull, long settle)
  *
- * MOBILE: opacity-only fade-in with NO perspective wrapper and NO transform.
- * On iOS WebKit, a `perspective` ancestor + framer-motion's non-identity
- * transform on the animated child make the card's rounded `overflow:hidden`
- * clip drop its composited descendants — so the dark inner panel paints past
- * the rounded corners ("breaking" + a black slab on the bottom). Keeping the
- * transform identity at rest (opacity-only) lets the native rounded clip work.
- * NOTE: do NOT force-promote this subtree (translateZ(0)/isolation) — that is
- * what froze the fly-in mid-frame in an earlier attempt; plain opacity is safe.
+ * The fly-in runs on EVERY viewport (mobile included). A previous mobile-only
+ * "flat" variant was tried to dodge an iOS layout glitch, but it swapped the
+ * tree structure at runtime which forced framer to reuse a single motion.div
+ * across two different shapes — leaving the card squashed/blank. That swap was
+ * itself the breakage, so it is gone: one tree, one animation, all sizes.
  *
  * Triggers once on intersection (≥ 15 % in view). Reduced-motion: instant.
  */
 import { motion, useReducedMotion, useInView } from "framer-motion";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
 export default function TelegramCard3D({ children }: { children: ReactNode }) {
   const ref  = useRef<HTMLDivElement>(null);
   const inView  = useInView(ref, { once: true, amount: 0.15 });
   const reduced = useReducedMotion();
 
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
-    const sync = () => setIsMobile(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-
-  // ── Mobile: render FULLY VISIBLE immediately — no entrance gate ──
-  // A hidden→visible entrance driven by an intersection trigger can leave the
-  // card stuck at opacity:0 if the trigger mis-fires during native momentum
-  // scrolling, so the box's dark inner panel reads as a "black overlay / broken"
-  // CTA (owner-reported on every device). No perspective/transform either, so
-  // the rounded overflow:hidden clip is never dropped (the old iOS "black slab
-  // on the bottom"). Plain, always-on, working.
-  if (isMobile) {
-    return (
-      <div ref={ref} className="tg-card-3d">
-        {children}
-      </div>
-    );
-  }
-
   return (
     /* Perspective wrapper — keeps the card's own stacking context clean */
     <div ref={ref} style={{ perspective: "1100px", perspectiveOrigin: "50% 60%" }}>
       <motion.div
-        key="tg-d"
-        className="tg-card-3d"
         initial="hidden"
         animate={inView ? "visible" : "hidden"}
         variants={{
@@ -94,6 +65,7 @@ export default function TelegramCard3D({ children }: { children: ReactNode }) {
                 scale:    { duration: 1.4,  ease: [0.16, 1, 0.3, 1] },
               }
         }
+        style={{ transformStyle: "preserve-3d", willChange: "transform, opacity" }}
       >
         {children}
       </motion.div>
