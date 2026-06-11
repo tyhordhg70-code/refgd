@@ -366,75 +366,114 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
     };
 
-    // -- Mobile: native scroll + ONE-SHOT auto-scroll to the path cards --
-    //    The owner rejected section-to-section snapping (the old settle-snap
-    //    "auto-fixed" onto the telegram box). The ONLY auto-scroll on mobile is
-    //    now this: the FIRST downward scroll from the very top arms a single
-    //    NATIVE smooth-scroll to the #paths section, where the cards + heading +
-    //    "Swipe or tap a dot" caption all fit one viewport when landing at the
-    //    section top. It fires only AFTER momentum has ended (SETTLE_MS quiet +
-    //    finger up) so there is nothing to fight, and only if the user has not
-    //    already reached #paths (so it never pulls them back up = no "yank").
-    //    State latches to "done" the instant it fires, so an interrupting finger
-    //    can never strand it mid-"handoff". After it fires, scrolling is 100%
-    //    native until the user returns to the very top, which re-arms it. No
-    //    telegram snap, no snap-back-up.
+    // -- Mobile: BIDIRECTIONAL commit-snap at the hero <-> #paths boundary --
+    //    The owner wants the single hero/paths transition to ALWAYS commit
+    //    fully — never rest half-sphere/half-cards — yet leave every other
+    //    scroll 100% native: browsing the path cards, their overlays, the
+    //    telegram box and everything below must be untouched, and the snap must
+    //    NEVER reach the telegram box. So instead of a one-shot latch we use a
+    //    position GATE — a "snap zone" of (SNAP_TOL, pathsTop - SNAP_TOL),
+    //    i.e. exactly the one transition viewport (hero is 100svh and #paths
+    //    immediately follows). When the finger lifts and momentum goes quiet,
+    //    if we settled INSIDE that zone we commit to an edge: 0 (back up to the
+    //    sphere) or pathsTop (down to the cards), chosen by the last travel
+    //    direction, with nearest-edge bands so a small wiggle re-aligns to the
+    //    closest edge instead of yanking a whole viewport. Settled OUTSIDE the
+    //    zone (at the top, at the cards, or below) we do nothing. Native
+    //    smooth-scroll only — a finger can always interrupt it — and a
+    //    touchstart instantly reclaims ownership from any in-flight glide.
     const SNAP_TOL = 24;
-    const SETTLE_MS = 170;
+    const SETTLE_MS = 180;
     let settleTimer = 0;
-    let lastScrollY = window.scrollY;
-    let touchingDown = false;
+    let guardTimer = 0;
+    let lastY = window.scrollY;
+    let lastDir = 0; // 1 = down, -1 = up, 0 = unknown
+    let touching = false;
+    let interacted = false; // only snap after a real gesture (not scroll-restore)
+    let snapAnimating = false;
+    let snapTarget = 0;
+    let atTopRestored = false;
     const pathsTop = () => {
       const p = document.getElementById("paths");
       // rect-based (NOT offsetTop): #paths sits inside position:relative
       // ancestors, so offsetTop would be measured from the wrong box.
       return p ? Math.round(p.getBoundingClientRect().top + window.scrollY) : null;
     };
-    const runAutoScroll = () => {
-      if (touchingDown || state !== "handoff") return;
-      const target = pathsTop();
-      // Latch immediately so an interrupting finger can never strand "handoff".
-      state = "done";
-      if (target == null) return;
-      // Already at/past the path cards — never pull the user back up.
-      if (window.scrollY >= target - SNAP_TOL) return;
+    const clearGuard = () => {
+      snapAnimating = false;
+      if (guardTimer) {
+        clearTimeout(guardTimer);
+        guardTimer = 0;
+      }
+    };
+    const runSnap = () => {
+      if (touching || snapAnimating) return;
+      const pt = pathsTop();
+      if (pt == null) return;
+      const y = window.scrollY;
+      // Committed to the hero (y<=SNAP_TOL) or already at/below the cards
+      // (y>=pt-2 = browsing): do nothing. This is what stops the snap from
+      // ever reaching the telegram box or fighting normal browsing.
+      if (y <= SNAP_TOL || y >= pt - 2) return;
+      // Nearest-edge bands first (small wiggle re-aligns to the closest edge),
+      // then last travel direction, then the midpoint as a final fallback.
+      let target: number;
+      if (y < 48) target = 0;
+      else if (y > pt - 80) target = pt;
+      else target = lastDir > 0 ? pt : lastDir < 0 ? 0 : y > pt / 2 ? pt : 0;
+      if (Math.abs(y - target) <= SNAP_TOL) return;
+      snapAnimating = true;
+      snapTarget = target;
       window.scrollTo({ top: target, behavior: "smooth" });
+      // Native smooth-scroll has no end event: the guard is cleared on arrival
+      // (in onScrollMobile), by a finger (touchstart), or this safety timeout.
+      // Safari's UA glide for ~1 viewport can exceed 700ms, so use 1000ms.
+      if (guardTimer) clearTimeout(guardTimer);
+      guardTimer = window.setTimeout(clearGuard, 1000);
     };
     const armSettle = () => {
       if (settleTimer) clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(runAutoScroll, SETTLE_MS);
+      settleTimer = window.setTimeout(runSnap, SETTLE_MS);
     };
     const onScrollMobile = () => {
       const y = window.scrollY;
-      const goingDown = y > lastScrollY;
-      const wasAtTop = lastScrollY <= 2;
-      // Returning to the very top cancels any pending arm and re-arms.
-      if (state !== "idle" && y < 8) {
-        state = "idle";
-        if (settleTimer) {
-          clearTimeout(settleTimer);
-          settleTimer = 0;
-        }
-        restoreFades();
-      }
-      // First downward scroll from the hero arms the one-shot auto-scroll.
-      if (state === "idle" && goingDown && wasAtTop && y > 2) {
-        state = "handoff";
-      }
-      lastScrollY = y;
+      if (y > lastY) lastDir = 1;
+      else if (y < lastY) lastDir = -1;
+      lastY = y;
       applyFades(clamp01(y / (window.innerHeight * 0.65)));
-      if (state === "handoff") armSettle();
+      // Fully restore the hero text once, on returning to the very top.
+      if (y < 8) {
+        if (!atTopRestored) {
+          restoreFades();
+          atTopRestored = true;
+        }
+      } else {
+        atTopRestored = false;
+      }
+      if (snapAnimating) {
+        // Arrived — release the guard. Never re-arm settle mid-glide.
+        if (Math.abs(y - snapTarget) <= SNAP_TOL) clearGuard();
+        return;
+      }
+      // Re-arm only between gestures (finger up) and after a real interaction
+      // (so a load-time scroll-restoration event can never trigger a snap).
+      if (!touching && interacted) armSettle();
     };
     const onTouchStartMobile = () => {
-      touchingDown = true;
+      touching = true;
+      interacted = true;
       if (settleTimer) {
         clearTimeout(settleTimer);
         settleTimer = 0;
       }
+      // A finger always reclaims ownership from any in-flight programmatic glide.
+      clearGuard();
     };
     const onTouchEndMobile = () => {
-      touchingDown = false;
-      if (state === "handoff") armSettle();
+      touching = false;
+      // Arm unconditionally — also covers a tap that cancels a native glide
+      // mid-zone, so it re-evaluates and snaps to an edge again.
+      armSettle();
     };
     let cleanupMobile = () => {};
     if (isMobileRef.current) {
@@ -444,6 +483,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       window.addEventListener("touchcancel", onTouchEndMobile, { passive: true });
       cleanupMobile = () => {
         if (settleTimer) clearTimeout(settleTimer);
+        if (guardTimer) clearTimeout(guardTimer);
         window.removeEventListener("scroll", onScrollMobile);
         window.removeEventListener("touchstart", onTouchStartMobile);
         window.removeEventListener("touchend", onTouchEndMobile);
@@ -514,7 +554,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-snap-3"
+      data-hero-build="mobile-snap-4"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >
