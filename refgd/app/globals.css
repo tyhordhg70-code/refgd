@@ -532,6 +532,32 @@ html.hero-flight .rg-ambient-bg * {
     filter: blur(60px) !important;
   }
 }
+/* Mobile colored EDGES — re-adds the sphere-tinted edge + corner glow that the
+   desktop .cj-glow-edge/.cj-glow-corner provide, but WITHOUT filter:blur or
+   mix-blend-mode (both render as opaque black boxes on iOS WebKit). Pure
+   alpha-composited radial gradients tinted by --glow, every final stop at
+   rgba(var(--glow), 0) (never the `transparent` keyword, which fades through
+   transparent-BLACK and dirties the hue). Painted ABOVE the dark
+   .cj-hero-vignette so the color reads as emitted light. Desktop keeps an inert
+   hidden node (display:none) so its hero stays byte-for-byte unchanged. */
+.cj-glow-edge-mobile { display: none; }
+@media (max-width: 768px) {
+  .cj-glow-edge-mobile {
+    display: block;
+    background:
+      radial-gradient(135% 135% at 50% 50%,
+        rgba(var(--glow), 0) 50%,
+        rgba(var(--glow), 0.08) 62%,
+        rgba(var(--glow), 0.22) 74%,
+        rgba(var(--glow), 0.42) 85%,
+        rgba(var(--glow), 0.62) 94%,
+        rgba(var(--glow), 0.8) 100%),
+      radial-gradient(46% 46% at 0% 0%, rgba(var(--glow), 0.8), rgba(var(--glow), 0.34) 44%, rgba(var(--glow), 0) 72%),
+      radial-gradient(46% 46% at 100% 0%, rgba(var(--glow), 0.8), rgba(var(--glow), 0.34) 44%, rgba(var(--glow), 0) 72%),
+      radial-gradient(46% 46% at 0% 100%, rgba(var(--glow), 0.8), rgba(var(--glow), 0.34) 44%, rgba(var(--glow), 0) 72%),
+      radial-gradient(46% 46% at 100% 100%, rgba(var(--glow), 0.8), rgba(var(--glow), 0.34) 44%, rgba(var(--glow), 0) 72%);
+  }
+}
 /* v6.13.6 — Cinematic 3D entrance for the "Stop wasting time" hero
    illustration. The previous opacity+scale was too plain; this
    sweeps the figure in from a tilted plane with a chromatic-glow
