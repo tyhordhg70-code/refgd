@@ -1715,9 +1715,22 @@ html { overflow-anchor: none; }
   will-change: transform, opacity;
 }
 @media (max-width: 768px) {
+  /* iOS kill-switch (decisive). framer-motion writes the fly-in transform via
+     inline element.style, which carries no !important — so these !important
+     media rules nullify every frame's write, from the FIRST paint and before
+     hydration. perspective:none removes the 3D ancestor and transform:none
+     removes the transform ancestor, so (1) the card can never freeze in a stale
+     tilted/shrunk pose ("stuck mid animation"), and (2) there is no transform/
+     perspective ancestor above the rounded overflow clip, so iOS stops dropping
+     the card's composited children (bottom half + CTA button). Opacity is left
+     untouched, so the opacity fade-in still plays on mobile. */
+  .tg-card-3d-wrap {
+    perspective: none !important;
+  }
   .tg-card-3d {
+    transform: none !important;
     transform-style: flat;
-    will-change: auto;
+    will-change: auto !important;
   }
   /* Round the full-bleed inner panel itself so even if iOS drops the
      outer rounded clip, no square corner can show past the card. */
