@@ -277,9 +277,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         if (!paths) return;
         const y = window.scrollY;
         const pathsTop = paths.getBoundingClientRect().top + y;
-        // Stranded strictly between the hero (0.3vh) and the #paths top -> land
-        // down. Anything at/above #paths or overshot below it is left alone.
-        if (y > window.innerHeight * 0.3 && y < pathsTop - 2) {
+        // Stranded WELL SHORT of #paths (between 0.3vh and ~0.2vh above the
+        // paths top) -> land down. A near-perfect landing (within ~0.2vh of
+        // #paths) is deliberately LEFT ALONE: the old 2px tolerance let a tiny
+        // sub-viewport undershoot from the native smooth scroll re-fire a second
+        // scrollIntoView, which read as the residual "slight yank for a split
+        // second" right after the auto-scroll settled. Only a genuine hard-flick
+        // strand (clearly short of paths) is rescued now. Overshoot below #paths
+        // and anything at/above it are still left alone.
+        if (y > window.innerHeight * 0.3 && y < pathsTop - window.innerHeight * 0.2) {
           fired = true;
           paths.scrollIntoView({ behavior: "smooth" });
         }
@@ -527,7 +533,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-3d-back-12"
+      data-hero-build="mobile-3d-back-13"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >

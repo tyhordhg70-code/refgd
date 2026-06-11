@@ -307,6 +307,13 @@ export default function PathCard({
               <span
                 data-testid={`path-card-${index + 1}-number`}
                 className={`heading-display rounded-full ${chipClass} font-semibold uppercase ring-1 ${ACCENT_CHIP[accent]}`}
+                // Mobile carousel only: the desktop chip relies on backdrop-blur-md
+                // to frost the bright illustration behind it so the light accent
+                // digits stay legible. That blur was dropped on mobile for perf, so
+                // the palest accents (cyan = card 02) washed out over the bright card
+                // top and the number "vanished". A dark text-shadow halo restores
+                // contrast on every accent without re-adding a compositor blur layer.
+                style={{ textShadow: "0 1px 6px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,0.9)" }}
               >
                 {String(index + 1).padStart(2, "0")}
               </span>
