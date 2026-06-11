@@ -366,72 +366,67 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
     };
 
-    // -- Mobile: native scroll + direction-aware settle-snap --
-    //    Vertical scrolling stays 100% NATIVE: we never preventDefault a touch
-    //    and never drive a rAF scroll tween (those fought iOS momentum and
-    //    produced the "drift then snap back" yank). Instead we let momentum run
-    //    out, and once the page has been quiet for SETTLE_MS with no finger
-    //    down, if we have come to rest more than SNAP_TOL px from a section
-    //    start we finish the trip with a NATIVE smooth scroll IN THE DIRECTION
-    //    WE WERE ALREADY TRAVELLING. Acting only after momentum ends means there
-    //    is nothing to fight; native smooth scroll is itself interrupted by a
-    //    new touch, so the finger always wins. Direction-awareness avoids the
-    //    rejected proximity-snap feel ("a light swipe up forced me back down"):
-    //    a settle after upward travel snaps UP, never back down.
+    // -- Mobile: native scroll + ONE-SHOT auto-scroll to the path cards --
+    //    The owner rejected section-to-section snapping (the old settle-snap
+    //    "auto-fixed" onto the telegram box). The ONLY auto-scroll on mobile is
+    //    now this: the FIRST downward scroll from the very top arms a single
+    //    NATIVE smooth-scroll to the #paths section, where the cards + heading +
+    //    "Swipe or tap a dot" caption all fit one viewport when landing at the
+    //    section top. It fires only AFTER momentum has ended (SETTLE_MS quiet +
+    //    finger up) so there is nothing to fight, and only if the user has not
+    //    already reached #paths (so it never pulls them back up = no "yank").
+    //    State latches to "done" the instant it fires, so an interrupting finger
+    //    can never strand it mid-"handoff". After it fires, scrolling is 100%
+    //    native until the user returns to the very top, which re-arms it. No
+    //    telegram snap, no snap-back-up.
     const SNAP_TOL = 24;
     const SETTLE_MS = 170;
     let settleTimer = 0;
     let lastScrollY = window.scrollY;
-    let travelDir = 0; // -1 up, +1 down
     let touchingDown = false;
-    let snapInFlight = false;
-    const sectionTops = () => {
-      const ys = [0];
-      const paths = document.getElementById("paths");
-      const tg = document.getElementById("telegram");
-      if (paths) ys.push(Math.round(paths.getBoundingClientRect().top + window.scrollY));
-      if (tg) ys.push(Math.round(tg.getBoundingClientRect().top + window.scrollY));
-      return ys.sort((a, b) => a - b);
+    const pathsTop = () => {
+      const p = document.getElementById("paths");
+      // rect-based (NOT offsetTop): #paths sits inside position:relative
+      // ancestors, so offsetTop would be measured from the wrong box.
+      return p ? Math.round(p.getBoundingClientRect().top + window.scrollY) : null;
     };
-    const settleSnap = () => {
-      if (touchingDown || snapInFlight) return;
-      const y = window.scrollY;
-      const tops = sectionTops();
-      if (tops.some((t) => Math.abs(t - y) <= SNAP_TOL)) return; // already aligned
-      let target: number | null = null;
-      if (travelDir > 0) {
-        for (const t of tops) {
-          if (t >= y + SNAP_TOL) { target = t; break; }
-        }
-      } else if (travelDir < 0) {
-        for (let i = tops.length - 1; i >= 0; i--) {
-          if (tops[i] <= y - SNAP_TOL) { target = tops[i]; break; }
-        }
-      }
+    const runAutoScroll = () => {
+      if (touchingDown || state !== "handoff") return;
+      const target = pathsTop();
+      // Latch immediately so an interrupting finger can never strand "handoff".
+      state = "done";
       if (target == null) return;
-      snapInFlight = true;
+      // Already at/past the path cards — never pull the user back up.
+      if (window.scrollY >= target - SNAP_TOL) return;
       window.scrollTo({ top: target, behavior: "smooth" });
-      window.setTimeout(() => {
-        snapInFlight = false;
-        lastScrollY = window.scrollY;
-      }, 800);
     };
     const armSettle = () => {
       if (settleTimer) clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(settleSnap, SETTLE_MS);
+      settleTimer = window.setTimeout(runAutoScroll, SETTLE_MS);
     };
     const onScrollMobile = () => {
       const y = window.scrollY;
-      if (y > lastScrollY) travelDir = 1;
-      else if (y < lastScrollY) travelDir = -1;
+      const goingDown = y > lastScrollY;
+      const wasAtTop = lastScrollY <= 2;
+      // Returning to the very top cancels any pending arm and re-arms.
+      if (state !== "idle" && y < 8) {
+        state = "idle";
+        if (settleTimer) {
+          clearTimeout(settleTimer);
+          settleTimer = 0;
+        }
+        restoreFades();
+      }
+      // First downward scroll from the hero arms the one-shot auto-scroll.
+      if (state === "idle" && goingDown && wasAtTop && y > 2) {
+        state = "handoff";
+      }
       lastScrollY = y;
       applyFades(clamp01(y / (window.innerHeight * 0.65)));
-      if (snapInFlight) return; // ignore our own smooth-scroll ticks
-      armSettle();
+      if (state === "handoff") armSettle();
     };
     const onTouchStartMobile = () => {
       touchingDown = true;
-      snapInFlight = false; // a new touch interrupts any native smooth-snap
       if (settleTimer) {
         clearTimeout(settleTimer);
         settleTimer = 0;
@@ -439,7 +434,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
     const onTouchEndMobile = () => {
       touchingDown = false;
-      armSettle(); // momentum scroll events keep re-arming until it settles
+      if (state === "handoff") armSettle();
     };
     let cleanupMobile = () => {};
     if (isMobileRef.current) {
@@ -519,7 +514,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-snap-2"
+      data-hero-build="mobile-snap-3"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >

@@ -556,8 +556,16 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
               style={{
                 transform: `rotateY(${i * theta}deg) translateZ(${r}px)`,
                 transformOrigin: "center center",
-                backfaceVisibility: "hidden",
-                WebkitBackfaceVisibility: "hidden",
+                // v6.13.59 — Removed backfaceVisibility:hidden. On iOS WebKit it
+                // hides this rotateY-transformed face's child SVG illustration +
+                // the "NN" number chip + the title/Enter text (the exact bug the
+                // EffectCreative note above documents; re-added in v6.13.9,
+                // reverted here). Back/side-face bleed is prevented instead by
+                // hiding any face more than one step from the active one — the
+                // carousel moves only ±1 per swipe (goTo clamps to [0, N-1], no
+                // wrap), so the incoming face stays visible for the whole 600 ms
+                // rotation; faces ≥2 steps away sit at ≥144° and aren't visible.
+                visibility: Math.abs(i - active) > 1 ? "hidden" : "visible",
                 // v6.13.9 — Accent-glow backstop. Inner radial fades
                 // from the card's accent at the centre to a deeper
                 // hue at the edges so the 12 px padding around the
@@ -568,9 +576,9 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
                 // v6.13.58 — Dropped the opaque rgba(8,8,16) base layer
                 // that was visible as a black plane behind the card during
                 // every rotation. The face now renders ONLY the accent
-                // halo, fading to fully transparent at the edges. Back
-                // faces are hidden via backfaceVisibility; side faces are
-                // clipped by the outer container's clipPath; so no dark
+                // halo, fading to fully transparent at the edges. Non-adjacent
+                // faces are hidden via visibility:hidden (see below); side faces
+                // are clipped by the outer container's clipPath; so no dark
                 // plane can ever bleed through.
                 // No face-wrapper background — PathCard renders its own
                 // solid dark bg + pulse-glow; any wrapper gradient here creates

@@ -140,21 +140,26 @@ export default function AnimatedTelegramBox() {
         }}
       />
 
-      {/* Logo — outer: entrance at 0.65 s; inner: float starts at 1.7 s */}
+      {/* Logo — desktop: entrance at 0.65 s + float at 1.7 s. Mobile: STATIC. */}
       <div
         style={{
           position: "absolute", left: "50%", top: "44%",
           transform: "translate(-50%,-50%)",
-          animation: reduced
+          // Mobile: render the logo statically visible — opacity:1, NO tg3-enter
+          // entrance and NO tg3-float. Both animate the transform/opacity of an
+          // inline SVG inside the rounded, clipped, composited CTA card, which on
+          // iOS WebKit strands it at opacity:0 / drops it outright ("the image
+          // inside it vanishes"). Desktop keeps the full entrance byte-for-byte.
+          animation: reduced || isMobile
             ? undefined
             : "tg3-enter 1.0s 0.65s cubic-bezier(0.16,1,0.3,1) both",
-          opacity: reduced ? 1 : 0,
+          opacity: reduced || isMobile ? 1 : 0,
           pointerEvents: "none",
         }}
       >
         <div
           style={{
-            animation: reduced ? undefined : "tg3-float 5.5s 1.7s ease-in-out infinite",
+            animation: reduced || isMobile ? undefined : "tg3-float 5.5s 1.7s ease-in-out infinite",
             // iOS WebKit renders `filter: drop-shadow()` inside the rounded,
             // clipped, composited CTA card as a black box (same class of bug as
             // the blur() halo). Drop it on mobile — the blur-free radial halo
