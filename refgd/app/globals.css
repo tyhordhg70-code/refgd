@@ -513,6 +513,25 @@ html.hero-flight .rg-ambient-bg * {
       radial-gradient(circle at 50% 50%, transparent 50%, rgba(5,6,10,0.55) 68%, #05060a 82%);
   }
 }
+/* Mobile black-box fix — the colored EDGE-band + CORNER-glow hero overlays
+   combine filter:blur() with mix-blend-mode:screen, which iOS WebKit renders
+   as opaque black rectangles (the isolated blend group's backing store). They
+   are purely decorative, so hide them on phones; desktop keeps them inline
+   byte-for-byte. The ambient glow (softened to in-hue, zero-alpha stops so it
+   never fades through transparent-black) + the painted vignette still tint the
+   mobile hero. Gated in CSS (not a React isMobile flag) so it is correct on
+   the very first paint with no hydration flash. */
+@media (max-width: 768px) {
+  .cj-glow-edge,
+  .cj-glow-corner {
+    display: none !important;
+  }
+  .cj-glow-ambient {
+    background:
+      radial-gradient(circle, rgba(var(--glow), 0.5), rgba(var(--glow), 0.12) 45%, rgba(var(--glow), 0) 70%) !important;
+    filter: blur(60px) !important;
+  }
+}
 /* v6.13.6 — Cinematic 3D entrance for the "Stop wasting time" hero
    illustration. The previous opacity+scale was too plain; this
    sweeps the figure in from a tilted plane with a chromatic-glow
