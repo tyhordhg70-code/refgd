@@ -65,7 +65,7 @@ export default function TelegramCard3D({ children }: { children: ReactNode }) {
                 scale:    { duration: 1.4,  ease: [0.16, 1, 0.3, 1] },
               }
         }
-        style={{ transformStyle: "preserve-3d", willChange: "transform, opacity" }}
+        className="tg-card-3d"
       >
         {children}
       </motion.div>

@@ -494,8 +494,8 @@ function MobilePrismStage({ cards }: { cards: ReactNode[] }) {
           // LEFT/RIGHT to the container but allows ~80 px of vertical
           // bleed, so the active card's floatBreathe (scale 1 → 1.04) +
           // floatCard (translateY -10 px) NEVER get clipped mid-bob.
-          clipPath: "polygon(0% -80px, 100% -80px, 100% 100%, 0% 100%)",
-          WebkitClipPath: "polygon(0% -80px, 100% -80px, 100% 100%, 0% 100%)",
+          clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)",
+          WebkitClipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)",
           borderRadius: 18,
           background: "transparent",
         }}

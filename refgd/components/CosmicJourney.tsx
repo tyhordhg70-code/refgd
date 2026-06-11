@@ -365,116 +365,94 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         setHeroFlight(false);
       }
     };
-    // ── Mobile: single-authority auto-scroll glide ──
-    //    A finger swipe UP from the very top glides smoothly DOWN to #paths; a
-    //    swipe DOWN while still in the hero zone glides back UP to the top. The
-    //    glide is ONE rAF tween driving window.scrollTo — the only thing moving
-    //    the page (there is NO lenis on touch: SmoothScroll bails on coarse
-    //    pointers, so window.scrollTo is authoritative and nothing reverts it).
-    //    While the glide runs it OWNS the scroll and we preventDefault that
-    //    gesture's touchmoves so the finger can't fight the tween; a NEW finger
-    //    (touchstart) cancels it instantly, so the finger always wins — it never
-    //    yanks, sticks, or fights iOS momentum. Targets clamp to maxScroll so a
-    //    short final section is never overshot, and it re-arms when the user is
-    //    back at the very top. The hero welcome text fades passively throughout. ──
-    let mState: "idle" | "gliding" | "settled" = "idle";
-    let glideRaf = 0;
-    let gFrom = 0;
-    let gTo = 0;
-    let gT0 = 0;
-    const GLIDE_MS = 720;
-    const glideEase = (t: number) =>
-      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-    const maxScroll = () =>
-      Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-    const cancelGlide = () => {
-      if (glideRaf) {
-        cancelAnimationFrame(glideRaf);
-        glideRaf = 0;
-      }
+
+    // -- Mobile: native scroll + direction-aware settle-snap --
+    //    Vertical scrolling stays 100% NATIVE: we never preventDefault a touch
+    //    and never drive a rAF scroll tween (those fought iOS momentum and
+    //    produced the "drift then snap back" yank). Instead we let momentum run
+    //    out, and once the page has been quiet for SETTLE_MS with no finger
+    //    down, if we have come to rest more than SNAP_TOL px from a section
+    //    start we finish the trip with a NATIVE smooth scroll IN THE DIRECTION
+    //    WE WERE ALREADY TRAVELLING. Acting only after momentum ends means there
+    //    is nothing to fight; native smooth scroll is itself interrupted by a
+    //    new touch, so the finger always wins. Direction-awareness avoids the
+    //    rejected proximity-snap feel ("a light swipe up forced me back down"):
+    //    a settle after upward travel snaps UP, never back down.
+    const SNAP_TOL = 24;
+    const SETTLE_MS = 170;
+    let settleTimer = 0;
+    let lastScrollY = window.scrollY;
+    let travelDir = 0; // -1 up, +1 down
+    let touchingDown = false;
+    let snapInFlight = false;
+    const sectionTops = () => {
+      const ys = [0];
+      const paths = document.getElementById("paths");
+      const tg = document.getElementById("telegram");
+      if (paths) ys.push(Math.round(paths.getBoundingClientRect().top + window.scrollY));
+      if (tg) ys.push(Math.round(tg.getBoundingClientRect().top + window.scrollY));
+      return ys.sort((a, b) => a - b);
     };
-    const glideTween = (now: number) => {
-      const e = clamp01((now - gT0) / GLIDE_MS);
-      window.scrollTo(0, Math.round(gFrom + (gTo - gFrom) * glideEase(e)));
-      if (e >= 1) {
-        glideRaf = 0;
-        mState = gTo <= 4 ? "idle" : "settled";
-        return;
-      }
-      glideRaf = requestAnimationFrame(glideTween);
-    };
-    const glideTo = (y: number) => {
-      cancelGlide();
-      gFrom = window.scrollY;
-      gTo = Math.max(0, Math.min(y, maxScroll()));
-      gT0 = performance.now();
-      mState = "gliding";
-      glideRaf = requestAnimationFrame(glideTween);
-    };
-    const onScrollFadeMobile = () => {
-      applyFades(clamp01(window.scrollY / (window.innerHeight * 0.65)));
-      // Re-arm the down-glide once the user is back at the very top.
-      if (mState === "settled" && window.scrollY < 8) mState = "idle";
-    };
-    let tStartY = 0;
-    let fired = false;
-    const onTouchStart = (ev: TouchEvent) => {
-      // Finger down = take control: kill any in-flight glide immediately.
-      if (mState === "gliding") {
-        cancelGlide();
-        mState = window.scrollY <= 4 ? "idle" : "settled";
-      }
-      tStartY = ev.touches[0]?.clientY ?? 0;
-      fired = false;
-    };
-    const onTouchMove = (ev: TouchEvent) => {
-      // While our glide owns the scroll, suppress THIS gesture's native scroll
-      // so the continuing finger-drag can't fight the tween (that fight is the
-      // "yank"). A NEW finger (touchstart) is the only thing that cancels a
-      // glide — never a continued drag of the gesture that started it.
-      if (mState === "gliding") {
-        if (ev.cancelable) ev.preventDefault();
-        return;
-      }
-      if (fired) return; // gesture already handled — let native scroll run
-      const y = ev.touches[0]?.clientY ?? tStartY;
-      const dy = tStartY - y; // > 0 = swiping up (intent to scroll DOWN)
-      if (mState === "idle" && window.scrollY <= 4 && dy > 10) {
-        const target = document.getElementById("paths");
-        if (target) {
-          fired = true;
-          if (ev.cancelable) ev.preventDefault(); // own the gesture from here
-          glideTo(target.getBoundingClientRect().top + window.scrollY);
+    const settleSnap = () => {
+      if (touchingDown || snapInFlight) return;
+      const y = window.scrollY;
+      const tops = sectionTops();
+      if (tops.some((t) => Math.abs(t - y) <= SNAP_TOL)) return; // already aligned
+      let target: number | null = null;
+      if (travelDir > 0) {
+        for (const t of tops) {
+          if (t >= y + SNAP_TOL) { target = t; break; }
         }
-      } else if (
-        mState === "settled" &&
-        window.scrollY <= window.innerHeight * 0.5 &&
-        dy < -10
-      ) {
-        fired = true;
-        if (ev.cancelable) ev.preventDefault();
-        glideTo(0);
+      } else if (travelDir < 0) {
+        for (let i = tops.length - 1; i >= 0; i--) {
+          if (tops[i] <= y - SNAP_TOL) { target = tops[i]; break; }
+        }
+      }
+      if (target == null) return;
+      snapInFlight = true;
+      window.scrollTo({ top: target, behavior: "smooth" });
+      window.setTimeout(() => {
+        snapInFlight = false;
+        lastScrollY = window.scrollY;
+      }, 800);
+    };
+    const armSettle = () => {
+      if (settleTimer) clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(settleSnap, SETTLE_MS);
+    };
+    const onScrollMobile = () => {
+      const y = window.scrollY;
+      if (y > lastScrollY) travelDir = 1;
+      else if (y < lastScrollY) travelDir = -1;
+      lastScrollY = y;
+      applyFades(clamp01(y / (window.innerHeight * 0.65)));
+      if (snapInFlight) return; // ignore our own smooth-scroll ticks
+      armSettle();
+    };
+    const onTouchStartMobile = () => {
+      touchingDown = true;
+      snapInFlight = false; // a new touch interrupts any native smooth-snap
+      if (settleTimer) {
+        clearTimeout(settleTimer);
+        settleTimer = 0;
       }
     };
-    const onTouchEnd = () => {
-      // Finger lifted: let any in-flight glide finish on its own; just re-arm
-      // the per-gesture latch so the next swipe is evaluated fresh.
-      fired = false;
+    const onTouchEndMobile = () => {
+      touchingDown = false;
+      armSettle(); // momentum scroll events keep re-arming until it settles
     };
     let cleanupMobile = () => {};
     if (isMobileRef.current) {
-      window.addEventListener("scroll", onScrollFadeMobile, { passive: true });
-      window.addEventListener("touchstart", onTouchStart, { passive: true });
-      window.addEventListener("touchmove", onTouchMove, { passive: false });
-      window.addEventListener("touchend", onTouchEnd, { passive: true });
-      window.addEventListener("touchcancel", onTouchEnd, { passive: true });
+      window.addEventListener("scroll", onScrollMobile, { passive: true });
+      window.addEventListener("touchstart", onTouchStartMobile, { passive: true });
+      window.addEventListener("touchend", onTouchEndMobile, { passive: true });
+      window.addEventListener("touchcancel", onTouchEndMobile, { passive: true });
       cleanupMobile = () => {
-        cancelGlide();
-        window.removeEventListener("scroll", onScrollFadeMobile);
-        window.removeEventListener("touchstart", onTouchStart);
-        window.removeEventListener("touchmove", onTouchMove);
-        window.removeEventListener("touchend", onTouchEnd);
-        window.removeEventListener("touchcancel", onTouchEnd);
+        if (settleTimer) clearTimeout(settleTimer);
+        window.removeEventListener("scroll", onScrollMobile);
+        window.removeEventListener("touchstart", onTouchStartMobile);
+        window.removeEventListener("touchend", onTouchEndMobile);
+        window.removeEventListener("touchcancel", onTouchEndMobile);
       };
     } else {
       window.addEventListener("scroll", onScrollTrigger, { passive: true });
@@ -541,7 +519,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="sphere-fix-1"
+      data-hero-build="mobile-snap-2"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >
