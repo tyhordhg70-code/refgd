@@ -513,50 +513,22 @@ html.hero-flight .rg-ambient-bg * {
       radial-gradient(circle at 50% 50%, transparent 50%, rgba(5,6,10,0.55) 68%, #05060a 82%);
   }
 }
-/* Mobile black-box fix — the colored EDGE-band + CORNER-glow hero overlays
-   combine filter:blur() with mix-blend-mode:screen, which iOS WebKit renders
-   as opaque black rectangles (the isolated blend group's backing store). They
-   are purely decorative, so hide them on phones; desktop keeps them inline
-   byte-for-byte. The ambient glow (softened to in-hue, zero-alpha stops so it
-   never fades through transparent-black) + the painted vignette still tint the
-   mobile hero. Gated in CSS (not a React isMobile flag) so it is correct on
-   the very first paint with no hydration flash. */
+/* Mobile: keep the desktop colored EDGE-band + CORNER-glow (.cj-glow-edge /
+   .cj-glow-corner) on phones too, using their SAME inline radial gradients +
+   blur so the mobile edges match desktop exactly. iOS WebKit only black-boxes
+   them because of mix-blend-mode:screen (an isolated blend group gets an opaque
+   backing store), so neutralise JUST the blend mode on mobile -- on the
+   near-black hero backdrop screen ~= normal, so the look is unchanged. Gated in
+   CSS (not a React flag) so it is correct on the very first paint. */
 @media (max-width: 768px) {
   .cj-glow-edge,
   .cj-glow-corner {
-    display: none !important;
+    mix-blend-mode: normal !important;
   }
   .cj-glow-ambient {
     background:
       radial-gradient(circle, rgba(var(--glow), 0.5), rgba(var(--glow), 0.12) 45%, rgba(var(--glow), 0) 70%) !important;
     filter: blur(60px) !important;
-  }
-}
-/* Mobile colored EDGES — re-adds the sphere-tinted edge + corner glow that the
-   desktop .cj-glow-edge/.cj-glow-corner provide, but WITHOUT filter:blur or
-   mix-blend-mode (both render as opaque black boxes on iOS WebKit). Pure
-   alpha-composited radial gradients tinted by --glow, every final stop at
-   rgba(var(--glow), 0) (never the `transparent` keyword, which fades through
-   transparent-BLACK and dirties the hue). Painted ABOVE the dark
-   .cj-hero-vignette so the color reads as emitted light. Desktop keeps an inert
-   hidden node (display:none) so its hero stays byte-for-byte unchanged. */
-.cj-glow-edge-mobile { display: none; }
-@media (max-width: 768px) {
-  .cj-glow-edge-mobile {
-    display: block;
-    /* LINEAR edge bands (deterministic — % stops run along the box dimension,
-       no radial aspect-ratio math) for the four edges; the corners naturally
-       brighten where two bands overlap, plus tight radial pools round them off.
-       Many stops fake the desktop blur's softness without filter:blur. */
-    background:
-      linear-gradient(to bottom, rgba(var(--glow), 0.55), rgba(var(--glow), 0.46) 4%, rgba(var(--glow), 0.22) 11%, rgba(var(--glow), 0.07) 16%, rgba(var(--glow), 0) 22%),
-      linear-gradient(to top, rgba(var(--glow), 0.55), rgba(var(--glow), 0.46) 4%, rgba(var(--glow), 0.22) 11%, rgba(var(--glow), 0.07) 16%, rgba(var(--glow), 0) 22%),
-      linear-gradient(to right, rgba(var(--glow), 0.5), rgba(var(--glow), 0.42) 4%, rgba(var(--glow), 0.2) 12%, rgba(var(--glow), 0.06) 20%, rgba(var(--glow), 0) 28%),
-      linear-gradient(to left, rgba(var(--glow), 0.5), rgba(var(--glow), 0.42) 4%, rgba(var(--glow), 0.2) 12%, rgba(var(--glow), 0.06) 20%, rgba(var(--glow), 0) 28%),
-      radial-gradient(30% 30% at 0% 0%, rgba(var(--glow), 0.5), rgba(var(--glow), 0.2) 50%, rgba(var(--glow), 0) 100%),
-      radial-gradient(30% 30% at 100% 0%, rgba(var(--glow), 0.5), rgba(var(--glow), 0.2) 50%, rgba(var(--glow), 0) 100%),
-      radial-gradient(30% 30% at 0% 100%, rgba(var(--glow), 0.5), rgba(var(--glow), 0.2) 50%, rgba(var(--glow), 0) 100%),
-      radial-gradient(30% 30% at 100% 100%, rgba(var(--glow), 0.5), rgba(var(--glow), 0.2) 50%, rgba(var(--glow), 0) 100%);
   }
 }
 /* v6.13.6 — Cinematic 3D entrance for the "Stop wasting time" hero

@@ -19,14 +19,14 @@ import KineticText from "./KineticText";
  *     orb and the soft blurred screen edges.
  *   • The WHITE welcome text sits over a soft dark scrim + text-shadow so it
  *     stays legible no matter what color the sphere becomes.
- *   • Hand-off: the hero <-> #paths transition AUTO-COMMITS. On DESKTOP the
- *     lenis wheel/keyboard tween runs it; on MOBILE a velocity-gated native
- *     smooth-scroll commits by travel DIRECTION (down -> cards, up -> top) the
- *     instant the fling's momentum is nearly spent — a finger always cancels it.
+ *   • Hand-off: the hero <-> #paths transition AUTO-COMMITS on BOTH desktop and
+ *     mobile via the same scroll-triggered handoff (down -> #paths, up -> top);
+ *     desktop adds precise wheel/keyboard triggers on top.
  *   • iOS: the desktop colored edge/corner glow uses filter:blur + mix-blend
- *     screen, which iOS WebKit paints as black boxes, so those are hidden on
- *     phones; a blur-free / blend-free gradient layer (.cj-glow-edge-mobile)
- *     re-adds the same sphere-colored edges on mobile.
+ *     screen; blur is fine, but mix-blend-mode:screen paints black boxes on iOS
+ *     WebKit, so on phones (globals.css @media) the SAME edge/corner glow is kept
+ *     with the blend mode neutralised to normal (screen ~= normal on the
+ *     near-black hero backdrop), so mobile edges match desktop.
  *   • The video AND the color sampling both stop when the hero leaves the
  *     viewport (no idle work); prefers-reduced-motion shows a static frame
  *     with no playback, no sampling, and no listeners.
@@ -366,201 +366,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
     };
 
-    // -- Mobile: DIRECTION-DETERMINISTIC commit-snap at hero <-> #paths --
-    //    The owner wants the single hero/paths transition to commit FULLY and
-    //    FAST — "no matter how I scroll": down ALWAYS lands on the cards
-    //    ("Choose your path" + swipe visible), up ALWAYS lands back at the top,
-    //    never resting half-sphere/half-cards — yet every other scroll stays
-    //    100% native (browsing the cards/overlays/telegram box is untouched and
-    //    the snap can NEVER reach the telegram box).
-    //
-    //    Mechanism: between gestures we watch the momentum tail. The MOMENT it
-    //    decays to ~SLOW_DELTA px/event for SLOW_HITS events the fling is nearly
-    //    spent, so we commit immediately (fires ~200-400ms into a flick instead
-    //    of waiting ~1-2s for it to fully stop) — firing at near-zero velocity
-    //    means the native smooth-scroll has almost no momentum left to fight.
-    //    The target is chosen purely by travel DIRECTION (down -> pathsTop, up
-    //    -> 0); a down fling that begins in the hero is corrected back to the
-    //    cards even if it overshoots a little. A finger always cancels an
-    //    in-flight glide, and a stalled UA glide is re-evaluated by a guard.
-    const SNAP_TOL = 24; // arrival / "already committed" tolerance (glide detect)
-    const SNAP_MIN = 4; // don't bother snapping for sub-4px gaps
-    const QUIET_MS = 120; // fallback: fire this long after the last scroll event
-    const SLOW_DELTA = 8; // px/event under which momentum counts as "nearly done"
-    const SLOW_HITS = 2; // consecutive slow events that trigger the fast fire
-    const MIN_TRAVEL = 40; // min net gesture travel (px) before honoring lastDir
-    let settleTimer = 0;
-    let guardTimer = 0;
-    let lastY = Math.max(0, window.scrollY);
-    let lastDir = 0; // 1 = down, -1 = up, 0 = unknown
-    let slowCount = 0; // consecutive post-lift slow-delta events
-    let touching = false;
-    let interacted = false; // only snap after a real gesture (not scroll-restore)
-    let gestureMoved = false; // did the current/just-ended gesture move the page?
-    let gestureStartY = 0; // scrollY captured at touchstart (overshoot eligibility)
-    let downEligibleStart = false; // gesture began in the hero -> down commits to cards
-    let snapAnimating = false;
-    let snapTarget = 0;
-    let atTopRestored = false;
-    const pathsTop = () => {
-      const p = document.getElementById("paths");
-      // rect-based (NOT offsetTop): #paths sits inside position:relative
-      // ancestors, so offsetTop would be measured from the wrong box.
-      return p ? Math.round(p.getBoundingClientRect().top + window.scrollY) : null;
-    };
-    const clearGuard = () => {
-      snapAnimating = false;
-      if (guardTimer) {
-        clearTimeout(guardTimer);
-        guardTimer = 0;
-      }
-    };
-    // True only where a snap should commit: inside the one transition viewport,
-    // OR a down gesture that began in the hero and overshot a little past the
-    // cards' top (corrected back so "down" always lands on "Choose your path").
-    // A hard fling that blows DEEP past pt (>0.9vh, i.e. well into the cards /
-    // toward telegram) is left alone, and any settle at/below the cards from a
-    // non-hero gesture stays native — so the snap can never reach the telegram
-    // box and never fights card browsing. 0.9vh (kept under a full vh) keeps the
-    // pull-back inside #paths even on the shortest cards layout.
-    const eligible = (y: number, pt: number) => {
-      if (y <= SNAP_TOL) return false; // already committed at the very top
-      if (y < pt - SNAP_MIN) return true; // inside the hero <-> cards zone
-      return downEligibleStart && lastDir > 0 && y < pt + window.innerHeight * 0.9;
-    };
-    const runSnap = () => {
-      if (settleTimer) {
-        clearTimeout(settleTimer);
-        settleTimer = 0;
-      }
-      slowCount = 0;
-      if (touching || snapAnimating) return;
-      const pt = pathsTop();
-      if (pt == null) return;
-      const y = Math.max(0, window.scrollY);
-      if (!eligible(y, pt)) return;
-      // DIRECTION WINS, but only for a gesture that actually MOVED a meaningful
-      // distance: the last travel direction is the user's true final intent — it
-      // tracks the momentum tail after lift. Down -> cards (pt), up -> top (0).
-      // A pure tap that cancelled a glide (gestureMoved=false) OR a sub-MIN_TRAVEL
-      // jitter (a carousel-swipe drift or iOS toolbar-resize scroll while resting
-      // at the cards) has no real intent, so fall back to the NEARER edge — never
-      // a full-viewport yank in the drift direction.
-      const traveled = Math.abs(y - gestureStartY);
-      const decisive = gestureMoved && traveled >= MIN_TRAVEL;
-      let target: number;
-      if (decisive && lastDir > 0) target = pt;
-      else if (decisive && lastDir < 0) target = 0;
-      else target = y < pt / 2 ? 0 : pt;
-      if (Math.abs(y - target) <= SNAP_MIN) return;
-      snapAnimating = true;
-      snapTarget = target;
-      window.scrollTo({ top: target, behavior: "smooth" });
-      // Native smooth-scroll has no end event: the guard clears on arrival (in
-      // onScrollMobile) or a finger (touchstart). If the UA glide STALLS
-      // mid-zone (an iOS toolbar resize can abort it) no scroll events fire, so
-      // the safety timeout must RE-EVALUATE — not merely clear the flag — or the
-      // page would rest half-and-half forever. Safari's UA glide for ~1 viewport
-      // can exceed 700ms, so use 1000ms.
-      if (guardTimer) clearTimeout(guardTimer);
-      guardTimer = window.setTimeout(onGuardTimeout, 1000);
-    };
-    const onGuardTimeout = () => {
-      snapAnimating = false;
-      guardTimer = 0;
-      if (!touching) runSnap(); // re-fire if a stalled glide left us mid-zone
-    };
-    // Fallback for a drag that stops DEAD (no decaying momentum events for the
-    // velocity-gate to catch): fire shortly after the last scroll event.
-    const armSettle = () => {
-      if (settleTimer) clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(runSnap, QUIET_MS);
-    };
-    const onScrollMobile = () => {
-      const y = Math.max(0, window.scrollY); // clamp: iOS rubber-band fires < 0
-      const delta = Math.abs(y - lastY);
-      if (y > lastY) lastDir = 1;
-      else if (y < lastY) lastDir = -1;
-      lastY = y;
-      if (touching && delta > 0) gestureMoved = true;
-      applyFades(clamp01(y / (window.innerHeight * 0.65)));
-      // Fully restore the hero text once, on returning to the very top.
-      if (y < 8) {
-        if (!atTopRestored) {
-          restoreFades();
-          atTopRestored = true;
-        }
-      } else {
-        atTopRestored = false;
-      }
-      if (snapAnimating) {
-        // Arrived — release the guard. Never re-arm anything mid-glide.
-        if (Math.abs(y - snapTarget) <= SNAP_TOL) clearGuard();
-        return;
-      }
-      // Only act between gestures (finger up) and after a real interaction (so a
-      // load-time scroll-restoration event can never trigger a snap).
-      if (!touching && interacted) {
-        // FAST fire: once the momentum tail decays to <= SLOW_DELTA px/event for
-        // SLOW_HITS events the fling is nearly spent, so commit NOW instead of
-        // waiting for it to fully stop. Near-zero velocity == near-zero fight.
-        if (delta <= SLOW_DELTA) {
-          slowCount += 1;
-          if (slowCount >= SLOW_HITS) {
-            runSnap();
-            return;
-          }
-        } else {
-          slowCount = 0;
-        }
-        // Dead-stop fallback (no further events to gate on).
-        armSettle();
-      }
-    };
-    const onTouchStartMobile = () => {
-      touching = true;
-      interacted = true;
-      gestureMoved = false;
-      slowCount = 0;
-      gestureStartY = Math.max(0, window.scrollY);
-      const pt = pathsTop();
-      // A down gesture that BEGINS in the hero/transition (above the cards' top)
-      // must commit to the cards even if its momentum overshoots past pt. A
-      // gesture that begins at/below the cards is normal browsing — never
-      // corrected — so the telegram box stays unreachable by the snap.
-      downEligibleStart = pt != null && gestureStartY < pt - SNAP_TOL;
-      if (settleTimer) {
-        clearTimeout(settleTimer);
-        settleTimer = 0;
-      }
-      // A finger always reclaims ownership from any in-flight programmatic glide.
-      clearGuard();
-    };
-    const onTouchEndMobile = () => {
-      touching = false;
-      // Arm the dead-stop fallback; the velocity-gate in onScrollMobile usually
-      // fires sooner. A pure tap that cancelled a glide (gestureMoved=false)
-      // re-evaluates here and commits to the nearer edge.
-      armSettle();
-    };
-    let cleanupMobile = () => {};
-    if (isMobileRef.current) {
-      window.addEventListener("scroll", onScrollMobile, { passive: true });
-      window.addEventListener("touchstart", onTouchStartMobile, { passive: true });
-      window.addEventListener("touchend", onTouchEndMobile, { passive: true });
-      window.addEventListener("touchcancel", onTouchEndMobile, { passive: true });
-      cleanupMobile = () => {
-        if (settleTimer) clearTimeout(settleTimer);
-        if (guardTimer) clearTimeout(guardTimer);
-        window.removeEventListener("scroll", onScrollMobile);
-        window.removeEventListener("touchstart", onTouchStartMobile);
-        window.removeEventListener("touchend", onTouchEndMobile);
-        window.removeEventListener("touchcancel", onTouchEndMobile);
-      };
-    } else {
-      window.addEventListener("scroll", onScrollTrigger, { passive: true });
-      window.addEventListener("scroll", onScrollReset, { passive: true });
-    }
+    // Auto-scroll handoff runs on BOTH mobile and desktop via native scroll
+    // events (down from the top -> glide to #paths; up near the boundary ->
+    // glide back to the top). Desktop adds precise wheel/keyboard triggers below.
+    window.addEventListener("scroll", onScrollTrigger, { passive: true });
+    window.addEventListener("scroll", onScrollReset, { passive: true });
 
     // ── Desktop only: precise wheel/keyboard triggers on top of scroll ──
     let cleanupDesktop = () => {};
@@ -600,7 +410,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     let cleanupTriggers = () => {
       window.removeEventListener("scroll", onScrollTrigger);
       window.removeEventListener("scroll", onScrollReset);
-      cleanupMobile();
       cleanupDesktop();
     };
 
@@ -622,7 +431,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-snap-6"
+      data-hero-build="mobile-revert-7"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >
@@ -718,16 +527,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           mixBlendMode: "screen",
           transition: "background 0.25s linear",
         }}
-      />
-
-      {/* MOBILE-only colored EDGES, tinted live to the sphere color. The
-          desktop .cj-glow-edge/.cj-glow-corner use filter:blur + mix-blend
-          screen (black boxes on iOS), so this blur-free / blend-free gradient
-          stack (in globals.css, @media max-width:768px) re-adds the same
-          sphere-colored edge + corner glow on phones. */}
-      <div
-        aria-hidden="true"
-        className="cj-glow-edge-mobile pointer-events-none absolute inset-0"
       />
 
       <div className="absolute inset-0 grid place-items-center">
