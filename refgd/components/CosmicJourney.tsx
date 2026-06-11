@@ -256,11 +256,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // smooth-scroll target and strand the visitor in the dead zone between the
     // hero and #paths. After a DOWN handoff completes we wait for the momentum
     // to fully settle, then — only if the visitor didn't deliberately stop (no
-    // finger on the glass, no touch since the handoff began) — gently re-issue
-    // the smooth scroll DOWN into #paths. It is itself interruptible (not a
-    // lock, not snap) and ONLY ever pulls downward: we never drag someone who
-    // overshot past #paths back up (that was the rejected "forces me back down"
-    // snap). One-shot per handoff; aborts after a 1.5s window.
+    // finger on the glass, no touch since the handoff began) — INSTANTLY snap
+    // onto #paths. It corrects either a SHORT landing (above the section) or a
+    // hard-flick OVERSHOOT up to ~0.7vh past the heading; beyond that band the
+    // visitor has clearly scrolled into the cards on purpose, so we leave them
+    // (and any touch since the handoff aborts the rescue regardless — so this is
+    // never the rejected "forces me back down" drag). One-shot; 1.5s window.
     const scheduleSettle = () => {
       const startedAt = performance.now();
       let fired = false;
@@ -277,18 +278,20 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         if (!paths) return;
         const y = window.scrollY;
         const pathsTop = paths.getBoundingClientRect().top + y;
-        // If the native smooth scroll (or a hard flick's momentum) left us SHORT
-        // of #paths, finish the landing — but INSTANTLY, never with a second
-        // smooth scroll. Round 13 instead WIDENED the tolerance to ~0.2vh, so a
-        // short landing was left UNCORRECTED; that stranded the visitor above the
-        // section = "auto scroll feels way worse". And the original rescue re-fired
-        // a second *animated* scrollIntoView, whose motion read as the "slight
-        // yank for a split second". An instant snap from rest fixes both: it
-        // always completes the landing (no dead zone), and there is no second
-        // animation to feel. This runs only after momentum has fully settled and
-        // no finger is on the glass, so the page is at rest when it snaps.
-        // Overshoot below #paths and anything at/above the hero are left alone.
-        if (y > window.innerHeight * 0.3 && y < pathsTop - 2) {
+        // Snap onto #paths whenever momentum (the native smooth scroll OR a hard
+        // flick) left us OFF the section top — SHORT above it, or OVERSHOT below
+        // the heading. Round 14 only corrected a short landing, so a hard flick
+        // whose momentum blew PAST the heading was stranded "below choose your
+        // path". Now we also rescue an overshoot, but only within ~0.7vh past the
+        // top: beyond that the visitor has deliberately scrolled into the cards
+        // (and any touch since the handoff already aborted this rescue), so we
+        // never drag them back from real content. Instant snap from rest = no
+        // second animation, so no "yank" and no "forces me back down" drag.
+        const overshootMax = pathsTop + window.innerHeight * 0.7;
+        if (
+          y > window.innerHeight * 0.3 &&
+          (y < pathsTop - 2 || (y > pathsTop + 2 && y < overshootMax))
+        ) {
           fired = true;
           window.scrollTo(0, pathsTop);
         }
@@ -536,7 +539,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-3d-back-14"
+      data-hero-build="mobile-3d-back-15"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >

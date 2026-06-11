@@ -35,6 +35,13 @@ export default function AnimatedTelegramBox() {
   // the bottom of the card.
   const clusterTop = isMobile ? "80%" : "44%";
 
+  // Horizontal anchor. Desktop stays centered (50%, byte-for-byte). On mobile the
+  // cluster sat behind the centered Join button, so shift it toward the right edge
+  // (76%) to clear the button. The box clips overflow (tg-inner-clip), so the soft
+  // halo and the transient expanding rings simply fade at the edge. Owner verifies
+  // the exact % on device — nudge left/right as needed.
+  const clusterLeft = isMobile ? "76%" : "50%";
+
   return (
     <div
       aria-hidden="true"
@@ -108,7 +115,7 @@ export default function AnimatedTelegramBox() {
       {!reduced && (
         <>
           <div style={{
-            position: "absolute", left: "50%", top: clusterTop,
+            position: "absolute", left: clusterLeft, top: clusterTop,
             width: 210, height: 210, borderRadius: "50%",
             border: "1.5px solid rgba(130,100,255,0.50)",
             animation: "tg3-ring-expand 1.1s 1.35s cubic-bezier(0.22,1,0.36,1) forwards",
@@ -117,7 +124,7 @@ export default function AnimatedTelegramBox() {
             pointerEvents: "none",
           }} />
           <div style={{
-            position: "absolute", left: "50%", top: clusterTop,
+            position: "absolute", left: clusterLeft, top: clusterTop,
             width: 145, height: 145, borderRadius: "50%",
             border: "1px solid rgba(34,211,238,0.40)",
             animation: "tg3-ring-expand 1.1s 1.55s cubic-bezier(0.22,1,0.36,1) forwards",
@@ -136,7 +143,7 @@ export default function AnimatedTelegramBox() {
           compositor blur layer. Desktop keeps the blurred halo unchanged. */}
       <div
         style={{
-          position: "absolute", left: "50%", top: clusterTop,
+          position: "absolute", left: clusterLeft, top: clusterTop,
           width: isMobile ? 260 : 210, height: isMobile ? 260 : 210,
           transform: "translate(-50%,-50%)",
           borderRadius: "50%",
@@ -153,7 +160,7 @@ export default function AnimatedTelegramBox() {
       {/* Logo — desktop: entrance at 0.65 s + float at 1.7 s. Mobile: STATIC. */}
       <div
         style={{
-          position: "absolute", left: "50%", top: clusterTop,
+          position: "absolute", left: clusterLeft, top: clusterTop,
           transform: "translate(-50%,-50%)",
           // Mobile: render the logo statically visible — opacity:1, NO tg3-enter
           // entrance and NO tg3-float. Both animate the transform/opacity of an
