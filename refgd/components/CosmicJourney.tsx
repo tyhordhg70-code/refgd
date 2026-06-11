@@ -277,17 +277,20 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         if (!paths) return;
         const y = window.scrollY;
         const pathsTop = paths.getBoundingClientRect().top + y;
-        // Stranded WELL SHORT of #paths (between 0.3vh and ~0.2vh above the
-        // paths top) -> land down. A near-perfect landing (within ~0.2vh of
-        // #paths) is deliberately LEFT ALONE: the old 2px tolerance let a tiny
-        // sub-viewport undershoot from the native smooth scroll re-fire a second
-        // scrollIntoView, which read as the residual "slight yank for a split
-        // second" right after the auto-scroll settled. Only a genuine hard-flick
-        // strand (clearly short of paths) is rescued now. Overshoot below #paths
-        // and anything at/above it are still left alone.
-        if (y > window.innerHeight * 0.3 && y < pathsTop - window.innerHeight * 0.2) {
+        // If the native smooth scroll (or a hard flick's momentum) left us SHORT
+        // of #paths, finish the landing — but INSTANTLY, never with a second
+        // smooth scroll. Round 13 instead WIDENED the tolerance to ~0.2vh, so a
+        // short landing was left UNCORRECTED; that stranded the visitor above the
+        // section = "auto scroll feels way worse". And the original rescue re-fired
+        // a second *animated* scrollIntoView, whose motion read as the "slight
+        // yank for a split second". An instant snap from rest fixes both: it
+        // always completes the landing (no dead zone), and there is no second
+        // animation to feel. This runs only after momentum has fully settled and
+        // no finger is on the glass, so the page is at rest when it snaps.
+        // Overshoot below #paths and anything at/above the hero are left alone.
+        if (y > window.innerHeight * 0.3 && y < pathsTop - 2) {
           fired = true;
-          paths.scrollIntoView({ behavior: "smooth" });
+          window.scrollTo(0, pathsTop);
         }
       };
       requestAnimationFrame(tick);
@@ -533,7 +536,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-3d-back-13"
+      data-hero-build="mobile-3d-back-14"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >
