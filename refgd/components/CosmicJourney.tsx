@@ -208,6 +208,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // down->up bounce right after the down glide lands.
     let heroVisible = true;
     let doneAt = 0;
+    // Hard-flick rescue bookkeeping (see scheduleSettle below): whether a finger
+    // is currently on the glass, whether any touch happened since the last DOWN
+    // handoff began, and when the last scroll event fired.
+    let touchedSinceHandoff = false;
+    let fingerDown = false;
+    let lastScrollAt = performance.now();
 
     // Capture-phase swallow of scroll input during the short auto-scroll glide.
     const swallow = (ev: Event) => {
@@ -246,9 +252,45 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
     // Ease the welcome text out over the glide for a clean hand-off.
     const HANDOFF_MS = 900;
+    // Hard-flick rescue: a fast swipe's native momentum can overpower the
+    // smooth-scroll target and strand the visitor in the dead zone between the
+    // hero and #paths. After a DOWN handoff completes we wait for the momentum
+    // to fully settle, then — only if the visitor didn't deliberately stop (no
+    // finger on the glass, no touch since the handoff began) — gently re-issue
+    // the smooth scroll DOWN into #paths. It is itself interruptible (not a
+    // lock, not snap) and ONLY ever pulls downward: we never drag someone who
+    // overshot past #paths back up (that was the rejected "forces me back down"
+    // snap). One-shot per handoff; aborts after a 1.5s window.
+    const scheduleSettle = () => {
+      const startedAt = performance.now();
+      let fired = false;
+      const tick = () => {
+        if (fired) return;
+        const now = performance.now();
+        if (now - startedAt > 1500) return; // window closed
+        if (fingerDown || touchedSinceHandoff) return; // visitor is in control
+        if (now - lastScrollAt < 200) {
+          requestAnimationFrame(tick); // momentum still in flight — keep waiting
+          return;
+        }
+        const paths = document.getElementById("paths");
+        if (!paths) return;
+        const y = window.scrollY;
+        const pathsTop = paths.getBoundingClientRect().top + y;
+        // Stranded strictly between the hero (0.3vh) and the #paths top -> land
+        // down. Anything at/above #paths or overshot below it is left alone.
+        if (y > window.innerHeight * 0.3 && y < pathsTop - 2) {
+          fired = true;
+          paths.scrollIntoView({ behavior: "smooth" });
+        }
+      };
+      requestAnimationFrame(tick);
+    };
+
     const startHandoff = () => {
       if (state !== "idle") return;
       state = "handoff";
+      touchedSinceHandoff = false;
       setHeroFlight(true);
       attachBlock();
       // Free the GPU/main-thread during the glide: stop colour sampling so the
@@ -280,6 +322,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           releaseBlock();
           setHeroFlight(false);
           if (heroVisible) { playLoop(); startSampling(); }
+          // Catch a hard flick whose momentum overpowered the smooth scroll.
+          if (isMobileRef.current) scheduleSettle();
           return;
         }
         handoffRaf = requestAnimationFrame(drive);
@@ -295,9 +339,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       state = "handoff";
       setHeroFlight(true);
       attachBlock();
-      // Same glide perf-freeze as startHandoff (resumed below once the hero
-      // has settled back into view).
-      video.pause();
+      // Glide perf-freeze, UP variant: stop colour SAMPLING only (the 11Hz
+      // --glow retint storm is the real stutter source). Do NOT pause the hero
+      // video here — the hero is re-entering view, and a frozen-then-resumed
+      // sphere reads as a flicker as it settles. Sampling resumes on completion.
       stopSampling();
       const l = lenis();
       if (l && l.start) l.start();
@@ -375,6 +420,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       window.scrollY <= window.innerHeight * (isMobileRef.current ? 0.85 : 1.15);
     let prevY = window.scrollY;
     const onScrollTrigger = () => {
+      lastScrollAt = performance.now();
       const y = window.scrollY;
       const goingDown = y > prevY;
       const goingUp = y < prevY;
@@ -404,6 +450,20 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // glide back to the top). Desktop adds precise wheel/keyboard triggers below.
     window.addEventListener("scroll", onScrollTrigger, { passive: true });
     window.addEventListener("scroll", onScrollReset, { passive: true });
+
+    // Touch bookkeeping for the hard-flick rescue (passive; only fires on touch
+    // devices). A NEW touch after the handoff began — or a finger still on the
+    // glass — means the visitor is in control, so the settle aborts.
+    const onTouchStart = () => {
+      fingerDown = true;
+      touchedSinceHandoff = true;
+    };
+    const onTouchEnd = () => {
+      fingerDown = false;
+    };
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", onTouchEnd, { passive: true });
 
     // ── Desktop only: precise wheel/keyboard triggers on top of scroll ──
     let cleanupDesktop = () => {};
@@ -443,6 +503,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     let cleanupTriggers = () => {
       window.removeEventListener("scroll", onScrollTrigger);
       window.removeEventListener("scroll", onScrollReset);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", onTouchEnd);
       cleanupDesktop();
     };
 
@@ -464,7 +527,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-revert-8"
+      data-hero-build="mobile-revert-9"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >
