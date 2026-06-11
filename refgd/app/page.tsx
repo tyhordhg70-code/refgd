@@ -220,8 +220,18 @@ export default async function HomePage() {
                     (with min-h to keep visual presence + py for
                     breathing room). Desktop keeps the 16:6 cinematic
                     aspect ratio.
+
+                    Mobile tightened per owner: the 480px min-h floor
+                    + py-12, vertically centered (items-center), left a
+                    large dead gap below the Join button and made the
+                    card bottom look shapeless on phones. Lowered to
+                    min-h-[340px] + py-8 so the card hugs its content.
+                    The pulsating halo/rings/logo (AnimatedTelegramBox,
+                    absolute inset-0) stay centered + intact at their
+                    own sizes — only the empty space shrinks. Desktop
+                    (sm:) is unchanged.
                   */}
-                  <div className="relative min-h-[480px] py-12 sm:min-h-0 sm:py-0 sm:aspect-[16/6]">
+                  <div className="relative min-h-[340px] py-8 sm:min-h-0 sm:py-0 sm:aspect-[16/6]">
                     <AnimatedTelegramBox />
                     <div className="container-px relative grid h-full items-center sm:absolute sm:inset-0">
                       <div className="grid items-center gap-10 sm:grid-cols-[1fr_auto]">
