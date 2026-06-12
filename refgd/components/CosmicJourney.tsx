@@ -208,12 +208,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // down->up bounce right after the down glide lands.
     let heroVisible = true;
     let doneAt = 0;
-    // Hard-flick rescue bookkeeping: whether a finger is on the glass, whether
-    // any touch happened since the last DOWN handoff began, and when the last
-    // scroll fired (so the settle-snap can wait for momentum to fully die).
-    let touchedSinceHandoff = false;
+    // Whether a finger is currently on the glass (used to skip the momentum-kill
+    // under a deliberate drag so it never stutters beneath the touch).
     let fingerDown = false;
-    let lastScrollAt = performance.now();
 
     // Capture-phase swallow of scroll input during the short auto-scroll glide.
     const swallow = (ev: Event) => {
@@ -234,12 +231,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (blockOn) return;
       blockOn = true;
       window.addEventListener("wheel", swallow, { passive: false, capture: true });
-      // Mobile: do NOT swallow touchmove during the glide — a deliberate
-      // finger swipe must be able to interrupt/override the auto-scroll so
-      // it never feels like a locked "yank". Desktop still swallows wheel.
-      if (!isMobileRef.current) {
-        window.addEventListener("touchmove", swallow, { passive: false, capture: true });
-      }
+      // Lock ALL input during the short glide — INCLUDING touchmove on mobile.
+      // The owner's requirement changed: the glide must ALWAYS land on the same
+      // #paths anchor "no matter what" (never a different / cut-off landing), so
+      // it is deliberately non-interruptible for its ~900ms. Together with the
+      // momentum-kill + owned per-frame tween below, this means no NEW finger
+      // momentum can start and fight the glide -> deterministic landing, no yank.
+      window.addEventListener("touchmove", swallow, { passive: false, capture: true });
       window.addEventListener("keydown", blockKeys, { capture: true });
     };
     const releaseBlock = () => {
@@ -252,37 +250,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
     // Ease the welcome text out over the glide for a clean hand-off.
     const HANDOFF_MS = 900;
-    // Safety net for the mobile down-glide: if a hard flick's iOS momentum
-    // survived the kill + smooth glide and left us OFF #paths, wait for the
-    // momentum to fully die (no finger, scroll quiet) then INSTANTLY land on the
-    // section — SHORT above it OR OVERSHOT anywhere below it (a flick that blew
-    // toward the telegram box). Any touch since the handoff aborts it, so it only
-    // ever fires on pure flick momentum, never on deliberate browsing.
-    const scheduleSettle = () => {
-      const startedAt = performance.now();
-      let fired = false;
-      const tick = () => {
-        if (fired) return;
-        const now = performance.now();
-        if (now - startedAt > 3000) return; // window closed
-        if (fingerDown || touchedSinceHandoff) return; // visitor took control
-        if (now - lastScrollAt < 180) { requestAnimationFrame(tick); return; } // still flying
-        const paths = document.getElementById("paths");
-        if (!paths) return;
-        const y = window.scrollY;
-        const pathsTop = paths.getBoundingClientRect().top + y;
-        if (y > window.innerHeight * 0.3 && Math.abs(y - pathsTop) > 2) {
-          fired = true;
-          window.scrollTo(0, pathsTop);
-        }
-      };
-      requestAnimationFrame(tick);
-    };
+    const easeInOutCubic = (t: number) =>
+      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
     const startHandoff = () => {
       if (state !== "idle") return;
       state = "handoff";
-      touchedSinceHandoff = false;
       setHeroFlight(true);
       attachBlock();
       // Free the GPU/main-thread during the glide: stop colour sampling so the
@@ -301,40 +274,43 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           duration: HANDOFF_MS / 1000,
           easing: (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
         });
-      } else if (target) {
-        // iOS keeps inertial "momentum" velocity that a programmatic scroll can't
-        // override. Round 16 tried to pin the page every frame: the retained
-        // momentum made it FREEZE while we held position, then RESUMED when the
-        // loop ended and flung a hard swipe all the way down to the telegram box.
-        // Instead, CANCEL the in-flight momentum first — toggling overflow forces
-        // a reflow that kills iOS inertia — then fire ONE smooth scroll to the
-        // section so it glides cleanly with nothing fighting it (no freeze, no
-        // overshoot). Skip the kill while a finger is on the glass (a deliberate
-        // drag, not a flick) so the page never freezes under the touch.
-        if (!fingerDown) {
-          const se = (document.scrollingElement || document.documentElement) as HTMLElement;
-          const keepY = window.scrollY;
-          const prevOverflow = se.style.overflow;
-          se.style.overflow = "hidden";
-          void se.offsetHeight; // force reflow -> cancels iOS momentum
-          se.style.overflow = prevOverflow;
-          window.scrollTo(0, keepY);
-        }
-        target.scrollIntoView({ behavior: "smooth" });
+      } else if (target && !fingerDown) {
+        // MOBILE: kill any in-flight iOS inertia ONCE up front so nothing is
+        // already flying when the owned tween (below) takes over. Toggling
+        // overflow forces a reflow that cancels iOS momentum. Skipped while a
+        // finger is on the glass (a deliberate drag) so it never stutters under
+        // the touch. The native scrollIntoView is GONE — momentum could override
+        // it and land at a different/cut-off spot; the rAF loop owns the position
+        // instead so it always ends EXACTLY on the anchor.
+        const se = (document.scrollingElement || document.documentElement) as HTMLElement;
+        const keepY = window.scrollY;
+        const prevOverflow = se.style.overflow;
+        se.style.overflow = "hidden";
+        void se.offsetHeight; // force reflow -> cancels iOS momentum
+        se.style.overflow = prevOverflow;
+        window.scrollTo(0, keepY);
       }
       const t0 = performance.now();
+      const startY = window.scrollY;
       const drive = (now: number) => {
         const e = clamp01((now - t0) / HANDOFF_MS);
         applyFades(e);
+        // MOBILE owns the scroll position every frame, easing from startY to
+        // #paths' absolute top, so the landing is byte-identical every time and
+        // a hard flick can never overshoot or cut off the cards. (touchmove is
+        // swallowed for the glide, and momentum was killed above, so there is
+        // nothing to fight -> no round-16 freeze, no settle-snap yank.) Desktop
+        // is driven by lenis.scrollTo above and is left byte-for-byte unchanged.
+        if (isMobileRef.current && target) {
+          const targetY = target.getBoundingClientRect().top + window.scrollY;
+          window.scrollTo(0, startY + (targetY - startY) * easeInOutCubic(e));
+        }
         if (e >= 1) {
           state = "done";
           doneAt = now;
           releaseBlock();
           setHeroFlight(false);
           if (heroVisible) { playLoop(); startSampling(); }
-          // Safety net: if a hard flick's momentum survived the kill + glide,
-          // land on the section once it dies (no finger). See scheduleSettle.
-          if (isMobileRef.current) scheduleSettle();
           return;
         }
         handoffRaf = requestAnimationFrame(drive);
@@ -431,7 +407,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       window.scrollY <= window.innerHeight * (isMobileRef.current ? 0.85 : 1.15);
     let prevY = window.scrollY;
     const onScrollTrigger = () => {
-      lastScrollAt = performance.now();
       const y = window.scrollY;
       const goingDown = y > prevY;
       const goingUp = y < prevY;
@@ -462,12 +437,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     window.addEventListener("scroll", onScrollTrigger, { passive: true });
     window.addEventListener("scroll", onScrollReset, { passive: true });
 
-    // Touch bookkeeping for the hard-flick rescue (passive; only fires on touch
-    // devices). A NEW touch after the handoff began — or a finger still on the
-    // glass — means the visitor is in control, so the settle aborts.
+    // Track whether a finger is on the glass (passive). Used only to skip the
+    // momentum-kill while a deliberate drag is in progress.
     const onTouchStart = () => {
       fingerDown = true;
-      touchedSinceHandoff = true;
     };
     const onTouchEnd = () => {
       fingerDown = false;
@@ -538,7 +511,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-3d-back-17"
+      data-hero-build="mobile-3d-back-18"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >
