@@ -208,9 +208,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // down->up bounce right after the down glide lands.
     let heroVisible = true;
     let doneAt = 0;
-    // Whether a finger is currently on the glass (used to skip the momentum-kill
-    // under a deliberate drag so it never stutters beneath the touch).
-    let fingerDown = false;
 
     // Capture-phase swallow of scroll input during the short auto-scroll glide.
     const swallow = (ev: Event) => {
@@ -253,8 +250,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
     // Ease the welcome text out over the glide for a clean hand-off.
     const HANDOFF_MS = 900;
-    const easeInOutCubic = (t: number) =>
-      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
     const startHandoff = () => {
       if (state !== "idle") return;
@@ -277,37 +272,22 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           duration: HANDOFF_MS / 1000,
           easing: (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
         });
-      } else if (target && !fingerDown) {
-        // MOBILE: kill any in-flight iOS inertia ONCE up front so nothing is
-        // already flying when the owned tween (below) takes over. Toggling
-        // overflow forces a reflow that cancels iOS momentum. Skipped while a
-        // finger is on the glass (a deliberate drag) so it never stutters under
-        // the touch. The native scrollIntoView is GONE — momentum could override
-        // it and land at a different/cut-off spot; the rAF loop owns the position
-        // instead so it always ends EXACTLY on the anchor.
-        const se = (document.scrollingElement || document.documentElement) as HTMLElement;
-        const keepY = window.scrollY;
-        const prevOverflow = se.style.overflow;
-        se.style.overflow = "hidden";
-        void se.offsetHeight; // force reflow -> cancels iOS momentum
-        se.style.overflow = prevOverflow;
-        window.scrollTo(0, keepY);
+      } else if (target) {
+        // MOBILE: a SINGLE native smooth scroll to the anchor. The reason this
+        // now lands deterministically (and never freezes) is that we never let
+        // iOS inertial momentum form in the first place: the down-handoff is
+        // triggered from a touchmove handler that preventDefault()s the native
+        // scroll (see the touchmove interceptor below), so the page is static
+        // when this runs and the browser's own smooth scroll glides cleanly to
+        // #paths with nothing to fight. We deliberately do NOT own the scroll
+        // position per frame — that fought live momentum and FROZE (rounds 16 &
+        // 18) — and we do NOT add a settle-snap afterwards (that was the yank).
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
       }
       const t0 = performance.now();
-      const startY = window.scrollY;
       const drive = (now: number) => {
         const e = clamp01((now - t0) / HANDOFF_MS);
         applyFades(e);
-        // MOBILE owns the scroll position every frame, easing from startY to
-        // #paths' absolute top, so the landing is byte-identical every time and
-        // a hard flick can never overshoot or cut off the cards. (touchmove is
-        // swallowed for the glide, and momentum was killed above, so there is
-        // nothing to fight -> no round-16 freeze, no settle-snap yank.) Desktop
-        // is driven by lenis.scrollTo above and is left byte-for-byte unchanged.
-        if (isMobileRef.current && target) {
-          const targetY = target.getBoundingClientRect().top + window.scrollY;
-          window.scrollTo(0, startY + (targetY - startY) * easeInOutCubic(e));
-        }
         if (e >= 1) {
           state = "done";
           doneAt = now;
@@ -440,17 +420,38 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     window.addEventListener("scroll", onScrollTrigger, { passive: true });
     window.addEventListener("scroll", onScrollReset, { passive: true });
 
-    // Track whether a finger is on the glass (passive). Used only to skip the
-    // momentum-kill while a deliberate drag is in progress.
-    const onTouchStart = () => {
-      fingerDown = true;
+    // Track whether a finger is on the glass + where the touch began, so the
+    // interceptor below can tell a downward (scroll-down) drag from an upward one.
+    let touchStartY = 0;
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartY = e.touches[0]?.clientY ?? 0;
     };
-    const onTouchEnd = () => {
-      fingerDown = false;
-    };
+    const onTouchEnd = () => {};
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchend", onTouchEnd, { passive: true });
     window.addEventListener("touchcancel", onTouchEnd, { passive: true });
+
+    // ── MOBILE down-handoff interceptor (the real fix) ──
+    // Every prior round tried to FIGHT or KILL iOS inertial momentum after the
+    // flick already started: owning the scroll per-frame froze (it fought live
+    // momentum), and a single native smooth scroll landed at a variable, cut-off
+    // spot (momentum overrode it). The cure is to never let momentum form: while
+    // we're at the very top and idle, the first downward drag is preventDefault()ed
+    // here (non-passive) so the browser performs NO native scroll, then we trigger
+    // the glide. With no native scroll there is no inertia, so the smooth scroll in
+    // startHandoff lands EXACTLY on #paths every time — no freeze, no yank.
+    // Mobile-only; desktop keeps its wheel/keyboard triggers untouched.
+    const onTouchMoveTrigger = (e: TouchEvent) => {
+      if (!isMobileRef.current || state !== "idle") return;
+      if (window.scrollY > 2) return; // only intercept from the very top
+      const dy = touchStartY - (e.touches[0]?.clientY ?? touchStartY);
+      if (dy > 6) {
+        // finger moving up the glass => scroll-DOWN intent: block native scroll
+        e.preventDefault();
+        startHandoff();
+      }
+    };
+    window.addEventListener("touchmove", onTouchMoveTrigger, { passive: false });
 
     // ── Desktop only: precise wheel/keyboard triggers on top of scroll ──
     let cleanupDesktop = () => {};
@@ -493,6 +494,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchend", onTouchEnd);
       window.removeEventListener("touchcancel", onTouchEnd);
+      window.removeEventListener("touchmove", onTouchMoveTrigger);
       cleanupDesktop();
     };
 
@@ -514,7 +516,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-3d-back-18"
+      data-hero-build="mobile-3d-back-19"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >
