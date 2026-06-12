@@ -395,7 +395,14 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const goingUp = y < prevY;
       const wasAtTop = prevY <= 2;
       prevY = y;
-      if (state === "idle" && goingDown && wasAtTop && y > 2 && y < window.innerHeight * 0.6) {
+      if (
+        // DESKTOP ONLY: on mobile the down-handoff starts exclusively from the
+        // touchmove interceptor (which preventDefault()s native scroll so no iOS
+        // momentum forms). Letting this scroll-based branch fire on mobile would
+        // bypass that and reintroduce the variable/cut-off landing.
+        !isMobileRef.current &&
+        state === "idle" && goingDown && wasAtTop && y > 2 && y < window.innerHeight * 0.6
+      ) {
         startHandoff();
       } else if (
         state === "done" && goingUp && nearBoundaryUp() &&
@@ -443,6 +450,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // Mobile-only; desktop keeps its wheel/keyboard triggers untouched.
     const onTouchMoveTrigger = (e: TouchEvent) => {
       if (!isMobileRef.current || state !== "idle") return;
+      if (e.touches.length !== 1) return; // ignore pinch / multi-touch gestures
       if (window.scrollY > 2) return; // only intercept from the very top
       const dy = touchStartY - (e.touches[0]?.clientY ?? touchStartY);
       if (dy > 6) {
