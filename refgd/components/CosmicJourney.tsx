@@ -272,7 +272,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           duration: HANDOFF_MS / 1000,
           easing: (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
         });
-      } else if (target) {
+      } else if (!isMobileRef.current && target) {
+        // DESKTOP FALLBACK: Lenis was momentarily unavailable (mount race or
+        // init failure). Keep the desktop landing behavior here so the mobile
+        // centering branch below can NEVER run on desktop — desktop must stay
+        // byte-for-byte frozen.
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (isMobileRef.current && target) {
         // MOBILE: a SINGLE native smooth scroll to the anchor. The reason this
         // now lands deterministically (and never freezes) is that we never let
         // iOS inertial momentum form in the first place: the down-handoff is
@@ -285,19 +291,28 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         //
         // LANDING TARGET: BOTH the "— you have arrived" kicker (top of the
         // block) and the "Swipe to choose your door" caption (bottom) must stay
-        // in frame. Landing on the #paths padding-box top buried the caption
-        // (it sat below the iOS fold); landing on the intro top buried the
-        // kicker. The cure is to CENTER the whole content block: `.container-wide`
-        // wraps exactly kicker → title → carousel → dots → caption, so centering
-        // its bounding box in the viewport gives equal breathing room top and
-        // bottom and keeps both ends visible. (If the block is ever taller than
-        // the viewport, `slack` goes negative and it simply centers — both ends
-        // clipped equally — which is the best achievable framing.)
+        // in frame. We land the kicker a FIXED margin below the top — we do NOT
+        // center.
+        //
+        // Why not center: centering divided the *content height* by the viewport
+        // height measured AT TRIGGER TIME. On iOS the URL bar is expanded then
+        // (scrollY≈0), so the viewport is the SMALL (svh) variant and the content
+        // block measured nearly as tall as it — the centering slack collapsed to
+        // ~0 (or negative) and the scroll overshot PAST the kicker, clipping the
+        // top. The bar then collapses during the glide (viewport grows), which is
+        // why the caption ends up with spare room at the bottom while the kicker
+        // is gone. A fixed top margin is immune to that drift: the kicker sits a
+        // constant ~12vh from the top regardless of the measured viewport, and
+        // because the viewport only grows as the bar collapses, the caption still
+        // clears the bottom. Empirically ~16vh top margin clipped the caption
+        // (round 19) and centering clipped the kicker (rounds 20–21); ~12vh frames
+        // both. `.container-wide` wraps exactly kicker → title → carousel → dots
+        // → caption, so its top is the kicker's top.
         const content = (target.querySelector(".container-wide") as HTMLElement | null) ?? target;
-        const cRect = content.getBoundingClientRect();
-        const contentTop = cRect.top + window.scrollY;
-        const slack = (window.innerHeight - cRect.height) / 2;
-        window.scrollTo({ top: Math.max(0, contentTop - slack), behavior: "smooth" });
+        const contentTop = content.getBoundingClientRect().top + window.scrollY;
+        const vh = window.visualViewport?.height ?? window.innerHeight;
+        const topMargin = vh * 0.12;
+        window.scrollTo({ top: Math.max(0, contentTop - topMargin), behavior: "smooth" });
       }
       const t0 = performance.now();
       const drive = (now: number) => {
@@ -539,7 +554,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-3d-back-21"
+      data-hero-build="mobile-3d-back-22"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >
