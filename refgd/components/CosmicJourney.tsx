@@ -208,11 +208,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // down->up bounce right after the down glide lands.
     let heroVisible = true;
     let doneAt = 0;
-    // Down-glide ownership bookkeeping: whether a finger is currently on the
-    // glass, and whether any NEW touch happened since the last DOWN handoff
-    // began. The owned mobile glide (see startHandoff) yields to either.
+    // Hard-flick rescue bookkeeping: whether a finger is on the glass, whether
+    // any touch happened since the last DOWN handoff began, and when the last
+    // scroll fired (so the settle-snap can wait for momentum to fully die).
     let touchedSinceHandoff = false;
     let fingerDown = false;
+    let lastScrollAt = performance.now();
 
     // Capture-phase swallow of scroll input during the short auto-scroll glide.
     const swallow = (ev: Event) => {
@@ -251,6 +252,33 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
     // Ease the welcome text out over the glide for a clean hand-off.
     const HANDOFF_MS = 900;
+    // Safety net for the mobile down-glide: if a hard flick's iOS momentum
+    // survived the kill + smooth glide and left us OFF #paths, wait for the
+    // momentum to fully die (no finger, scroll quiet) then INSTANTLY land on the
+    // section — SHORT above it OR OVERSHOT anywhere below it (a flick that blew
+    // toward the telegram box). Any touch since the handoff aborts it, so it only
+    // ever fires on pure flick momentum, never on deliberate browsing.
+    const scheduleSettle = () => {
+      const startedAt = performance.now();
+      let fired = false;
+      const tick = () => {
+        if (fired) return;
+        const now = performance.now();
+        if (now - startedAt > 3000) return; // window closed
+        if (fingerDown || touchedSinceHandoff) return; // visitor took control
+        if (now - lastScrollAt < 180) { requestAnimationFrame(tick); return; } // still flying
+        const paths = document.getElementById("paths");
+        if (!paths) return;
+        const y = window.scrollY;
+        const pathsTop = paths.getBoundingClientRect().top + y;
+        if (y > window.innerHeight * 0.3 && Math.abs(y - pathsTop) > 2) {
+          fired = true;
+          window.scrollTo(0, pathsTop);
+        }
+      };
+      requestAnimationFrame(tick);
+    };
+
     const startHandoff = () => {
       if (state !== "idle") return;
       state = "handoff";
@@ -267,10 +295,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       const l = lenis();
       const target = document.getElementById("paths");
       if (l && l.start) l.start();
-      // Mobile owns the down-glide frame-by-frame (see below); desktop keeps the
-      // byte-for-byte lenis tween.
-      let ownScroll = false;
-      let targetY = 0;
       if (!isMobileRef.current && l && l.scrollTo && target) {
         l.scrollTo(target, {
           offset: 0,
@@ -278,44 +302,39 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           easing: (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
         });
       } else if (target) {
-        // Mobile: OWN the glide instead of firing a native smooth-scroll and
-        // snapping afterward. A hard flick's native momentum used to overpower
-        // the smooth target and land us off the section, which a post-hoc INSTANT
-        // snap then corrected — that visible jump is the "resnap looks weird".
-        // Driving the scroll ourselves every frame neutralises the momentum, so
-        // we settle on the SAME spot smoothly no matter how hard the flick was,
-        // with no second jump. Yields the moment the visitor takes control:
-        // while a finger is on the glass we don't fight it (resume on lift), and
-        // any NEW touch since the handoff began aborts ownership for good — so
-        // it's never the rejected "can't stop it / forces me" yank.
-        ownScroll = true;
-        targetY = target.getBoundingClientRect().top + window.scrollY;
+        // iOS keeps inertial "momentum" velocity that a programmatic scroll can't
+        // override. Round 16 tried to pin the page every frame: the retained
+        // momentum made it FREEZE while we held position, then RESUMED when the
+        // loop ended and flung a hard swipe all the way down to the telegram box.
+        // Instead, CANCEL the in-flight momentum first — toggling overflow forces
+        // a reflow that kills iOS inertia — then fire ONE smooth scroll to the
+        // section so it glides cleanly with nothing fighting it (no freeze, no
+        // overshoot). Skip the kill while a finger is on the glass (a deliberate
+        // drag, not a flick) so the page never freezes under the touch.
+        if (!fingerDown) {
+          const se = (document.scrollingElement || document.documentElement) as HTMLElement;
+          const keepY = window.scrollY;
+          const prevOverflow = se.style.overflow;
+          se.style.overflow = "hidden";
+          void se.offsetHeight; // force reflow -> cancels iOS momentum
+          se.style.overflow = prevOverflow;
+          window.scrollTo(0, keepY);
+        }
+        target.scrollIntoView({ behavior: "smooth" });
       }
       const t0 = performance.now();
       const drive = (now: number) => {
         const e = clamp01((now - t0) / HANDOFF_MS);
         applyFades(e);
-        if (ownScroll) {
-          if (touchedSinceHandoff) {
-            ownScroll = false; // a new gesture = visitor browsing — yield for good
-          } else if (!fingerDown) {
-            // Exponential approach toward the fixed target: self-correcting from
-            // wherever momentum (or a just-released finger) left us, always
-            // settling on the same point. Per-frame override absorbs inertia.
-            const cur = window.scrollY;
-            const next = Math.abs(targetY - cur) < 1 ? targetY : cur + (targetY - cur) * 0.2;
-            window.scrollTo(0, next);
-          }
-          // else: finger still on the glass mid-gesture — yield this frame, resume on lift
-        }
         if (e >= 1) {
           state = "done";
           doneAt = now;
           releaseBlock();
           setHeroFlight(false);
           if (heroVisible) { playLoop(); startSampling(); }
-          // Final exact landing only if we still own the scroll (no finger took over).
-          if (ownScroll && !fingerDown && !touchedSinceHandoff) window.scrollTo(0, targetY);
+          // Safety net: if a hard flick's momentum survived the kill + glide,
+          // land on the section once it dies (no finger). See scheduleSettle.
+          if (isMobileRef.current) scheduleSettle();
           return;
         }
         handoffRaf = requestAnimationFrame(drive);
@@ -412,6 +431,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       window.scrollY <= window.innerHeight * (isMobileRef.current ? 0.85 : 1.15);
     let prevY = window.scrollY;
     const onScrollTrigger = () => {
+      lastScrollAt = performance.now();
       const y = window.scrollY;
       const goingDown = y > prevY;
       const goingUp = y < prevY;
@@ -518,7 +538,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-3d-back-16"
+      data-hero-build="mobile-3d-back-17"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >
