@@ -227,17 +227,20 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         ev.stopPropagation();
       }
     };
-    const attachBlock = () => {
+    // `lockTouch` controls whether touchmove is swallowed on mobile during the
+    // glide. The DOWN handoff passes true: the owner wants it to ALWAYS land on
+    // the #paths anchor "no matter what", so it is deliberately non-interruptible
+    // for its ~900ms (no NEW finger momentum can start to fight the owned tween).
+    // The UP handoff passes false so a finger swipe can still interrupt it
+    // (its native smooth-scroll relies on being touch-interruptible). Desktop
+    // always swallows touchmove in both directions (byte-for-byte unchanged).
+    const attachBlock = (lockTouch: boolean) => {
       if (blockOn) return;
       blockOn = true;
       window.addEventListener("wheel", swallow, { passive: false, capture: true });
-      // Lock ALL input during the short glide — INCLUDING touchmove on mobile.
-      // The owner's requirement changed: the glide must ALWAYS land on the same
-      // #paths anchor "no matter what" (never a different / cut-off landing), so
-      // it is deliberately non-interruptible for its ~900ms. Together with the
-      // momentum-kill + owned per-frame tween below, this means no NEW finger
-      // momentum can start and fight the glide -> deterministic landing, no yank.
-      window.addEventListener("touchmove", swallow, { passive: false, capture: true });
+      if (!isMobileRef.current || lockTouch) {
+        window.addEventListener("touchmove", swallow, { passive: false, capture: true });
+      }
       window.addEventListener("keydown", blockKeys, { capture: true });
     };
     const releaseBlock = () => {
@@ -257,7 +260,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (state !== "idle") return;
       state = "handoff";
       setHeroFlight(true);
-      attachBlock();
+      attachBlock(true); // DOWN: lock touch so it always lands on the anchor
       // Free the GPU/main-thread during the glide: stop colour sampling so the
       // 11Hz --glow writes (which retint three blur layers via a 250ms CSS
       // transition = a per-frame re-raster storm) pause, and pause the hero
@@ -325,7 +328,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (state !== "done") return;
       state = "handoff";
       setHeroFlight(true);
-      attachBlock();
+      attachBlock(false); // UP: leave touch interruptible (native smooth scroll)
       // Glide perf-freeze, UP variant: stop colour SAMPLING only (the 11Hz
       // --glow retint storm is the real stutter source). Do NOT pause the hero
       // video here — the hero is re-entering view, and a frozen-then-resumed
