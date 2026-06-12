@@ -3,27 +3,25 @@ import { useId } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 
 /**
- * CashbackScene — "Get rewarded for shopping online · ahh, the joy of cashback."
+ * CashbackScene — "Get rewarded for shopping online."
  *
- * Pure SVG + CSS @keyframes. Zero framer-motion infinite animations,
- * zero rAF JS during the run loop — every motion runs on the GPU
- * compositor thread, so the scene is buttery on iPhone and never
- * fights Lenis or the framer-motion entrance reveal.
+ * "Cashback Constellation": a premium hero credit card floating in a
+ * cosmic reward field — foil edge, guilloché security print, holographic
+ * foil patch, specular sweep, orbiting coins, twinkling stars, falling
+ * cash, sparkle glints and glass capsules.
  *
- * Layered story (back → front):
- *   1. Aurora glow halo (slow scale/opacity breath)
- *   2. Three concentric "+CASHBACK" pulse rings emanating from the card
- *   3. Falling cash bills cascading from above
- *   4. Coins arcing toward the wallet on the right
- *   5. Glowing credit card centre-stage (subtle hover-tilt)
- *   6. Wallet / money pouch on the right collecting the coins
- *   7. Sparkle bursts dancing around the card
- *   8. Twin "+%" labels orbiting the card
+ * Pure SVG + CSS @keyframes. Every motion is compositor-only
+ * (transform + opacity): no rAF on the JS thread, NO svg filter:blur
+ * (radialGradient halos instead) and NO mix-blend-mode — so it stays
+ * buttery on iPhone and never fights Lenis or the entrance reveal.
  *
  * Framer-motion is used ONLY for the one-time entrance reveal of the
  * whole scene (opacity 0 → 1, scale 0.92 → 1, y 20 → 0). After that
- * frame, framer-motion does nothing and CSS keyframes carry every
- * animation forever.
+ * frame, CSS keyframes carry every animation.
+ *
+ * IMPORTANT: TWO instances mount at once (520px desktop + 260px mobile),
+ * so EVERY SVG gradient/pattern id is prefixed with a per-instance
+ * `_uid` to avoid cross-instance `url(#id)` collisions.
  */
 export default function CashbackScene({
   size = 520,
@@ -45,208 +43,176 @@ export default function CashbackScene({
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* AURORA HALO BACKDROP */}
+      {/* AURORA HALO BACKDROP — layered radialGradients, no filter:blur. */}
       <div className={`cs-aurora ${reduced ? "" : "cs-aurora--anim"}`} />
 
-      {/* PULSE RINGS — three rings staggered, each scales 0.6 → 1.4
-          and fades out. Communicates "money flowing outward / reward!"  */}
-      {!reduced && (
-        <>
-          <span className="cs-ring" style={{ animationDelay: "0s"   }} />
-          <span className="cs-ring" style={{ animationDelay: "1.2s" }} />
-          <span className="cs-ring" style={{ animationDelay: "2.4s" }} />
-        </>
-      )}
+      {/* TWINKLING STARS */}
+      {!reduced &&
+        [
+          { l: "16%", t: "20%", d: "0s" },
+          { l: "78%", t: "16%", d: "0.6s" },
+          { l: "86%", t: "62%", d: "1.1s" },
+          { l: "24%", t: "74%", d: "1.7s" },
+          { l: "62%", t: "84%", d: "0.3s" },
+          { l: "8%", t: "50%", d: "2.1s" },
+        ].map((s, i) => (
+          <span
+            key={i}
+            className="cs-star"
+            style={{ left: s.l, top: s.t, animationDelay: s.d }}
+          />
+        ))}
 
-      {/* FALLING CASH BILLS — six bills cascading from above with
-          slight horizontal sway. Each is a tiny SVG bill with $$ on it. */}
+      {/* FALLING CASH BILLS — each id is _uid-prefixed. */}
       {!reduced && (
         <div className="cs-rain" aria-hidden="true">
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 5 }).map((_, i) => (
             <span
               key={i}
               className="cs-bill"
-              style={{
-                left: `${10 + i * 14}%`,
-                animationDelay: `${(i * 0.7).toFixed(2)}s`,
-                animationDuration: `${4.2 + (i % 3) * 0.6}s`,
-                ["--cs-sway" as any]: `${(i % 2 === 0 ? -1 : 1) * (8 + (i % 3) * 4)}px`,
-              } as React.CSSProperties}
+              style={
+                {
+                  left: `${14 + i * 17}%`,
+                  animationDelay: `${(i * 0.9).toFixed(2)}s`,
+                  animationDuration: `${5 + (i % 3) * 0.8}s`,
+                  ["--cs-sway" as any]: `${(i % 2 === 0 ? -1 : 1) * (10 + (i % 3) * 5)}px`,
+                } as React.CSSProperties
+              }
             >
-              <svg viewBox="0 0 60 36" width="48" height="29">
+              <svg viewBox="0 0 60 36" width="46" height="28">
                 <defs>
-                  <linearGradient id={`cs-bill-${i}`} x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%"   stopColor="#7be0a8" />
+                  <linearGradient id={`${_uid}b${i}`} x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#9af0c0" />
                     <stop offset="100%" stopColor="#2a8e58" />
                   </linearGradient>
                 </defs>
-                <rect x="0.5" y="0.5" width="59" height="35" rx="4"
-                  fill={`url(#cs-bill-${i})`} stroke="#0b3a23" strokeWidth="0.6" />
-                <circle cx="30" cy="18" r="9" fill="none" stroke="#fff8e6" strokeWidth="0.8" opacity="0.7"/>
-                <text x="30" y="22" textAnchor="middle"
-                  fontFamily="Clash Display, system-ui" fontWeight="800"
-                  fontSize="13" fill="#fff8e6">$</text>
-                <text x="6" y="9" fontSize="6" fill="#fff8e6" opacity="0.7">100</text>
-                <text x="50" y="32" fontSize="6" fill="#fff8e6" opacity="0.7" textAnchor="end">100</text>
+                <rect x="0.5" y="0.5" width="59" height="35" rx="5" fill={`url(#${_uid}b${i})`} stroke="#0b3a23" strokeWidth="0.6" />
+                <circle cx="30" cy="18" r="9" fill="none" stroke="#fff8e6" strokeWidth="0.8" opacity="0.65" />
+                <text x="30" y="22.5" textAnchor="middle" fontFamily="Clash Display, system-ui" fontWeight="800" fontSize="13" fill="#fff8e6">$</text>
               </svg>
             </span>
           ))}
         </div>
       )}
 
-      {/* CENTRAL CREDIT CARD — slowly tilts and floats. Houses the
-          "+CASHBACK" badge that the rings emanate from. */}
+      {/* HERO CREDIT CARD — float + subtle 3D tilt loop. */}
       <div className={`cs-card-wrap ${reduced ? "" : "cs-card-wrap--anim"}`}>
-        <svg viewBox="0 0 280 180" width="68%" className="cs-card">
+        <svg viewBox="0 0 300 190" className="cs-card">
           <defs>
             <linearGradient id={`${_uid}face`} x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%"   stopColor="#1e1b8c" />
-              <stop offset="45%"  stopColor="#3b28cc" />
-              <stop offset="100%" stopColor="#0f0d52" />
+              <stop offset="0%" stopColor="#2a1f9e" />
+              <stop offset="42%" stopColor="#3b28cc" />
+              <stop offset="100%" stopColor="#0c0a44" />
             </linearGradient>
-            <linearGradient id={`${_uid}edge`} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%"   stopColor="#ffe28a" stopOpacity="0.95" />
-              <stop offset="50%"  stopColor="#f5b945" stopOpacity="0.4" />
-              <stop offset="100%" stopColor="#b196ff" stopOpacity="0.95" />
+            <linearGradient id={`${_uid}edge`} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#ffe28a" />
+              <stop offset="45%" stopColor="#f5b945" stopOpacity="0.5" />
+              <stop offset="100%" stopColor="#b196ff" />
             </linearGradient>
-            <radialGradient id={`${_uid}shine`} cx="35%" cy="25%" r="55%">
-              <stop offset="0%"  stopColor="#ffffff" stopOpacity="0.45" />
-              <stop offset="60%" stopColor="#ffffff" stopOpacity="0" />
+            <radialGradient id={`${_uid}shine`} cx="32%" cy="22%" r="60%">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.5" />
+              <stop offset="55%" stopColor="#ffffff" stopOpacity="0" />
             </radialGradient>
             <linearGradient id={`${_uid}chip`} x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%"   stopColor="#ffe28a" />
+              <stop offset="0%" stopColor="#ffe9a8" />
+              <stop offset="50%" stopColor="#e7a93a" />
               <stop offset="100%" stopColor="#9a6914" />
             </linearGradient>
-          </defs>
-
-          {/* Glow halo behind the card.
-              v6.13.33 — User report: "computer card illustration on
-              storelist has hard edge glow". Cause: the previous
-              halo used `style={{ filter: "blur(28px)" }}` on the
-              SVG ellipse. SVG viewBox is 280x180; the ellipse
-              (rx:170 ry:110) already extends past the viewBox, and
-              once Safari runs the 28px blur the result is clipped
-              at the SVG's painted bounds, leaving a sharp
-              rectangular hard edge where the blur is cut off.
-              Switched to a `<radialGradient>` halo — pure paint
-              with built-in falloff, no filter pipeline, no
-              clipping artifact. */}
-          <defs>
+            <radialGradient id={`${_uid}holo`} cx="50%" cy="42%" r="60%">
+              <stop offset="0%" stopColor="#bff3d4" />
+              <stop offset="45%" stopColor="#b196ff" />
+              <stop offset="100%" stopColor="#f5b945" />
+            </radialGradient>
             <radialGradient id={`${_uid}halo`} cx="50%" cy="50%" r="50%">
-              <stop offset="0%"  stopColor="#f5b945" stopOpacity="0.42" />
-              <stop offset="55%" stopColor="#f5b945" stopOpacity="0.10" />
+              <stop offset="0%" stopColor="#f5b945" stopOpacity="0.4" />
+              <stop offset="55%" stopColor="#f5b945" stopOpacity="0.09" />
               <stop offset="100%" stopColor="#f5b945" stopOpacity="0" />
             </radialGradient>
+            <pattern id={`${_uid}guil`} width="13" height="13" patternTransform="rotate(34)" patternUnits="userSpaceOnUse">
+              <path d="M0 6.5 H13" stroke="#ffffff" strokeOpacity="0.05" strokeWidth="1" />
+              <path d="M6.5 0 V13" stroke="#ffffff" strokeOpacity="0.035" strokeWidth="1" />
+            </pattern>
           </defs>
-          <ellipse cx="140" cy="100" rx="180" ry="118"
-            fill={`url(#${_uid}halo)`} />
 
-          {/* Card body */}
-          <rect x="10" y="12" width="260" height="156" rx="18"
-            fill={`url(#${_uid}face)`} />
-          {/* Card edge / accent rim */}
-          <rect x="10" y="12" width="260" height="156" rx="18"
-            fill="none" stroke={`url(#${_uid}edge)`} strokeWidth="1.6" />
-          {/* Glossy highlight */}
-          <rect x="10" y="12" width="260" height="156" rx="18"
-            fill={`url(#${_uid}shine)`} />
+          {/* under-glow halo (radialGradient — no filter:blur, no hard edge) */}
+          <ellipse cx="150" cy="104" rx="205" ry="132" fill={`url(#${_uid}halo)`} />
+
+          {/* body */}
+          <rect x="18" y="16" width="264" height="158" rx="22" fill={`url(#${_uid}face)`} />
+          {/* guilloché security print */}
+          <rect x="18" y="16" width="264" height="158" rx="22" fill={`url(#${_uid}guil)`} />
+          {/* glossy highlight */}
+          <rect x="18" y="16" width="264" height="158" rx="22" fill={`url(#${_uid}shine)`} />
+          {/* foil edge */}
+          <rect x="18" y="16" width="264" height="158" rx="22" fill="none" stroke={`url(#${_uid}edge)`} strokeWidth="2" />
+          {/* inner hairline */}
+          <rect x="24" y="22" width="252" height="146" rx="18" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
 
           {/* EMV chip */}
-          <rect x="34" y="58" width="44" height="34" rx="6" fill={`url(#${_uid}chip)`} />
-          <path d="M34 70 H78 M34 80 H78 M50 58 V92 M62 58 V92"
-            stroke="rgba(0,0,0,0.4)" strokeWidth="0.8" fill="none" />
+          <rect x="40" y="62" width="48" height="38" rx="7" fill={`url(#${_uid}chip)`} stroke="rgba(255,255,255,0.25)" strokeWidth="0.6" />
+          <path d="M40 75 H88 M40 87 H88 M56 62 V100 M72 62 V100" stroke="rgba(0,0,0,0.38)" strokeWidth="0.8" fill="none" />
 
-          {/* Contactless icon */}
-          <g transform="translate(98, 64)" stroke="#ffe28a" strokeWidth="2" fill="none" strokeLinecap="round">
-            <path d="M0 0 a14 14 0 0 1 0 22" opacity="0.85"/>
-            <path d="M6 -4 a20 20 0 0 1 0 30" opacity="0.6"/>
-            <path d="M12 -8 a26 26 0 0 1 0 38" opacity="0.4"/>
+          {/* contactless waves */}
+          <g transform="translate(102, 68)" stroke="#ffe28a" strokeWidth="2" fill="none" strokeLinecap="round">
+            <path d="M0 0 a15 15 0 0 1 0 24" opacity="0.85" />
+            <path d="M7 -5 a22 22 0 0 1 0 34" opacity="0.6" />
+            <path d="M14 -10 a29 29 0 0 1 0 44" opacity="0.38" />
           </g>
 
-          {/* "+CASHBACK" badge */}
-          <g transform="translate(140, 130)">
-            <rect x="-72" y="-14" width="144" height="28" rx="14"
-              fill="rgba(245,185,69,0.18)" stroke="#ffe28a" strokeWidth="1.2" />
-            <text x="0" y="6" textAnchor="middle"
-              fontFamily="Clash Display, system-ui" fontWeight="800"
-              fontSize="14" fill="#ffe28a" letterSpacing="3">+ CASHBACK</text>
+          {/* holographic foil patch */}
+          <g transform="translate(230, 44)">
+            <rect x="0" y="0" width="38" height="27" rx="6" fill={`url(#${_uid}holo)`} opacity="0.9" />
+            <rect x="0" y="0" width="38" height="27" rx="6" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="0.8" />
+            <path d="M5 24 L17 4 M15 24 L27 4 M25 24 L35 7" stroke="rgba(255,255,255,0.32)" strokeWidth="1" />
           </g>
 
-          {/* Number band */}
-          <text x="34" y="120" fontFamily="ui-monospace, monospace"
-            fontWeight="700" fontSize="13" fill="#fff8e6" opacity="0.75"
-            letterSpacing="3">**** **** **** 7777</text>
+          {/* number band */}
+          <text x="40" y="130" fontFamily="ui-monospace, monospace" fontWeight="700" fontSize="13" fill="#fff8e6" opacity="0.72" letterSpacing="3">**** **** **** 7777</text>
 
-          {/* Holder strip */}
-          <text x="240" y="160" textAnchor="end"
-            fontFamily="Clash Display, system-ui" fontWeight="700"
-            fontSize="11" fill="#fff8e6" opacity="0.7" letterSpacing="2">REFUND GOD</text>
+          {/* +CASHBACK pill */}
+          <g transform="translate(150, 152)">
+            <rect x="-74" y="-13" width="148" height="26" rx="13" fill="rgba(245,185,69,0.16)" stroke="#ffe28a" strokeWidth="1.2" />
+            <text x="0" y="5" textAnchor="middle" fontFamily="Clash Display, system-ui" fontWeight="800" fontSize="13" fill="#ffe28a" letterSpacing="3">+ CASHBACK</text>
+          </g>
+
+          {/* wordmark */}
+          <text x="262" y="166" textAnchor="end" fontFamily="Clash Display, system-ui" fontWeight="700" fontSize="11" fill="#fff8e6" opacity="0.7" letterSpacing="2">REFUND GOD</text>
         </svg>
+        {/* specular sweep gliding across the card face */}
+        {!reduced && <span className="cs-shimmer" />}
       </div>
 
-      {/* WALLET / MONEY POUCH on the right collecting coins */}
-      <div className={`cs-wallet ${reduced ? "" : "cs-wallet--anim"}`}>
-        <svg viewBox="0 0 140 110" width="100%">
-          <defs>
-            <linearGradient id={`${_uid}wg`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#5d2c0a" />
-              <stop offset="100%" stopColor="#2a1304" />
-            </linearGradient>
-            <linearGradient id={`${_uid}wf`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#7a3d12" />
-              <stop offset="100%" stopColor="#3a1c08" />
-            </linearGradient>
-          </defs>
-          <rect x="6" y="36" width="128" height="68" rx="10" fill={`url(#${_uid}wg)`}
-            stroke="#ffe28a" strokeWidth="1.4" />
-          <path d="M10 44 H130 V52 H10 Z" fill="rgba(0,0,0,0.35)" />
-          {/* Bills sticking out top */}
-          <rect x="20" y="14" width="100" height="34" rx="3" fill="#7be0a8" stroke="#0b3a23" strokeWidth="0.8" />
-          <text x="70" y="36" textAnchor="middle"
-            fontFamily="Clash Display, system-ui" fontWeight="800"
-            fontSize="16" fill="#0b3a23">$$$</text>
-          {/* Wallet flap */}
-          <path d="M6 36 Q70 14 134 36 L134 56 Q70 38 6 56 Z"
-            fill={`url(#${_uid}wf)`} stroke="#ffe28a" strokeWidth="1.2" />
-          {/* Buckle */}
-          <circle cx="70" cy="46" r="4.5" fill="#ffe28a" stroke="#9a6914" strokeWidth="1" />
-        </svg>
-      </div>
-
-      {/* COINS ARCING INTO THE WALLET — three coins, each on its own
-          arc keyframe (cs-arc-1 / 2 / 3). Stagger gives a continuous
-          "stream of money flowing in" feel. */}
+      {/* ORBITING COINS — arcs emitted from the card centre. */}
       {!reduced && (
         <>
-          <span className="cs-coin cs-coin--1" style={{ animationDelay: "0s"   }}>
-            <CoinSvg sym="$" />
+          <span className="cs-coin cs-coin--1" style={{ animationDelay: "0s" }}>
+            <CoinSvg uid={`${_uid}1`} sym="$" tone="gold" />
           </span>
-          <span className="cs-coin cs-coin--2" style={{ animationDelay: "0.7s" }}>
-            <CoinSvg sym="€" />
+          <span className="cs-coin cs-coin--2" style={{ animationDelay: "0.6s" }}>
+            <CoinSvg uid={`${_uid}2`} sym="€" tone="violet" />
           </span>
-          <span className="cs-coin cs-coin--3" style={{ animationDelay: "1.4s" }}>
-            <CoinSvg sym="¥" />
+          <span className="cs-coin cs-coin--3" style={{ animationDelay: "1.2s" }}>
+            <CoinSvg uid={`${_uid}3`} sym="¥" tone="green" />
           </span>
         </>
       )}
 
-      {/* SPARKLE BURSTS dancing around the card */}
+      {/* SPARKLE GLINTS dancing around the card */}
       {!reduced && (
         <div className="cs-sparkles">
-          {Array.from({ length: 10 }).map((_, i) => {
-            const angle = (i / 10) * Math.PI * 2;
-            const r = 32 + (i % 3) * 6; // % of stage
+          {Array.from({ length: 7 }).map((_, i) => {
+            const angle = (i / 7) * Math.PI * 2;
+            const r = 33 + (i % 3) * 6; // % of stage
             return (
               <span
                 key={i}
                 className="cs-spark"
                 style={{
                   left: `${50 + Math.cos(angle) * r}%`,
-                  top: `${50 + Math.sin(angle) * r * 0.65}%`,
-                  background: i % 2 === 0 ? "#ffe28a" : "#b196ff",
-                  boxShadow: `0 0 14px ${i % 2 === 0 ? "#ffe28a" : "#b196ff"}`,
-                  animationDelay: `${(i * 0.22).toFixed(2)}s`,
-                  animationDuration: `${2.2 + (i % 4) * 0.4}s`,
+                  top: `${50 + Math.sin(angle) * r * 0.62}%`,
+                  color: i % 2 === 0 ? "#ffe28a" : "#b196ff",
+                  animationDelay: `${(i * 0.3).toFixed(2)}s`,
+                  animationDuration: `${2.4 + (i % 4) * 0.5}s`,
                 }}
               />
             );
@@ -254,35 +220,45 @@ export default function CashbackScene({
         </div>
       )}
 
-      {/* FLOATING "+%" CHIP LABELS orbiting the card */}
+      {/* GLASS CAPSULES orbiting the card */}
       {!reduced && (
         <>
           <span className="cs-chip cs-chip--a">+10%</span>
-          <span className="cs-chip cs-chip--b">CASHBACK</span>
-          <span className="cs-chip cs-chip--c">JOY</span>
+          <span className="cs-chip cs-chip--b">Cashback</span>
+          <span className="cs-chip cs-chip--c">Joy</span>
         </>
       )}
     </motion.div>
   );
 }
 
-function CoinSvg({ sym }: { sym: string }) {
+function CoinSvg({
+  uid,
+  sym,
+  tone,
+}: {
+  uid: string;
+  sym: string;
+  tone: "gold" | "violet" | "green";
+}) {
+  const ring =
+    tone === "violet" ? "#cdb6ff" : tone === "green" ? "#bff3d4" : "#ffe28a";
+  const mid =
+    tone === "violet" ? "#9a78f0" : tone === "green" ? "#5fcf93" : "#ffd06b";
+  const deep =
+    tone === "violet" ? "#4a2d9e" : tone === "green" ? "#1f7d3a" : "#7a4a0d";
   return (
-    <svg width="44" height="44" viewBox="0 0 44 44">
+    <svg width="46" height="46" viewBox="0 0 46 46">
       <defs>
-        <radialGradient id={`cs-coin-${sym}`} cx="38%" cy="32%" r="65%">
-          <stop offset="0%"  stopColor="#ffffff" />
-          <stop offset="55%" stopColor="#ffd06b" />
-          <stop offset="100%" stopColor="#7a4a0d" />
+        <radialGradient id={`${uid}c`} cx="36%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="48%" stopColor={mid} />
+          <stop offset="100%" stopColor={deep} />
         </radialGradient>
       </defs>
-      <circle cx="22" cy="22" r="20" fill={`url(#cs-coin-${sym})`}
-        stroke="#ffe28a" strokeWidth="1.2" />
-      <circle cx="22" cy="22" r="16" fill="none"
-        stroke="rgba(255,255,255,0.45)" strokeWidth="0.6" strokeDasharray="2 3" />
-      <text x="22" y="29" textAnchor="middle"
-        fontFamily="Clash Display, system-ui" fontWeight="800"
-        fontSize="20" fill="#3a2204">{sym}</text>
+      <circle cx="23" cy="23" r="21" fill={`url(#${uid}c)`} stroke={ring} strokeWidth="1.4" />
+      <circle cx="23" cy="23" r="16.5" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="0.7" strokeDasharray="2 3.5" />
+      <text x="23" y="30.5" textAnchor="middle" fontFamily="Clash Display, system-ui" fontWeight="800" fontSize="21" fill="#2a1804">{sym}</text>
     </svg>
   );
 }

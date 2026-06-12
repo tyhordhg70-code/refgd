@@ -198,7 +198,8 @@ export default function LedJoySection() {
          pause it was designed as. Centred vertically + horizontally
          so the LED text sits in the middle of the viewport when
          the beat triggers. */
-      className="relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden pt-2 pb-12 sm:pt-4 sm:pb-16"
+      className="lj-stage relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden pt-2 pb-12 sm:pt-4 sm:pb-16"
+      data-storelist-build="constellation-1"
     >
       {/* v6.13.68 — debug overlay (only renders when ?debug=1). */}
         {debug.enabled && (
@@ -260,9 +261,21 @@ export default function LedJoySection() {
           v6.13.33 mobile-only flourish that hid the bills entirely on
           tablets and laptops. Removing the gate restores the full
           beat for every visitor. */}
+      {/* ambient amber glow pools — gentle breath, compositor-only. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 -bottom-[60vh] top-[42%] z-0"
+        className="lj-glow"
+        style={{ left: "12%", top: "26%", width: "40vw", height: "40vw", background: "radial-gradient(circle, rgba(245,185,69,0.22), transparent 65%)" }}
+      />
+      <div
+        aria-hidden="true"
+        className="lj-glow"
+        style={{ right: "8%", bottom: "20%", width: "34vw", height: "34vw", background: "radial-gradient(circle, rgba(245,140,40,0.18), transparent 65%)", animationDelay: "1.4s" }}
+      />
+
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 -bottom-[60vh] top-[42%] z-[1]"
       >
         <style>{`
           @keyframes ledCashFall {
@@ -300,13 +313,27 @@ export default function LedJoySection() {
           >
             <svg viewBox="0 0 60 33" width="100%" height="100%"
               style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.45)) drop-shadow(0 0 10px rgba(74,222,128,0.45))" }}>
-              <rect x="1" y="1" width="58" height="31" rx="3" fill="#1f7d3a" stroke="#86efac" strokeWidth="0.8" />
-              <circle cx="30" cy="16.5" r="8" fill="#143d22" stroke="#86efac" strokeWidth="0.6" />
+              <defs>
+                <linearGradient id={`ljbill${i}`} x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#2a9b4d" />
+                  <stop offset="100%" stopColor="#15622f" />
+                </linearGradient>
+              </defs>
+              <rect x="1" y="1" width="58" height="31" rx="3.5" fill={`url(#ljbill${i})`} stroke="#86efac" strokeWidth="0.8" />
+              <rect x="3.5" y="3.5" width="53" height="26" rx="2.5" fill="none" stroke="#86efac" strokeWidth="0.4" opacity="0.5" />
+              <circle cx="30" cy="16.5" r="8" fill="#0f3d20" stroke="#86efac" strokeWidth="0.6" />
               <text x="30" y="20.5" textAnchor="middle" fontFamily="'Courier New', monospace" fontWeight="900" fontSize="11" fill="#dcfce7">$</text>
+              <text x="7" y="9" fontFamily="'Courier New', monospace" fontWeight="700" fontSize="5" fill="#bbf7d0" opacity="0.8">100</text>
+              <text x="53" y="29" textAnchor="end" fontFamily="'Courier New', monospace" fontWeight="700" fontSize="5" fill="#bbf7d0" opacity="0.8">100</text>
             </svg>
           </span>
         ))}
       </div>
+
+      {/* LED PANEL overlays — dot-matrix grid, scanlines, vignette. */}
+      <div aria-hidden="true" className="lj-dot" />
+      <div aria-hidden="true" className="lj-scan" />
+      <div aria-hidden="true" className="lj-vignette" />
 
       <div className="container-wide relative z-10 grid place-items-center text-center">
         {/* AHHHH — letters fly in horizontally fast */}

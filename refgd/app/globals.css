@@ -1532,6 +1532,53 @@ html { overflow-anchor: none; }
   font-feature-settings: "tnum" 1, "kern" 1;
 }
 
+/* LED JOY SECTION — immersive stadium LED billboard (compositor-only). */
+.lj-stage {
+  background:
+    radial-gradient(80% 60% at 50% 42%, rgba(245,140,40,0.10), transparent 62%),
+    radial-gradient(120% 120% at 50% 120%, rgba(120,60,10,0.18), transparent 60%),
+    #050309;
+}
+/* dot-matrix LED grid overlay (static, near-zero cost). */
+.lj-dot {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(245,185,69,0.085) 0 1.1px, transparent 1.6px);
+  background-size: 8px 8px;
+  opacity: 0.6;
+  pointer-events: none;
+}
+/* scanlines for the CRT/LED panel feel. */
+.lj-scan {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.16) 0 1px, transparent 1px 4px);
+  opacity: 0.5;
+  pointer-events: none;
+}
+/* vignette to focus the eye on the sign. */
+.lj-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(75% 70% at 50% 45%, transparent 55%, rgba(0,0,0,0.55) 100%);
+  pointer-events: none;
+}
+/* ambient amber glow pools, gentle breath. */
+.lj-glow {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  animation: lj-breath 6s ease-in-out infinite;
+}
+@keyframes lj-breath {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%      { opacity: 0.85; transform: scale(1.07); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lj-glow { animation: none !important; }
+}
+
 /* ── Lightweight mobile star field ──
  * Compositor-only background animation for mobile. Each star is
  * a 2-3 px white dot with a slow opacity twinkle. Opacity
@@ -1891,129 +1938,127 @@ html { overflow-anchor: none; }
  * JS thread and run smoothly on iPhone alongside Lenis smoothing.
  * ──────────────────────────────────────────────────────────────── */
 .cs-stage {
-  /* Establish a fixed positioning context — every child below uses
-     absolute positioning to stack on the stage. perspective gives
-     the credit-card tilt a real 3D feel. */
-  perspective: 1400px;
+  perspective: 1500px;
   isolation: isolate;
 }
 
-/* AURORA HALO — softened in v6.2 so the backdrop reads as a gentle
-   bloom rather than a sharp coloured disc behind the credit card. */
+/* Layered aurora: soft golden under-bloom + violet cosmic wash. */
 .cs-aurora {
   position: absolute;
-  inset: 0;
+  inset: -6%;
   border-radius: 9999px;
-  background: radial-gradient(
-    circle at 50% 50%,
-    rgba(255, 225, 140, 0.16),
-    rgba(167, 139, 250, 0.10) 40%,
-    transparent 72%
-  );
-  filter: blur(40px);
-  transform: scale(1);
-  opacity: 0.55;
+  background:
+    radial-gradient(circle at 50% 58%, rgba(245,185,69,0.22), transparent 45%),
+    radial-gradient(circle at 36% 32%, rgba(177,150,255,0.16), transparent 55%);
+  opacity: 0.85;
 }
-.cs-aurora--anim { animation: cs-aurora-breath 6s ease-in-out infinite; }
+.cs-aurora--anim { animation: cs-aurora-breath 7s ease-in-out infinite; }
 @keyframes cs-aurora-breath {
-  0%, 100% { transform: scale(1);    opacity: 0.45; }
-  50%      { transform: scale(1.08); opacity: 0.7;  }
+  0%, 100% { transform: scale(1);    opacity: 0.7; }
+  50%      { transform: scale(1.06); opacity: 0.95; }
 }
 
-/* PULSE RINGS — each ring scales out from card centre and fades.
-   v6.2 (2026-05): softened from 0.85 → 0.30 border + 0.55 → 0.18 shadow.
-   The previous 0.85-alpha yellow rings read as HARD glow edges around
-   the storelist hero illustration; now they're a gentle reward halo. */
-.cs-ring {
+/* Twinkling stars inside the stage (compositor-only opacity). */
+.cs-star {
   position: absolute;
-  left: 50%; top: 50%;
-  width: 28%; height: 28%;
-  margin-left: -14%; margin-top: -14%;
-  border: 1.5px solid rgba(255, 225, 140, 0.30);
+  width: 3px; height: 3px;
   border-radius: 9999px;
-  opacity: 0;
-  transform: scale(0.6);
-  animation: cs-ring 3.6s ease-out infinite;
-  box-shadow: 0 0 30px rgba(255, 225, 140, 0.18);
-  filter: blur(0.4px);
+  background: #fff;
+  box-shadow: 0 0 6px rgba(255,255,255,0.8);
+  animation: cs-twinkle 3.4s ease-in-out infinite;
 }
-@keyframes cs-ring {
-  0%   { opacity: 0;   transform: scale(0.6); border-color: rgba(255,225,140,0.32); }
-  10%  { opacity: 0.55; }
-  100% { opacity: 0;   transform: scale(2.2); border-color: rgba(167,139,250,0.04); }
+@keyframes cs-twinkle {
+  0%, 100% { opacity: 0.15; transform: scale(0.7); }
+  50%      { opacity: 0.95; transform: scale(1); }
 }
 
-/* CARD WRAPPER — float + subtle 3D tilt loop */
+/* CARD WRAPPER — float + subtle 3D tilt loop. */
 .cs-card-wrap {
   position: absolute;
   left: 50%; top: 50%;
   transform: translate(-50%, -50%);
-  width: 78%;
+  width: 76%;
   display: flex;
   align-items: center;
   justify-content: center;
-  filter: drop-shadow(0 28px 50px rgba(245, 185, 69, 0.35));
+  filter: drop-shadow(0 36px 60px rgba(8,5,30,0.7))
+          drop-shadow(0 10px 26px rgba(245,185,69,0.28));
 }
-.cs-card-wrap--anim { animation: cs-card-float 6s ease-in-out infinite; }
+.cs-card-wrap--anim { animation: cs-card-float 7s ease-in-out infinite; }
 @keyframes cs-card-float {
-  0%, 100% { transform: translate(-50%, -50%) rotateX(0deg)  rotateY(-6deg) translateY(0); }
-  50%      { transform: translate(-50%, -52%) rotateX(-3deg) rotateY(6deg)  translateY(-6px); }
+  0%, 100% { transform: translate(-50%, -50%) rotateX(2deg)  rotateY(-9deg) translateY(0); }
+  50%      { transform: translate(-50%, -53%) rotateX(-2deg) rotateY(7deg)  translateY(-8px); }
 }
-.cs-card { display: block; }
+.cs-card { display: block; width: 100%; }
 
-/* WALLET on the right edge of the stage */
-.cs-wallet {
+/* Specular sweep gliding across the card face. */
+.cs-shimmer {
+  /* top:18% == 50% − 64%/2. Positioned WITHOUT transform on purpose:
+     the mobile-perf rule `.cs-stage * { transform: translateZ(0) }`
+     (<=768px) would otherwise override a translateY centering here,
+     since this box has no animation of its own to win the cascade. */
   position: absolute;
-  right: 4%; bottom: 8%;
-  width: 28%;
-  filter: drop-shadow(0 18px 28px rgba(0,0,0,0.55));
+  left: 12%; top: 18%;
+  width: 76%; height: 64%;
+  border-radius: 18px;
+  overflow: hidden;
+  pointer-events: none;
 }
-.cs-wallet--anim { animation: cs-wallet-bob 4.4s ease-in-out infinite; }
-@keyframes cs-wallet-bob {
-  0%, 100% { transform: translateY(0)   rotate(-1deg); }
-  50%      { transform: translateY(-6px) rotate(2deg); }
+.cs-shimmer::before {
+  content: "";
+  position: absolute;
+  top: -20%; left: -60%;
+  width: 40%; height: 140%;
+  background: linear-gradient(105deg, transparent, rgba(255,255,255,0.42), transparent);
+  transform: skewX(-18deg);
+  animation: cs-sweep 5.5s ease-in-out infinite;
+}
+@keyframes cs-sweep {
+  0%   { transform: translateX(0) skewX(-18deg); opacity: 0; }
+  18%  { opacity: 0.9; }
+  45%  { transform: translateX(360%) skewX(-18deg); opacity: 0; }
+  100% { transform: translateX(360%) skewX(-18deg); opacity: 0; }
 }
 
-/* COINS ARCING into the wallet — three independent arcs, all driven
- * by transform-only keyframes. Origin is the centre of the stage. */
+/* COINS — refined metallic coins emitted from the card on graceful arcs. */
 .cs-coin {
   position: absolute;
-  left: 30%; top: 28%;
-  width: 44px; height: 44px;
-  margin-left: -22px; margin-top: -22px;
-  filter: drop-shadow(0 6px 10px rgba(255, 208, 107, 0.65));
+  left: 50%; top: 46%;
+  width: 46px; height: 46px;
+  margin-left: -23px; margin-top: -23px;
+  filter: drop-shadow(0 6px 12px rgba(255, 208, 107, 0.5));
   opacity: 0;
 }
 .cs-coin svg { display: block; }
-.cs-coin--1 { animation: cs-arc-1 3s ease-in infinite; }
-.cs-coin--2 { animation: cs-arc-2 3.4s ease-in infinite; }
-.cs-coin--3 { animation: cs-arc-3 3.8s ease-in infinite; }
+.cs-coin--1 { animation: cs-arc-1 4.2s ease-in-out infinite; }
+.cs-coin--2 { animation: cs-arc-2 4.8s ease-in-out infinite; }
+.cs-coin--3 { animation: cs-arc-3 5.4s ease-in-out infinite; }
 @keyframes cs-arc-1 {
-  0%   { opacity: 0; transform: translate(-110%, -40%) rotate(-30deg) scale(0.6); }
-  15%  { opacity: 1; }
-  60%  { opacity: 1; transform: translate( 80%,  -90%) rotate(120deg) scale(1.1); }
-  90%  { opacity: 1; transform: translate(150%,  150%) rotate(220deg) scale(0.9); }
-  100% { opacity: 0; transform: translate(160%,  170%) rotate(260deg) scale(0.7); }
+  0%   { opacity: 0; transform: translate(0, 10%) rotate(0deg) scale(0.6); }
+  12%  { opacity: 1; }
+  55%  { opacity: 1; transform: translate(-150%, -70%) rotate(-160deg) scale(1.05); }
+  85%  { opacity: 0.6; }
+  100% { opacity: 0; transform: translate(-210%, -120%) rotate(-240deg) scale(0.8); }
 }
 @keyframes cs-arc-2 {
-  0%   { opacity: 0; transform: translate(-90%,  10%) rotate(0deg)   scale(0.65); }
-  15%  { opacity: 1; }
-  55%  { opacity: 1; transform: translate( 70%, -110%) rotate(140deg) scale(1.05); }
-  90%  { opacity: 1; transform: translate(160%,  140%) rotate(240deg) scale(0.85); }
-  100% { opacity: 0; transform: translate(170%,  160%) rotate(300deg) scale(0.7); }
+  0%   { opacity: 0; transform: translate(0, 6%) rotate(0deg) scale(0.62); }
+  12%  { opacity: 1; }
+  55%  { opacity: 1; transform: translate(165%, -64%) rotate(150deg) scale(1.0); }
+  85%  { opacity: 0.6; }
+  100% { opacity: 0; transform: translate(225%, -110%) rotate(230deg) scale(0.8); }
 }
 @keyframes cs-arc-3 {
-  0%   { opacity: 0; transform: translate(-100%, 60%) rotate(-20deg) scale(0.6); }
-  15%  { opacity: 1; }
-  50%  { opacity: 1; transform: translate( 60%, -50%) rotate(110deg) scale(1.1); }
-  90%  { opacity: 1; transform: translate(155%, 150%) rotate(230deg) scale(0.9); }
-  100% { opacity: 0; transform: translate(165%, 170%) rotate(280deg) scale(0.7); }
+  0%   { opacity: 0; transform: translate(0, 12%) rotate(0deg) scale(0.6); }
+  12%  { opacity: 1; }
+  55%  { opacity: 1; transform: translate(40%, -135%) rotate(120deg) scale(1.08); }
+  85%  { opacity: 0.6; }
+  100% { opacity: 0; transform: translate(60%, -195%) rotate(200deg) scale(0.82); }
 }
 
-/* FALLING CASH BILLS */
+/* FALLING CASH BILLS — subtle, tasteful. */
 .cs-rain {
   position: absolute;
-  inset: -8% 0 0 0;
+  inset: -10% 0 0 0;
   pointer-events: none;
 }
 .cs-bill {
@@ -2021,65 +2066,68 @@ html { overflow-anchor: none; }
   top: 0;
   --cs-sway: 0px;
   animation: cs-fall linear infinite;
-  filter: drop-shadow(0 6px 12px rgba(34, 197, 94, 0.45));
+  filter: drop-shadow(0 6px 12px rgba(34, 197, 94, 0.4));
 }
 @keyframes cs-fall {
-  0%   { transform: translate3d(0, -10%,  0) rotate(-12deg); opacity: 0; }
-  8%   { opacity: 0.95; }
-  50%  { transform: translate3d(var(--cs-sway), 50%, 0) rotate(8deg); opacity: 1; }
-  92%  { opacity: 0.9; }
-  100% { transform: translate3d(0, 110%, 0) rotate(-6deg); opacity: 0; }
+  0%   { transform: translate3d(0, -12%,  0) rotate(-12deg); opacity: 0; }
+  10%  { opacity: 0.9; }
+  52%  { transform: translate3d(var(--cs-sway), 60%, 0) rotate(9deg); opacity: 1; }
+  92%  { opacity: 0.85; }
+  100% { transform: translate3d(0, 120%, 0) rotate(-6deg); opacity: 0; }
 }
 
-/* SPARKLE BURSTS */
+/* SPARKLES — 4-point star glints. */
 .cs-sparkles { position: absolute; inset: 0; }
 .cs-spark {
   position: absolute;
-  width: 6px; height: 6px;
-  margin-left: -3px; margin-top: -3px;
-  border-radius: 9999px;
+  width: 10px; height: 10px;
+  margin-left: -5px; margin-top: -5px;
+  background:
+    radial-gradient(circle, rgba(255,255,255,0.95) 0 12%, transparent 38%);
   animation: cs-spark ease-in-out infinite;
 }
+.cs-spark::before, .cs-spark::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(currentColor, currentColor) center / 100% 1.4px no-repeat,
+              linear-gradient(currentColor, currentColor) center / 1.4px 100% no-repeat;
+}
 @keyframes cs-spark {
-  0%, 100% { transform: scale(0.4); opacity: 0;   }
-  50%      { transform: scale(1.2); opacity: 1;   }
+  0%, 100% { transform: scale(0.3) rotate(0deg);  opacity: 0; }
+  50%      { transform: scale(1) rotate(45deg);   opacity: 1; }
 }
 
-/* CHIPS — floating textual badges that orbit the card */
+/* CHIPS — elegant glass capsules orbiting the card. */
 .cs-chip {
   position: absolute;
   font-family: "Clash Display", system-ui, sans-serif;
-  font-weight: 800;
+  font-weight: 700;
   font-size: 11px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  padding: 5px 10px;
+  padding: 6px 13px;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 225, 140, 0.55);
-  background: rgba(8, 7, 18, 0.6);
+  border: 1px solid rgba(255, 225, 140, 0.45);
+  background: linear-gradient(160deg, rgba(20,16,46,0.78), rgba(8,7,18,0.66));
   color: #ffe28a;
-  text-shadow: 0 0 12px rgba(255, 225, 140, 0.6);
+  text-shadow: 0 0 12px rgba(255, 225, 140, 0.55);
+  box-shadow: 0 8px 24px -10px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.12);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  animation: cs-chip-bob 5s ease-in-out infinite;
+  animation: cs-chip-bob 6s ease-in-out infinite;
 }
-.cs-chip--a { left: 12%; top: 24%; animation-delay: 0s;   }
-.cs-chip--b { right: 10%; top: 18%; animation-delay: 0.7s; color: #b196ff; border-color: rgba(167,139,250,0.55); text-shadow: 0 0 12px rgba(167,139,250,0.6); }
-.cs-chip--c { left: 18%; bottom: 18%; animation-delay: 1.4s; color: #7be0a8; border-color: rgba(123,224,168,0.55); text-shadow: 0 0 12px rgba(123,224,168,0.6); }
+.cs-chip--a { left: 7%;  top: 28%; animation-delay: 0s; }
+.cs-chip--b { right: 9%; top: 22%; animation-delay: 0.9s; color: #b196ff; border-color: rgba(177,150,255,0.5); text-shadow: 0 0 12px rgba(177,150,255,0.55); }
+.cs-chip--c { left: 13%; bottom: 18%; animation-delay: 1.7s; color: #7be0a8; border-color: rgba(123,224,168,0.5); text-shadow: 0 0 12px rgba(123,224,168,0.55); }
 @keyframes cs-chip-bob {
   0%, 100% { transform: translateY(0)    rotate(-2deg); }
-  50%      { transform: translateY(-6px) rotate(2deg);  }
+  50%      { transform: translateY(-7px) rotate(2deg);  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cs-aurora--anim,
-  .cs-card-wrap--anim,
-  .cs-wallet--anim,
-  .cs-ring,
-  .cs-bill,
-  .cs-coin,
-  .cs-spark,
-  .cs-chip { animation: none !important; }
+  .cs-aurora--anim, .cs-card-wrap--anim, .cs-star, .cs-shimmer::before,
+  .cs-coin, .cs-bill, .cs-spark, .cs-chip { animation: none !important; }
 }
 
 /* ─── pi-halo (added for PathIllustration aurora pulse) ─── */
