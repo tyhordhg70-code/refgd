@@ -282,7 +282,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         // #paths with nothing to fight. We deliberately do NOT own the scroll
         // position per frame — that fought live momentum and FROZE (rounds 16 &
         // 18) — and we do NOT add a settle-snap afterwards (that was the yank).
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        //
+        // LANDING TARGET: #paths has a big `pt-[16vh]` "arrival" padding (pure
+        // empty space at the top). Landing on the section's padding-box top eats
+        // ~16vh of viewport and pushes the "Swipe to choose your door" caption
+        // below the iOS fold. So on mobile we land on the intro CONTENT (which
+        // starts AFTER that padding) with a little breathing room above it, so
+        // the full carousel + dots + caption all sit in frame. Layout-proof:
+        // it measures the real element rather than hard-coding the padding.
+        const landEl = (target.querySelector(".paths-intro") as HTMLElement | null) ?? target;
+        const landTop = landEl.getBoundingClientRect().top + window.scrollY;
+        const topBreathing = window.innerHeight * 0.05;
+        window.scrollTo({ top: Math.max(0, landTop - topBreathing), behavior: "smooth" });
       }
       const t0 = performance.now();
       const drive = (now: number) => {
@@ -524,7 +535,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-3d-back-19"
+      data-hero-build="mobile-3d-back-20"
       className="relative w-full overflow-hidden"
       style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
     >
