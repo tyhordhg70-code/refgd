@@ -1930,6 +1930,25 @@ html { overflow-anchor: none; }
   .pi-animated * { animation: none !important; }
 }
 
+/* === Offscreen pause for decorative sections (v6.14.x) ===
+   OffscreenGlowPauser toggles data-anim-paused on [data-anim-section]
+   roots (CashbackScene .cs-stage, LedJoySection .lj-stage, AnimatedDivider,
+   awarded CTA) when they scroll fully out of view, freezing every infinite
+   CSS keyframe in the subtree so the compositor stops re-rasterising
+   offscreen glow/float layers — the root cause of the iOS scroll lag and
+   the "Why choose us" card eviction. Framer (WAAPI/JS) fly-ins are NOT
+   affected by animation-play-state, so one-shot reveals still play. */
+:where(
+  [data-anim-paused="true"],
+  [data-anim-paused="true"] *,
+  [data-anim-paused="true"]::before,
+  [data-anim-paused="true"]::after,
+  [data-anim-paused="true"] *::before,
+  [data-anim-paused="true"] *::after
+) {
+  animation-play-state: paused !important;
+}
+
 
 /* ─────────────────────────────────────────────────────────────────
  * CashbackScene — pure-CSS keyframes ("Get rewarded for shopping
@@ -2655,4 +2674,135 @@ select option:hover {
     @media (prefers-reduced-motion: reduce) {
       .safe-reveal-up, .safe-reveal-scale-x { animation: none !important; }
     }
+
+/* ─────────────────────────────────────────────────────────────────
+ * refgd-storelist redesign (v6.14.x) — AnimatedDivider "current of
+ * value" strip + Act-5 awarded CTA "award medallion" shell. Every
+ * decorative motion below is a CSS @keyframe (transform/opacity +
+ * on-screen-only drop-shadow) so it is compositor-cheap AND frozen
+ * offscreen by OffscreenGlowPauser via the [data-anim-section] roots.
+ * ───────────────────────────────────────────────────────────────── */
+
+/* ---- AnimatedDivider: cohesive luminous rail + travelling sweep
+ * carrying a small curated cluster of cashback glyphs (coins, sparkle,
+ * bag, tag) bobbing + glow-pulsing on staggered CSS keyframes. ---- */
+@keyframes dv-floatA {
+  0%   { transform: translate3d(0, 0, 0); }
+  25%  { transform: translate3d(10px, -22px, 0); }
+  50%  { transform: translate3d(-6px, 8px, 0); }
+  75%  { transform: translate3d(8px, -12px, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+@keyframes dv-floatB {
+  0%   { transform: translate3d(0, 0, 0); }
+  25%  { transform: translate3d(-12px, 16px, 0); }
+  50%  { transform: translate3d(9px, -14px, 0); }
+  75%  { transform: translate3d(-7px, 12px, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+@keyframes dv-glow {
+  0%, 100% { opacity: 0.55; filter: drop-shadow(0 0 7px var(--g)); }
+  50%      { opacity: 1;    filter: drop-shadow(0 0 18px var(--g)) drop-shadow(0 0 30px var(--g2)); }
+}
+@keyframes dv-sweep {
+  0%   { transform: translateX(-30%); opacity: 0; }
+  14%  { opacity: 1; }
+  86%  { opacity: 1; }
+  100% { transform: translateX(130%); opacity: 0; }
+}
+@keyframes dv-rail {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 0.85; }
+}
+@keyframes dv-twinkle {
+  0%, 100% { opacity: 0.12; transform: scale(0.7); }
+  50%      { opacity: 1;    transform: scale(1.1); }
+}
+.dv-floater {
+  position: absolute;
+  top: 50%;
+  will-change: transform, opacity, filter;
+  animation:
+    dv-floatA var(--dur, 6s) ease-in-out var(--delay, 0s) infinite,
+    dv-glow   var(--gdur, 4s) ease-in-out var(--delay, 0s) infinite;
+}
+.dv-floater--b { animation-name: dv-floatB, dv-glow; }
+.dv-rail {
+  position: absolute;
+  left: 0; right: 0; top: 50%;
+  height: 1px;
+  transform: translateY(-0.5px);
+  background: linear-gradient(90deg, transparent, rgba(245,185,69,0.5) 35%, rgba(167,139,250,0.5) 65%, transparent);
+  animation: dv-rail 5s ease-in-out infinite;
+}
+.dv-sweep {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 22%;
+  height: 2px;
+  transform: translateY(-1px);
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, #ffe28a, transparent);
+  filter: drop-shadow(0 0 8px rgba(255,226,138,0.9));
+  animation: dv-sweep 7s ease-in-out infinite;
+}
+.dv-twinkle {
+  position: absolute;
+  width: 3px; height: 3px;
+  border-radius: 999px;
+  background: #fff;
+  will-change: opacity, transform;
+  animation: dv-twinkle var(--tdur, 3s) ease-in-out var(--delay, 0s) infinite;
+}
+
+/* ---- Awarded CTA: "award medallion spotlight" — luminous gradient
+ * rim, diagonal sheen sweep, spinning #1 seal, corner ticks, sparks. */
+@keyframes ac-sheen {
+  0%   { transform: translateX(-130%) skewX(-16deg); opacity: 0; }
+  14%  { opacity: 0.55; }
+  50%  { opacity: 0.18; }
+  86%  { opacity: 0.55; }
+  100% { transform: translateX(240%) skewX(-16deg); opacity: 0; }
+}
+@keyframes ac-rim {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.8; }
+}
+@keyframes ac-seal-spin { to { transform: rotate(360deg); } }
+@keyframes ac-spark {
+  0%, 100% { opacity: 0.25; transform: scale(0.8); }
+  50%      { opacity: 0.9;  transform: scale(1.15); }
+}
+.ac-panel { position: relative; border-radius: 2.5rem; isolation: isolate; }
+.ac-rim {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(135deg, rgba(245,185,69,0.85), rgba(167,139,250,0.4) 45%, rgba(34,211,238,0.35) 75%, rgba(245,185,69,0.7));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask-composite: exclude;
+  animation: ac-rim 6s ease-in-out infinite;
+  pointer-events: none;
+}
+.ac-sheen-wrap { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.ac-sheen {
+  position: absolute;
+  top: -20%;
+  left: 0;
+  width: 36%;
+  height: 140%;
+  background: linear-gradient(90deg, transparent, rgba(255,226,138,0.28), transparent);
+  animation: ac-sheen 7.5s ease-in-out infinite;
+}
+.ac-seal-ring { animation: ac-seal-spin 26s linear infinite; transform-origin: center; }
+.ac-spark { will-change: opacity, transform; animation: ac-spark var(--sdur, 3.4s) ease-in-out var(--delay, 0s) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dv-floater, .dv-floater--b, .dv-rail, .dv-sweep, .dv-twinkle,
+  .ac-rim, .ac-sheen, .ac-seal-ring, .ac-spark { animation: none !important; }
+}
 

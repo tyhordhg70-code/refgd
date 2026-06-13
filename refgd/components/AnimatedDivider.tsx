@@ -1,105 +1,120 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
-
 /**
  * AnimatedDivider
  * ─────────────────────────────────────────────────────────────────
- * Decorative animated divider that lives between two chapters. A
- * cluster of floating shopping icons drifts across the band in a
- * soft horizontal current — coins, bags, and sparkles — with a
- * subtle amber wash beneath. Replaces a previously-static decorative
- * background image so the visitor sees life between sections.
+ * Decorative animated divider that lives between two chapters (the
+ * "How it works" step-3 card and "Why choose us").
+ *
+ * v6.14.x redesign — "a current of value". The old version scattered
+ * 12 shopping icons across the band, each driven by an always-on
+ * Framer infinite loop (12 JS-driven rasterising layers that kept the
+ * compositor busy even off-screen). This version is a single cohesive
+ * luminous rail carrying a travelling light pulse left→right, with a
+ * small curated cluster of cashback glyphs — coins, a sparkle, a bag,
+ * a tag — riding the current, bobbing and glow-pulsing on staggered
+ * CSS keyframes. Reads as money flowing from one chapter into the next.
+ *
+ * All motion is pure CSS (see globals.css .dv-*), so it is compositor-
+ * cheap and frozen offscreen by OffscreenGlowPauser via the
+ * data-anim-section root. prefers-reduced-motion disables it in CSS.
  */
-const ICONS = [
-  // Shopping bag
-  "M6 7h12l-1.2 12.3a2 2 0 0 1-2 1.7H9.2a2 2 0 0 1-2-1.7L6 7zM9 7V5a3 3 0 0 1 6 0v2",
-  // Coin (circle)
-  "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6v12M9 9h4.5a1.5 1.5 0 0 1 0 3H10a2 2 0 0 0 0 4h5",
-  // Sparkle
-  "M12 2v6M12 16v6M2 12h6M16 12h6M5 5l4 4M15 15l4 4M5 19l4-4M15 9l4-4",
-  // Tag
-  "M20.6 12.6 12 21.2 2.8 12V2.8H12L20.6 11.4a1 1 0 0 1 0 1.2zM7.5 7.5h.01",
-  // Gift box
-  "M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z",
+
+const GLYPHS = {
+  bag: "M6 7h12l-1.2 12.3a2 2 0 0 1-2 1.7H9.2a2 2 0 0 1-2-1.7L6 7zM9 7V5a3 3 0 0 1 6 0v2",
+  coin: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6v12M9 9h4.5a1.5 1.5 0 0 1 0 3H10a2 2 0 0 0 0 4h5",
+  sparkle: "M12 2v6M12 16v6M2 12h6M16 12h6M5 5l4 4M15 15l4 4M5 19l4-4M15 9l4-4",
+  tag: "M20.6 12.6 12 21.2 2.8 12V2.8H12L20.6 11.4a1 1 0 0 1 0 1.2zM7.5 7.5h.01",
+};
+
+type Floater = {
+  d: string;
+  leftPct: number;
+  topPct: number;
+  size: number;
+  color: string;
+  glow2: string;
+  dur: string;
+  gdur: string;
+  delay: string;
+  variant?: "b";
+};
+
+const FLOATERS: Floater[] = [
+  { d: GLYPHS.coin,    leftPct: 12, topPct: 42, size: 34, color: "#f5b945", glow2: "rgba(245,185,69,0.45)", dur: "6.5s", gdur: "4s",   delay: "0s" },
+  { d: GLYPHS.sparkle, leftPct: 26, topPct: 60, size: 22, color: "#22d3ee", glow2: "rgba(34,211,238,0.4)",  dur: "5.5s", gdur: "3.4s", delay: "0.8s", variant: "b" },
+  { d: GLYPHS.bag,     leftPct: 39, topPct: 38, size: 30, color: "#a78bfa", glow2: "rgba(167,139,250,0.4)", dur: "7s",   gdur: "4.6s", delay: "0.3s" },
+  { d: GLYPHS.coin,    leftPct: 52, topPct: 64, size: 26, color: "#7be0a8", glow2: "rgba(123,224,168,0.4)", dur: "6s",   gdur: "3.8s", delay: "1.2s", variant: "b" },
+  { d: GLYPHS.tag,     leftPct: 64, topPct: 40, size: 28, color: "#f5b945", glow2: "rgba(245,185,69,0.45)", dur: "6.8s", gdur: "4.2s", delay: "0.5s" },
+  { d: GLYPHS.sparkle, leftPct: 76, topPct: 58, size: 20, color: "#a78bfa", glow2: "rgba(167,139,250,0.4)", dur: "5.2s", gdur: "3.2s", delay: "1.6s", variant: "b" },
+  { d: GLYPHS.coin,    leftPct: 88, topPct: 44, size: 32, color: "#22d3ee", glow2: "rgba(34,211,238,0.4)",  dur: "7.2s", gdur: "4.4s", delay: "0.2s" },
+];
+
+const TWINKLES = [
+  { l: "18%", t: "28%", d: "0s",   dur: "2.8s" },
+  { l: "33%", t: "74%", d: "0.7s", dur: "3.4s" },
+  { l: "48%", t: "30%", d: "1.3s", dur: "2.6s" },
+  { l: "60%", t: "76%", d: "0.4s", dur: "3.1s" },
+  { l: "72%", t: "30%", d: "1.8s", dur: "2.9s" },
+  { l: "84%", t: "70%", d: "1.0s", dur: "3.5s" },
 ];
 
 export default function AnimatedDivider() {
-  const reduce = useReducedMotion();
-  // Render a row of 12 floaters across the band, each given a unique
-  // horizontal start, vertical bob phase, and icon glyph.
-  const items = Array.from({ length: 12 }, (_, i) => ({
-    icon: ICONS[i % ICONS.length],
-    leftPct: 5 + i * 8,
-    delay: (i % 6) * 0.4,
-    size: 28 + (i % 4) * 10,
-    // Tints alternate between amber, violet and cyan for richness.
-    color: ["#f5b945", "#a78bfa", "#22d3ee", "#f5b945"][i % 4],
-  }));
-
   return (
     <section
       aria-hidden="true"
+      data-anim-section
       className="relative isolate w-full overflow-hidden"
       style={{
         height: "clamp(180px, 22vh, 280px)",
         background:
-          "radial-gradient(ellipse at center, rgba(245,185,69,0.18) 0%, rgba(15,10,30,0) 70%), linear-gradient(90deg, rgba(8,6,18,0) 0%, rgba(15,10,30,0.5) 50%, rgba(8,6,18,0) 100%)",
+          "radial-gradient(ellipse at center, rgba(245,185,69,0.16) 0%, rgba(15,10,30,0) 70%), linear-gradient(90deg, rgba(8,6,18,0) 0%, rgba(15,10,30,0.5) 50%, rgba(8,6,18,0) 100%)",
       }}
     >
       {/* Top + bottom hairline glows */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/40 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-violet-300/40 to-transparent" />
 
-      {items.map((it, i) => (
-        <motion.div
-          key={i}
-          initial={false}
-          animate={
-            reduce
-              ? undefined
-              : {
-                  /* v6.13.48 — Punchier float + glow pulse per user
-                     request to "animate the glowing icons below how
-                     it works cards". Vertical bob increased, horizontal
-                     drift added so the cluster feels like a live
-                     current, rotation amplified for personality, and
-                     scale + filter (drop-shadow blur radius) animated
-                     so each icon visibly pulses brighter at peak. */
-                  y: [0, -34, 6, 22, -10, 0],
-                  x: [0, 14, -10, 8, -6, 0],
-                  rotate: [0, 14, -10, 6, -4, 0],
-                  scale: [1, 1.18, 0.92, 1.1, 0.96, 1],
-                  opacity: [0.55, 1, 0.7, 1, 0.65, 0.55],
-                  filter: [
-                    `drop-shadow(0 0 8px ${it.color}80)`,
-                    `drop-shadow(0 0 22px ${it.color}ee) drop-shadow(0 0 38px ${it.color}66)`,
-                    `drop-shadow(0 0 10px ${it.color}aa)`,
-                    `drop-shadow(0 0 24px ${it.color}ee) drop-shadow(0 0 36px ${it.color}77)`,
-                    `drop-shadow(0 0 12px ${it.color}aa)`,
-                    `drop-shadow(0 0 8px ${it.color}80)`,
-                  ],
-                }
-          }
-          transition={{
-            duration: 5 + (i % 5),
-            repeat: Infinity,
-            delay: it.delay,
-            ease: "easeInOut",
-          }}
-          className="absolute top-1/2 -translate-y-1/2 will-change-transform"
+      {/* central rail + travelling sweep */}
+      <div className="dv-rail" />
+      <div className="dv-sweep" />
+
+      {/* twinkles */}
+      {TWINKLES.map((t, i) => (
+        <span
+          key={`tw-${i}`}
+          className="dv-twinkle"
           style={{
-            left: `${it.leftPct}%`,
-            width: it.size,
-            height: it.size,
-            color: it.color,
-            filter: `drop-shadow(0 0 12px ${it.color}aa)`,
+            left: t.l,
+            top: t.t,
+            ["--delay" as string]: t.d,
+            ["--tdur" as string]: t.dur,
+          }}
+        />
+      ))}
+
+      {/* glyph current */}
+      {FLOATERS.map((f, i) => (
+        <div
+          key={`fl-${i}`}
+          className={`dv-floater${f.variant === "b" ? " dv-floater--b" : ""}`}
+          style={{
+            left: `${f.leftPct}%`,
+            top: `${f.topPct}%`,
+            width: f.size,
+            height: f.size,
+            color: f.color,
+            ["--g" as string]: f.color,
+            ["--g2" as string]: f.glow2,
+            ["--dur" as string]: f.dur,
+            ["--gdur" as string]: f.gdur,
+            ["--delay" as string]: f.delay,
           }}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
-            <path d={it.icon} />
+            <path d={f.d} />
           </svg>
-        </motion.div>
+        </div>
       ))}
     </section>
   );

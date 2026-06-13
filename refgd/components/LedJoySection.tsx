@@ -199,6 +199,7 @@ export default function LedJoySection() {
          so the LED text sits in the middle of the viewport when
          the beat triggers. */
       className="lj-stage relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden pt-2 pb-12 sm:pt-4 sm:pb-16"
+      data-anim-section
       data-storelist-build="constellation-1"
     >
       {/* v6.13.68 — debug overlay (only renders when ?debug=1). */}

@@ -587,16 +587,73 @@ export default function ServiceSection(
                 ambient shadow to a tighter, lower-alpha drop so
                 the card still has presence but no longer reads
                 as a flashing/over-saturated rim. */}
-            <div
-              className="relative rounded-[2.5rem] border border-amber-400/15 p-10 text-center sm:p-16"
-              style={{
-                background:
-                  "linear-gradient(160deg, rgba(40,22,4,0.88) 0%, rgba(20,12,4,0.92) 100%)",
-                boxShadow:
-                  "0 22px 60px -22px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)",
-              }}
-            >
-              <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/80 to-transparent" />
+            {/* v6.14.x — "award medallion spotlight" redesign. The flat
+                amber box is now a framed certificate: a layered amber→ink
+                surface lit from the top, a luminous gradient rim, a slow
+                diagonal sheen sweep, corner accent ticks, twinkle sparks,
+                and a spinning #1 seal cresting the top edge. All decorative
+                motion is CSS (.ac-* in globals.css) so it is compositor-
+                cheap and frozen offscreen via data-anim-section. The real
+                editable content (eyebrow / title / body / both CTAs) is
+                preserved verbatim inside the z-10 content layer. */}
+            <div className="ac-panel relative p-10 text-center sm:p-16" data-anim-section>
+              {/* layered award surface */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 rounded-[2.5rem]"
+                style={{
+                  background:
+                    "radial-gradient(120% 90% at 50% -10%, rgba(245,185,69,0.18), transparent 55%), linear-gradient(160deg, rgba(40,22,4,0.92) 0%, rgba(18,11,4,0.95) 100%)",
+                  boxShadow:
+                    "0 30px 80px -30px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.05)",
+                }}
+              />
+              {/* luminous gradient rim + diagonal sheen sweep */}
+              <span aria-hidden="true" className="ac-rim" />
+              <span aria-hidden="true" className="ac-sheen-wrap">
+                <span className="ac-sheen" />
+              </span>
+
+              {/* corner accent ticks */}
+              <svg aria-hidden="true" className="pointer-events-none absolute left-5 top-5 h-5 w-5 text-amber-300/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 9V3h6" strokeLinecap="round" /></svg>
+              <svg aria-hidden="true" className="pointer-events-none absolute right-5 top-5 h-5 w-5 rotate-90 text-amber-300/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 9V3h6" strokeLinecap="round" /></svg>
+              <svg aria-hidden="true" className="pointer-events-none absolute bottom-5 left-5 h-5 w-5 -rotate-90 text-amber-300/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 9V3h6" strokeLinecap="round" /></svg>
+              <svg aria-hidden="true" className="pointer-events-none absolute bottom-5 right-5 h-5 w-5 rotate-180 text-amber-300/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 9V3h6" strokeLinecap="round" /></svg>
+
+              {/* twinkle sparks */}
+              <span aria-hidden="true" className="ac-spark absolute left-[14%] top-[24%] h-1.5 w-1.5 rounded-full bg-amber-200" style={{ ["--delay" as string]: "0s", ["--sdur" as string]: "3.2s" }} />
+              <span aria-hidden="true" className="ac-spark absolute right-[16%] top-[30%] h-1 w-1 rounded-full bg-violet-200" style={{ ["--delay" as string]: "1.1s", ["--sdur" as string]: "3.8s" }} />
+              <span aria-hidden="true" className="ac-spark absolute bottom-[26%] right-[22%] h-1.5 w-1.5 rounded-full bg-cyan-200" style={{ ["--delay" as string]: "0.6s", ["--sdur" as string]: "3.4s" }} />
+
+              {/* #1 award seal cresting the top edge */}
+              <div className="absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1/2">
+                <div
+                  className="grid h-16 w-16 place-items-center rounded-full sm:h-20 sm:w-20"
+                  style={{
+                    background: "radial-gradient(circle at 50% 35%, #2a1804, #0d0803)",
+                    boxShadow: "0 8px 24px -8px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,226,138,0.25)",
+                  }}
+                >
+                  <svg viewBox="0 0 100 100" className="ac-seal-ring absolute h-full w-full" fill="none" aria-hidden="true">
+                    <circle cx="50" cy="50" r="44" stroke="rgba(245,185,69,0.5)" strokeWidth="1.5" strokeDasharray="3 5" />
+                    {Array.from({ length: 24 }).map((_, i) => {
+                      const a = (i / 24) * Math.PI * 2;
+                      const x1 = 50 + Math.cos(a) * 40;
+                      const y1 = 50 + Math.sin(a) * 40;
+                      const x2 = 50 + Math.cos(a) * 46;
+                      const y2 = 50 + Math.sin(a) * 46;
+                      return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(245,185,69,0.35)" strokeWidth="2" />;
+                    })}
+                  </svg>
+                  <div className="relative text-center leading-none">
+                    <span className="block text-[8px] font-semibold uppercase tracking-[0.2em] text-amber-200/80">no.</span>
+                    <span className="block text-xl font-black text-amber-100 sm:text-2xl" style={{ textShadow: "0 0 14px rgba(245,185,69,0.6)" }}>1</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* content layer — real editable components preserved verbatim */}
+              <div className="relative z-10">
               <EditableText
                 id="service.awarded.eyebrow"
                 defaultValue="— awarded #1 service · @refundgod"
@@ -655,6 +712,7 @@ export default function ServiceSection(
                     </svg>
                   }
                 />
+              </div>
               </div>
             </div>
           </Reveal>

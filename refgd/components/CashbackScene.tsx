@@ -36,6 +36,7 @@ export default function CashbackScene({
   return (
     <motion.div
       aria-hidden="true"
+      data-anim-section
       className={`pointer-events-none relative cs-stage ${className}`}
       style={{ width: size, height: size, ["--cs-size" as any]: `${size}px` }}
       initial={{ opacity: 0, scale: 0.92, y: 20 }}
