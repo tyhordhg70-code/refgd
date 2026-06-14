@@ -150,24 +150,48 @@ export default function GlassCard({
   // already-finished card when the splash fades.
   const ref = useRef<HTMLDivElement | null>(null);
   const [revealed, setRevealed] = useState(false);
+  // v6.14.x — mobile-only "visible-pending" state: the card stays in its
+  // visible base state (NOT .gc-pending opacity:0) while waiting for its
+  // scroll-trigger, so it can never be stranded invisible on a phone.
+  const [mobileVisiblePending, setMobileVisiblePending] = useState(false);
   const entranceReady = useEntranceReady();
   useEffect(() => {
     if (!entranceReady) return;
     const el = ref.current;
     if (!el) return;
-    // v40 — On mobile-like devices, reveal immediately and DO NOT set up
-    // an IntersectionObserver. The IO-gated `.gc-pending` state
-    // (opacity:0) is the only reveal path on this site with NO mobile
-    // safety net, and on mobile the compositor's tile-eviction /
-    // paint-skip bug can leave a still-pending card stuck invisible —
-    // exactly the "glass cards still vanish" report. Revealing on mount
-    // lets the entrance keyframe play once and guarantees the card lands
-    // visible (the keyframe ends on opacity:1 and fill-mode:backwards
-    // falls back to the base `opacity:1`). It never sits in gc-pending,
-    // so there is nothing for the compositor to drop and leave blank.
+    // v6.14.x — MOBILE scroll-triggered reveal (boxes were static on phones).
+    // Earlier (v40) mobile revealed on MOUNT to dodge the "cards vanish" bug —
+    // but that fired every below-the-fold card's entrance keyframe at
+    // splash-lift while off-screen, so by scroll-time they looked static (the
+    // "Why choose us boxes don't animate" report). We now scroll-trigger on
+    // mobile too, WITHOUT the persistent opacity:0 `.gc-pending` pre-state that
+    // caused the vanish: the card renders in its VISIBLE base state while
+    // waiting and only gains the keyframe class as it nears the viewport. If
+    // the IO never fires the card simply stays visible (static) — it can never
+    // be stranded invisible. A positive bottom rootMargin starts the keyframe
+    // just BELOW the fold so there is no visible blink.
     if (isMobileLike()) {
-      setRevealed(true);
-      return;
+      setMobileVisiblePending(true);
+      const rm = el.getBoundingClientRect();
+      if (rm.top < (window.innerHeight || 0) * 0.98 && rm.bottom > 0) {
+        setRevealed(true);
+        return;
+      }
+      if (typeof IntersectionObserver === "undefined") return;
+      const mio = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (e.isIntersecting) {
+              setRevealed(true);
+              mio.disconnect();
+              break;
+            }
+          }
+        },
+        { rootMargin: "0px 0px 12% 0px", threshold: 0 },
+      );
+      mio.observe(el);
+      return () => mio.disconnect();
     }
     // If the card is already visible on first paint (above-the-fold
     // hero panels, etc.), reveal immediately.
@@ -201,7 +225,9 @@ export default function GlassCard({
       className={
         revealed
           ? `group glass-card-reveal glass-card-reveal--${v} h-full will-change-transform`
-          : `group gc-pending h-full will-change-transform`
+          : mobileVisiblePending
+            ? `group h-full will-change-transform`
+            : `group gc-pending h-full will-change-transform`
       }
       style={{ animationDelay: `${delay}s` }}
     >

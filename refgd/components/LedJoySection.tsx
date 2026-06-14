@@ -3,394 +3,263 @@
 import { motion, useReducedMotion, useInView } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 
+// Single gold $100 bill (SVG). `pfx` keeps each instance's gradient ids
+// unique so stacked bills never share (and clobber) one another's <defs>.
+function CashBill({ pfx, size }: { pfx: string; size: number }) {
+  return (
+    <svg viewBox="0 0 120 60" width={size} height={size * 0.5} className="jb3-bill-svg">
+      <defs>
+        <linearGradient id={`${pfx}bill`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#114f24" />
+          <stop offset="40%" stopColor="#1a7437" />
+          <stop offset="100%" stopColor="#0d3d1b" />
+        </linearGradient>
+        <linearGradient id={`${pfx}trim`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#ffe28a" />
+          <stop offset="60%" stopColor="#f5b945" />
+          <stop offset="100%" stopColor="#b45309" />
+        </linearGradient>
+        <linearGradient id={`${pfx}glow`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(123, 224, 168, 0.4)" />
+          <stop offset="100%" stopColor="transparent" />
+        </linearGradient>
+      </defs>
+      <rect x="2" y="2" width="116" height="56" rx="6" fill={`url(#${pfx}bill)`} stroke={`url(#${pfx}trim)`} strokeWidth="1.5" />
+      <rect x="8" y="8" width="104" height="44" rx="4" fill="none" stroke={`url(#${pfx}trim)`} strokeWidth="1" opacity="0.8" />
+      <circle cx="60" cy="30" r="14" fill="#0f3d20" stroke={`url(#${pfx}trim)`} strokeWidth="1.5" />
+      <text x="60" y="38" textAnchor="middle" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="900" fontSize="22" fill={`url(#${pfx}trim)`}>$</text>
+      <text x="14" y="18" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="800" fontSize="10" fill="#7be0a8">100</text>
+      <text x="106" y="52" textAnchor="end" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="800" fontSize="10" fill="#7be0a8">100</text>
+      <rect x="3" y="3" width="114" height="20" rx="5" fill={`url(#${pfx}glow)`} pointerEvents="none" />
+    </svg>
+  );
+}
+
 /**
- * LedJoySection
+ * LedJoySection — "Happy Shoppers" cosmic cashback beat.
  * ─────────────────────────────────────────────────────────────────
- * Full-screen "digital LED text sign" beat that plays once when the
- * visitor scrolls into it. Two phases:
- *
- *   1) "AHHHH" — five letters fly in horizontally, fast paced, with
- *      a tiny stagger so it reads like a marquee scroll.
- *   2) "feel the joy of cashback" — words slide in from the right
- *      one-by-one in quick succession, again like a moving LED panel.
- *
- * Visual is amber dot-matrix LED on near-black, with subtle scanline
- * overlay and amber bloom for the lit-bulb feel. The section itself
- * is min-h-100svh so the LED sign is the ONLY thing on screen during
- * playback.
+ * A full-screen beat that plays once when the visitor scrolls into it:
+ *   1) "AHHHH" — five gold-3D letters fly in horizontally with a tiny
+ *      stagger so it reads like a marquee.
+ *   2) "feel the joy of cashback" — words slide in from the right.
+ * Below the headline the owner's transparent shopper illustration
+ * floats gently under a soft glow halo, with a full-width money rain
+ * drifting down behind the scene. Visual is a deep cosmic starfield
+ * with amber + violet bloom. Section is min-h-100svh so the beat owns
+ * the screen during playback. All infinite CSS keyframes live inside
+ * this [data-anim-section] root so OffscreenGlowPauser freezes them
+ * when the section scrolls out of view (iOS compositor perf).
  */
 export default function LedJoySection() {
   const ref = useRef<HTMLElement | null>(null);
   const reduce = useReducedMotion();
-  /* v6.13.36 — Restored a real "play when in view" trigger after the
-     v6.13.32 fire-on-mount approach broke the beat in the opposite
-     way: by the time visitors scrolled down to the LED section the
-     animation had already completed off-screen, so they saw static
-     letters with no animation — exactly the "AHH feel joy animation
-     is gone" report.
-
-     This implementation uses framer's `useInView` with a generous
-     `amount: 0.05` + `margin: "200px 0px 200px 0px"` so the trigger
-     fires WELL before the section is fully in view (avoiding the
-     iOS Safari coalesced-IO problem from v6.13.19). On top of that,
-     a polling fallback flips the trigger on once the section's
-     bounding rect crosses the viewport — covering the rare case
-     where the IntersectionObserver still doesn't fire (back/forward
-     restore, low-power mode, etc.). */
-  /* v6.13.39 — Bullet-proof play trigger.
-     User reported "still not seeing animation for AHH feel the joy
-     and cash animation is gone". The previous v6.13.36 implementation
-     gated everything on `useInView` + a polling fallback BUT both
-     paths only set `played=true` once. On real iOS Safari with the
-     scroll snap on /store-list, the framer useInView IO callback was
-     occasionally never delivered before the section was already in
-     view (a known Safari issue with composited transforms in scroll-
-     snap containers), and our polling check `r.top - 200 <= vh`
-     required the user to actually scroll into the section's vicinity
-     before firing — fine on desktop, but on iPad / iPhone with the
-     URL bar collapse and momentum scroll the rect can briefly read
-     `top > vh` even after the section is visually showing.
-     This new approach uses THREE independent triggers, any of which
-     flips the play state on:
-       1. Native IntersectionObserver with rootMargin "0px 0px 50% 0px"
-          (so it fires when the top of the section is within 1.5
-          viewports of the bottom of the viewport).
-       2. requestAnimationFrame loop that checks getBoundingClientRect
-          every frame for the first 30 s of the page lifetime — the
-          most expensive option but guaranteed to catch any case the
-          IO misses, and self-disabling after 30 s so it never costs
-          long-running CPU.
-       3. A first-user-scroll listener that flips play on the very
-          first scroll/touchmove, regardless of position. The visitor
-          ALWAYS scrolls down through this page (it's beneath the
-          cashback hero), so this guarantees the letters animate even
-          on the most degenerate Safari case. */
   const [played, setPlayed] = useState(false);
-  /* v6.13.68 — Debug instrumentation. When the page is loaded with
-       ?debug=1 the section renders a fixed-position pill in the top-
-       right corner showing live: play state, intersectionRatio, scroll
-       position, and section bounding-rect top/bottom relative to the
-       viewport. This makes it possible to see exactly why the IO is
-       not firing in the user's browser. The overlay is gated on the
-       query param so normal visitors never see it. */
-    const [debug, setDebug] = useState<{
-      enabled: boolean;
-      ratio: number;
-      isIntersecting: boolean;
-      rectTop: number;
-      rectBottom: number;
-      vh: number;
-      scrollY: number;
-      fired: boolean;
-    }>({ enabled: false, ratio: 0, isIntersecting: false, rectTop: 0, rectBottom: 0, vh: 0, scrollY: 0, fired: false });
+  /* When loaded with ?debug=1 the section renders a fixed-position pill
+     showing live play state / intersectionRatio / scroll position so we
+     can see why the IO is (not) firing. Gated on the query param. */
+  const [debug, setDebug] = useState<{
+    enabled: boolean;
+    ratio: number;
+    isIntersecting: boolean;
+    rectTop: number;
+    rectBottom: number;
+    vh: number;
+    scrollY: number;
+    fired: boolean;
+  }>({ enabled: false, ratio: 0, isIntersecting: false, rectTop: 0, rectBottom: 0, vh: 0, scrollY: 0, fired: false });
 
-    useEffect(() => {
-        /* v6.13.72 — robust play trigger.
-           Reverted v6.13.67's STRICT-IO-ONLY (threshold 0.3) approach
-           because on iOS Safari + Android Chrome the IO callback was
-           being missed on fast scrolls into the section, leaving the
-           letters stuck at opacity:0 / x:360 ("ahh fly-in is gone"
-           report). This restores the v6.13.39 triple-trigger design:
-             1. IO with low threshold (0.05) + rootMargin so it fires
-                as soon as the section enters the viewport.
-             2. scroll-listener fallback for the rare case where IO is
-                coalesced; fires when section top is within 85 % of
-                the viewport height.
-             3. first user-interaction listener as a last-ditch safety.
-           All three set the same one-shot `played` flag, so the fly-in
-           still plays exactly once. */
-        const el = ref.current;
-        if (typeof window === "undefined") return;
-        const sp = new URLSearchParams(window.location.search);
-        const debugOn = sp.get("debug") === "1";
-        if (debugOn) setDebug((d) => ({ ...d, enabled: true }));
+  useEffect(() => {
+    /* Robust one-shot play trigger. iOS Safari + Android Chrome can drop
+       the IO callback on fast scrolls into the section, stranding the
+       letters at opacity:0. So two independent triggers both flip the
+       same one-shot `played` flag: (1) IntersectionObserver, and
+       (2) a scroll-listener fallback. The fly-in still plays once. */
+    const el = ref.current;
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const debugOn = sp.get("debug") === "1";
+    if (debugOn) setDebug((d) => ({ ...d, enabled: true }));
 
-        let done = false;
-        const fire = () => {
-          if (done) return;
-          done = true;
-          setPlayed(true);
-          if (debugOn) setDebug((d) => ({ ...d, fired: true }));
-        };
+    let done = false;
+    const fire = () => {
+      if (done) return;
+      done = true;
+      setPlayed(true);
+      if (debugOn) setDebug((d) => ({ ...d, fired: true }));
+    };
 
-        if (!el) {
-          fire();
-          return;
-        }
+    if (!el) {
+      fire();
+      return;
+    }
 
-        // 1) IntersectionObserver — low threshold for reliable trigger.
-        let io: IntersectionObserver | null = null;
-        if ("IntersectionObserver" in window) {
-          io = new IntersectionObserver(
-            (entries) => {
-              for (const e of entries) {
-                if (debugOn) {
-                  const r = e.boundingClientRect;
-                  setDebug((d) => ({
-                    ...d,
-                    ratio: e.intersectionRatio,
-                    isIntersecting: e.isIntersecting,
-                    rectTop: Math.round(r.top),
-                    rectBottom: Math.round(r.bottom),
-                    vh: window.innerHeight,
-                    scrollY: Math.round(window.scrollY),
-                  }));
-                }
-                if (e.isIntersecting && e.intersectionRatio >= 0.50) {
-                  fire();
-                  io?.disconnect();
-                  break;
-                }
-              }
-            },
-            { threshold: [0, 0.05, 0.10, 0.15, 0.25, 0.50], rootMargin: "0px 0px 0px 0px" },
-          );
-          io.observe(el);
-        }
-
-        // 2) Scroll-listener fallback — if IO misses, fire when section
-        //    top is within 85 % of the viewport.
-        const onScroll = () => {
-          if (done) return;
-          const r = el.getBoundingClientRect();
-          if (r.top < window.innerHeight * 0.35 && r.bottom > 0) {
-            fire();
+    // 1) IntersectionObserver — low threshold for reliable trigger.
+    let io: IntersectionObserver | null = null;
+    if ("IntersectionObserver" in window) {
+      io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (debugOn) {
+              const r = e.boundingClientRect;
+              setDebug((d) => ({
+                ...d,
+                ratio: e.intersectionRatio,
+                isIntersecting: e.isIntersecting,
+                rectTop: Math.round(r.top),
+                rectBottom: Math.round(r.bottom),
+                vh: window.innerHeight,
+                scrollY: Math.round(window.scrollY),
+              }));
+            }
+            if (e.isIntersecting && e.intersectionRatio >= 0.50) {
+              fire();
+              io?.disconnect();
+              break;
+            }
           }
-        };
-        window.addEventListener("scroll", onScroll, { passive: true });
+        },
+        { threshold: [0, 0.05, 0.10, 0.15, 0.25, 0.50], rootMargin: "0px 0px 0px 0px" },
+      );
+      io.observe(el);
+    }
 
+    // 2) Scroll-listener fallback — if IO misses, fire when section
+    //    top is within 35 % of the viewport.
+    const onScroll = () => {
+      if (done) return;
+      const r = el.getBoundingClientRect();
+      if (r.top < window.innerHeight * 0.35 && r.bottom > 0) {
+        fire();
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
 
-        return () => {
-          io?.disconnect();
-          window.removeEventListener("scroll", onScroll);
-        };
-      }, []);
+    return () => {
+      io?.disconnect();
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
   const play = played;
-  // v6.13.19 — REPLACED `useInView` + state-driven `animate={inView ? ... : undefined}`
-  // with framer's `whileInView` API on each <motion.span> below.
-  // Root cause of "ahh feel joy animation gone": the previous
-  // `useInView(ref, { once: true, margin: "-15% 0px -15% 0px" })`
-  // required the section to be ≥30 % deep into the viewport
-  // before triggering. On iOS Safari, when the user lands on
-  // this section via the scrollytelling fast-snap or fast
-  // scroll, the IntersectionObserver callback can be coalesced
-  // and the trigger never fires. With `animate={undefined}`
-  // when inView=false, the letters stayed at their initial
-  // hidden state (opacity:0, x:360) FOREVER, so the user just
-  // saw a blank dark screen where the LED beat should be.
-  // `whileInView` with `viewport={{ once: true, amount: 0.15 }}`
-  // is much more robust on Safari + handles the case where the
-  // section is partially scrolled off-screen at mount time.
 
   const ahhLetters = "AHHHH".split("");
   const taglineChars = "feel the joy of cashback".split("");
+
+  // Gentle money rain — bills drift down the full width behind the scene.
+  // Delays are NEGATIVE so every bill starts already mid-fall at load (no
+  // pile-up at the top before the first cycle). Vars feed jb3-rain-fall.
+  const rainBills = [
+    { left: "8%",  size: 64, delay: "-3.2s", dur: "4s",   sway: "2vw",    r0: "-12deg", r1: "200deg" },
+    { left: "18%", size: 82, delay: "-1.1s", dur: "4.6s", sway: "-3vw",   r0: "8deg",   r1: "-220deg" },
+    { left: "28%", size: 56, delay: "-3.9s", dur: "4.8s", sway: "2.5vw",  r0: "-18deg", r1: "240deg" },
+    { left: "40%", size: 74, delay: "-0.7s", dur: "4.3s", sway: "-2vw",   r0: "14deg",  r1: "-260deg" },
+    { left: "52%", size: 60, delay: "-2.5s", dur: "5s",   sway: "3vw",    r0: "-10deg", r1: "210deg" },
+    { left: "62%", size: 86, delay: "-4s",   dur: "4.4s", sway: "-2.5vw", r0: "16deg",  r1: "-200deg" },
+    { left: "72%", size: 58, delay: "-1.8s", dur: "4.9s", sway: "2vw",    r0: "-14deg", r1: "230deg" },
+    { left: "82%", size: 78, delay: "-3.3s", dur: "4.2s", sway: "-3vw",   r0: "10deg",  r1: "-240deg" },
+    { left: "90%", size: 54, delay: "-0.9s", dur: "5.2s", sway: "2.5vw",  r0: "-16deg", r1: "220deg" },
+    { left: "13%", size: 50, delay: "-2.8s", dur: "5.3s", sway: "-2vw",   r0: "12deg",  r1: "-210deg" },
+    { left: "47%", size: 52, delay: "-4.4s", dur: "5s",   sway: "2vw",    r0: "-12deg", r1: "200deg" },
+    { left: "67%", size: 48, delay: "-1.4s", dur: "5.4s", sway: "-2.5vw", r0: "14deg",  r1: "-230deg" },
+  ];
 
   return (
     <section
       ref={ref}
       aria-label="Ahhh, feel the joy of cashback"
-      /* v6.13.11 — RESTORED to a full 100svh own-screen beat. The
-         user explicitly wants this to be its own dedicated screen
-         since the AHHHH letter-fly + tagline word-slide animation
-         needs the visual real-estate to land. Earlier shrinks
-         (60svh + items-start) made the beat feel like a label
-         tucked between two sections instead of the cinematic
-         pause it was designed as. Centred vertically + horizontally
-         so the LED text sits in the middle of the viewport when
-         the beat triggers. */
-      className="lj-stage relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden pt-2 pb-12 sm:pt-4 sm:pb-16"
+      className="jb3-cosmic-bg relative isolate flex min-h-[100svh] w-full items-start justify-center overflow-hidden pt-[4vh] pb-12 sm:pt-[6vh] sm:pb-16"
+      style={{ perspective: "1200px" }}
       data-anim-section
-      data-storelist-build="constellation-1"
+      data-storelist-build="joy-shoppers-1"
     >
-      {/* v6.13.68 — debug overlay (only renders when ?debug=1). */}
-        {debug.enabled && (
-          <div
-            aria-hidden="true"
-            style={{
-              position: "fixed",
-              top: 8,
-              right: 8,
-              zIndex: 99999,
-              padding: "8px 12px",
-              background: "rgba(0,0,0,0.85)",
-              color: debug.fired ? "#86efac" : "#fbbf24",
-              border: `2px solid ${debug.fired ? "#22c55e" : "#f59e0b"}`,
-              borderRadius: 8,
-              fontFamily: "ui-monospace, monospace",
-              fontSize: 11,
-              lineHeight: 1.4,
-              whiteSpace: "pre",
-              pointerEvents: "none",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.6)",
-            }}
-          >
-            {[
-              `LedJoy debug v6.13.68`,
-              `played   : ${played}`,
-              `fired    : ${debug.fired}`,
-              `isInView : ${debug.isIntersecting}`,
-              `ratio    : ${debug.ratio.toFixed(3)}`,
-              `rect.top : ${debug.rectTop}px`,
-              `rect.bot : ${debug.rectBottom}px`,
-              `viewportH: ${debug.vh}px`,
-              `scrollY  : ${debug.scrollY}px`,
-              `threshold: 0.50 (must hit)`,
-            ].join("\n")}
-          </div>
-        )}
-      {/* v6.13.36 — Cash redesign per user report: "cash animation
-          all cash should be in full shape and go further down never
-          cut off cash on first appearance".
-          Previous (v6.13.33) container had `overflow-hidden` AND
-          bills entered from `translateY(-150%)` so on the first frame
-          each bill's top half was sliced off by the container edge
-          — the user saw a half-bill emerging from a hard line.
-          Fixes:
-          • Removed `overflow-hidden` so a bill is never sliced.
-          • Container now extends WELL past the section bottom
-            (`-bottom-[60vh]`) so bills can keep falling and exit
-            cleanly off the bottom of the page instead of being
-            cropped at the section edge ("go further down").
-          • New keyframe: bills appear at FULL SHAPE (translateY 0%,
-            opacity 0) at the top of the container, fade in over the
-            first 12% of the cycle, ride down to translateY ~150%
-            and fade out. No more entering from above with a sliced
-            top half. */}
-      {/* v6.13.39 — Cash bills are now visible on EVERY viewport, not
-          just `md:hidden`. The user reported the cash animation was
-          "gone" on desktop too; the previous `md:hidden` gate was a
-          v6.13.33 mobile-only flourish that hid the bills entirely on
-          tablets and laptops. Removing the gate restores the full
-          beat for every visitor. */}
-      {/* ambient amber glow pools — gentle breath, compositor-only. */}
+      {/* debug overlay (only renders when ?debug=1). */}
+      {debug.enabled && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            top: 8,
+            right: 8,
+            zIndex: 99999,
+            padding: "8px 12px",
+            background: "rgba(0,0,0,0.85)",
+            color: debug.fired ? "#86efac" : "#fbbf24",
+            border: `2px solid ${debug.fired ? "#22c55e" : "#f59e0b"}`,
+            borderRadius: 8,
+            fontFamily: "ui-monospace, monospace",
+            fontSize: 11,
+            lineHeight: 1.4,
+            whiteSpace: "pre",
+            pointerEvents: "none",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.6)",
+          }}
+        >
+          {[
+            `LedJoy debug`,
+            `played   : ${played}`,
+            `fired    : ${debug.fired}`,
+            `isInView : ${debug.isIntersecting}`,
+            `ratio    : ${debug.ratio.toFixed(3)}`,
+            `rect.top : ${debug.rectTop}px`,
+            `rect.bot : ${debug.rectBottom}px`,
+            `viewportH: ${debug.vh}px`,
+            `scrollY  : ${debug.scrollY}px`,
+            `threshold: 0.50 (must hit)`,
+          ].join("\n")}
+        </div>
+      )}
+
+      {/* cosmic starfield + ambient glow orbs (offscreen-pausable). */}
+      <div aria-hidden="true" className="jb3-stars" />
       <div
         aria-hidden="true"
-        className="lj-glow"
-        style={{ left: "12%", top: "26%", width: "40vw", height: "40vw", background: "radial-gradient(circle, rgba(245,185,69,0.22), transparent 65%)" }}
+        className="jb3-glow-orb"
+        style={{ width: "55vw", height: "55vw", top: "-5%", left: "5%", background: "radial-gradient(circle, rgba(245,185,69,0.18) 0%, transparent 65%)" }}
       />
       <div
         aria-hidden="true"
-        className="lj-glow"
-        style={{ right: "8%", bottom: "20%", width: "34vw", height: "34vw", background: "radial-gradient(circle, rgba(245,140,40,0.18), transparent 65%)", animationDelay: "1.4s" }}
+        className="jb3-glow-orb"
+        style={{ width: "45vw", height: "45vw", bottom: "10%", right: "-5%", background: "radial-gradient(circle, rgba(167,139,250,0.12) 0%, transparent 65%)", animationDelay: "-3s" }}
       />
 
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 -bottom-[60vh] top-[42%] z-[1]"
-      >
-        <style>{`
-          @keyframes ledCashFall {
-            0%   { transform: translate3d(0, 0%, 0) rotate(var(--rot, -8deg)); opacity: 0; }
-            7%   { opacity: 1; }
-            48%  { transform: translate3d(calc(var(--sway, 8px)), 82%, 0) rotate(calc(var(--rot, -8deg) * -1.7)); opacity: 0.95; }
-            100% { transform: translate3d(calc(var(--sway, 8px) * -1.4), 200%, 0) rotate(calc(var(--rot, -8deg) * 2.4)); opacity: 0; }
-          }
-        `}</style>
-        {[
-          { left: "4%",  size: 56, delay: "0s",   dur: "2.8s", rot: "-9deg",  sway: "22px" },
-          { left: "14%", size: 44, delay: "0.6s", dur: "3.4s", rot: "7deg",   sway: "-26px" },
-          { left: "25%", size: 64, delay: "0.3s", dur: "2.6s", rot: "-6deg",  sway: "24px" },
-          { left: "36%", size: 40, delay: "1.2s", dur: "3.8s", rot: "15deg",  sway: "-20px" },
-          { left: "47%", size: 60, delay: "0.5s", dur: "3.0s", rot: "-14deg", sway: "28px" },
-          { left: "58%", size: 48, delay: "1.0s", dur: "3.5s", rot: "11deg",  sway: "-24px" },
-          { left: "68%", size: 54, delay: "0.1s", dur: "2.7s", rot: "-8deg",  sway: "26px" },
-          { left: "78%", size: 42, delay: "1.6s", dur: "4.0s", rot: "13deg",  sway: "-22px" },
-          { left: "88%", size: 56, delay: "0.4s", dur: "3.2s", rot: "-16deg", sway: "20px" },
-          { left: "96%", size: 38, delay: "1.9s", dur: "3.6s", rot: "10deg",  sway: "-28px" },
-        ].map((b, i) => (
-          <span
+      {/* gentle money rain — full width, behind the headline + illustration. */}
+      <div className="jb3-rain" aria-hidden="true">
+        {rainBills.map((r, i) => (
+          <div
             key={i}
-            className="absolute top-0"
+            className="jb3-rain-bill"
             style={{
-              left: b.left,
-              width: b.size,
-              height: b.size * 0.55,
-              ["--rot" as string]: b.rot,
-              ["--sway" as string]: b.sway,
-              /* v6.13.66 — drop reduce-motion gate so cash bills always fall. */
-                animation: `ledCashFall ${b.dur} ${b.delay} ease-in-out infinite`,
-              willChange: "transform, opacity",
+              left: r.left,
+              ["--delay" as string]: r.delay,
+              ["--dur" as string]: r.dur,
+              ["--sway" as string]: r.sway,
+              ["--r0" as string]: r.r0,
+              ["--r1" as string]: r.r1,
             }}
           >
-            <svg viewBox="0 0 60 33" width="100%" height="100%"
-              style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.45)) drop-shadow(0 0 10px rgba(74,222,128,0.45))" }}>
-              <defs>
-                <linearGradient id={`ljbill${i}`} x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor="#2a9b4d" />
-                  <stop offset="100%" stopColor="#15622f" />
-                </linearGradient>
-              </defs>
-              <rect x="1" y="1" width="58" height="31" rx="3.5" fill={`url(#ljbill${i})`} stroke="#86efac" strokeWidth="0.8" />
-              <rect x="3.5" y="3.5" width="53" height="26" rx="2.5" fill="none" stroke="#86efac" strokeWidth="0.4" opacity="0.5" />
-              <circle cx="30" cy="16.5" r="8" fill="#0f3d20" stroke="#86efac" strokeWidth="0.6" />
-              <text x="30" y="20.5" textAnchor="middle" fontFamily="'Courier New', monospace" fontWeight="900" fontSize="11" fill="#dcfce7">$</text>
-              <text x="7" y="9" fontFamily="'Courier New', monospace" fontWeight="700" fontSize="5" fill="#bbf7d0" opacity="0.8">100</text>
-              <text x="53" y="29" textAnchor="end" fontFamily="'Courier New', monospace" fontWeight="700" fontSize="5" fill="#bbf7d0" opacity="0.8">100</text>
-            </svg>
-          </span>
+            <CashBill pfx={`r${i}`} size={r.size} />
+          </div>
         ))}
       </div>
 
-      {/* LED PANEL overlays — dot-matrix grid, scanlines, vignette. */}
-      <div aria-hidden="true" className="lj-dot" />
-      <div aria-hidden="true" className="lj-scan" />
-      <div aria-hidden="true" className="lj-vignette" />
-
       <div className="container-wide relative z-10 grid place-items-center text-center">
-        {/* AHHHH — letters fly in horizontally fast */}
+        {/* AHHHH — gold 3D letters fly in horizontally fast */}
         <h2
           aria-hidden="true"
-          className="led-display flex justify-center gap-1 text-amber-300 sm:gap-2"
+          className="jb3-text-3d relative z-[2] flex justify-center gap-1 sm:gap-2"
           style={{
-            fontFamily:
-              '"Courier New", "Roboto Mono", ui-monospace, monospace',
+            fontFamily: "system-ui, -apple-system, sans-serif",
             fontWeight: 900,
-            letterSpacing: "0.05em",
+            letterSpacing: "0.02em",
             fontSize: "clamp(4.5rem, 22vw, 18rem)",
             lineHeight: 0.92,
-            textShadow:
-              "0 0 18px rgba(245,185,69,0.95), 0 0 48px rgba(245,185,69,0.6), 0 0 90px rgba(245,140,40,0.4)",
           }}
         >
           {ahhLetters.map((ch, i) => (
             <motion.span
               key={i}
-              /* v6.13.32 — User reported "Ahh feel joy is broken
-                 and not shown on mobile and animation gone".
-                 Root cause: `whileInView` with `viewport: { once
-                 true, amount: 0.15 }` was the recommended fix in
-                 v6.13.19 but on iOS Safari the IntersectionObserver
-                 still occasionally fails to fire when the section
-                 enters via fast scroll or fast-snap — when the
-                 trigger is missed the letters stay at their
-                 initial state (opacity:0) FOREVER and the user
-                 sees a blank dark screen.
-
-                 This new approach drops the viewport gate entirely
-                 and uses `animate` instead. The animation now
-                 fires on mount with no IntersectionObserver in the
-                 way. It can technically play before the user
-                 scrolls to the section, but because `min-h-100svh`
-                 puts the LED beat well below the fold and the
-                 letters are at their TO state for the rest of the
-                 page lifetime (no infinite loop), the visitor
-                 still experiences them as "fully lit" when they
-                 arrive. The previous broken case (blank dark
-                 screen) is impossible because there is no longer
-                 anything that has to fire to make the letters
-                 appear. */
-              /* v6.13.66 — drop reduce-motion ternary; always animate. */
-                initial={{ opacity: 0, x: 360, skewX: -28 }}
-                animate={
-                  play
-                    ? { opacity: 1, x: 0, skewX: 0 }
-                    : { opacity: 0, x: 360, skewX: -28 }
-                }
-              transition={{
-                duration: 0.32,
-                delay: play ? i * 0.07 : 0,
-                ease: [0.16, 1, 0.3, 1],
-              }}
+              initial={{ opacity: 0, x: 240, skewX: -22 }}
+              animate={play ? { opacity: 1, x: 0, skewX: 0 } : { opacity: 0, x: 240, skewX: -22 }}
+              transition={{ type: "spring", stiffness: 620, damping: 18, mass: 0.65, delay: play ? i * 0.05 : 0 }}
               className="inline-block"
               suppressHydrationWarning
             >
@@ -404,43 +273,39 @@ export default function LedJoySection() {
         {/* feel the joy of cashback — word by word fast */}
         <p
           aria-hidden="true"
-          className="led-display mt-6 flex flex-wrap justify-center gap-x-0 gap-y-0 text-amber-200 sm:mt-10"
+          className="relative z-[2] mt-6 flex flex-wrap justify-center gap-x-0 gap-y-0 text-[#ffe28a] sm:mt-10"
           style={{
-            fontFamily:
-              '"Courier New", "Roboto Mono", ui-monospace, monospace',
+            fontFamily: "system-ui, -apple-system, sans-serif",
             fontWeight: 700,
-            letterSpacing: "0.18em",
+            letterSpacing: "0.15em",
             textTransform: "uppercase",
             fontSize: "clamp(1rem, 3.4vw, 2.6rem)",
-            textShadow:
-              "0 0 14px rgba(245,185,69,0.85), 0 0 32px rgba(245,140,40,0.5)",
+            textShadow: "0 0 16px rgba(245,185,69,0.8), 0 0 36px rgba(245,140,40,0.5)",
           }}
         >
           {taglineChars.map((ch, i) => (
             <motion.span
               key={i}
-              /* v6.13.32 — same gate-removal as AHHH letters above. */
-              /* v6.13.66 — drop reduce-motion ternary; always animate. */
-                initial={{ opacity: 0, x: 160 }}
-                animate={
-                  play
-                    ? { opacity: 1, x: 0 }
-                    : { opacity: 0, x: 160 }
-                }
-              transition={{
-                duration: 0.19,
-                // Words start AFTER the AHHH letters finish. AHHH ends
-                // around 0.07*4 + 0.32 = 0.6s.
-                delay: play ? 0.62 + i * 0.036 : 0,
-                ease: [0.16, 1, 0.3, 1],
-              }}
+              initial={{ opacity: 0, x: 110 }}
+              animate={play ? { opacity: 1, x: 0 } : { opacity: 0, x: 110 }}
+              transition={{ type: "spring", stiffness: 540, damping: 24, delay: play ? 0.48 + i * 0.022 : 0 }}
               className="inline-block"
               suppressHydrationWarning
             >
-              {ch === " " ? " " : ch}
+              {ch === " " ? "\u00A0" : ch}
             </motion.span>
           ))}
         </p>
+
+        {/* owner's Happy Shoppers illustration — soft glow halo + gentle float */}
+        <div aria-hidden="true" className="jb3-actor relative z-[1] mt-2 sm:mt-4">
+          <div className="jb3-jumper-stage">
+            <div className="jb3-img-human-wrap">
+              <div className="jb3-img-glow" />
+              <img src="/illustrations/joy-shoppers.png" alt="" className="jb3-img-human" />
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
