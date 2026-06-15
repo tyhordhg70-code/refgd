@@ -153,8 +153,9 @@
     letter-spacing: -0.045em;
     /* line-height was 0.88 — too tight, caused descenders/ascenders to
        overlap when titles wrapped (visible on /exclusive-mentorships).
-       1.02 keeps the chiseled editorial feel without collisions. */
-    line-height: 1.02;
+       Bumped 1.02 → 1.14 so kinetic per-word headers get real vertical
+       breathing room between stacked lines instead of cramming together. */
+    line-height: 1.14;
   }
   .prismatic-border {
     background: linear-gradient(135deg,#ff6ad5,#c779d0,#4bc0c8,#feac5e,#ff6ad5);
@@ -968,13 +969,13 @@ html { scroll-behavior: smooth; }
   .editorial-display {
     /* Keep enough breathing room so wrapped multi-line titles on small
        screens don't overlap descenders/ascenders. Slightly tighter than
-       desktop's 1.02 but never below 1.0. */
-    line-height: 1.02;
+       desktop's 1.14 but never cramped. */
+    line-height: 1.1;
     letter-spacing: -0.035em;
   }
   /* H1 hero kicker is one short word ("WELCOME") — safe to compress
      marginally so it dominates the viewport without overlap. */
-  h1.editorial-display { line-height: 1.0; }
+  h1.editorial-display { line-height: 1.06; }
   .container-px { padding-left: 1rem; padding-right: 1rem; }
   .container-wide { padding-left: 1rem; padding-right: 1rem; }
 }

@@ -12,13 +12,13 @@ import KineticText from "@/components/KineticText";
 import ParallaxChapter from "@/components/ParallaxChapter";
 import { Reveal } from "@/components/Reveal";
 import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
-import IOSHide from "@/components/IOSHide";
 import IOSSafariFlag from "@/components/IOSSafariFlag";
 import EditableText from "@/components/EditableText";
 import ChapterPill from "@/components/ChapterPill";
 import LedTicker from "@/components/LedTicker";
 import LedJoySection from "@/components/LedJoySection";
 import SkipToStoreListButton from "@/components/SkipToStoreListButton";
+import StoreListVideoBackground from "@/components/StoreListVideoBackground";
 
 export const dynamic = "force-dynamic";
 
@@ -93,64 +93,18 @@ export default async function StoreListPage() {
           Combined with `<ServiceSection noBg />` the result is one
           unbroken galaxy backdrop from the cashback hero through the
           rules / payment / regions / store grid. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-0 -z-[2] bg-ink-950"
-      />
+      {/* v7 — Liquid-reflections video backdrop. Replaces the old flat
+          bg-ink-950 floor + animated gradient sweeps + the 1000vh orb /
+          particle / star wrapper below. The component paints an opaque
+          full-viewport video (with a bg-ink-950 fallback) at -z-[2] plus
+          heavy static scrim/vignette layers so every illustration on top
+          (CashbackScene + per-category scenes) stays readable. No
+          mix-blend (iOS black-boxes). This also removes the bulk of the
+          mobile compositor cost that made the page lag. */}
+      <StoreListVideoBackground />
 
-      {/* v6.13.71 — ENHANCED animated gradient backdrop.
-          Three independent motion layers at different speeds:
-            slBgShift   — slow drift + scale breathing (22 s)
-            slBgHue     — full hue rotation with brightness (28 s)
-            slSweep     — diagonal colour stripe sweeps L→R (10 s)
-            slSweep2    — second stripe sweeps R→L at 17 s
-          Colours boosted vs v6.13.52 so the gradient reads on
-          both dark and bright screens. Stars are added below in
-          the 1000vh wrapper. */}
-      {/* ── Layer 1: main radial + conic field ── */}
-      <div
-        aria-hidden="true"
-        data-sl-bg-anim
-        className="pointer-events-none fixed inset-0 -z-[3]"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 70% at 18% 22%, rgba(245,185,69,0.34), transparent 60%), " +
-            "radial-gradient(ellipse 70% 60% at 82% 32%, rgba(167,139,250,0.40), transparent 58%), " +
-            "radial-gradient(ellipse 80% 70% at 30% 78%, rgba(34,211,238,0.32), transparent 63%), " +
-            "radial-gradient(ellipse 65% 60% at 78% 82%, rgba(244,114,182,0.32), transparent 58%), " +
-            "radial-gradient(ellipse 55% 50% at 50% 50%, rgba(99,102,241,0.22), transparent 70%), " +
-            "conic-gradient(from 0deg at 50% 50%, rgba(245,185,69,0.14), rgba(167,139,250,0.17), rgba(34,211,238,0.13), rgba(244,114,182,0.14), rgba(245,185,69,0.14))",
-          animation: "slBgShift 22s ease-in-out infinite, slBgHue 28s linear infinite",
-          willChange: "transform",
-        }}
-      />
-      {/* ── Layer 2: sweeping nebula stripe L→R ── */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-0 -z-[3]"
-        style={{
-          background:
-            "linear-gradient(105deg, transparent 0%, rgba(245,185,69,0.20) 28%, rgba(167,139,250,0.25) 50%, rgba(34,211,238,0.20) 72%, transparent 100%)",
-          backgroundSize: "220% 100%",
-          animation: "slSweep 10s linear infinite",
-          willChange: "background-position",
-        }}
-        data-sl-sweep
-      />
-      {/* ── Layer 3: second sweep R→L at different speed/angle ── */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-0 -z-[3]"
-        style={{
-          background:
-            "linear-gradient(250deg, transparent 0%, rgba(244,114,182,0.14) 25%, rgba(99,102,241,0.18) 52%, rgba(245,185,69,0.13) 78%, transparent 100%)",
-          backgroundSize: "300% 100%",
-          animation: "slSweep2 17s linear infinite",
-          willChange: "background-position",
-        }}
-        data-sl-sweep
-      />
-      {/* ── All keyframes (bg + float + star twinkle) ── */}
+      {/* ── Keyframes kept (harmless): some are still referenced by other
+             decorative elements / legacy classes on the page. ── */}
       <style>{`
         @keyframes slBgShift {
           0%, 100% { transform: translate3d(0, 0, 0) scale(1.06); }
@@ -200,172 +154,12 @@ export default async function StoreListPage() {
         }
       `}</style>
 
-      {/* v6.13.39 — The user reported the storelist "looks too dark"
-          and asked for "gradient abstract particles floating to the
-          entire storelist and pulsating gradient spots on the entire
-          page". This adds two new always-on background layers ON TOP
-          of the existing scrolling orb mesh:
-
-          (A) BIGGER pulsating gradient SPOTS spanning the page —
-              brighter and more numerous than the previous orbs so
-              the page reads as alive instead of flat black. Eight
-              fixed-position spots in amber / violet / cyan / fuchsia
-              with staggered .orb-* pulse keyframes.
-          (B) Floating ABSTRACT GRADIENT PARTICLES — small radial
-              blobs scattered across the page that drift with a
-              custom keyframe so the visitor sees gentle motion
-              everywhere (not just on hero). 30 particles total,
-              randomized size/position/colour/duration via inline
-              style so they look organic.
-          Both layers are pointer-events-none + behind content so they
-          don't interfere with anything. */}
-      {/* v6.13.48 — Wrapper height bumped from 320vh → 1000vh so the
-          gradient atmosphere covers the entire storelist page instead
-          of stopping ~3 viewports down (visible to the user as "store-
-          list further down the page doesn't have no more gradient").
-          The 502-store grid alone scrolls well past 600vh on mobile,
-          and on desktop the rules + payment + region + service-rest
-          chapters easily exceed 800vh. 1000vh covers all real-world
-          page lengths with headroom; spots and particles below are
-          re-distributed across the full range so the colour pulses
-          stay visible everywhere on the page. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 -z-[1] overflow-hidden"
-        style={{ height: "1000vh" }}
-      >
-        {/* Existing scrolling orb mesh — kept for the unbroken
-            "galaxy" feel between hero and store grid. */}
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="absolute inset-x-0" style={{ top: `${i * 100}vh`, height: "100vh" }}>
-            <div className="orb orb-1 absolute left-[10%] top-[15%] h-[60vh] w-[60vh] rounded-full" />
-            <div className="orb orb-2 absolute right-[8%] top-[28%] h-[55vh] w-[55vh] rounded-full" />
-            <div className="orb orb-3 absolute left-[40%] bottom-[10%] h-[50vh] w-[50vh] rounded-full" />
-          </div>
-        ))}
-
-        {/* (A) Extra pulsating gradient SPOTS for warmth — v6.13.48
-            redistributed across the full 1000vh wrapper (was 0-300vh
-            only) so the colour-changing pulses keep going all the way
-            down to the bottom of the storelist. */}
-        {[
-          { cls: "orb-1", left: "65%", top: "8vh",   size: "44vh" },
-          { cls: "orb-4", left: "5%",  top: "55vh",  size: "38vh" },
-          { cls: "orb-2", left: "78%", top: "95vh",  size: "50vh" },
-          { cls: "orb-3", left: "25%", top: "140vh", size: "42vh" },
-          { cls: "orb-1", left: "55%", top: "190vh", size: "46vh" },
-          { cls: "orb-4", left: "12%", top: "230vh", size: "40vh" },
-          { cls: "orb-2", left: "70%", top: "265vh", size: "52vh" },
-          { cls: "orb-3", left: "32%", top: "300vh", size: "44vh" },
-          { cls: "orb-1", left: "72%", top: "350vh", size: "48vh" },
-          { cls: "orb-2", left: "10%", top: "395vh", size: "42vh" },
-          { cls: "orb-4", left: "48%", top: "440vh", size: "50vh" },
-          { cls: "orb-3", left: "75%", top: "485vh", size: "44vh" },
-          { cls: "orb-1", left: "20%", top: "530vh", size: "46vh" },
-          { cls: "orb-2", left: "60%", top: "580vh", size: "52vh" },
-          { cls: "orb-4", left: "8%",  top: "625vh", size: "40vh" },
-          { cls: "orb-3", left: "70%", top: "670vh", size: "48vh" },
-          { cls: "orb-1", left: "35%", top: "720vh", size: "44vh" },
-          { cls: "orb-2", left: "78%", top: "770vh", size: "50vh" },
-          { cls: "orb-4", left: "15%", top: "820vh", size: "42vh" },
-          { cls: "orb-3", left: "55%", top: "870vh", size: "46vh" },
-          { cls: "orb-1", left: "82%", top: "920vh", size: "48vh" },
-          { cls: "orb-2", left: "28%", top: "965vh", size: "44vh" },
-        ].map((s, i) => (
-          <div
-            key={`spot-${i}`}
-            className={`orb ${s.cls} absolute rounded-full`}
-            style={{ left: s.left, top: s.top, width: s.size, height: s.size }}
-          />
-        ))}
-
-        {/* (B) Floating abstract gradient PARTICLES.
-            v6.13.72 — wrapped in <IOSHide>: 90 GPU-promoted particles
-            (transform/opacity keyframes + mix-blend-mode + willChange)
-            were consuming compositor layer budget on iPhone Safari,
-            causing the regions / LED ticker / submit CTA below to be
-            evicted from the GPU on rescroll. The orb mesh + gradient
-            spots above remain (they define the page's colour
-            atmosphere); only these decorative atoms are dropped on
-            iOS so the foreground content stays resident. */}
-        <IOSHide>
-        {Array.from({ length: 90 }).map((_, i) => {
-          // Deterministic pseudo-random so SSR + client agree.
-          const r = (n: number) => ((Math.sin(i * 12.9898 + n * 78.233) + 1) / 2);
-          const palette = [
-            "radial-gradient(circle, rgba(245,185,69,0.85), transparent 70%)",
-            "radial-gradient(circle, rgba(167,139,250,0.85), transparent 70%)",
-            "radial-gradient(circle, rgba(34,211,238,0.80), transparent 70%)",
-            "radial-gradient(circle, rgba(244,114,182,0.80), transparent 70%)",
-            "radial-gradient(circle, rgba(132,204,22,0.70), transparent 70%)",
-          ];
-          const anims = ["slFloatA", "slFloatB", "slFloatC"];
-          const size = 60 + Math.round(r(1) * 180);              // 60-240 px
-          const left = (r(2) * 100).toFixed(2) + "%";
-          const top = (r(3) * 1000).toFixed(2) + "vh";           // v6.13.48 — full 1000vh range
-          const dur = (5 + r(4) * 8).toFixed(2) + "s";           // 5-13s
-          const delay = (-r(5) * 8).toFixed(2) + "s";            // negative = pre-shifted
-          const bg = palette[Math.floor(r(6) * palette.length)];
-          const anim = anims[Math.floor(r(7) * anims.length)];
-          return (
-            <span
-              key={`particle-${i}`}
-              className="absolute rounded-full"
-              style={{
-                left, top, width: size, height: size,
-                background: bg,
-                filter: "blur(28px)",
-                mixBlendMode: "screen",
-                animation: `${anim} ${dur} ease-in-out ${delay} infinite`,
-                willChange: "transform, opacity",
-              }}
-            />
-          );
-        })}
-        </IOSHide>
-        <IOSHide>
-        {/* v6.13.71 — STAR FIELD. 200 deterministic twinkling stars
-            distributed across the full 1000vh page height. Colours
-            cycle warm-gold / white / cool-blue / violet to match the
-            gradient palette. Three twinkle animations at different
-            speeds + negative delays so no two stars pulse in sync.
-            Deterministic Math.sin hash → no SSR/client mismatch. */}
-        {Array.from({ length: 200 }).map((_, i) => {
-          const rr = (n: number) => (Math.sin(i * 91.9898 + n * 57.233 + 3.14) + 1) / 2;
-          const starColors = [
-            "rgba(255,255,255,1)",
-            "rgba(255,248,215,1)",
-            "rgba(200,220,255,1)",
-            "rgba(245,185,69,1)",
-            "rgba(167,139,250,0.9)",
-            "rgba(148,210,255,1)",
-          ];
-          const starAnims = ["slTwinkle", "slTwinkleB", "slTwinkleC"];
-          const size = (1 + rr(1) * 3).toFixed(1);
-          const left = (rr(2) * 100).toFixed(2) + "%";
-          const top  = (rr(3) * 980).toFixed(2) + "vh";
-          const dur  = (1.6 + rr(4) * 5.5).toFixed(2) + "s";
-          const delay = (-rr(5) * 5).toFixed(2) + "s";
-          const color = starColors[Math.floor(rr(6) * starColors.length)];
-          const anim  = starAnims[Math.floor(rr(7) * starAnims.length)];
-          const glowPx = parseFloat(size) > 2.5 ? 7 : 3;
-          return (
-            <span
-              key={`star-${i}`}
-              className="absolute rounded-full"
-              style={{
-                left, top,
-                width: size + "px", height: size + "px",
-                background: color,
-                boxShadow: `0 0 ${glowPx}px 1px ${color}`,
-                animation: `${anim} ${dur} ease-in-out ${delay} infinite`,
-                willChange: "opacity, transform",
-              }}
-            />
-          );
-        })}
-        </IOSHide>
-      </div>
+      {/* v7 — The previous 1000vh orb / particle / star wrapper that lived
+          here has been removed. It sat at -z-[1] (IN FRONT of the new video
+          backdrop at -z-[2]) and rendered hundreds of blurred, mix-blend,
+          willChange GPU layers — the dominant store-list mobile compositor
+          cost. The liquid-reflections video now supplies the page
+          atmosphere. */}
 
       {/* v6.13.34 — Skip-to-storelist button. Visibility is now
           gated by an IntersectionObserver on the get-rewarded

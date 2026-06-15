@@ -77,8 +77,8 @@
               className="editorial-display mt-1 text-balance uppercase text-white text-[clamp(1.7rem,4vw,3rem)]"
               style={{
                 textShadow: "0 4px 24px rgba(0,0,0,0.95), 0 1px 4px rgba(0,0,0,0.95)",
-                letterSpacing: "-0.025em",
-                lineHeight: 1.1,
+                letterSpacing: "-0.02em",
+                lineHeight: 1.28,
               }}
             />
             <EditableText

@@ -125,16 +125,26 @@ function EditableTextInner({
       // Read the editable HTML and turn <br> / <div> into newlines so
       // that text the user wrapped onto multiple lines actually persists
       // as multi-line content (textContent alone strips them).
+      // iOS Safari & Chrome wrap each new line in a <div> (sometimes
+      // <div><br></div> for a blank line) instead of a bare <br>. The old
+      // logic only turned CLOSING </div>/</p> and <br> into "\n", so an
+      // OPENING <div> with no matching newline silently merged adjacent
+      // lines — Enter (and the spaces typed after it) appeared to "not
+      // register". Convert BOTH opening and closing block tags to newlines.
       const html = (e.currentTarget.innerHTML ?? "")
+        .replace(/<div><br\s*\/?><\/div>/gi, "\n")
         .replace(/<br\s*\/?>/gi, "\n")
-        .replace(/<\/(div|p)>/gi, "\n")
+        .replace(/<\/(div|p|h[1-6])>/gi, "")
+        .replace(/<(div|p|h[1-6])[^>]*>/gi, "\n")
         .replace(/<[^>]+>/g, "");
       // Decode the basic HTML entities we previously escaped.
       const tmp = document.createElement("textarea");
       tmp.innerHTML = html;
       next = tmp.value.replace(/\u00A0/g, " ");
-      // Trim trailing newline introduced by closing-tag conversion.
-      next = next.replace(/\n+$/, "");
+      // Collapse blank-line runs and strip leading/trailing newlines the
+      // block-tag conversion can introduce (the first line is often wrapped
+      // in its own <div> too, which would add a stray blank first line).
+      next = next.replace(/\n{3,}/g, "\n\n").replace(/^\n+/, "").replace(/\n+$/, "");
     } else {
       next = (e.currentTarget.textContent ?? "").replace(/\u00A0/g, " ");
     }

@@ -172,6 +172,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
     };
     const startSampling = () => {
+      // Mobile: the 11Hz drawImage+getImageData readback off the hero video
+      // is the dominant cause of the home-hero scroll jank on phones (each
+      // tick blocks the main thread and retints three large blurred glow
+      // layers via a 250ms CSS transition). Skip sampling entirely on mobile
+      // and leave --glow at its static initial cool-blue. Desktop unchanged.
+      if (isMobileRef.current) return;
       if (sampling) return;
       sampling = true;
       sampleRaf = requestAnimationFrame(sampleTick);

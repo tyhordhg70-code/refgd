@@ -57,6 +57,9 @@ type EditContextShape = {
 
   /** True when there are queued edits not yet persisted. */
   dirty: boolean;
+  /** Synchronous check of the pending-edits ref — safe to call right
+   *  after a blur in the same tick, before React re-renders. */
+  hasPending: () => boolean;
   /** Number of distinct content ids with pending edits. */
   pendingCount: number;
 
@@ -167,14 +170,18 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
       setDisplay((m) => ({ ...m, [id]: next }));
 
       // Track in the pending queue (vs the saved snapshot — if the user
-      // edits back to the saved value we drop it from the queue).
-      setPending((q) => {
+      // edits back to the saved value we drop it from the queue). We update
+      // pendingRef SYNCHRONOUSLY (not via a setState updater) so Publish —
+      // which reads pendingRef.current right after blur in the same event
+      // tick — always sees this edit even before React has re-rendered.
+      {
         const saved = savedRef.current[id] ?? "";
-        const copy = { ...q };
+        const copy = { ...pendingRef.current };
         if (saved === next) delete copy[id];
         else copy[id] = next;
-        return copy;
-      });
+        pendingRef.current = copy;
+        setPending(copy);
+      }
 
       // History: drop any redo tail, then push.
       setHistory((h) => {
@@ -213,15 +220,16 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
           for (const it of items) out[it.id] = it.next;
           return out;
         });
-        setPending((q) => {
-          const out = { ...q };
+        {
+          const out = { ...pendingRef.current };
           for (const it of items) {
             const saved = savedRef.current[it.id] ?? "";
             if (saved === it.next) delete out[it.id];
             else out[it.id] = it.next;
           }
-          return out;
-        });
+          pendingRef.current = out;
+          setPending(out);
+        }
         setHistory((h) => {
           const trimmed = h.slice(0, historyPos);
           return [...trimmed, { batch: items }];
@@ -326,6 +334,7 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
 
   const discard = useCallback(() => {
     setDisplay({ ...savedRef.current });
+    pendingRef.current = {};
     setPending({});
     setHistory([]);
     setHistoryPos(0);
@@ -340,6 +349,7 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
         setValue,
         setValueBatch,
         dirty: Object.keys(pending).length > 0,
+        hasPending: () => Object.keys(pendingRef.current).length > 0,
       pendingCount: Object.keys(pending).length,
       canUndo: historyPos > 0,
       canRedo: historyPos < history.length,

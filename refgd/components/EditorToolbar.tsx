@@ -29,6 +29,7 @@ export default function EditorToolbar() {
     redo,
     pendingCount,
     dirty,
+    hasPending,
     flush,
     discard,
   } = useEditContext();
@@ -97,7 +98,12 @@ export default function EditorToolbar() {
     }
     // Yield one microtask so React processes the blur's batched setState.
     await Promise.resolve();
-    if (!dirty) return;
+    // Read the live ref, NOT the `dirty` state: `dirty` is only true once
+    // React has re-rendered after the blur-commit, which has NOT happened yet
+    // in this same tick — so on the FIRST publish tap `dirty` is stale-false
+    // and the save was silently skipped. hasPending() reads pendingRef.current
+    // which we update synchronously in setValue.
+    if (!hasPending()) return;
     setSaving(true);
     const ok = await flush();
     setSaving(false);
@@ -161,7 +167,7 @@ export default function EditorToolbar() {
           <button
             type="button"
             onClick={doSave}
-            disabled={!dirty || saving}
+            disabled={saving}
             className="inline-flex h-9 items-center gap-2 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-4 text-xs font-bold text-ink-950 transition disabled:cursor-not-allowed disabled:opacity-40 hover:brightness-110"
             data-testid="editor-toolbar-publish"
           >
@@ -219,7 +225,7 @@ export default function EditorToolbar() {
         <button
           type="button"
           onClick={doSave}
-          disabled={!dirty || saving}
+          disabled={saving}
           className="inline-flex h-9 items-center gap-2 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-4 text-xs font-bold text-ink-950 transition disabled:cursor-not-allowed disabled:opacity-40 hover:brightness-110"
           data-testid="editor-toolbar-publish"
         >

@@ -106,10 +106,10 @@ export default function KineticText({
   const WORD_SPAN: CSSProperties = {
     paddingBottom: "0.18em",
     paddingTop: "0.06em",
-    paddingLeft: "0.05em",
-    paddingRight: "0.05em",
-    marginLeft: "-0.05em",
-    marginRight: "-0.05em",
+    paddingLeft: "0.08em",
+    paddingRight: "0.08em",
+    marginLeft: "0em",
+    marginRight: "0em",
   };
 
   return (
