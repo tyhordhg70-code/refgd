@@ -9,8 +9,9 @@
  * Pure CSS animation (no JS). The wrapper carries `data-anim-section` so
  * OffscreenGlowPauser freezes every infinite keyframe in this subtree
  * while it is scrolled out of view (anti-lag, especially on iPhone).
- * Desktop-only layers (radar, scan, orbit nodes) are hidden on small
- * screens, and all motion is disabled under prefers-reduced-motion.
+ * All layers (radar sweep, scan beam, orbit nodes) are visible on mobile
+ * too — the orbit radius is scaled down on small screens so the nodes sit
+ * on the rings; all motion is disabled under prefers-reduced-motion.
  */
 export default function EvadeVaultEmblem({ className }: { className?: string }) {
   return (
@@ -22,8 +23,8 @@ export default function EvadeVaultEmblem({ className }: { className?: string }) 
       {/* breathing halo */}
       <span className="ev-vault-halo" />
 
-      {/* radar sweep (desktop) */}
-      <span className="ev-vault-radar ev-vault-desk" />
+      {/* radar sweep */}
+      <span className="ev-vault-radar" />
 
       {/* outer reticle ring */}
       <div className="ev-vault-layer ev-vault-outer">
@@ -73,13 +74,13 @@ export default function EvadeVaultEmblem({ className }: { className?: string }) 
         </svg>
       </div>
 
-      {/* orbiting data nodes (desktop) */}
-      <div className="ev-vault-layer ev-vault-orbit ev-vault-desk">
+      {/* orbiting data nodes (all viewports) */}
+      <div className="ev-vault-layer ev-vault-orbit">
         <span className="ev-vault-node" style={{ ["--a" as any]: "0deg" }} />
         <span className="ev-vault-node" style={{ ["--a" as any]: "120deg" }} />
         <span className="ev-vault-node" style={{ ["--a" as any]: "240deg" }} />
       </div>
-      <div className="ev-vault-layer ev-vault-orbit ev-vault-orbit-2 ev-vault-desk">
+      <div className="ev-vault-layer ev-vault-orbit ev-vault-orbit-2">
         <span
           className="ev-vault-node ev-vault-node-sm"
           style={{ ["--a" as any]: "60deg" }}
@@ -90,8 +91,8 @@ export default function EvadeVaultEmblem({ className }: { className?: string }) 
         />
       </div>
 
-      {/* scan beam (desktop) */}
-      <span className="ev-vault-scan ev-vault-desk" />
+      {/* scan beam */}
+      <span className="ev-vault-scan" />
 
       {/* core shield-lock glyph */}
       <div className="ev-vault-layer ev-vault-core">
@@ -220,12 +221,16 @@ export default function EvadeVaultEmblem({ className }: { className?: string }) 
           50%     { transform: translateY(120px); }
         }
 
-        @media (hover: none) and (max-width: 1366px) {
-          .ev-vault-radar, .ev-vault-scan { display: none !important; }
-        }
         @media (max-width: 860px) {
-          .ev-vault-desk { display: none !important; }
           .ev-vault-mid  { animation-duration: 150s; }
+          /* orbit nodes stay visible on mobile; scale radius with viewport so
+             they sit on the rings instead of flying past the emblem edge */
+          .ev-vault-node {
+            transform: rotate(var(--a)) translateY(calc(-1 * clamp(110px, 36vw, 180px)));
+          }
+          .ev-vault-node-sm {
+            transform: rotate(var(--a)) translateY(calc(-1 * clamp(88px, 29vw, 150px)));
+          }
         }
         @media (prefers-reduced-motion: reduce) {
           .ev-vault-halo, .ev-vault-radar, .ev-vault-outer, .ev-vault-mid,
