@@ -3,8 +3,8 @@
 /**
  * EvadeHeroPortal — cinematic video hero for the Evade-Cancelations page.
  *
- * The hero is a full-bleed neon-vortex video backdrop (first 60s of the
- * source, looped + muted) behind a readability scrim and the centred
+ * The hero is a full-bleed neon-vortex video backdrop (a seamless ~22s
+ * crossfade loop, muted) behind a readability scrim and the centred
  * caption. The old layered "vault core" SVG emblem, the parallax cyber-grid
  * tunnel, drifting particles and the scroll prompt were removed per request
  * so the video reads cleanly with just the headline + subtext.
@@ -136,7 +136,7 @@ export default function EvadeHeroPortal({
   return (
     <section ref={wrapRef} className="ev-hero relative" style={{ height: "180svh" }}>
       <div className="ev-hero-stage sticky top-0 flex h-screen w-full items-center justify-center overflow-hidden">
-        {/* ───────── VIDEO BACKDROP (first 60s of source, looped + muted) ───────── */}
+        {/* ───────── VIDEO BACKDROP (seamless ~22s loop, muted) ───────── */}
         <video
           ref={videoRef}
           className="ev-hero-video"
@@ -159,8 +159,9 @@ export default function EvadeHeroPortal({
           <motion.div
             style={{ opacity: captionOpacity, y: captionY }}
             suppressHydrationWarning
-            className="container-wide pointer-events-none absolute inset-x-0 top-[24%] z-10 text-center"
+            className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
           >
+            <div className="container-wide text-center">
             <h3
               className="editorial-display mx-auto max-w-5xl text-balance uppercase text-white"
               style={{
@@ -227,6 +228,7 @@ export default function EvadeHeroPortal({
                 {subCaption}
               </motion.p>
             )}
+            </div>
           </motion.div>
         )}
       </div>

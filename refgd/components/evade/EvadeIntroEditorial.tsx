@@ -1,8 +1,8 @@
 "use client";
 import EditableText from "@/components/EditableText";
-import EditableImage from "@/components/EditableImage";
 import KineticText from "@/components/KineticText";
 import SafeReveal from "@/components/SafeReveal";
+import EvadeVaultEmblem from "@/components/EvadeVaultEmblem";
 import HudEyebrow from "./HudEyebrow";
 import HudFrame from "./HudFrame";
 
@@ -16,13 +16,17 @@ const BODIES = [
  *
  * Replaces the gradient glass panel + corner blobs with a HudFrame
  * dossier: an oversized backdrop "01", monospace file metadata, the
- * vault art presented as evidence behind a corner-bracket reticle, and
- * the two intel paragraphs styled as numbered file entries. Distinct
- * silhouette from every other section.
+ * animated vault-lock emblem presented as evidence behind a corner-bracket
+ * reticle, and the two intel paragraphs styled as numbered file entries.
+ * Distinct silhouette from every other section.
  *
- * Preserved editIds: evade.ch1.eyebrow / .title, evade.intro.body1/2,
- * evade.intro.vault (identical defaultSrc + alt). Body labels are the
- * same decorative strings as before.
+ * The static vault image (evade.intro.vault) was swapped for the animated
+ * EvadeVaultEmblem — the layered shield-lock emblem that was originally the
+ * hero centerpiece — per request. The emblem is purely decorative (not an
+ * admin-editable field).
+ *
+ * Preserved editIds: evade.ch1.eyebrow / .title, evade.intro.body1/2. Body
+ * labels are the same decorative strings as before.
  */
 export default function EvadeIntroEditorial() {
   return (
@@ -111,13 +115,7 @@ export default function EvadeIntroEditorial() {
                 ))}
                 <span aria-hidden className="pointer-events-none absolute inset-x-8 -bottom-4 h-14 rounded-[100%]"
                   style={{ background: "radial-gradient(ellipse 60% 100% at 50% 0%, rgba(34,211,238,0.45), transparent 70%)", filter: "blur(24px)" }} />
-                <EditableImage
-                  id="evade.intro.vault"
-                  defaultSrc="/uploads/evade-vault.webp"
-                  alt="Evade — vault art"
-                  wrapperClassName="relative block mx-auto w-full"
-                  className="mx-auto block h-auto w-full object-contain drop-shadow-[0_30px_60px_rgba(34,211,238,0.45)]"
-                />
+                <EvadeVaultEmblem />
               </div>
             </SafeReveal>
           </div>
