@@ -43,7 +43,9 @@ export default function EvadeHeroPortal({
   subCaption?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [paused, setPaused] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
 
   const { scrollYProgress } = useScroll({
     target: wrapRef,
@@ -102,6 +104,51 @@ export default function EvadeHeroPortal({
     return () => io.disconnect();
   }, []);
 
+  // Respect reduced motion: don't autoplay the heavy background video — the
+  // poster frame stays visible instead.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduceMotion(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  // Anti-lag: drive the backdrop video the SAME way the emblem animations are
+  // gated — play only while the hero is on-screen, the tab is visible, and
+  // reduced-motion is off; pause otherwise so it never decodes off-screen.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = true;
+    const hidden = typeof document !== "undefined" && document.hidden;
+    if (!paused && !hidden && !reduceMotion) {
+      const p = v.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } else {
+      v.pause();
+    }
+  }, [paused, reduceMotion]);
+
+  // Pause the backdrop video whenever the tab is hidden; resume when it returns
+  // (and the hero is still on-screen). Battery + compositor relief.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVis = () => {
+      const v = videoRef.current;
+      if (!v) return;
+      if (document.hidden) {
+        v.pause();
+      } else if (!paused && !reduceMotion) {
+        const p = v.play();
+        if (p && typeof p.catch === "function") p.catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [paused, reduceMotion]);
+
   const words = caption ? caption.split(" ") : [];
 
   return (
@@ -111,6 +158,22 @@ export default function EvadeHeroPortal({
           paused ? "ev-hero-paused" : ""
         }`}
       >
+        {/* ───────── VIDEO BACKDROP (first 60s of source, looped + muted) ───────── */}
+        <video
+          ref={videoRef}
+          className="ev-hero-video"
+          poster="/uploads/evade-hero-vortex-poster.webp"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-hidden="true"
+        >
+          <source src="/uploads/evade-hero-vortex.mp4" type="video/mp4" />
+        </video>
+        <div aria-hidden="true" className="ev-hero-videoscrim" />
+
         {/* ───────── CYBER TUNNEL (parallax depth floor + ceiling) ───────── */}
         <motion.div
           aria-hidden="true"
@@ -363,6 +426,24 @@ export default function EvadeHeroPortal({
 
       <style>{`
         .ev-hero-stage { perspective: 1200px; }
+
+        /* ── Video backdrop (neon vortex) + readability scrim ── */
+        .ev-hero-video {
+          position: absolute; inset: 0;
+          width: 100%; height: 100%;
+          object-fit: cover; object-position: center;
+          transform: translateZ(0);
+          background: #05070f;
+          pointer-events: none;
+        }
+        .ev-hero-videoscrim {
+          position: absolute; inset: 0;
+          pointer-events: none;
+          background:
+            radial-gradient(ellipse 78% 64% at 50% 44%, rgba(5,7,15,0) 30%, rgba(5,7,15,0.34) 100%),
+            linear-gradient(180deg, rgba(5,7,15,0.62) 0%, rgba(5,7,15,0.18) 30%, rgba(5,7,15,0.30) 64%, rgba(5,7,15,0.82) 100%);
+        }
+
         .ev-hero-backdrop {
           position: absolute; left: 50%; top: 44%;
           width: min(86vw, 760px); height: min(86vw, 760px);
