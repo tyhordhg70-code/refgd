@@ -505,7 +505,7 @@ export default function ServiceSection(
             {WHY.map((w, i) => (
               <CinematicCard3D
                 key={w.h}
-                variant="swing"
+                variant="zoom"
                 accent={w.tint}
                 delay={i * 0.12}
                 duration={760}
