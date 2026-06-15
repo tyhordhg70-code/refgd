@@ -3,8 +3,8 @@
 /**
  * EvadeHeroPortal — cinematic video hero for the Evade-Cancelations page.
  *
- * The hero is a full-bleed neon-vortex video backdrop (a seamless ~22s
- * crossfade loop, muted) behind a readability scrim and the centred
+ * The hero is a full-bleed neon-vortex video backdrop (a seamless 20s loop,
+ * clean-cut at a frame-matched seam — no crossfade, muted) behind a readability scrim and the centred
  * caption. The old layered "vault core" SVG emblem, the parallax cyber-grid
  * tunnel, drifting particles and the scroll prompt were removed per request
  * so the video reads cleanly with just the headline + subtext.
@@ -136,7 +136,7 @@ export default function EvadeHeroPortal({
   return (
     <section ref={wrapRef} className="ev-hero relative" style={{ height: "180svh" }}>
       <div className="ev-hero-stage sticky top-0 flex h-screen w-full items-center justify-center overflow-hidden">
-        {/* ───────── VIDEO BACKDROP (seamless ~22s loop, muted) ───────── */}
+        {/* ───────── VIDEO BACKDROP (seamless 20s loop, no crossfade, muted) ───────── */}
         <video
           ref={videoRef}
           className="ev-hero-video"
