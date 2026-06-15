@@ -88,7 +88,13 @@
         </ReorderableSection>
 
         <ReorderableSection sectionId="trailer">
-          <section className="relative pt-6 pb-2">
+          <section
+            className="relative pt-6 pb-2"
+            style={{
+              backgroundImage:
+                "linear-gradient(180deg, #05070f 0%, #0a0a1e 24%, rgba(58,20,120,0.42) 50%, rgba(150,26,107,0.24) 74%, rgba(8,9,20,0) 100%)",
+            }}
+          >
             <div className="container-wide">
               <div className="mx-auto max-w-4xl">
                 <TrailerTitle3D text="VIEW TRAILER VIDEO" />
