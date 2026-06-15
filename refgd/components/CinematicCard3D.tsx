@@ -16,6 +16,8 @@ import { useEntranceReady } from "@/lib/loading-screen-gate";
  *
  *   variant = "flip"     → fast rotateY flip (How-it-works)
  *   variant = "shuffle"  → rotateX + translateY snap (Rules)
+ *   variant = "swing"    → rotateY/Z door-swing in from the right
+ *                          with a translateX glide (Why-choose-us)
  *
  * Both variants are FAST (~700 ms) and use ease-out-back so the
  * card overshoots slightly before snapping into place — that's
@@ -58,7 +60,7 @@ export default function CinematicCard3D({
   className?: string;
   delay?: number;
   duration?: number;
-  variant?: "flip" | "shuffle";
+  variant?: "flip" | "shuffle" | "swing";
   accent?: CinematicAccent;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -99,6 +101,8 @@ export default function CinematicCard3D({
     const startTransform =
       variant === "flip"
         ? "perspective(1400px) rotateY(-78deg) rotateX(8deg) translateZ(-220px) scale(0.82)"
+        : variant === "swing"
+        ? "perspective(1400px) rotateY(52deg) rotateZ(6deg) translateX(80px) translateZ(-180px) scale(0.85)"
         : "perspective(1400px) rotateX(34deg) translateY(60px) translateZ(-160px) scale(0.88)";
 
     inner.style.opacity = "0";
@@ -117,6 +121,13 @@ export default function CinematicCard3D({
           const tz = -220 * (1 - e);
           const sc = 0.82 + (1 - 0.82) * e;
           inner.style.transform = `perspective(1400px) rotateY(${ry.toFixed(2)}deg) rotateX(${rx.toFixed(2)}deg) translateZ(${tz.toFixed(1)}px) scale(${sc.toFixed(3)})`;
+        } else if (variant === "swing") {
+          const ry = 52 * (1 - e);
+          const rz = 6 * (1 - e);
+          const tx = 80 * (1 - e);
+          const tz = -180 * (1 - e);
+          const sc = 0.85 + (1 - 0.85) * e;
+          inner.style.transform = `perspective(1400px) rotateY(${ry.toFixed(2)}deg) rotateZ(${rz.toFixed(2)}deg) translateX(${tx.toFixed(1)}px) translateZ(${tz.toFixed(1)}px) scale(${sc.toFixed(3)})`;
         } else {
           const rx = 34 * (1 - e);
           const ty = 60 * (1 - e);

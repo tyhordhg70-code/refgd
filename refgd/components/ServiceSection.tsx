@@ -328,7 +328,7 @@ export default function ServiceSection(
             is missing on mobile". */}
         <div
           aria-hidden="true"
-          className="container-wide pointer-events-none relative z-10 mt-6 grid w-full place-items-center md:hidden"
+          className="container-wide pointer-events-none relative z-10 mt-10 grid w-full place-items-center overflow-visible pt-8 md:hidden"
         >
           <CashbackScene size={260} />
         </div>
@@ -343,7 +343,7 @@ export default function ServiceSection(
       {showRest && (
       <>
       {/* Act 2 — Editorial sub-statement + 3D money-time scene */}
-      <section className="relative pt-6 pb-24 md:py-32">
+      <section className="relative pt-6 pb-10 md:py-32">
         <div className="container-wide relative grid items-center gap-12 sm:grid-cols-12">
           <div className="sm:col-span-7 sm:col-start-2">
             <EditableText
@@ -386,7 +386,7 @@ export default function ServiceSection(
       </section>
 
       {/* ────────── Act 3 — How it works ────────── */}
-      <section className="relative py-24">
+      <section className="relative pt-8 pb-16 md:py-24">
         <div className="container-wide relative">
           <Reveal>
             <EditableText
@@ -503,11 +503,18 @@ export default function ServiceSection(
           </Reveal>
           <div className="mt-14 grid gap-5 lg:grid-cols-3">
             {WHY.map((w, i) => (
-              <GlassCard
+              <CinematicCard3D
                 key={w.h}
+                variant="swing"
+                accent={w.tint}
+                delay={i * 0.12}
+                duration={760}
+              >
+              <GlassCard
                 tint={w.tint}
-                delay={i * 0.1}
+                delay={0}
                 index={i + 3}
+                reveal={false}
                 className=""
               >
                 <div className="relative overflow-hidden p-8">
@@ -559,6 +566,7 @@ export default function ServiceSection(
                   </div>
                 </div>
               </GlassCard>
+              </CinematicCard3D>
             ))}
           </div>
         </div>

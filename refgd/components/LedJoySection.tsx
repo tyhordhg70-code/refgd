@@ -54,6 +54,7 @@ export default function LedJoySection() {
   const ref = useRef<HTMLElement | null>(null);
   const reduce = useReducedMotion();
   const [played, setPlayed] = useState(false);
+  const [rainFaded, setRainFaded] = useState(false);
   /* When loaded with ?debug=1 the section renders a fixed-position pill
      showing live play state / intersectionRatio / scroll position so we
      can see why the IO is (not) firing. Gated on the query param. */
@@ -139,6 +140,16 @@ export default function LedJoySection() {
       window.removeEventListener("scroll", onScroll);
     };
   }, []);
+
+  /* Money rain is an entrance flourish, not a permanent loop. Once the
+     beat has played, let it rain for a few seconds, then gently fade the
+     whole rain layer out so the bills don't drift forever. */
+  useEffect(() => {
+    if (!played) return;
+    const t = setTimeout(() => setRainFaded(true), 5200);
+    return () => clearTimeout(t);
+  }, [played]);
+
   const play = played;
 
   const ahhLetters = "AHHHH".split("");
@@ -166,7 +177,7 @@ export default function LedJoySection() {
     <section
       ref={ref}
       aria-label="Ahhh, feel the joy of cashback"
-      className="jb3-cosmic-bg relative isolate flex min-h-[100svh] w-full items-start justify-center overflow-hidden pt-[4vh] pb-12 sm:pt-[6vh] sm:pb-16"
+      className="relative isolate flex min-h-[100svh] w-full items-start justify-center pt-[4vh] pb-12 sm:pt-[6vh] sm:pb-16"
       style={{ perspective: "1200px" }}
       data-anim-section
       data-storelist-build="joy-shoppers-1"
@@ -208,6 +219,12 @@ export default function LedJoySection() {
         </div>
       )}
 
+      {/* All decorative layers (starfield, glow orbs, money rain) live in
+          ONE absolutely-positioned, overflow-hidden box so they stay
+          clipped to the section WITHOUT clipping the content. The section
+          itself is no longer overflow-hidden, so the tall shopper
+          illustration can never be sliced in half on scroll. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
       {/* cosmic starfield + ambient glow orbs (offscreen-pausable). */}
       <div aria-hidden="true" className="jb3-stars" />
       <div
@@ -221,8 +238,13 @@ export default function LedJoySection() {
         style={{ width: "45vw", height: "45vw", bottom: "10%", right: "-5%", background: "radial-gradient(circle, rgba(167,139,250,0.12) 0%, transparent 65%)", animationDelay: "-3s" }}
       />
 
-      {/* gentle money rain — full width, behind the headline + illustration. */}
-      <div className="jb3-rain" aria-hidden="true">
+      {/* gentle money rain — full width, behind the headline + illustration.
+          Fades out a few seconds after the beat plays (see rainFaded). */}
+      <div
+        className="jb3-rain"
+        aria-hidden="true"
+        style={{ opacity: rainFaded ? 0 : 1, transition: "opacity 1.6s ease-out" }}
+      >
         {rainBills.map((r, i) => (
           <div
             key={i}
@@ -239,6 +261,7 @@ export default function LedJoySection() {
             <CashBill pfx={`r${i}`} size={r.size} />
           </div>
         ))}
+      </div>
       </div>
 
       <div className="container-wide relative z-10 grid place-items-center text-center">
