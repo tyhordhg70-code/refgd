@@ -15,8 +15,7 @@ import TextReveal from "@/components/TextReveal";
 import BounceList from "@/components/BounceList";
 import ImpactHeadline from "@/components/ImpactHeadline";
 import CubicParallax from "@/components/CubicParallax";
-import CosmicBackground from "@/components/CosmicBackground";
-import LiquidParticles from "@/components/LiquidParticles";
+import MentorshipVideoBackground from "@/components/MentorshipVideoBackground";
 import EmotionChips from "@/components/EmotionChips";
 import EditableText from "@/components/EditableText";
 import GlassCard from "@/components/GlassCard";
@@ -67,9 +66,10 @@ const EMOTIONS = ["Fear", "Excitement", "Curiosity", "Anger", "Guilt", "Sadness"
  *  – All entrance animations are one-shot whileInView (no scroll-linked
  *    per-frame transforms). They complete in 0.4–0.7s after entering
  *    the viewport so they cannot freeze mid-scroll.
- *  – Background: a single page-scoped CosmicBackground (color-cycling
- *    pulsating gradient + drifting dust) plus a small LiquidParticles
- *    layer of abstract floating orbs. No bubble swarm.
+ *  – Background: a page-scoped fixed video backdrop
+ *    (MentorshipVideoBackground — a seamless plasma-sphere loop) behind a
+ *    readability scrim. Normal speed across the hero, eased to 0.15x once
+ *    the hero scrolls away.
  *  – TextReveal variants are intentionally diversified per section
  *    (wordWave / charBounce / lineMask / wordBlur / charGlitch) so
  *    no two consecutive sections share the same flavour.
@@ -90,9 +90,13 @@ export default function MentorshipsPage() {
           rubber-band exposed body-color (#06030f) as a black strip at
           the bottom while scrolling. Backstop bg + full-dvh root
           eliminates the gap regardless of viewport-unit weirdness. */}
-      {/* Page-scoped cosmic backdrop + abstract liquid bubbles */}
-      <CosmicBackground />
-      <LiquidParticles count={14} />
+      {/* Page-scoped VIDEO backdrop (cool plasma-sphere montage loop)
+          behind a readability scrim — replaces the old CosmicBackground +
+          LiquidParticles (lighter on the GPU, and the requested video
+          background). Plays at normal speed across the parallax hero, then
+          eases to 0.15× once the hero scrolls away so the moving colour
+          never competes with the body copy. */}
+      <MentorshipVideoBackground />
 
       {/* Act 1 — Bespoke parallax illustration hero (replaces the
           generic chess fallback). Layers move at different depths
@@ -721,7 +725,7 @@ export default function MentorshipsPage() {
 
       {/* ─── Act 9 — Add-ons + final WORLDWIDE statement ─────────── */}
       {/* Background contract-signing image removed at user request — the
-          section is now transparent so the page-scoped CosmicBackground
+          section is now transparent so the page-scoped video backdrop
           shows through, matching the rest of the page. */}
       <section className="relative py-20 sm:py-24">
         <div className="container-wide">
