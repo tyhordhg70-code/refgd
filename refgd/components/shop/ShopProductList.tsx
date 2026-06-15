@@ -44,6 +44,16 @@ export default function ShopProductList({ category: c }: { category: Category })
 
   useEffect(() => setMounted(true), []);
 
+  // Deep-link support: /shop-methods/<slug>?p=<productId> auto-opens that
+  // product's detail modal. Used by the Evade pricing cards' "Shop Methods"
+  // buttons so each plan lands directly on its matching product.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const pid = new URLSearchParams(window.location.search).get("p");
+    if (pid && c.products.some((p) => p.id === pid)) setOpenId(pid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Preload all product images immediately on mount so they're in the browser
   // cache by the time the cards animate into view — Billgang-style zero-wait images.
   useEffect(() => {

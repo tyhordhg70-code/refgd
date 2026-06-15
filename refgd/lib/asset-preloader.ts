@@ -75,7 +75,17 @@ export function sceneEligible(): boolean {
  * same-origin assets (e.g. the evade frame sequence) are handled by their
  * own component plus the scene-ready signal and don't need listing here.
  */
-export function heavyAssetsForPath(_pathname: string): HeavyAsset[] {
+export function heavyAssetsForPath(pathname: string): HeavyAsset[] {
+  const p = norm(pathname);
+  // Evade-Cancelations hero plays a ~13 MB neon-vortex MP4. Download it IN FULL
+  // behind the loading overlay — reading the body to completion warms the HTTP
+  // cache (next.config serves /uploads/* immutable for a year), so the <video>
+  // then plays straight from cache with NO buffering the instant the page is
+  // revealed. This gates the splash on the whole file, which is the desired
+  // "fully load before reveal" behaviour for this route.
+  if (p === "/evade-cancelations") {
+    return [{ url: "/uploads/evade-hero-vortex.mp4", bytesHint: 12987759 }];
+  }
   // The home hero no longer pulls the ~23 MB Spline scene — it is now a tiny
   // (~2.4 MB) scroll-scrubbed WebP frame sequence that paints its first frame
   // instantly and streams the rest behind the page. So there is no heavy

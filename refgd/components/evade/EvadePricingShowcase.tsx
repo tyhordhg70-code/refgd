@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import EditableText from "@/components/EditableText";
 import EditableImage from "@/components/EditableImage";
 import KineticText from "@/components/KineticText";
@@ -10,6 +11,7 @@ const PRICING = [
     title: "Stealth / OpSEC + Rebill Bypass",
     body:  "Remain fully anonymous while surfing online, place orders under a forged identity, never face a rebill again — and much more.",
     url:   "https://refundgod.bgng.io/product/stealth-opsec-guide-rebill-bypass-guide",
+    shop:  "/shop-methods/stealth-opsec?p=stealth-opsec-guide-rebill-bypass-guide",
     rgb:   "34,211,238",
     img:   "/uploads/stealth-opsec.png",
     kind:  "fanLeft"  as const,
@@ -19,6 +21,7 @@ const PRICING = [
     title: "Evasion Book — Level 1",
     body:  "For those who want a serious long-term solution and to hit big ordering from multiple accounts at once before the store has a chance to detect and ban you. Stay under the radar, pass through account reviews and more. 45 pages with no filler content.",
     url:   "https://refundgod.bgng.io/product/evade1",
+    shop:  "/shop-methods/evasion-books?p=evade1",
     rgb:   "245,185,69",
     img:   "/uploads/evasion-l1.webp",
     kind:  "fan"      as const,
@@ -28,6 +31,7 @@ const PRICING = [
     title: "Evasion Book — Level 2",
     body:  "For those just starting out with limited experience. Quick and easy solutions with free and paid alternatives. 10+ pages with lifetime support.",
     url:   "https://refundgod.bgng.io/product/evasion-book---level-2",
+    shop:  "/shop-methods/evasion-books?p=evasion-book---level-2",
     rgb:   "167,139,250",
     img:   "/uploads/evasion-l2.png",
     kind:  "fanRight" as const,
@@ -46,7 +50,10 @@ const PRICING = [
  *
  * Preserved: section id="Learn", evade.ch4.eyebrow / .title, every
  * evade.pricing.{i}.img / .title / .body (identical defaultValues +
- * defaultSrc + alt={title}), product hrefs, and the "Shop Methods" CTA.
+ * defaultSrc + alt={title}). The "Shop Methods" CTA now deep-links to the
+ * matching product in the in-app shop (/shop-methods/<category>?p=<id>), which
+ * auto-opens that product's detail modal, instead of the old external bgng.io
+ * store link.
  */
 export default function EvadePricingShowcase() {
   return (
@@ -156,10 +163,8 @@ export default function EvadePricingShowcase() {
                     />
 
                     <div className="mt-7">
-                      <a
-                        href={p.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <Link
+                        href={p.shop}
                         className="group/cta relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full px-6 py-3.5 text-sm font-bold uppercase tracking-[0.18em] text-ink-950 transition-transform duration-200 hover:scale-[1.02] active:scale-95"
                         style={{
                           background: `linear-gradient(135deg, rgba(${p.rgb},1) 0%, rgba(${p.rgb},0.85) 100%)`,
@@ -170,7 +175,7 @@ export default function EvadePricingShowcase() {
                         <svg className="relative transition-transform duration-200 group-hover/cta:translate-x-1" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                           <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
                         </svg>
-                      </a>
+                      </Link>
                     </div>
                   </div>
                 </div>

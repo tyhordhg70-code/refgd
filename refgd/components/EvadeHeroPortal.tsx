@@ -44,6 +44,14 @@ export default function EvadeHeroPortal({
   const captionOpacity = useTransform(scrollYProgress, [0, 0.86, 1], [1, 1, 0]);
   const captionY = useTransform(scrollYProgress, [0, 1], [0, -28]);
 
+  // Creative parallax: as the hero runway scrolls, the vortex video slowly
+  // dollies IN and drifts up — it reads as "diving into the portal", giving
+  // depth without the old parallax-lock grid tunnel. The scale stays >1 at all
+  // times so the upward drift never exposes a bare edge. Reduced-motion holds a
+  // static slight zoom (no scroll-driven motion).
+  const videoScale = useTransform(scrollYProgress, [0, 1], [1.06, 1.2]);
+  const videoY = useTransform(scrollYProgress, [0, 1], ["0%", "-6%"]);
+
   // Tell LoadingScreen the hero scene is ready (this route waits for it).
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -137,9 +145,10 @@ export default function EvadeHeroPortal({
     <section ref={wrapRef} className="ev-hero relative" style={{ height: "180svh" }}>
       <div className="ev-hero-stage sticky top-0 flex h-screen w-full items-center justify-center overflow-hidden">
         {/* ───────── VIDEO BACKDROP (seamless 20s loop, no crossfade, muted) ───────── */}
-        <video
+        <motion.video
           ref={videoRef}
           className="ev-hero-video"
+          style={reduceMotion ? { scale: 1.06 } : { scale: videoScale, y: videoY }}
           poster="/uploads/evade-hero-vortex-poster.webp"
           autoPlay
           muted
@@ -151,7 +160,7 @@ export default function EvadeHeroPortal({
           onCanPlay={kickPlay}
         >
           <source src="/uploads/evade-hero-vortex.mp4" type="video/mp4" />
-        </video>
+        </motion.video>
         <div aria-hidden="true" className="ev-hero-videoscrim" />
 
         {/* ───────── CAPTION ───────── */}
@@ -240,6 +249,8 @@ export default function EvadeHeroPortal({
           width: 100%; height: 100%;
           object-fit: cover; object-position: center;
           transform: translateZ(0);
+          transform-origin: center center;
+          will-change: transform;
           background: #05070f;
           pointer-events: none;
         }
