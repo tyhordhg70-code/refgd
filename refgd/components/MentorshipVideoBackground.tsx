@@ -116,7 +116,7 @@ export default function MentorshipVideoBackground() {
     >
       <video
         ref={videoRef}
-        className="absolute inset-0 h-full w-full object-cover"
+        className="absolute inset-0 h-full w-full object-contain md:object-cover"
         src="/mentorship-bg.mp4"
         poster="/mentorship-bg-poster.webp"
         muted

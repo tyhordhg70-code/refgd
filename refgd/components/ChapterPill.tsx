@@ -74,17 +74,16 @@ export default function ChapterPill({
 
   return (
     <span
-      className={`heading-display relative inline-flex items-center gap-2 rounded-full border border-white/15 font-semibold uppercase ${sizeClass} ${txt} ${className}`}
+      className={`chapter-pill heading-display relative inline-flex items-center gap-2 rounded-full border border-white/15 font-semibold uppercase ${sizeClass} ${txt} ${className}`}
       style={pillStyle}
       data-testid={`chapter-pill-${editId}`}
     >
       <span
         aria-hidden
-        className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+        className="chapter-pill-dot inline-block h-1.5 w-1.5 shrink-0 rounded-full"
         style={{
           background: `rgba(${rgb},1)`,
           boxShadow: `0 0 14px rgba(${rgb},0.95)`,
-          animation: "chapterPillPulse 2.4s ease-in-out infinite",
         }}
       />
       <EditableText

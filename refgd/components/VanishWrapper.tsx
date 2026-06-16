@@ -27,8 +27,15 @@ export default function VanishWrapper({
 
   if (reduce) return <div className={className}>{children}</div>;
 
-  const initial = { opacity: 0, y: drift, scale: minScale };
-  const target = { opacity: 1, y: 0, scale: 1 };
+  // v45 — DO NOT animate opacity here. These wrappers contain glass rows
+  // (BounceList) whose `backdrop-filter` samples the page behind them. An
+  // ancestor animating opacity 0→1 flattens this whole subtree into a group
+  // buffer, so during the entrance the glass rows' backdrop samples an EMPTY
+  // buffer and the cards visibly VANISH, then snap back when opacity hits 1.
+  // Keeping only y + scale (transforms, which do NOT create an opacity group)
+  // preserves the rise/scale entrance with no backdrop flash.
+  const initial = { y: drift, scale: minScale };
+  const target = { y: 0, scale: 1 };
 
   return (
     <motion.div

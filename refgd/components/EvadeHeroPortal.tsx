@@ -20,7 +20,7 @@
  * off-screen. Reduced-motion shows the poster frame only.
  */
 
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, useScroll, useSpring, useTransform } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 
 export default function EvadeHeroPortal({
@@ -40,17 +40,31 @@ export default function EvadeHeroPortal({
     offset: ["start start", "end end"],
   });
 
+  // v45 — smooth the raw scroll progress through ONE shared spring before
+  // deriving any parallax transform. Previously each useTransform read straight
+  // off `scrollYProgress`, so the caption + video stepped frame-for-frame with
+  // the raw wheel/touch delta — on trackpads and iOS momentum that reads as a
+  // "weird", stuttery dolly. A single low-stiffness / well-damped spring gives
+  // every derived transform a smooth, slightly-trailing glide with no overshoot
+  // (restDelta keeps it from oscillating around the rest value).
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 80,
+    damping: 24,
+    mass: 0.3,
+    restDelta: 0.001,
+  });
+
   // The caption drifts up slightly and fades out near the end of the runway.
-  const captionOpacity = useTransform(scrollYProgress, [0, 0.86, 1], [1, 1, 0]);
-  const captionY = useTransform(scrollYProgress, [0, 1], [0, -28]);
+  const captionOpacity = useTransform(smoothProgress, [0, 0.86, 1], [1, 1, 0]);
+  const captionY = useTransform(smoothProgress, [0, 1], [0, -28]);
 
   // Creative parallax: as the hero runway scrolls, the vortex video slowly
   // dollies IN and drifts up — it reads as "diving into the portal", giving
   // depth without the old parallax-lock grid tunnel. The scale stays >1 at all
   // times so the upward drift never exposes a bare edge. Reduced-motion holds a
   // static slight zoom (no scroll-driven motion).
-  const videoScale = useTransform(scrollYProgress, [0, 1], [1.06, 1.2]);
-  const videoY = useTransform(scrollYProgress, [0, 1], ["0%", "-6%"]);
+  const videoScale = useTransform(smoothProgress, [0, 1], [1.06, 1.2]);
+  const videoY = useTransform(smoothProgress, [0, 1], ["0%", "-6%"]);
 
   // Tell LoadingScreen the hero scene is ready (this route waits for it).
   useEffect(() => {

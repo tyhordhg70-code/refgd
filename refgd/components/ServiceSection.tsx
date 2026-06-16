@@ -241,7 +241,7 @@ export default function ServiceSection(
            sliced. Forcing 100svh on mobile gives the headline +
            cashback scene their own dedicated screen, matching
            desktop's 92svh treatment. */
-        className={`relative isolate flex w-full flex-col items-center justify-center overflow-hidden ${heroBg} min-h-[100svh] pt-8 pb-4 md:flex-row md:items-center md:py-0 md:min-h-[92svh]`}
+        className={`relative isolate flex w-full flex-col items-center justify-center overflow-x-clip ${heroBg} min-h-[100svh] pt-8 pb-4 md:flex-row md:items-center md:py-0 md:min-h-[92svh]`}
         data-cursor="big"
         /* v6.13.34 — Anchor for SkipToStoreListButton's
            IntersectionObserver. The button fades in while this

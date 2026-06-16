@@ -1418,6 +1418,22 @@ html { overflow-anchor: none; }
   50%      { transform: scale(1.35); opacity: 1; }
 }
 
+/* v45 — ChapterPill "chapter 0X" eyebrow stopped VANISHING on mobile scroll.
+   The dot used an inline `animation: chapterPillPulse ...` — the pill's ONLY
+   perpetual GPU promotion. The pill never carried a `.liquid-glass-*` class so
+   the v43/v44 (hover:none) compositor-eviction fix never reached it; the mobile
+   compositor evicted the dot's promoted layer mid-scroll and never repainted,
+   blanking the whole pill. Run the pulse ONLY on hover-capable (desktop)
+   devices; on touch the dot is static (no perpetual layer to evict) and the
+   pill gets a solid backing so it paints once on a cheap, stable layer. */
+@media (hover: hover) {
+  .chapter-pill-dot { animation: chapterPillPulse 2.4s ease-in-out infinite; }
+}
+@media (hover: none) {
+  .chapter-pill-dot { animation: none !important; }
+  .chapter-pill { background-color: rgba(10, 8, 20, 0.5) !important; }
+}
+
 @keyframes liquidMeshBreathe {
   0% {
     border-radius: 30px 26px 28px 32px / 28px 30px 26px 30px;

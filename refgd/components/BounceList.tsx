@@ -161,13 +161,19 @@ function Row({
   // lively "card flies up" beat the user wanted back. viewport.once stays
   // true below, so each row plays its bounce exactly once as it scrolls in
   // and then latches — it can never re-hide on backscroll.
-  const initial = reduce
-    ? { opacity: 0 }
-    : { opacity: 0.001, y: 24, scale: 0.97 };
+  // v45 — the non-reduced entrance no longer animates opacity. The card body
+  // below carries `backdrop-blur-md`; animating opacity on this <li> ancestor
+  // flattens the row into a group buffer mid-entrance, so the child's
+  // backdrop-filter samples an EMPTY buffer and the card visibly VANISHES until
+  // opacity reaches 1 — the "cards flash during the entrance" report. Keeping
+  // only the y + scale bounce (transforms do NOT create an opacity group)
+  // preserves the lively fly-up beat with no backdrop flash. The reduced-motion
+  // branch keeps a plain fade: it has no blur-breaking bounce and reduced-motion
+  // users expect a simple opacity reveal.
+  const initial = reduce ? { opacity: 0 } : { y: 24, scale: 0.97 };
   const whileInView = reduce
     ? { opacity: 1 }
     : {
-        opacity: 1,
         y: [24, -6, 0],
         scale: [0.97, 1.015, 1],
         transition: {
