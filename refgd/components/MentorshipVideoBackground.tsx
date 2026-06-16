@@ -75,10 +75,36 @@ export default function MentorshipVideoBackground() {
     };
     document.addEventListener("visibilitychange", onVisibility);
 
+    // The loading screen treats /exclusive-mentorships as a heavy-asset route:
+    // it fully downloads /mentorship-bg.mp4 behind the splash AND waits for a
+    // `refgd:scene-ready` event before lifting, so the page is never revealed
+    // onto a not-yet-ready backdrop. Announce readiness as soon as the video
+    // can play (or has errored, or the user prefers reduced motion), with a
+    // safety timeout so the splash can never hang on this signal.
+    let announced = false;
+    const announceReady = () => {
+      if (announced) return;
+      announced = true;
+      try {
+        window.dispatchEvent(new Event("refgd:scene-ready"));
+      } catch {
+        /* noop */
+      }
+    };
+    if (reduce || video.readyState >= 2) announceReady();
+    video.addEventListener("canplay", announceReady, { once: true });
+    video.addEventListener("loadeddata", announceReady, { once: true });
+    video.addEventListener("error", announceReady, { once: true });
+    const readyFallback = window.setTimeout(announceReady, 8000);
+
     return () => {
       window.removeEventListener("touchstart", onFirstGesture);
       window.removeEventListener("click", onFirstGesture);
       document.removeEventListener("visibilitychange", onVisibility);
+      video.removeEventListener("canplay", announceReady);
+      video.removeEventListener("loadeddata", announceReady);
+      video.removeEventListener("error", announceReady);
+      window.clearTimeout(readyFallback);
     };
   }, []);
 

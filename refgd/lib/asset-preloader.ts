@@ -86,6 +86,16 @@ export function heavyAssetsForPath(pathname: string): HeavyAsset[] {
   if (p === "/evade-cancelations") {
     return [{ url: "/uploads/evade-hero-vortex.mp4", bytesHint: 12987759 }];
   }
+  // Exclusive-Mentorships hero plays an ~8 MB "Liquid Reflections" boomerang
+  // loop. Download it IN FULL behind the loading overlay so the <video> plays
+  // straight from the browser's (immutable, year-long) HTTP cache the instant
+  // the page is revealed — no buffering, no pop-in. The resumable downloader
+  // below keeps this going across mobile tab suspensions, and the video
+  // component announces `refgd:scene-ready` once it can play so the splash
+  // lifts promptly. (next.config serves /mentorship-bg.* immutable.)
+  if (p === "/exclusive-mentorships") {
+    return [{ url: "/mentorship-bg.mp4", bytesHint: 8231222 }];
+  }
   // The home hero no longer pulls the ~23 MB Spline scene — it is now a tiny
   // (~2.4 MB) scroll-scrubbed WebP frame sequence that paints its first frame
   // instantly and streams the rest behind the page. So there is no heavy
@@ -106,6 +116,41 @@ export function pathHasScene(pathname: string): boolean {
   // NOT wait on a scene-ready signal here (it would never resolve the long way).
   if (p === "/evade-cancelations") return true;
   return false;
+}
+
+/**
+ * Resolve once the page is foregrounded (or immediately if it already is).
+ * Used to pause-and-resume heavy downloads around mobile tab suspensions:
+ * while the tab is hidden the browser runs no timers and may have killed the
+ * in-flight fetch, so we hold here until the user returns and then continue
+ * the stream. Also resolves if the supplied abort signal fires so callers can
+ * bail out instead of waiting forever.
+ */
+function waitUntilVisible(signal?: AbortSignal): Promise<void> {
+  if (
+    typeof document === "undefined" ||
+    document.visibilityState !== "hidden"
+  ) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    const cleanup = () => {
+      document.removeEventListener("visibilitychange", onVis);
+      signal?.removeEventListener("abort", onAbort);
+    };
+    const onVis = () => {
+      if (document.visibilityState !== "hidden") {
+        cleanup();
+        resolve();
+      }
+    };
+    const onAbort = () => {
+      cleanup();
+      resolve();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 /**
@@ -139,48 +184,107 @@ export async function downloadAsset(
       /* Cache Storage unavailable — fall through to a normal network download */
     }
   }
-  try {
-    const res = await fetch(asset.url, {
-      mode: "cors",
-      credentials: "omit",
-      signal,
-    });
-    if (!res.ok || !res.body) {
-      // Still warm the cache via a plain read, then report complete.
-      try {
-        await res.arrayBuffer();
-      } catch {
-        /* noop */
-      }
-      onProgress?.(asset.bytesHint ?? 1, asset.bytesHint ?? 1);
+  // Resumable streaming download.
+  //
+  // A mobile tab that the user backgrounds (switches apps, opens another tab,
+  // locks the phone) gets SUSPENDED mid-stream — iOS frequently kills the
+  // in-flight fetch outright. The old code caught that error and reported the
+  // asset "complete" with only a partial body cached, so the <video> then had
+  // to re-buffer the rest from the network when the page was finally revealed.
+  //
+  // Instead we now RESUME: track how many bytes we have and, whenever the
+  // stream is cut short, wait until the tab is foregrounded again and continue
+  // from that byte with a `Range` request. The download therefore "keeps
+  // going" across any number of background trips until the whole file lands in
+  // the browser's (immutable) HTTP cache. Desktop tabs are never suspended, so
+  // there the very first pass simply runs straight to the end.
+  let received = 0;
+  let total = asset.bytesHint ?? 0;
+  let attempts = 0;
+  for (;;) {
+    if (signal?.aborted) {
+      onProgress?.(total || 1, total || 1);
       return;
     }
-    // Persist the scene as it streams so it is downloaded ONCE: a clone is
-    // written to Cache Storage (the same bucket the service worker serves from)
-    // while the original is read below for progress. Seeding it here means even
-    // the very first visit's download is reused — by Spline's own fetch and by
-    // every future visit — instead of being pulled again.
-    if (
-      isSceneAsset(asset.url) &&
-      /^https?:/.test(asset.url) &&
-      typeof caches !== "undefined"
-    ) {
-      void persistScene(asset.url, res.clone());
-    }
-    const lenHeader = res.headers.get("content-length");
-    const total = lenHeader ? parseInt(lenHeader, 10) : asset.bytesHint ?? 0;
-    const reader = res.body.getReader();
-    let received = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      received += value?.length ?? 0;
+    try {
+      const headers: Record<string, string> = {};
+      if (received > 0) headers.Range = `bytes=${received}-`;
+      const res = await fetch(asset.url, {
+        mode: "cors",
+        credentials: "omit",
+        signal,
+        headers,
+      });
+      // Server ignored our Range and replied 200 from the start → reset the
+      // counter so we don't append onto an offset that was never skipped.
+      if (received > 0 && res.status === 200) received = 0;
+      if (!res.ok && res.status !== 206) {
+        // Non-retryable HTTP status — warm whatever we can, report complete.
+        try {
+          await res.arrayBuffer();
+        } catch {
+          /* noop */
+        }
+        onProgress?.(total || 1, total || 1);
+        return;
+      }
+      // On the first (full) response, seed the scene cache and lock in the
+      // real byte total from the Content-Length header.
+      if (received === 0) {
+        if (
+          isSceneAsset(asset.url) &&
+          /^https?:/.test(asset.url) &&
+          typeof caches !== "undefined"
+        ) {
+          void persistScene(asset.url, res.clone());
+        }
+        const lenHeader = res.headers.get("content-length");
+        if (lenHeader) total = parseInt(lenHeader, 10) || total;
+      }
+      if (!res.body) {
+        try {
+          await res.arrayBuffer();
+        } catch {
+          /* noop */
+        }
+        onProgress?.(total || 1, total || 1);
+        return;
+      }
+      const reader = res.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value?.length ?? 0;
+        onProgress?.(received, total || received);
+      }
+      // Stream finished. If a known total says we are still short, the
+      // connection was cut early (a background suspension) — resume once the
+      // tab is visible again instead of giving up with a partial file.
+      if (total && received < total && !signal?.aborted) {
+        await waitUntilVisible(signal);
+        if (signal?.aborted || ++attempts > 60) {
+          onProgress?.(received, total);
+          return;
+        }
+        continue;
+      }
       onProgress?.(received, total || received);
+      return;
+    } catch {
+      // The gate aborted us (component unmounted) → stop cleanly.
+      if (signal?.aborted) {
+        onProgress?.(total || received || 1, total || received || 1);
+        return;
+      }
+      // Network error, or a suspension that killed the fetch. Wait until the
+      // tab is foregrounded, then loop to resume from `received` via Range.
+      await waitUntilVisible(signal);
+      if (signal?.aborted || ++attempts > 60) {
+        onProgress?.(total || received || 1, total || received || 1);
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 400));
     }
-    onProgress?.(received, total || received);
-  } catch {
-    // Aborted or network error — report "complete" so the gate proceeds.
-    onProgress?.(asset.bytesHint ?? 1, asset.bytesHint ?? 1);
   }
 }
 
