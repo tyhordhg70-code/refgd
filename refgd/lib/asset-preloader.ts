@@ -96,13 +96,18 @@ export function heavyAssetsForPath(pathname: string): HeavyAsset[] {
   if (p === "/exclusive-mentorships") {
     return [{ url: "/mentorship-bg.mp4", bytesHint: 8231222 }];
   }
-  // The home hero is a ~16 MB looping "sphere montage" <video> (sphere-bg.mp4).
-  // It is deliberately NOT gated behind the splash: the <video> paints its
-  // poster instantly and streams progressively, so the home loading screen
-  // stays on the fast path (~1.5–4s) instead of blocking on a 16 MB download.
-  // Instead the BackgroundPrefetcher warms this file into the immutable HTTP
-  // cache while the user is on OTHER pages, so by the time they reach home it
-  // plays with no buffering. (Repeat visits are instant from cache either way.)
+  // The home page is the usual first visit, so we DO gate it: download the
+  // ~40 MB "sphere montage" hero (/sphere-montage.mp4, served immutable) in
+  // full behind the splash so the hero plays with zero buffering on reveal.
+  // CosmicJourney dispatches `refgd:scene-ready` on the video's loadeddata, so
+  // the splash lifts the instant the download finishes + the first frame is
+  // ready (no wasted grace). On a slow first visit this is bounded by the 30 s
+  // ceiling in LoadingScreen; repeat visits are instant from the immutable
+  // cache. (The 17 MB /sphere-bg.mp4 left in public/ is a stale, unused file —
+  // the live hero <video> in CosmicJourney points at /sphere-montage.mp4.)
+  if (p === "/") {
+    return [{ url: "/sphere-montage.mp4", bytesHint: 40549919 }];
+  }
   return [];
 }
 
@@ -354,8 +359,10 @@ export async function downloadHeavyAssets(
 export type PrefetchAsset = HeavyAsset & { routes: string[] };
 
 export const PREFETCHABLE_HEAVY_MEDIA: PrefetchAsset[] = [
-  // Home "sphere montage" hero loop (not splash-gated; warmed in the background).
-  { url: "/sphere-bg.mp4", bytesHint: 17023286, routes: ["/"] },
+  // Home "sphere montage" hero loop (~40 MB). It IS splash-gated on the home
+  // page (see heavyAssetsForPath), so this entry only warms it when the user
+  // is browsing OTHER pages — prefetchOtherRouteMedia skips the current route.
+  { url: "/sphere-montage.mp4", bytesHint: 40549919, routes: ["/"] },
   // Evade-Cancelations neon-vortex hero.
   { url: "/uploads/evade-hero-vortex.mp4", bytesHint: 12987759, routes: ["/evade-cancelations"] },
   // Exclusive-Mentorships "Liquid Reflections" hero loop.
