@@ -96,10 +96,13 @@ export function heavyAssetsForPath(pathname: string): HeavyAsset[] {
   if (p === "/exclusive-mentorships") {
     return [{ url: "/mentorship-bg.mp4", bytesHint: 8231222 }];
   }
-  // The home hero no longer pulls the ~23 MB Spline scene — it is now a tiny
-  // (~2.4 MB) scroll-scrubbed WebP frame sequence that paints its first frame
-  // instantly and streams the rest behind the page. So there is no heavy
-  // cross-network asset to gate the reveal on; the loader uses its fast path.
+  // The home hero is a ~16 MB looping "sphere montage" <video> (sphere-bg.mp4).
+  // It is deliberately NOT gated behind the splash: the <video> paints its
+  // poster instantly and streams progressively, so the home loading screen
+  // stays on the fast path (~1.5–4s) instead of blocking on a 16 MB download.
+  // Instead the BackgroundPrefetcher warms this file into the immutable HTTP
+  // cache while the user is on OTHER pages, so by the time they reach home it
+  // plays with no buffering. (Repeat visits are instant from cache either way.)
   return [];
 }
 
@@ -339,4 +342,97 @@ export async function downloadHeavyAssets(
     ),
   );
   onFraction?.(1);
+}
+
+/**
+ * All large hero media across the site, tagged with the route(s) that own
+ * them. Used by the BackgroundPrefetcher to warm every OTHER route's heavy
+ * video into the browser's (immutable, year-long) HTTP cache while the user
+ * sits on the current page — so navigating to that page later plays straight
+ * from cache with no buffering and no loading-screen wait.
+ */
+export type PrefetchAsset = HeavyAsset & { routes: string[] };
+
+export const PREFETCHABLE_HEAVY_MEDIA: PrefetchAsset[] = [
+  // Home "sphere montage" hero loop (not splash-gated; warmed in the background).
+  { url: "/sphere-bg.mp4", bytesHint: 17023286, routes: ["/"] },
+  // Evade-Cancelations neon-vortex hero.
+  { url: "/uploads/evade-hero-vortex.mp4", bytesHint: 12987759, routes: ["/evade-cancelations"] },
+  // Exclusive-Mentorships "Liquid Reflections" hero loop.
+  { url: "/mentorship-bg.mp4", bytesHint: 8231222, routes: ["/exclusive-mentorships"] },
+];
+
+const prefetchedMedia = new Set<string>();
+const prefetchInFlight = new Set<string>();
+
+/**
+ * Only background-prefetch when the connection can spare it. Respects the
+ * user's Data Saver toggle and skips 2g-class links entirely so we never burn
+ * a metered/slow mobile plan warming videos the user may never visit. Returns
+ * true when the Network Information API is unavailable (can't tell → allow).
+ */
+function connectionAllowsPrefetch(): boolean {
+  if (typeof navigator === "undefined") return true;
+  const c = (
+    navigator as unknown as {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }
+  ).connection;
+  if (!c) return true;
+  if (c.saveData) return false;
+  if (c.effectiveType === "slow-2g" || c.effectiveType === "2g") return false;
+  return true;
+}
+
+/** Resolve on the next idle slot (or after a short delay if unsupported). */
+function whenIdle(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const ric = (
+      window as unknown as {
+        requestIdleCallback?: (
+          cb: () => void,
+          opts?: { timeout: number },
+        ) => number;
+      }
+    ).requestIdleCallback;
+    if (typeof ric === "function") ric(() => resolve(), { timeout: 3000 });
+    else window.setTimeout(resolve, 600);
+  });
+}
+
+/**
+ * Warm every heavy video that does NOT belong to the current route into the
+ * HTTP cache, one at a time, during idle slots. Fire-and-forget: it is NOT
+ * tied to the page lifecycle (no abort on navigation) so a large file finishes
+ * even if the user moves around, and the resumable `downloadAsset` keeps it
+ * going across mobile tab suspensions. Module-level sets dedupe across route
+ * changes so each file is fetched at most once per session (and repeat visits
+ * are served from the immutable cache with no network at all).
+ */
+export async function prefetchOtherRouteMedia(
+  currentPath: string,
+): Promise<void> {
+  if (typeof window === "undefined") return;
+  if (!connectionAllowsPrefetch()) return;
+  const here = norm(currentPath);
+  for (const asset of PREFETCHABLE_HEAVY_MEDIA) {
+    if (asset.routes.some((r) => norm(r) === here)) continue;
+    if (prefetchedMedia.has(asset.url) || prefetchInFlight.has(asset.url)) {
+      continue;
+    }
+    await whenIdle();
+    // Re-check after the idle wait: the user may have toggled Data Saver, the
+    // connection may have degraded, or another mount may have claimed this file.
+    if (!connectionAllowsPrefetch()) return;
+    if (prefetchedMedia.has(asset.url) || prefetchInFlight.has(asset.url)) {
+      continue;
+    }
+    prefetchInFlight.add(asset.url);
+    try {
+      await downloadAsset({ url: asset.url, bytesHint: asset.bytesHint });
+      prefetchedMedia.add(asset.url);
+    } finally {
+      prefetchInFlight.delete(asset.url);
+    }
+  }
 }
