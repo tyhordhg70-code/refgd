@@ -49,7 +49,16 @@ export default function MentorshipVideoBackground() {
       window.removeEventListener("click", onFirstGesture);
     };
 
-    if (!reduce) {
+    if (reduce) {
+      // Honour prefers-reduced-motion: stop the autoplay the <video loop
+      // autoPlay> attributes kicked off and hold on the poster frame.
+      video.pause();
+      try {
+        video.currentTime = 0;
+      } catch {
+        /* not yet seekable — fine, it's paused */
+      }
+    } else {
       tryPlay();
       window.addEventListener("touchstart", onFirstGesture, { passive: true });
       window.addEventListener("click", onFirstGesture);

@@ -67,9 +67,9 @@ const EMOTIONS = ["Fear", "Excitement", "Curiosity", "Anger", "Guilt", "Sadness"
  *    per-frame transforms). They complete in 0.4–0.7s after entering
  *    the viewport so they cannot freeze mid-scroll.
  *  – Background: a page-scoped fixed video backdrop
- *    (MentorshipVideoBackground — a seamless plasma-sphere loop) behind a
- *    readability scrim. Normal speed across the hero, eased to 0.15x once
- *    the hero scrolls away.
+ *    (MentorshipVideoBackground — the owner-supplied "Liquid Reflections in
+ *    Red and Purple Neon" boomerang loop) behind a readability scrim. Plays
+ *    at constant normal (1.0x) speed everywhere.
  *  – TextReveal variants are intentionally diversified per section
  *    (wordWave / charBounce / lineMask / wordBlur / charGlitch) so
  *    no two consecutive sections share the same flavour.
@@ -90,12 +90,11 @@ export default function MentorshipsPage() {
           rubber-band exposed body-color (#06030f) as a black strip at
           the bottom while scrolling. Backstop bg + full-dvh root
           eliminates the gap regardless of viewport-unit weirdness. */}
-      {/* Page-scoped VIDEO backdrop (cool plasma-sphere montage loop)
-          behind a readability scrim — replaces the old CosmicBackground +
-          LiquidParticles (lighter on the GPU, and the requested video
-          background). Plays at normal speed across the parallax hero, then
-          eases to 0.15× once the hero scrolls away so the moving colour
-          never competes with the body copy. */}
+      {/* Page-scoped VIDEO backdrop (owner-supplied "Liquid Reflections in
+          Red and Purple Neon" boomerang loop) behind a readability scrim —
+          replaces the old CosmicBackground + LiquidParticles (lighter on the
+          GPU, and the requested video background). Plays at a constant normal
+          (1.0×) speed everywhere per the owner's request. */}
       <MentorshipVideoBackground />
 
       {/* Act 1 — Bespoke parallax illustration hero (replaces the
