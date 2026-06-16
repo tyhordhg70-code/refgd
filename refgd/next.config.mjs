@@ -95,6 +95,23 @@ const nextConfig = {
               { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
             ],
           },
+          {
+            // Mentorship page "Liquid Reflections" looping backdrop + its
+            // poster. Content-stable single files → cache for a year so the
+            // browser reuses them on repeat visits instead of re-pulling ~8 MB.
+            // public/ otherwise serves max-age=0 (revalidates every load).
+            source: "/mentorship-bg.:ext(mp4|webp)",
+            headers: [
+              { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+            ],
+          },
+          {
+            // Poster image for the mentorship backdrop (filename ends -poster).
+            source: "/mentorship-bg-poster.webp",
+            headers: [
+              { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+            ],
+          },
         ];
       },
       async redirects() {
