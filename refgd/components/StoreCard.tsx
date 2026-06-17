@@ -5,9 +5,9 @@ import type { Store, StoreTag } from "@/lib/types";
 import { logoChainForStore } from "@/lib/logo";
 import { useEditContext } from "@/lib/edit-context";
 import InfoModal from "./InfoModal";
-import { getTelegraphContent } from "@/data/telegraph-content";
+import { getTelegraphContent, getStoreInfoByDomain, type TelegraphContent } from "@/data/telegraph-content";
 
-function parseNotes(text: string, onOpen: (url: string) => void) {
+function parseNotes(text: string, onOpen: (content: TelegraphContent) => void) {
   const re = /\[([^\]]+)\]\(([^)]+)\)/g;
   const parts: (string | JSX.Element)[] = [];
   let last = 0, ki = 0, m: RegExpExecArray | null;
@@ -19,12 +19,13 @@ function parseNotes(text: string, onOpen: (url: string) => void) {
     // IN-PLACE (recreated content + close button) instead of redirecting away.
     // A <button> is used so the root layout's admin edit-mode anchor click
     // guard never swallows the trigger.
-    if (getTelegraphContent(url)) {
+    const linked = getTelegraphContent(url);
+    if (linked) {
       parts.push(
         <button
           key={ki++}
           type="button"
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(url); }}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(linked); }}
           className="inline cursor-pointer border-0 bg-transparent p-0 align-baseline font-bold text-amber-300 underline underline-offset-2 hover:text-amber-200"
         >
           {label}
@@ -104,10 +105,11 @@ export default function StoreCard({
   const [logoIdx, setLogoIdx] = useState(0);
   const logoSrc = fallbacks[logoIdx];
 
-  // In-place info panel: when a note link points at a page we mirror, the
-  // card opens the recreated content here instead of navigating away.
-  const [infoUrl, setInfoUrl] = useState<string | null>(null);
-  const infoContent = infoUrl ? getTelegraphContent(infoUrl) : null;
+  // In-place info panel: cards open recreated content here instead of
+  // navigating away. Triggered either by a mirrored note link (parseNotes) or,
+  // for stores with no inline link, by domain match (e.g. StubHub).
+  const [info, setInfo] = useState<TelegraphContent | null>(null);
+  const domainInfo = getStoreInfoByDomain(store.domain);
 
   const initial = store.name.replace(/[^a-zA-Z]/g, "")[0]?.toUpperCase() || "?";
 
@@ -266,8 +268,21 @@ export default function StoreCard({
 
         {store.notes && (
           <p className="mt-3 whitespace-pre-wrap break-words text-sm font-bold leading-relaxed text-white/85">
-            {parseNotes(store.notes, setInfoUrl)}
+            {parseNotes(store.notes, setInfo)}
           </p>
+        )}
+
+        {/* Stores with no inline link (e.g. StubHub) still get an in-place
+            info popup, triggered by domain match. A <button> dodges the admin
+            edit-mode anchor click guard, same as the note-link triggers. */}
+        {domainInfo && (
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfo(domainInfo); }}
+            className="mt-3 inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-sm font-bold text-amber-300 underline underline-offset-2 hover:text-amber-200"
+          >
+            CLICK TO READ FULL INFO
+          </button>
         )}
 
         {store.domain && (
@@ -284,12 +299,12 @@ export default function StoreCard({
           </a>
         )}
 
-        {infoContent && (
+        {info && (
           <InfoModal
             open
-            onClose={() => setInfoUrl(null)}
+            onClose={() => setInfo(null)}
             title={store.name}
-            html={infoContent.html}
+            html={info.html}
           />
         )}
       </div>

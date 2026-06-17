@@ -67,6 +67,15 @@ const nextConfig = {
             ],
           },
           {
+            // Mirrored info-popup images (content-addressed sha1 filenames) for
+            // the store-list / buy4u in-place info modals. Stable forever, so
+            // cache for a year instead of revalidating on every visit.
+            source: "/info-img/:path*",
+            headers: [
+              { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+            ],
+          },
+          {
             // Scroll-scrubbed hero frame sequence (f_001.webp … f_101.webp).
             // Content-stable and 1-indexed, so cache them for a year — the
             // browser reuses every frame on repeat visits instead of re-pulling
