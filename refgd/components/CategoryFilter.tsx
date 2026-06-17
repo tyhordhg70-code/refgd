@@ -333,7 +333,8 @@ export default function CategoryFilter({
           ref={panelRef}
           role="listbox"
           aria-multiselectable="true"
-          className="absolute left-0 right-0 sm:right-auto z-30 mt-2 w-full sm:w-[360px] origin-top rounded-2xl border border-white/15 bg-gradient-to-b from-ink-800 via-ink-900 to-ink-950 p-3 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.85)] ring-1 ring-inset ring-white/5 sm:backdrop-blur-xl"
+          data-lenis-prevent
+          className="absolute left-0 right-0 sm:right-auto z-30 mt-2 max-h-[80vh] w-full origin-top overflow-y-auto overscroll-contain rounded-2xl border border-white/15 bg-gradient-to-b from-ink-800 via-ink-900 to-ink-950 p-3 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.85)] ring-1 ring-inset ring-white/5 sm:w-[360px] sm:backdrop-blur-xl"
         >
           <div className="mb-2 flex items-center justify-between px-2 pt-1">
             <span className="text-[10px] font-semibold uppercase tracking-widest text-white/50">
@@ -353,12 +354,7 @@ export default function CategoryFilter({
               Drag the ⋮⋮ handle to reorder {savingOrder ? "· saving…" : ""}
             </p>
           )}
-          <div className="relative">
-          <div
-            data-lenis-prevent
-            className="max-h-[340px] overflow-y-auto overscroll-contain pr-1"
-            style={{ touchAction: "pan-y" }}
-          >
+          <div className="pr-1">
             {localOrder.length === 0 ? (
               <p className="px-2 py-3 text-xs text-white/50">
                 No categories yet.
@@ -515,12 +511,6 @@ export default function CategoryFilter({
                 })}
               </ul>
             )}
-          </div>
-          {localOrder.length > 7 && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-8 items-end justify-center rounded-b-md bg-gradient-to-t from-ink-950/95 via-ink-950/60 to-transparent">
-              <span className="mb-0.5 animate-bounce text-[10px] leading-none text-white/45">⌄</span>
-            </div>
-          )}
           </div>
 
           {isAdmin && editMode && (
