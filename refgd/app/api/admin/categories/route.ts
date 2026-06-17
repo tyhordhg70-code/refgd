@@ -3,6 +3,8 @@ import { readSession } from "@/lib/auth";
 import {
   addExtraCategory,
   removeExtraCategory,
+  setCategoryLabel,
+  getCategoryLabels,
   getAllCategoriesMerged,
   getExtraCategories,
   CANNED_CATEGORIES,
@@ -16,11 +18,12 @@ async function requireAuth(): Promise<NextResponse | null> {
   return null;
 }
 
-function ok(extras: string[], merged: string[]) {
+function ok(extras: string[], merged: string[], labels: Record<string, string>) {
   return NextResponse.json({
     categories: merged,
     canned: CANNED_CATEGORIES,
     extras,
+    labels,
   });
 }
 
@@ -34,8 +37,11 @@ export async function POST(req: Request) {
   }
   try {
     const extras = await addExtraCategory(body.name);
-    const merged = await getAllCategoriesMerged();
-    return ok(extras, merged);
+    const [merged, labels] = await Promise.all([
+      getAllCategoriesMerged(),
+      getCategoryLabels(),
+    ]);
+    return ok(extras, merged, labels);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     console.error("[categories POST] failed:", err);
@@ -61,8 +67,11 @@ export async function DELETE(req: Request) {
   }
   try {
     const extras = await removeExtraCategory(name);
-    const merged = await getAllCategoriesMerged();
-    return ok(extras, merged);
+    const [merged, labels] = await Promise.all([
+      getAllCategoriesMerged(),
+      getCategoryLabels(),
+    ]);
+    return ok(extras, merged, labels);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     const status = /still used/i.test(msg) ? 409 : 400;
@@ -77,11 +86,12 @@ export async function GET() {
   const u = await requireAuth();
   if (u) return u;
   try {
-    const [extras, merged] = await Promise.all([
+    const [extras, merged, labels] = await Promise.all([
       getExtraCategories(),
       getAllCategoriesMerged(),
+      getCategoryLabels(),
     ]);
-    return ok(extras, merged);
+    return ok(extras, merged, labels);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     console.error("[categories GET admin] failed:", err);
@@ -89,5 +99,38 @@ export async function GET() {
       { error: `DB error: ${msg.slice(0, 200)}` },
       { status: 500 },
     );
+  }
+}
+
+/**
+ * PATCH { name, label } — set (or clear) the display label for a
+ * category. The label may contain emoji and is purely cosmetic: the
+ * underlying category key persisted on store rows is never touched, so
+ * search / filtering / store-assignment keep working. An empty `label`
+ * clears the override and the category reverts to its hardcoded / raw
+ * name.
+ */
+export async function PATCH(req: Request) {
+  const u = await requireAuth();
+  if (u) return u;
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body.name !== "string" || typeof body.label !== "string") {
+    return NextResponse.json(
+      { error: "name (string) and label (string) are required" },
+      { status: 400 },
+    );
+  }
+  try {
+    await setCategoryLabel(body.name, body.label);
+    const [extras, merged, labels] = await Promise.all([
+      getExtraCategories(),
+      getAllCategoriesMerged(),
+      getCategoryLabels(),
+    ]);
+    return ok(extras, merged, labels);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("[categories PATCH] failed:", err);
+    return NextResponse.json({ error: msg.slice(0, 200) }, { status: 400 });
   }
 }

@@ -18,6 +18,11 @@ interface Props {
   initialCategories?: string[];
   initialExtras?: string[];
   initialCanned?: string[];
+  /** Admin-curated display-label overrides (category key → label). These
+   *  win over the hardcoded CATEGORY_LABEL defaults below and let admins
+   *  re-word category titles (emoji included) without renaming the
+   *  underlying key stored on store rows. */
+  initialLabels?: Record<string, string>;
 }
 
 const REGIONS: { id: Region; label: string }[] = [
@@ -57,6 +62,7 @@ export default function StoreFilters({
   initialCategories = [],
   initialExtras = [],
   initialCanned = [],
+  initialLabels = {},
 }: Props) {
   const router = useRouter();
   const [region, setRegion] = useState<Region>("USA");
@@ -82,6 +88,10 @@ export default function StoreFilters({
   const [categoryOptions, setCategoryOptions] = useState<string[]>(initialCategories);
   const [cannedSet, setCannedSet] = useState<Set<string>>(() => new Set(initialCanned));
   const [extrasSet, setExtrasSet] = useState<Set<string>>(() => new Set(initialExtras));
+  // Admin display-label overrides (category key → label). Seeded from the
+  // server render so visitors see custom labels on first paint, then
+  // refreshed alongside the category list.
+  const [labelOverrides, setLabelOverrides] = useState<Record<string, string>>(initialLabels);
 
   const refreshCategories = useCallback(async () => {
     try {
@@ -91,12 +101,26 @@ export default function StoreFilters({
       setCategoryOptions(Array.isArray(j.categories) ? j.categories : []);
       setCannedSet(new Set(Array.isArray(j.canned) ? j.canned : []));
       setExtrasSet(new Set(Array.isArray(j.extras) ? j.extras : []));
+      setLabelOverrides(
+        j.labels && typeof j.labels === "object" && !Array.isArray(j.labels)
+          ? (j.labels as Record<string, string>)
+          : {},
+      );
     } catch (err) {
       // Best-effort — UI keeps working with the seeded list.
       console.warn("[store-list] couldn't refresh categories", err);
     }
   }, []);
   useEffect(() => { void refreshCategories(); }, [refreshCategories]);
+
+  // Effective label for any category: admin override wins, then the
+  // hardcoded canned label, then the raw key. Used for the filter
+  // dropdown entries, the page section headers and the "+ Add" tiles so
+  // a rename shows everywhere at once.
+  const effectiveLabels = useMemo<Record<string, string>>(
+    () => ({ ...CATEGORY_LABEL, ...labelOverrides }),
+    [labelOverrides],
+  );
 
   const { isAdmin, editMode } = useEditContext();
 
@@ -424,7 +448,7 @@ export default function StoreFilters({
       <div className="mb-6 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
         <CategoryFilter
           options={categoryOptions}
-          labels={CATEGORY_LABEL}
+          labels={effectiveLabels}
           selected={selectedCategories}
           onChange={setSelectedCategories}
           removable={
@@ -436,10 +460,13 @@ export default function StoreFilters({
               Array.from(extrasSet).filter((c) => !cannedSet.has(c)),
             )
           }
-          onCategoriesUpdated={({ categories, extras, canned }) => {
+          onCategoriesUpdated={({ categories, extras, canned, labels }) => {
             setCategoryOptions(categories);
             setCannedSet(new Set(canned));
             setExtrasSet(new Set(extras));
+            if (labels && typeof labels === "object" && !Array.isArray(labels)) {
+              setLabelOverrides(labels);
+            }
           }}
         />
         {selectedCategories.size > 0 && (
@@ -502,7 +529,7 @@ export default function StoreFilters({
                       "0 0 16px rgba(255,255,255,0.55), 0 0 36px rgba(255,255,255,0.25), 0 2px 6px rgba(0,0,0,0.65)",
                   }}
                 >
-                  {CATEGORY_LABEL[category] ?? category}
+                  {effectiveLabels[category] ?? category}
                 </h3>
                 <p className="mt-1 text-xs uppercase tracking-widest text-white/40">
                   {list.length} {list.length === 1 ? "store" : "stores"}
@@ -520,7 +547,7 @@ export default function StoreFilters({
                     className="flex min-h-[148px] items-center justify-center rounded-2xl border-2 border-dashed border-amber-300/40 bg-amber-400/5 text-sm font-semibold text-amber-200 transition hover:border-amber-300/80 hover:bg-amber-400/10 hover:text-amber-100"
                     data-testid={`store-add-${category}`}
                   >
-                    + Add store to {CATEGORY_LABEL[category] ?? category}
+                    + Add store to {effectiveLabels[category] ?? category}
                   </button>
                 )}
 

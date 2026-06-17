@@ -30,11 +30,13 @@ type Props = {
   onChange: (next: Set<string>) => void;
   /** Names that came from `extras` — only these can be removed by admins. */
   removable: Set<string>;
-  /** Called when admin adds/removes a category — parent re-fetches. */
+  /** Called when admin adds/removes/renames a category — parent re-fetches. */
   onCategoriesUpdated: (payload: {
     categories: string[];
     extras: string[];
     canned: string[];
+    /** Display-label overrides (category key → label). Present on rename. */
+    labels?: Record<string, string>;
   }) => void;
 };
 
@@ -58,6 +60,12 @@ export default function CategoryFilter({
   const [dragId, setDragId] = useState<string | null>(null);
   const [localOrder, setLocalOrder] = useState<string[]>(options);
   const [savingOrder, setSavingOrder] = useState(false);
+  // Inline rename. `editingCat` is the category KEY currently being
+  // re-labelled; `editingValue` is the in-progress label text (emoji
+  // welcome). Renaming only changes the visible label — the underlying
+  // key on store rows is untouched.
+  const [editingCat, setEditingCat] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
 
   // Keep the local copy in sync whenever the parent feeds us a new
   // option list (e.g. after add/remove or initial fetch).
@@ -85,6 +93,7 @@ export default function CategoryFilter({
         categories: j.categories ?? next,
         extras: j.extras ?? [],
         canned: j.canned ?? [],
+        labels: j.labels ?? {},
       });
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Couldn't save order.");
@@ -179,6 +188,7 @@ export default function CategoryFilter({
         categories: j.categories ?? [],
         extras: j.extras ?? [],
         canned: j.canned ?? [],
+        labels: j.labels ?? {},
       });
       setAdding("");
     } catch (e) {
@@ -207,6 +217,7 @@ export default function CategoryFilter({
         categories: j.categories ?? [],
         extras: j.extras ?? [],
         canned: j.canned ?? [],
+        labels: j.labels ?? {},
       });
       // Drop it from the selection too if it was selected.
       if (selected.has(cat)) {
@@ -216,6 +227,49 @@ export default function CategoryFilter({
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Couldn't remove category.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function startRename(cat: string) {
+    setErr(null);
+    setEditingCat(cat);
+    // Prefill with the label the admin currently sees (override, then
+    // canned label, then the raw key) so they edit from what's on screen.
+    setEditingValue(labels[cat] ?? cat);
+  }
+
+  function cancelRename() {
+    setEditingCat(null);
+    setEditingValue("");
+  }
+
+  async function handleRename(cat: string, label: string) {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/admin/categories", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: cat, label }),
+      });
+      if (!res.ok) {
+        let detail = "";
+        try { detail = (await res.clone().json())?.error || ""; } catch {}
+        throw new Error(detail || `HTTP ${res.status}`);
+      }
+      const j = await res.json();
+      onCategoriesUpdated({
+        categories: j.categories ?? [],
+        extras: j.extras ?? [],
+        canned: j.canned ?? [],
+        labels: j.labels ?? {},
+      });
+      cancelRename();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Couldn't rename category.");
     } finally {
       setBusy(false);
     }
@@ -301,6 +355,7 @@ export default function CategoryFilter({
           )}
           <div className="relative">
           <div
+            data-lenis-prevent
             className="max-h-[340px] overflow-y-auto overscroll-contain pr-1"
             style={{ touchAction: "pan-y" }}
           >
@@ -314,7 +369,9 @@ export default function CategoryFilter({
                   const on = selected.has(cat);
                   const canRemove =
                     isAdmin && editMode && removable.has(cat);
-                  const draggable = isAdmin && editMode;
+                  const canEdit = isAdmin && editMode;
+                  const editing = editingCat === cat;
+                  const draggable = canEdit && !editing;
                   return (
                     <li
                       key={cat}
@@ -336,61 +393,121 @@ export default function CategoryFilter({
                             : "hover:bg-white/5"
                         }`}
                       >
-                        {draggable && (
-                          <span
-                            title="Drag to reorder"
-                            aria-hidden
-                            className="cursor-grab select-none px-1 text-amber-300/70 hover:text-amber-200 active:cursor-grabbing"
-                          >
-                            ⋮⋮
-                          </span>
-                        )}
-                        <label className="flex flex-1 cursor-pointer items-center gap-3">
-                          <span
-                            className={`flex h-4 w-4 flex-none items-center justify-center rounded border transition ${
-                              on
-                                ? "border-amber-300 bg-amber-300 text-ink-950"
-                                : "border-white/30 bg-transparent"
-                            }`}
-                          >
-                            {on && (
-                              <svg
-                                className="h-3 w-3"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
+                        {editing ? (
+                          // Inline rename row. Plain text input so the OS
+                          // emoji picker / paste works. Enter saves, Escape
+                          // cancels; we stop the Escape from bubbling to the
+                          // window handler that would otherwise close the
+                          // whole dropdown.
+                          <div className="flex flex-1 items-center gap-2">
+                            <input
+                              autoFocus
+                              type="text"
+                              value={editingValue}
+                              disabled={busy}
+                              onChange={(e) => setEditingValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  void handleRename(cat, editingValue);
+                                } else if (e.key === "Escape") {
+                                  e.preventDefault();
+                                  e.nativeEvent.stopImmediatePropagation();
+                                  cancelRename();
+                                }
+                              }}
+                              placeholder={cat}
+                              className="min-w-0 flex-1 rounded-md border border-amber-300/40 bg-ink-950/60 px-2 py-1 text-sm text-white placeholder:text-white/30 focus:border-amber-300 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleRename(cat, editingValue)}
+                              disabled={busy}
+                              title="Save label"
+                              className="rounded-md px-2 py-0.5 text-xs font-semibold text-emerald-300/90 transition hover:bg-emerald-500/10 hover:text-emerald-200 disabled:opacity-40"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelRename}
+                              disabled={busy}
+                              title="Cancel"
+                              className="rounded-md px-2 py-0.5 text-xs text-white/55 transition hover:bg-white/5 hover:text-white/80 disabled:opacity-40"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            {draggable && (
+                              <span
+                                title="Drag to reorder"
+                                aria-hidden
+                                className="cursor-grab select-none px-1 text-amber-300/70 hover:text-amber-200 active:cursor-grabbing"
                               >
-                                <path d="M5 13l4 4L19 7" />
-                              </svg>
+                                ⋮⋮
+                              </span>
                             )}
-                          </span>
-                          <input
-                            type="checkbox"
-                            checked={on}
-                            onChange={() => toggle(cat)}
-                            className="sr-only"
-                          />
-                          <span
-                            className={`text-sm ${
-                              on ? "font-semibold text-amber-100" : "text-white/85"
-                            }`}
-                          >
-                            {labels[cat] ?? cat}
-                          </span>
-                        </label>
-                        {canRemove && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemove(cat)}
-                            disabled={busy}
-                            title={`Remove "${cat}"`}
-                            className="rounded-md px-2 py-0.5 text-xs text-rose-300/70 opacity-0 transition hover:bg-rose-500/10 hover:text-rose-200 group-hover/item:opacity-100 disabled:opacity-40"
-                          >
-                            ✕
-                          </button>
+                            <label className="flex flex-1 cursor-pointer items-center gap-3">
+                              <span
+                                className={`flex h-4 w-4 flex-none items-center justify-center rounded border transition ${
+                                  on
+                                    ? "border-amber-300 bg-amber-300 text-ink-950"
+                                    : "border-white/30 bg-transparent"
+                                }`}
+                              >
+                                {on && (
+                                  <svg
+                                    className="h-3 w-3"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="3"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={on}
+                                onChange={() => toggle(cat)}
+                                className="sr-only"
+                              />
+                              <span
+                                className={`text-sm ${
+                                  on ? "font-semibold text-amber-100" : "text-white/85"
+                                }`}
+                              >
+                                {labels[cat] ?? cat}
+                              </span>
+                            </label>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => startRename(cat)}
+                                disabled={busy}
+                                title={`Rename "${cat}" label`}
+                                className="rounded-md px-2 py-0.5 text-xs text-amber-200/70 opacity-0 transition hover:bg-amber-400/10 hover:text-amber-100 group-hover/item:opacity-100 disabled:opacity-40"
+                              >
+                                ✎
+                              </button>
+                            )}
+                            {canRemove && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemove(cat)}
+                                disabled={busy}
+                                title={`Remove "${cat}"`}
+                                className="rounded-md px-2 py-0.5 text-xs text-rose-300/70 opacity-0 transition hover:bg-rose-500/10 hover:text-rose-200 group-hover/item:opacity-100 disabled:opacity-40"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </li>

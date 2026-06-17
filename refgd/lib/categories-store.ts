@@ -22,6 +22,16 @@ const STORAGE_KEY = "_extra_categories";
  *  default order. Any name in the stored order that no longer exists
  *  is dropped. */
 const ORDER_KEY = "_category_order";
+/** Admin-curated DISPLAY labels for categories. Stored as a JSON object
+ *  mapping the underlying category key (the value persisted on store rows
+ *  and in the extras/order lists) to a human-friendly label that may
+ *  include emoji, e.g. { "Electronics": "🎮 Electronics & High-Resell" }.
+ *  Purely cosmetic: renaming a category here NEVER mutates store rows or
+ *  the canned keys, so search / filtering / store-assignment keep working
+ *  while the visible text on /store-list changes. An empty/cleared label
+ *  removes the override and the category falls back to its hardcoded /
+ *  raw name. */
+const LABELS_KEY = "_category_labels";
 
 /**
  * The original canned categories, kept as defaults so the dropdown is
@@ -39,12 +49,27 @@ export const CANNED_CATEGORIES: readonly string[] = [
 ];
 
 const MAX_CATEGORY_LEN = 60;
+/** Labels carry emoji + descriptive wording, so allow a little more room
+ *  than bare category keys. */
+const MAX_LABEL_LEN = 80;
 
 function clean(name: unknown): string {
   if (typeof name !== "string") return "";
   const t = name.trim();
   if (!t) return "";
   return t.length > MAX_CATEGORY_LEN ? t.slice(0, MAX_CATEGORY_LEN) : t;
+}
+
+/** Clean a display label. Unlike `clean()` this is code-point aware when
+ *  truncating so a multi-byte emoji at the length boundary is never split
+ *  into a broken surrogate half. Emoji and other non-ASCII characters are
+ *  preserved verbatim — only surrounding whitespace is trimmed. */
+function cleanLabel(label: unknown): string {
+  if (typeof label !== "string") return "";
+  const t = label.trim();
+  if (!t) return "";
+  const cp = Array.from(t);
+  return cp.length > MAX_LABEL_LEN ? cp.slice(0, MAX_LABEL_LEN).join("") : t;
 }
 
 /** Read just the admin-added extras (no canned, no in-use categories). */
@@ -142,6 +167,49 @@ export async function setCategoryOrder(list: unknown): Promise<string[]> {
   );
   await setContentBlock(ORDER_KEY, JSON.stringify(cleaned));
   return cleaned;
+}
+
+/** Read the admin-curated display-label overrides. Returns a map of
+ *  category key → label. Malformed / empty entries are dropped. */
+export async function getCategoryLabels(): Promise<Record<string, string>> {
+  const raw = await getContentBlock(LABELS_KEY);
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      const key = clean(k);
+      const label = cleanLabel(v);
+      if (key && label) out[key] = label;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Set (or clear) the display label for a single category. Passing an
+ * empty / whitespace-only label removes the override so the category
+ * reverts to its hardcoded or raw name. Returns the full updated label
+ * map. The category KEY itself is never changed — this is cosmetic only.
+ */
+export async function setCategoryLabel(
+  name: string,
+  label: string,
+): Promise<Record<string, string>> {
+  const key = clean(name);
+  if (!key) throw new Error("Category name is required.");
+  const current = await getCategoryLabels();
+  const cleaned = cleanLabel(label);
+  if (!cleaned) {
+    delete current[key];
+  } else {
+    current[key] = cleaned;
+  }
+  await setContentBlock(LABELS_KEY, JSON.stringify(current));
+  return current;
 }
 
 /**

@@ -3,6 +3,7 @@ import StoreFilters from "@/components/StoreFilters";
 import {
   getAllCategoriesMerged,
   getExtraCategories,
+  getCategoryLabels,
   CANNED_CATEGORIES,
 } from "@/lib/categories-store";
 import ServiceSection from "@/components/ServiceSection";
@@ -60,10 +61,11 @@ const RULES_BLOCKS = [
 ];
 
 export default async function StoreListPage() {
-  const [stores, initialCategories, initialExtras] = await Promise.all([
+  const [stores, initialCategories, initialExtras, initialLabels] = await Promise.all([
     listStores(),
     getAllCategoriesMerged(),
     getExtraCategories(),
+    getCategoryLabels(),
   ]);
 
   return (
@@ -457,6 +459,7 @@ export default async function StoreListPage() {
                   initialCategories={initialCategories}
                   initialExtras={initialExtras}
                   initialCanned={CANNED_CATEGORIES as unknown as string[]}
+                  initialLabels={initialLabels}
                 />
               </div>
             </section>

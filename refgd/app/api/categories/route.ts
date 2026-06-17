@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAllCategoriesMerged, getExtraCategories, CANNED_CATEGORIES } from "@/lib/categories-store";
+import { getAllCategoriesMerged, getExtraCategories, getCategoryLabels, CANNED_CATEGORIES } from "@/lib/categories-store";
 
 export const dynamic = "force-dynamic";
 
@@ -11,14 +11,16 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   try {
-    const [merged, extras] = await Promise.all([
+    const [merged, extras, labels] = await Promise.all([
       getAllCategoriesMerged(),
       getExtraCategories(),
+      getCategoryLabels(),
     ]);
     return NextResponse.json({
       categories: merged,
       canned: CANNED_CATEGORIES,
       extras,
+      labels,
     });
   } catch (err) {
     console.error("[categories GET] failed:", err);
