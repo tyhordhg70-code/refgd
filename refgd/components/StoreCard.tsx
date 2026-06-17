@@ -73,6 +73,10 @@ const TAG_LABEL: Record<string, { label: string; cls: string }> = {
 type StoreCardProps = {
   store: Store;
   idx: number;
+  /** Admin display-label overrides (category key → label). When a category
+   *  has a renamed label it is shown here so the card matches the section
+   *  header and the editor; the underlying key on the store is unchanged. */
+  categoryLabels?: Record<string, string>;
   /** Inline-editor callbacks. When omitted the card behaves normally. */
   onEdit?: (store: Store) => void;
   onDelete?: (store: Store) => void;
@@ -87,6 +91,7 @@ type StoreCardProps = {
 export default function StoreCard({
   store,
   idx,
+  categoryLabels,
   onEdit,
   onDelete,
   draggable,
@@ -238,7 +243,7 @@ export default function StoreCard({
                 </span>
               ))}
             </div>
-            <p className="text-xs text-white/65 font-medium">{(store.categories ?? []).join(' · ')}</p>
+            <p className="text-xs text-white/65 font-medium">{(store.categories ?? []).map((c) => categoryLabels?.[c] ?? c).join(' · ')}</p>
             {(store.tags ?? []).length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {(store.tags ?? []).map((t) => {

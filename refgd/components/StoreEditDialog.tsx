@@ -47,6 +47,10 @@ type Props = {
   /** Extra category strings (admin-created customs) to append to the
    *  dropdown so they survive editing. */
   availableCategories?: string[];
+  /** Admin display-label overrides (category key → label). Shown on the
+   *  category chips so renamed categories read the same here as on the
+   *  /store-list section headers; the underlying key is what's saved. */
+  categoryLabels?: Record<string, string>;
   /** Fired after a brand-new custom category was registered server-side. */
   onCategoryAdded?: () => void;
   onClose: () => void;
@@ -135,6 +139,7 @@ export default function StoreEditDialog({
   onClose,
   onSaved,
   availableCategories,
+  categoryLabels,
   onCategoryAdded,
 }: Props) {
   const [draft, setDraft] = useState<Draft>(() =>
@@ -482,7 +487,7 @@ export default function StoreEditDialog({
                         : "bg-white/5 text-white/70 ring-white/10 hover:bg-white/10"
                     }`}
                   >
-                    {c}
+                    {categoryLabels?.[c] ?? c}
                   </button>
                 );
               })}
@@ -493,7 +498,7 @@ export default function StoreEditDialog({
                     key={c}
                     className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs ring-1 bg-violet-500/20 text-violet-200 ring-violet-400/40"
                   >
-                    {c}
+                    {categoryLabels?.[c] ?? c}
                     <button
                       type="button"
                       onClick={() => toggleCategory(c)}

@@ -556,6 +556,7 @@ export default function StoreFilters({
                     key={s.id}
                     store={s}
                     idx={i}
+                    categoryLabels={effectiveLabels}
                     onEdit={isAdmin && editMode ? openEdit : undefined}
                     onDelete={isAdmin && editMode ? handleDelete : undefined}
                     draggable={isAdmin && editMode}
@@ -598,6 +599,7 @@ export default function StoreFilters({
             : undefined
         }
         availableCategories={categoryOptions}
+        categoryLabels={effectiveLabels}
         onCategoryAdded={refreshCategories}
         onClose={() => setDialog({ open: false })}
         onSaved={handleSaved}
