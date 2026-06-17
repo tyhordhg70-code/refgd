@@ -463,6 +463,7 @@ export default function StoreFilters({
             </span>
             <a
               href="/admin/stores?bulk=1"
+              data-editor-chrome="true"
               className="ml-2 inline-flex items-center gap-1 rounded-full border-2 border-amber-300/70 bg-amber-400/10 px-3 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-200 shadow-[0_0_16px_-4px_rgba(245,185,69,0.4)] transition hover:border-amber-300 hover:bg-amber-400/20 hover:text-white"
             >
               📋 Bulk import
