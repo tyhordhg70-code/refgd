@@ -4,25 +4,46 @@ import { motion } from "framer-motion";
 import type { Store, StoreTag } from "@/lib/types";
 import { logoChainForStore } from "@/lib/logo";
 import { useEditContext } from "@/lib/edit-context";
+import InfoModal from "./InfoModal";
+import { getTelegraphContent } from "@/data/telegraph-content";
 
-function parseNotes(text: string) {
+function parseNotes(text: string, onOpen: (url: string) => void) {
   const re = /\[([^\]]+)\]\(([^)]+)\)/g;
   const parts: (string | JSX.Element)[] = [];
   let last = 0, ki = 0, m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     if (m.index > last) parts.push(text.slice(last, m.index));
-    parts.push(
-      <a
-        key={ki++}
-        href={m[2]}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="underline underline-offset-2 text-amber-300 hover:text-amber-200 break-all"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {m[1]}
-      </a>,
-    );
+    const label = m[1];
+    const url = m[2];
+    // When a "click to view" link points at a source page we mirror, open it
+    // IN-PLACE (recreated content + close button) instead of redirecting away.
+    // A <button> is used so the root layout's admin edit-mode anchor click
+    // guard never swallows the trigger.
+    if (getTelegraphContent(url)) {
+      parts.push(
+        <button
+          key={ki++}
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(url); }}
+          className="inline cursor-pointer border-0 bg-transparent p-0 align-baseline font-bold text-amber-300 underline underline-offset-2 hover:text-amber-200"
+        >
+          {label}
+        </button>,
+      );
+    } else {
+      parts.push(
+        <a
+          key={ki++}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 text-amber-300 hover:text-amber-200 break-all"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {label}
+        </a>,
+      );
+    }
     last = m.index + m[0].length;
   }
   if (last < text.length) parts.push(text.slice(last));
@@ -82,6 +103,11 @@ export default function StoreCard({
     : overrideChain;
   const [logoIdx, setLogoIdx] = useState(0);
   const logoSrc = fallbacks[logoIdx];
+
+  // In-place info panel: when a note link points at a page we mirror, the
+  // card opens the recreated content here instead of navigating away.
+  const [infoUrl, setInfoUrl] = useState<string | null>(null);
+  const infoContent = infoUrl ? getTelegraphContent(infoUrl) : null;
 
   const initial = store.name.replace(/[^a-zA-Z]/g, "")[0]?.toUpperCase() || "?";
 
@@ -240,7 +266,7 @@ export default function StoreCard({
 
         {store.notes && (
           <p className="mt-3 whitespace-pre-wrap break-words text-sm font-bold leading-relaxed text-white/85">
-            {parseNotes(store.notes)}
+            {parseNotes(store.notes, setInfoUrl)}
           </p>
         )}
 
@@ -256,6 +282,15 @@ export default function StoreCard({
               <path d="M7 17 17 7M7 7h10v10" />
             </svg>
           </a>
+        )}
+
+        {infoContent && (
+          <InfoModal
+            open
+            onClose={() => setInfoUrl(null)}
+            title={store.name}
+            html={infoContent.html}
+          />
         )}
       </div>
     </motion.article>

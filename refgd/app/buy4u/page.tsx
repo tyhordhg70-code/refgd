@@ -5,6 +5,8 @@ import EditableText from "@/components/EditableText";
 import EditableImage from "@/components/EditableImage";
 import Image from "next/image";
 import { useEditContext } from "@/lib/edit-context";
+import InfoModal from "@/components/InfoModal";
+import { getTelegraphContent } from "@/data/telegraph-content";
 
 type CardKind = "brand" | "photo";
 type Card = { key: string; name: string; kind: CardKind; domain?: string; photo?: string; gradient?: string; compact?: boolean; };
@@ -466,6 +468,14 @@ function SearchableGrid({ secId, mode, cards }: { secId: string; mode: "buy4u"|"
 function TabBody({ section, mode, service }: { section: Section; mode: "buy4u"|"refund"; service?: string }) {
   const tab = mode === "buy4u" ? section.buy4u : (section.refund ?? section.buy4u);
   const hasPhotos = tab.cards.some(c => c.kind === "photo");
+
+  // Hotels REFUND intro becomes a clickable that opens the recreated insider
+  // refund guide in-place (the same content the store-list cards show) rather
+  // than the long static "Enjoy your vacation…" header.
+  const [hotelsInfoOpen, setHotelsInfoOpen] = useState(false);
+  const hotelsInfo = getTelegraphContent("https://telegra.ph/-08-06-2817");
+  const showHotelsInfo = !service && section.id === "hotels" && mode === "refund" && !!hotelsInfo;
+
   const serviceKey = service ? service.replace(/\s+/g, "").toLowerCase() : "";
   const serviceIntro = service === "Pick Up"
     ? "Food pickup via DoorDash & Uber Eats — order ahead and grab it in-store."
@@ -473,6 +483,21 @@ function TabBody({ section, mode, service }: { section: Section; mode: "buy4u"|"
   return (<div>
     {service ? (
       <EditableText id={`buy4u.${section.id}.service.${serviceKey}.intro`} defaultValue={serviceIntro} as="p" multiline className="text-base leading-relaxed text-white/85" />
+    ) : showHotelsInfo ? (
+      <>
+        <button
+          type="button"
+          onClick={() => setHotelsInfoOpen(true)}
+          className="group flex w-full items-center justify-between gap-4 rounded-xl border border-amber-300/30 bg-amber-400/[0.06] px-4 py-3.5 text-left transition hover:border-amber-300/50 hover:bg-amber-400/[0.1]"
+        >
+          <span className="min-w-0">
+            <span className="block text-base font-bold leading-snug text-amber-100">HOTELS.com / EXPEDIA / AGODA / TRIP.com — INSIDER INSTANT REFUNDS</span>
+            <span className="mt-0.5 block text-sm font-medium text-white/70">Tap to read the full insider refund guide — enjoy your vacation at a fraction of the price.</span>
+          </span>
+          <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-amber-300 transition group-hover:translate-x-0.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+        </button>
+        <InfoModal open={hotelsInfoOpen} onClose={() => setHotelsInfoOpen(false)} title="Hotels — Insider Instant Refunds" html={hotelsInfo?.html ?? ""} />
+      </>
     ) : (
       <EditableText id={`buy4u.${section.id}.${mode}.intro`} defaultValue={tab.intro} as="p" multiline className="text-base leading-relaxed text-white/85" />
     )}
