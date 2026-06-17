@@ -7,6 +7,7 @@ import EditableText from "@/components/EditableText";
 import HomeCTAButton from "@/components/HomeCTAButton";
 import CosmicJourney from "@/components/CosmicJourney";
 import PathsHorizontalReveal from "@/components/PathsHorizontalReveal";
+import MobilePathsTelegramHandoff from "@/components/MobilePathsTelegramHandoff";
 import ChapterCosmos from "@/components/ChapterCosmos";
 import { getContentBlock } from "@/lib/content";
 import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
@@ -220,18 +221,8 @@ export default async function HomePage() {
                     (with min-h to keep visual presence + py for
                     breathing room). Desktop keeps the 16:6 cinematic
                     aspect ratio.
-
-                    Mobile tightened per owner: the 480px min-h floor
-                    + py-12, vertically centered (items-center), left a
-                    large dead gap below the Join button and made the
-                    card bottom look shapeless on phones. Lowered to
-                    min-h-[340px] + py-8 so the card hugs its content.
-                    The pulsating halo/rings/logo (AnimatedTelegramBox,
-                    absolute inset-0) stay centered + intact at their
-                    own sizes — only the empty space shrinks. Desktop
-                    (sm:) is unchanged.
                   */}
-                  <div className="relative min-h-[340px] py-8 sm:min-h-0 sm:py-0 sm:aspect-[16/6]">
+                  <div className="relative min-h-[480px] py-12 sm:min-h-0 sm:py-0 sm:aspect-[16/6]">
                     <AnimatedTelegramBox />
                     <div className="container-px relative grid h-full items-center sm:absolute sm:inset-0">
                       <div className="grid items-center gap-10 sm:grid-cols-[1fr_auto]">
@@ -265,6 +256,13 @@ export default async function HomePage() {
           </ParallaxChapter>
         </ReorderableSection>
       </ReorderableContainer>
+
+      {/* Mobile-only: smooth downward auto-scroll from the path-cards prism to
+          the telegram box once the cards are behind the visitor. Renders
+          nothing and attaches NO listeners on desktop, so desktop is
+          unchanged. Kept OUTSIDE ReorderableContainer so it never counts as a
+          reorderable section. */}
+      <MobilePathsTelegramHandoff />
     </>
   );
 }
