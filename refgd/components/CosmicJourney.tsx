@@ -35,20 +35,31 @@ import KineticText from "./KineticText";
 // H.264 MP4 is hardware-decoded in every browser → smooth playback.
 const VIDEO_SRC_MP4 = "/sphere-montage.mp4";
 
-// Desktop color-matched glow. The video is sampled and its dominant color is
-// written to the CSS --glow var, which tints the ambient/edge/corner glow.
-// A diagnostic build confirmed the OLD implementation's stutter came entirely
-// from the retint: each glow layer had `transition: background 0.25s` over a
-// large filter:blur(), and --glow was rewritten faster (~11 Hz) than that
-// transition finished, so the browser re-rasterized three big blurs at 60 Hz
-// nonstop. The fix keeps the exact same look/visibility but removes that cost:
-//   • the glow layers no longer CSS-transition `background` — the JS easing
-//     below (cur += (target-cur)*0.12) already smooths the color, so each write
-//     now repaints the blurs ONCE instead of continuously for 250ms; and
-//   • writes are delta-gated (skipped when the rounded color is unchanged) so a
-//     sphere holding a steady color costs zero repaints.
-// Still desktop-only (mobile keeps the static glow via globals.css).
+// Color-matched glow (desktop AND mobile) via a DUAL-BUFFER opacity crossfade.
+// The video is sampled a few times a second; its dominant color is committed to
+// one of two stacked copies (A/B) of every glow layer. We paint the new color
+// into the CURRENTLY-HIDDEN buffer (opacity 0 → its blur rasterizes once,
+// off-screen), then crossfade by animating OPACITY only — which the compositor
+// does cheaply — so the active buffer fades out as the new one fades in.
+//
+// Why this shape: an OLD build smoothed the color with `transition: background
+// 0.25s` on each layer, but --glow was rewritten (~11 Hz) FASTER than that
+// 250ms transition finished, so the transition perpetually restarted and the
+// browser re-rasterized three large filter:blur() layers at ~60 Hz nonstop —
+// the confirmed desktop stutter and the phone scroll-jank ("retint storm"). A
+// no-transition build was smooth but the color jumps looked too sharp. The
+// dual-buffer crossfade keeps the smooth, premium blend WITHOUT the storm: the
+// blur is re-rastered at most ~3×/s (once per committed color), never per frame,
+// so the live glow is cheap enough to run on mobile too.
 const ENABLE_GLOW_SAMPLING = true;
+// Crossfade + sampling cadence. The SAMPLE interval is kept ABOVE the crossfade
+// duration so a new fade never begins before the previous one has finished.
+const GLOW_CROSSFADE_MS = 280;
+const GLOW_SAMPLE_MS_DESKTOP = 340;
+const GLOW_SAMPLE_MS_MOBILE = 420;
+// Minimum colour move (squared RGB Euclidean distance) before committing a new
+// crossfade — suppresses idle sampling noise so a steady sphere colour costs 0.
+const GLOW_COLOR_THRESHOLD_SQ = 36;
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
@@ -90,6 +101,19 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const video = videoRef.current;
     const section = sectionRef.current;
     if (!video || !section) return;
+
+    // Sync the dual-buffer crossfade DOM state with this effect's initial JS
+    // state (buffer A shown, both buffers on the cool-blue start color). The
+    // effect re-runs when `isMobile` flips (false→true on phones right after
+    // mount), and the sampler drives the --glow-* vars imperatively, so without
+    // this the new closure (activeBuf="a") could disagree with stale DOM vars
+    // left showing buffer B — causing a one-time color snap. Resetting both
+    // buffers to the same color makes the reset invisible; the sampler then
+    // crossfades to the live sphere color within one sample.
+    section.style.setProperty("--glow-a", "90, 130, 255");
+    section.style.setProperty("--glow-b", "90, 130, 255");
+    section.style.setProperty("--glow-a-op", "1");
+    section.style.setProperty("--glow-b-op", "0");
 
     const applyFades = (e: number) => {
       const headline = headlineRef.current;
@@ -155,25 +179,28 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
     video.addEventListener("error", onVideoError);
 
-    // ── Color sampling → drives the --glow CSS variable (no React re-renders) ──
+    // ── Color sampling → dual-buffer opacity crossfade (no React re-renders) ──
     const canvas = document.createElement("canvas");
     canvas.width = 40;
     canvas.height = 24;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    let cur = [90, 130, 255]; // start on a cool blue
+    let cur = [90, 130, 255]; // eased current color
     let lastSample = 0;
     let sampleRaf = 0;
     let sampling = false;
-    // Last color actually written to --glow. We only re-write (and thus repaint
-    // the three blurred glow layers) when the rounded color changes, so a sphere
-    // holding a steady color costs zero repaints.
-    let lastWritten = [-1, -1, -1];
+    let activeBuf: "a" | "b" = "a"; // buffer currently shown (opacity 1)
+    let committed = [90, 130, 255]; // color shown in the active buffer
+    let crossfadeUntil = 0; // don't start a new fade until the previous one ends
 
     const sampleTick = (t: number) => {
       if (!sampling) return;
       sampleRaf = requestAnimationFrame(sampleTick);
       if (!ctx || video.readyState < 2 || video.paused) return;
-      if (t - lastSample < 90) return; // ~11 Hz
+      // Sample below the crossfade rate so fades never overlap (mobile slower).
+      const interval = isMobileRef.current
+        ? GLOW_SAMPLE_MS_MOBILE
+        : GLOW_SAMPLE_MS_DESKTOP;
+      if (t - lastSample < interval) return;
       lastSample = t;
       try {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -193,20 +220,32 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           r = Math.min(255, avg + (r - avg) * k);
           g = Math.min(255, avg + (g - avg) * k);
           b = Math.min(255, avg + (b - avg) * k);
+          // Light easing so the committed target tracks without erratic jumps;
+          // the visual smoothness comes from the opacity crossfade below.
           cur = [
-            cur[0] + (r - cur[0]) * 0.12,
-            cur[1] + (g - cur[1]) * 0.12,
-            cur[2] + (b - cur[2]) * 0.12,
+            cur[0] + (r - cur[0]) * 0.5,
+            cur[1] + (g - cur[1]) * 0.5,
+            cur[2] + (b - cur[2]) * 0.5,
           ];
           const nr = Math.round(cur[0]);
           const ng = Math.round(cur[1]);
           const nb = Math.round(cur[2]);
-          // Only repaint when the rounded color actually moved. The glow layers
-          // no longer CSS-transition `background`, so each write is a single
-          // blur repaint; skipping no-op writes makes a steady color free.
-          if (nr !== lastWritten[0] || ng !== lastWritten[1] || nb !== lastWritten[2]) {
-            lastWritten = [nr, ng, nb];
-            section.style.setProperty("--glow", `${nr}, ${ng}, ${nb}`);
+          // Commit a crossfade only when the color moved enough AND the previous
+          // fade has finished — a steady color costs zero blur rasters, and we
+          // never stack overlapping fades.
+          const dr = nr - committed[0], dg = ng - committed[1], db = nb - committed[2];
+          if (dr * dr + dg * dg + db * db > GLOW_COLOR_THRESHOLD_SQ && t >= crossfadeUntil) {
+            const next = activeBuf === "a" ? "b" : "a";
+            // 1) paint the new color into the HIDDEN buffer (one off-screen blur
+            //    raster while it is at opacity 0 — invisible, no animation), then
+            // 2) crossfade by animating OPACITY only (compositor-cheap): bring
+            //    the new buffer in and fade the old one out.
+            section.style.setProperty(`--glow-${next}`, `${nr}, ${ng}, ${nb}`);
+            section.style.setProperty(`--glow-${next}-op`, "1");
+            section.style.setProperty(`--glow-${activeBuf}-op`, "0");
+            activeBuf = next;
+            committed = [nr, ng, nb];
+            crossfadeUntil = t + GLOW_CROSSFADE_MS;
           }
         }
       } catch {
@@ -214,16 +253,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
     };
     const startSampling = () => {
-      // Diagnostic kill switch (see ENABLE_GLOW_SAMPLING): when off, leave
-      // --glow at its static cool-blue and skip ALL readback/retint work.
+      // Diagnostic kill switch (see ENABLE_GLOW_SAMPLING): when off, leave the
+      // glow at its static cool-blue and skip ALL readback/crossfade work.
       if (!ENABLE_GLOW_SAMPLING) return;
-      // Mobile: the drawImage+getImageData readback off the hero video plus the
-      // blur repaints it triggers are the dominant cause of home-hero scroll
-      // jank on phones, so skip sampling entirely on mobile and leave --glow at
-      // its static initial cool-blue (globals.css keeps a static glow). Desktop
-      // samples (now cheap: no CSS transition + delta-gated writes — see the
-      // ENABLE_GLOW_SAMPLING note at the top).
-      if (isMobileRef.current) return;
+      // Runs on mobile too: the dual-buffer crossfade keeps the big blurs from
+      // re-rastering every frame (the old cause of phone scroll-jank), so the
+      // live glow is cheap enough for phones at a lower sample cadence.
       if (sampling) return;
       sampling = true;
       sampleRaf = requestAnimationFrame(sampleTick);
@@ -680,7 +715,15 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       data-testid="cosmic-journey"
       data-hero-build="mobile-3d-back-22"
       className="relative w-full overflow-hidden"
-      style={{ height: "100svh", ["--glow" as string]: "90, 130, 255" }}
+      style={{
+        height: "100svh",
+        // Dual-buffer glow colours + their crossfade opacities. Both buffers
+        // start on the same cool blue; A is shown, B is hidden.
+        ["--glow-a" as string]: "90, 130, 255",
+        ["--glow-b" as string]: "90, 130, 255",
+        ["--glow-a-op" as string]: "1",
+        ["--glow-b-op" as string]: "0",
+      }}
     >
       {/* Solid near-black backdrop so the hero is never blank before the first
           frame paints. */}
@@ -690,18 +733,39 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         style={{ background: "#05060a" }}
       />
 
-      {/* Ambient glow behind the sphere — tinted to its current color. */}
+      {/* Ambient glow behind the sphere — two crossfade buffers (A/B). Each is
+          identical except for its colour var + opacity var; the sampler paints
+          the new colour into the hidden one and fades the opacities. */}
       <div
         aria-hidden="true"
-        className="cj-glow-ambient pointer-events-none absolute left-1/2 top-1/2"
+        className="cj-glow-ambient cj-glow-ambient-a pointer-events-none absolute left-1/2 top-1/2"
         style={{
           width: "72vmin",
           height: "72vmin",
           transform: "translate(-50%, -50%)",
           borderRadius: "50%",
           background:
-            "radial-gradient(circle, rgba(var(--glow), 0.55), rgba(var(--glow), 0.12) 45%, transparent 68%)",
+            "radial-gradient(circle, rgba(var(--glow-a), 0.55), rgba(var(--glow-a), 0.12) 45%, transparent 68%)",
           filter: "blur(70px)",
+          opacity: "var(--glow-a-op)",
+          transition: `opacity ${GLOW_CROSSFADE_MS}ms linear`,
+          willChange: "opacity",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="cj-glow-ambient cj-glow-ambient-b pointer-events-none absolute left-1/2 top-1/2"
+        style={{
+          width: "72vmin",
+          height: "72vmin",
+          transform: "translate(-50%, -50%)",
+          borderRadius: "50%",
+          background:
+            "radial-gradient(circle, rgba(var(--glow-b), 0.55), rgba(var(--glow-b), 0.12) 45%, transparent 68%)",
+          filter: "blur(70px)",
+          opacity: "var(--glow-b-op)",
+          transition: `opacity ${GLOW_CROSSFADE_MS}ms linear`,
+          willChange: "opacity",
         }}
       />
 
@@ -745,30 +809,66 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       />
 
       {/* Soft blurred gradient EDGES, tinted live to the sphere color. Wide,
-          strong band so the color is clearly visible around the whole frame. */}
+          strong band so the color is clearly visible around the whole frame.
+          Two crossfade buffers (A/B) — see the ambient glow note above. */}
       <div
         aria-hidden="true"
-        className="cj-glow-edge pointer-events-none absolute"
+        className="cj-glow-edge cj-glow-edge-a pointer-events-none absolute"
         style={{
           inset: "-12%",
           background:
-            "radial-gradient(115% 115% at 50% 50%, transparent 34%, rgba(var(--glow), 0.45) 66%, rgba(var(--glow), 0.85) 92%, rgba(var(--glow), 0.95) 100%)",
+            "radial-gradient(115% 115% at 50% 50%, transparent 34%, rgba(var(--glow-a), 0.45) 66%, rgba(var(--glow-a), 0.85) 92%, rgba(var(--glow-a), 0.95) 100%)",
           filter: "blur(55px)",
           mixBlendMode: "screen",
+          opacity: "var(--glow-a-op)",
+          transition: `opacity ${GLOW_CROSSFADE_MS}ms linear`,
+          willChange: "opacity",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="cj-glow-edge cj-glow-edge-b pointer-events-none absolute"
+        style={{
+          inset: "-12%",
+          background:
+            "radial-gradient(115% 115% at 50% 50%, transparent 34%, rgba(var(--glow-b), 0.45) 66%, rgba(var(--glow-b), 0.85) 92%, rgba(var(--glow-b), 0.95) 100%)",
+          filter: "blur(55px)",
+          mixBlendMode: "screen",
+          opacity: "var(--glow-b-op)",
+          transition: `opacity ${GLOW_CROSSFADE_MS}ms linear`,
+          willChange: "opacity",
         }}
       />
 
       {/* Extra CORNER glow — four radial pools anchored to each corner so the
-          color reads strongest in the corners (on top of the edge band). */}
+          color reads strongest in the corners (on top of the edge band).
+          Two crossfade buffers (A/B) — see the ambient glow note above. */}
       <div
         aria-hidden="true"
-        className="cj-glow-corner pointer-events-none absolute"
+        className="cj-glow-corner cj-glow-corner-a pointer-events-none absolute"
         style={{
           inset: "-12%",
           background:
-            "radial-gradient(46% 46% at 0% 0%, rgba(var(--glow), 0.9), transparent 72%), radial-gradient(46% 46% at 100% 0%, rgba(var(--glow), 0.9), transparent 72%), radial-gradient(46% 46% at 0% 100%, rgba(var(--glow), 0.9), transparent 72%), radial-gradient(46% 46% at 100% 100%, rgba(var(--glow), 0.9), transparent 72%)",
+            "radial-gradient(46% 46% at 0% 0%, rgba(var(--glow-a), 0.9), transparent 72%), radial-gradient(46% 46% at 100% 0%, rgba(var(--glow-a), 0.9), transparent 72%), radial-gradient(46% 46% at 0% 100%, rgba(var(--glow-a), 0.9), transparent 72%), radial-gradient(46% 46% at 100% 100%, rgba(var(--glow-a), 0.9), transparent 72%)",
           filter: "blur(45px)",
           mixBlendMode: "screen",
+          opacity: "var(--glow-a-op)",
+          transition: `opacity ${GLOW_CROSSFADE_MS}ms linear`,
+          willChange: "opacity",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="cj-glow-corner cj-glow-corner-b pointer-events-none absolute"
+        style={{
+          inset: "-12%",
+          background:
+            "radial-gradient(46% 46% at 0% 0%, rgba(var(--glow-b), 0.9), transparent 72%), radial-gradient(46% 46% at 100% 0%, rgba(var(--glow-b), 0.9), transparent 72%), radial-gradient(46% 46% at 0% 100%, rgba(var(--glow-b), 0.9), transparent 72%), radial-gradient(46% 46% at 100% 100%, rgba(var(--glow-b), 0.9), transparent 72%)",
+          filter: "blur(45px)",
+          mixBlendMode: "screen",
+          opacity: "var(--glow-b-op)",
+          transition: `opacity ${GLOW_CROSSFADE_MS}ms linear`,
+          willChange: "opacity",
         }}
       />
 

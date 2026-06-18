@@ -526,9 +526,15 @@ html.hero-flight .rg-ambient-bg * {
   .cj-glow-corner {
     mix-blend-mode: normal !important;
   }
-  .cj-glow-ambient {
+  /* Ambient override per crossfade buffer (A/B) so each uses its own colour var. */
+  .cj-glow-ambient-a {
     background:
-      radial-gradient(circle, rgba(var(--glow), 0.5), rgba(var(--glow), 0.12) 45%, rgba(var(--glow), 0) 70%) !important;
+      radial-gradient(circle, rgba(var(--glow-a), 0.5), rgba(var(--glow-a), 0.12) 45%, rgba(var(--glow-a), 0) 70%) !important;
+    filter: blur(60px) !important;
+  }
+  .cj-glow-ambient-b {
+    background:
+      radial-gradient(circle, rgba(var(--glow-b), 0.5), rgba(var(--glow-b), 0.12) 45%, rgba(var(--glow-b), 0) 70%) !important;
     filter: blur(60px) !important;
   }
 }
