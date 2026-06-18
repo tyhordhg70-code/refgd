@@ -310,6 +310,7 @@ export default function StoreCard({
             onClose={() => setInfo(null)}
             title={store.name}
             html={info.html}
+            contentId={info.id}
           />
         )}
       </div>

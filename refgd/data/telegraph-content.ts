@@ -6,9 +6,11 @@
 // store shows only its own relevant info. Re-generate with
 // .local/refgd-work/gen-telegraph.mjs.
 
-export type TelegraphContent = { title: string; html: string };
+export type TelegraphContent = { id: string; title: string; html: string };
 
-export const INFO_CONTENT: Record<string, TelegraphContent> = {
+type TelegraphEntry = { title: string; html: string };
+
+export const INFO_CONTENT: Record<string, TelegraphEntry> = {
   "hotels": {
     "title": "Hotels — Insider Instant Refunds",
     "html": "<figure><img src=\"/info-img/525b36982081eb8f.png\" alt=\"\" loading=\"lazy\" /><figcaption></figcaption></figure>\n<p><strong>HOTELS.com / EXPEDIA / AGODA / TRIP.com - INSIDER INSTANT REFUNDS</strong></p>\n<p><em>Enjoy your vacation at a fraction of the price;</em></p>\n<p>______________________________________</p>\n<ul><li>Fresh account is OK. Book as far in advance as you need to. </li><li> No limit, any property works, any number of rooms <strong>(FOR AGODA NO STUDIOS, APARTMENTS OR HOUSES, ONLY HOTELS)</strong></li><li>Please confirm prior with us to booking your reservation</li><li>MUST BE PAID IN FULL ONLINE PRIOR, DO NOT SELECT PAY LATER/ PAY AT PROPERTY! Non-refundable listings are OK. </li><li>Yes you can use room service, all-inclusive hotels, select breakfast included and any other add-on that is available when making your booking ONLINE. </li><li>ANYTHING YOU PAY AT THE HOTEL DIRECTLY  CAN NOT BE REFUNDED! \nSO PLEASE PAY ONLINE IN FULL PRIOR TO CHECK-IN FOR ALL AMMENITIES. </li></ul>\n<hr />\n<p>⚠️ Refund is done on first day of check-in OR before you check-out for safety and security purposes. <strong>YES it is TOTALLY 10000% SAFE!</strong> You can book the hotel as far as in advance as you would like. You will not face any issues during your stay as this is handled via our private insider. It's a top level of safety just for you!</p>\n<p>For the extra paranoid ones, refund after checkout is possible with an <strong>UPFRONT </strong>payment. </p>\n<p><br /></p>\n<p>💲<strong>1,000 minimum fee (you pay to us)</strong></p>\n<p>💲<strong>2,000 minimum booking ammount // </strong></p>\n<p><strong>50% service fee</strong></p>\n<p>\nDoes your reservation NOT meet the minimum price requirement? Worry not! \nAlternatively, you can use our buy4u service where we purchase and book the hotel for you, at the same exact 50% service fee. \nSimply send us a photo of the desired hotel you wish to stay at, along with the dates of your travel. \n</p>\n<p>Learn more how it works <strong>----&gt; </strong><a href=\"https://telegra.ph/SHOP4U-SERVICE-11-05\" target=\"_blank\" rel=\"noopener noreferrer\"><strong>BY CLICKING ME</strong></a><strong> &lt;----</strong></p>\n<p><br /></p>"
@@ -55,7 +57,8 @@ export function getTelegraphContent(url: string): TelegraphContent | null {
   const k = telegraphKeyFromUrl(url);
   if (!k) return null;
   const id = URL_PATH_TO_ID[k];
-  return id ? INFO_CONTENT[id] ?? null : null;
+  const entry = id ? INFO_CONTENT[id] : undefined;
+  return entry ? { id, ...entry } : null;
 }
 
 /** Recreated content for a store that has no inline link, matched by domain. */
@@ -63,5 +66,6 @@ export function getStoreInfoByDomain(domain: string | null | undefined): Telegra
   if (!domain) return null;
   const key = domain.trim().toLowerCase().replace(/^www\./, "");
   const id = DOMAIN_TO_ID[key];
-  return id ? INFO_CONTENT[id] ?? null : null;
+  const entry = id ? INFO_CONTENT[id] : undefined;
+  return entry ? { id, ...entry } : null;
 }

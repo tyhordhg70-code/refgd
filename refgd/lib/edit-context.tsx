@@ -70,6 +70,10 @@ type EditContextShape = {
 
   /** PUT all pending content edits in one batch. Returns true on success. */
   flush: () => Promise<boolean>;
+  /** Persist a SINGLE content block immediately, WITHOUT publishing any other
+   *  queued edits. Used by self-contained editors (e.g. the info popup) whose
+   *  Save should only write their own value. Returns true on success. */
+  saveBlock: (id: string, value: string) => Promise<boolean>;
   /** Drop all pending edits and revert displayed values to the last saved snapshot. */
   discard: () => void;
 
@@ -332,6 +336,33 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const saveBlock = useCallback(async (id: string, value: string): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/admin/content", {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ blocks: [{ id, value }] }),
+      });
+      if (!res.ok) throw new Error(`save failed: ${res.status}`);
+      // Mark this single value as saved and reflect it live, without touching
+      // any other queued edits.
+      savedRef.current = { ...savedRef.current, [id]: value };
+      setDisplay((m) => ({ ...m, [id]: value }));
+      if (Object.prototype.hasOwnProperty.call(pendingRef.current, id)) {
+        const copy = { ...pendingRef.current };
+        delete copy[id];
+        pendingRef.current = copy;
+        setPending(copy);
+      }
+      setContentVersion((v) => v + 1);
+      return true;
+    } catch (err) {
+      console.error("[edit] saveBlock failed", err);
+      return false;
+    }
+  }, []);
+
   const discard = useCallback(() => {
     setDisplay({ ...savedRef.current });
     pendingRef.current = {};
@@ -356,10 +387,11 @@ export default function EditProvider({ initialAdmin, initialContent, children }:
       undo,
       redo,
       flush,
+      saveBlock,
       discard,
       contentVersion,
     }),
-    [isAdmin, editMode, getValue, setValue, setValueBatch, pending, history, historyPos, undo, redo, flush, discard, contentVersion],
+    [isAdmin, editMode, getValue, setValue, setValueBatch, pending, history, historyPos, undo, redo, flush, saveBlock, discard, contentVersion],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

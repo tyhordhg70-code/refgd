@@ -496,7 +496,7 @@ function TabBody({ section, mode, service }: { section: Section; mode: "buy4u"|"
           </span>
           <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-amber-300 transition group-hover:translate-x-0.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
         </button>
-        <InfoModal open={hotelsInfoOpen} onClose={() => setHotelsInfoOpen(false)} title="Hotels — Insider Instant Refunds" html={hotelsInfo?.html ?? ""} />
+        <InfoModal open={hotelsInfoOpen} onClose={() => setHotelsInfoOpen(false)} title="Hotels — Insider Instant Refunds" html={hotelsInfo?.html ?? ""} contentId={hotelsInfo?.id} />
       </>
     ) : (
       <EditableText id={`buy4u.${section.id}.${mode}.intro`} defaultValue={tab.intro} as="p" multiline className="text-base leading-relaxed text-white/85" />
