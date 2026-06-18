@@ -395,12 +395,12 @@ export default function StoreEditDialog({
     >
       <div
         ref={dialogRef}
-        className="w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-ink-900/95 shadow-2xl"
+        className="flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-ink-900/95 shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-label={store ? `Edit ${store.name}` : "Add new store"}
       >
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-5 py-3">
           <h3 className="heading-display text-sm font-semibold uppercase tracking-widest text-amber-300/85">
             {store ? "Edit store" : "Add new store"}
           </h3>
@@ -414,7 +414,7 @@ export default function StoreEditDialog({
           </button>
         </div>
 
-        <div data-lenis-prevent className="grid max-h-[70vh] grid-cols-1 gap-3 overflow-y-auto p-5 sm:grid-cols-2">
+        <div data-lenis-prevent className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto p-5 sm:grid-cols-2">
           <Field label="Name *" full>
             <input
               value={draft.name}
@@ -599,12 +599,12 @@ export default function StoreEditDialog({
         </div>
 
         {err && (
-          <div className="border-t border-rose-400/30 bg-rose-500/10 px-5 py-2 text-xs text-rose-200">
+          <div className="shrink-0 border-t border-rose-400/30 bg-rose-500/10 px-5 py-2 text-xs text-rose-200">
             {err}
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-2 border-t border-white/10 bg-ink-950/60 px-5 py-3">
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-white/10 bg-ink-950/60 px-5 py-3">
           <button
             type="button"
             onClick={onClose}
