@@ -35,13 +35,20 @@ import KineticText from "./KineticText";
 // H.264 MP4 is hardware-decoded in every browser → smooth playback.
 const VIDEO_SRC_MP4 = "/sphere-montage.mp4";
 
-// Temporary diagnostic kill switch. The per-frame video color sampling drives a
-// CSS --glow retint that this file's own scroll handler flags as "the real
-// stutter source". It is already skipped on mobile; turn it off on DESKTOP too
-// for now so we can confirm whether the desktop stutter is this retint vs. the
-// video decode itself. When off, --glow stays at its static cool-blue. Flip
-// back on (and reintroduce sampling more cheaply) once the cause is confirmed.
-const ENABLE_GLOW_SAMPLING = false;
+// Desktop color-matched glow. The video is sampled and its dominant color is
+// written to the CSS --glow var, which tints the ambient/edge/corner glow.
+// A diagnostic build confirmed the OLD implementation's stutter came entirely
+// from the retint: each glow layer had `transition: background 0.25s` over a
+// large filter:blur(), and --glow was rewritten faster (~11 Hz) than that
+// transition finished, so the browser re-rasterized three big blurs at 60 Hz
+// nonstop. The fix keeps the exact same look/visibility but removes that cost:
+//   • the glow layers no longer CSS-transition `background` — the JS easing
+//     below (cur += (target-cur)*0.12) already smooths the color, so each write
+//     now repaints the blurs ONCE instead of continuously for 250ms; and
+//   • writes are delta-gated (skipped when the rounded color is unchanged) so a
+//     sphere holding a steady color costs zero repaints.
+// Still desktop-only (mobile keeps the static glow via globals.css).
+const ENABLE_GLOW_SAMPLING = true;
 
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
@@ -157,6 +164,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     let lastSample = 0;
     let sampleRaf = 0;
     let sampling = false;
+    // Last color actually written to --glow. We only re-write (and thus repaint
+    // the three blurred glow layers) when the rounded color changes, so a sphere
+    // holding a steady color costs zero repaints.
+    let lastWritten = [-1, -1, -1];
 
     const sampleTick = (t: number) => {
       if (!sampling) return;
@@ -187,10 +198,16 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             cur[1] + (g - cur[1]) * 0.12,
             cur[2] + (b - cur[2]) * 0.12,
           ];
-          section.style.setProperty(
-            "--glow",
-            `${Math.round(cur[0])}, ${Math.round(cur[1])}, ${Math.round(cur[2])}`,
-          );
+          const nr = Math.round(cur[0]);
+          const ng = Math.round(cur[1]);
+          const nb = Math.round(cur[2]);
+          // Only repaint when the rounded color actually moved. The glow layers
+          // no longer CSS-transition `background`, so each write is a single
+          // blur repaint; skipping no-op writes makes a steady color free.
+          if (nr !== lastWritten[0] || ng !== lastWritten[1] || nb !== lastWritten[2]) {
+            lastWritten = [nr, ng, nb];
+            section.style.setProperty("--glow", `${nr}, ${ng}, ${nb}`);
+          }
         }
       } catch {
         /* sampling can briefly throw before metadata is ready */
@@ -200,11 +217,12 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // Diagnostic kill switch (see ENABLE_GLOW_SAMPLING): when off, leave
       // --glow at its static cool-blue and skip ALL readback/retint work.
       if (!ENABLE_GLOW_SAMPLING) return;
-      // Mobile: the 11Hz drawImage+getImageData readback off the hero video
-      // is the dominant cause of the home-hero scroll jank on phones (each
-      // tick blocks the main thread and retints three large blurred glow
-      // layers via a 250ms CSS transition). Skip sampling entirely on mobile
-      // and leave --glow at its static initial cool-blue. Desktop unchanged.
+      // Mobile: the drawImage+getImageData readback off the hero video plus the
+      // blur repaints it triggers are the dominant cause of home-hero scroll
+      // jank on phones, so skip sampling entirely on mobile and leave --glow at
+      // its static initial cool-blue (globals.css keeps a static glow). Desktop
+      // samples (now cheap: no CSS transition + delta-gated writes — see the
+      // ENABLE_GLOW_SAMPLING note at the top).
       if (isMobileRef.current) return;
       if (sampling) return;
       sampling = true;
@@ -316,9 +334,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       setHeroFlight(true);
       attachBlock(true); // DOWN: lock touch so it always lands on the anchor
       // Free the GPU/main-thread during the glide: stop colour sampling so the
-      // 11Hz --glow writes (which retint three blur layers via a 250ms CSS
-      // transition = a per-frame re-raster storm) pause, and pause the hero
-      // video so iOS isn't decoding + compositing while smooth-scrolling.
+      // --glow writes (each of which repaints three large blurred glow layers)
+      // pause, and pause the hero video so iOS isn't decoding + compositing
+      // while smooth-scrolling.
       // Resumed on completion only if the hero is still on screen.
       video.pause();
       stopSampling();
@@ -398,10 +416,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       state = "handoff";
       setHeroFlight(true);
       attachBlock(false); // UP: leave touch interruptible (native smooth scroll)
-      // Glide perf-freeze, UP variant: stop colour SAMPLING only (the 11Hz
-      // --glow retint storm is the real stutter source). Do NOT pause the hero
-      // video here — the hero is re-entering view, and a frozen-then-resumed
-      // sphere reads as a flicker as it settles. Sampling resumes on completion.
+      // Glide perf-freeze, UP variant: stop colour SAMPLING only (the per-write
+      // blur repaints are the main cost). Do NOT pause the hero video here — the
+      // hero is re-entering view, and a frozen-then-resumed sphere reads as a
+      // flicker as it settles. Sampling resumes on completion.
       stopSampling();
       const l = lenis();
       if (l && l.start) l.start();
@@ -684,7 +702,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
           background:
             "radial-gradient(circle, rgba(var(--glow), 0.55), rgba(var(--glow), 0.12) 45%, transparent 68%)",
           filter: "blur(70px)",
-          transition: "background 0.25s linear",
         }}
       />
 
@@ -738,7 +755,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             "radial-gradient(115% 115% at 50% 50%, transparent 34%, rgba(var(--glow), 0.45) 66%, rgba(var(--glow), 0.85) 92%, rgba(var(--glow), 0.95) 100%)",
           filter: "blur(55px)",
           mixBlendMode: "screen",
-          transition: "background 0.25s linear",
         }}
       />
 
@@ -753,7 +769,6 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
             "radial-gradient(46% 46% at 0% 0%, rgba(var(--glow), 0.9), transparent 72%), radial-gradient(46% 46% at 100% 0%, rgba(var(--glow), 0.9), transparent 72%), radial-gradient(46% 46% at 0% 100%, rgba(var(--glow), 0.9), transparent 72%), radial-gradient(46% 46% at 100% 100%, rgba(var(--glow), 0.9), transparent 72%)",
           filter: "blur(45px)",
           mixBlendMode: "screen",
-          transition: "background 0.25s linear",
         }}
       />
 
