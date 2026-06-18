@@ -43,7 +43,7 @@ function isSceneAsset(url: string): boolean {
   return /\.splinecode(\?|$)/.test(url);
 }
 
-export type HeavyAsset = { url: string; bytesHint?: number };
+export type HeavyAsset = { url: string; bytesHint?: number; captureBlob?: boolean };
 
 /** Normalise a pathname: strip trailing slashes, default to "/". */
 function norm(pathname: string): string {
@@ -106,7 +106,14 @@ export function heavyAssetsForPath(pathname: string): HeavyAsset[] {
   // cache. (The 17 MB /sphere-bg.mp4 left in public/ is a stale, unused file —
   // the live hero <video> in CosmicJourney points at /sphere-montage.mp4.)
   if (p === "/") {
-    return [{ url: "/sphere-montage.mp4", bytesHint: 32156163 }];
+    // captureBlob: keep the exact bytes we stream here and republish them as an
+    // in-memory object URL (see downloadAsset / publishHeroBlobUrl). The hero
+    // <video> then plays 100% from memory instead of depending on the browser
+    // reusing this fetch's HTTP cache for its byte-range requests — which was
+    // NOT holding on desktop or iOS, so the clip re-streamed from the
+    // non-edge-cached origin and buffered even though the splash had "already
+    // downloaded" it.
+    return [{ url: "/sphere-montage.mp4", bytesHint: 32156163, captureBlob: true }];
   }
   return [];
 }
@@ -162,6 +169,31 @@ function waitUntilVisible(signal?: AbortSignal): Promise<void> {
 }
 
 /**
+ * Window key the hero <video> reads to find an in-memory object URL of the
+ * fully-downloaded clip. When present the player uses it INSTEAD of streaming
+ * /sphere-montage.mp4, so playback never depends on the browser reusing this
+ * fetch's HTTP cache for byte-range requests. Set once and kept alive for the
+ * document session (never revoked — a single ~32 MB Blob).
+ */
+export const HERO_VIDEO_BLOB_URL_KEY = "__refgdHeroVideoBlobUrl";
+
+/**
+ * Build a Blob from the captured chunks and publish its object URL on window.
+ * Best-effort: on OOM / unsupported it leaves the key unset and the player
+ * silently falls back to streaming the URL. No-op if already published.
+ */
+function publishHeroBlobUrl(chunks: Uint8Array[]): void {
+  try {
+    const w = window as unknown as Record<string, unknown>;
+    if (typeof w[HERO_VIDEO_BLOB_URL_KEY] === "string") return;
+    const blob = new Blob(chunks as BlobPart[], { type: "video/mp4" });
+    w[HERO_VIDEO_BLOB_URL_KEY] = URL.createObjectURL(blob);
+  } catch {
+    /* leave unset → player falls back to the URL <source> */
+  }
+}
+
+/**
  * Fully download one asset, reporting received bytes via onProgress.
  * Resolves (never rejects) so a flaky asset can't strand the overlay.
  * Reading the body to completion also warms the HTTP cache, so the
@@ -209,6 +241,12 @@ export async function downloadAsset(
   let received = 0;
   let total = asset.bytesHint ?? 0;
   let attempts = 0;
+  // When asked, collect the streamed bytes so we can hand the player an
+  // in-memory Blob (deterministic playback, no HTTP-cache-reuse dependency).
+  // Set to null the moment we cannot guarantee contiguous bytes, which leaves
+  // plain cache-warming as the fallback.
+  const wantBlob = asset.captureBlob === true && typeof URL !== "undefined";
+  let chunks: Uint8Array[] | null = wantBlob ? [] : null;
   for (;;) {
     if (signal?.aborted) {
       onProgress?.(total || 1, total || 1);
@@ -225,7 +263,18 @@ export async function downloadAsset(
       });
       // Server ignored our Range and replied 200 from the start → reset the
       // counter so we don't append onto an offset that was never skipped.
-      if (received > 0 && res.status === 200) received = 0;
+      if (received > 0 && res.status === 200) {
+        received = 0;
+        if (chunks) chunks = []; // restart capture cleanly from byte 0
+      }
+      // Resumed 206: only keep capturing if the partial begins EXACTLY where we
+      // left off; otherwise the Blob would be misordered/corrupt → abandon it
+      // and let plain cache-warming take over.
+      if (chunks && res.status === 206) {
+        const m = /bytes\s+(\d+)-/i.exec(res.headers.get("content-range") || "");
+        const start = m ? parseInt(m[1], 10) : NaN;
+        if (!Number.isFinite(start) || start !== received) chunks = null;
+      }
       if (!res.ok && res.status !== 206) {
         // Non-retryable HTTP status — warm whatever we can, report complete.
         try {
@@ -262,6 +311,7 @@ export async function downloadAsset(
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
+        if (value && chunks) chunks.push(value);
         received += value?.length ?? 0;
         onProgress?.(received, total || received);
       }
@@ -276,6 +326,8 @@ export async function downloadAsset(
         }
         continue;
       }
+      // Whole file in hand → publish the in-memory object URL for the player.
+      if (chunks && total > 0 && received === total) publishHeroBlobUrl(chunks);
       onProgress?.(received, total || received);
       return;
     } catch {

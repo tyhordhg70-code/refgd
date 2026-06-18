@@ -35,6 +35,14 @@ import KineticText from "./KineticText";
 // H.264 MP4 is hardware-decoded in every browser → smooth playback.
 const VIDEO_SRC_MP4 = "/sphere-montage.mp4";
 
+// Temporary diagnostic kill switch. The per-frame video color sampling drives a
+// CSS --glow retint that this file's own scroll handler flags as "the real
+// stutter source". It is already skipped on mobile; turn it off on DESKTOP too
+// for now so we can confirm whether the desktop stutter is this retint vs. the
+// video decode itself. When off, --glow stays at its static cool-blue. Flip
+// back on (and reintroduce sampling more cheaply) once the cause is confirmed.
+const ENABLE_GLOW_SAMPLING = false;
+
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
 export default function CosmicJourney({ kicker }: { kicker: string }) {
@@ -123,6 +131,23 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       };
     }
 
+    // Safety net: if the in-memory Blob src ever fails to decode, fall back to
+    // streaming the plain URL so the hero can never be stranded on a broken
+    // object URL. One-shot — never loops back onto the blob.
+    const onVideoError = () => {
+      if (video.dataset.blobApplied !== "1") return;
+      video.dataset.blobApplied = "2";
+      try {
+        video.src = VIDEO_SRC_MP4;
+        video.load();
+        const p = video.play();
+        if (p && typeof p.catch === "function") p.catch(() => {});
+      } catch {
+        /* noop */
+      }
+    };
+    video.addEventListener("error", onVideoError);
+
     // ── Color sampling → drives the --glow CSS variable (no React re-renders) ──
     const canvas = document.createElement("canvas");
     canvas.width = 40;
@@ -172,6 +197,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       }
     };
     const startSampling = () => {
+      // Diagnostic kill switch (see ENABLE_GLOW_SAMPLING): when off, leave
+      // --glow at its static cool-blue and skip ALL readback/retint work.
+      if (!ENABLE_GLOW_SAMPLING) return;
       // Mobile: the 11Hz drawImage+getImageData readback off the hero video
       // is the dominant cause of the home-hero scroll jank on phones (each
       // tick blocks the main thread and retints three large blurred glow
@@ -190,9 +218,30 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     // Keep the sphere looping while it is on screen.
     const playLoop = () => {
       // Hold the very first network load until the loading screen has finished
-      // pre-downloading the clip (see the gate below) so the <video> reads from
-      // the warm HTTP cache instead of racing the splash's fetch and buffering.
+      // pre-downloading the clip (see the gate below).
       if (!canLoad) return;
+      // Prefer the in-memory Blob the splash captured (the EXACT bytes it
+      // already downloaded). Playing from an object URL removes the dependency
+      // on the browser reusing the HTTP cache for this <video>'s byte-range
+      // requests — which was NOT holding on desktop or iOS, so the clip
+      // re-streamed from the non-edge-cached origin and buffered. Idempotent:
+      // applied at most once per element via the data flag.
+      const blobUrl = (window as unknown as Record<string, unknown>)
+        .__refgdHeroVideoBlobUrl;
+      if (
+        typeof blobUrl === "string" &&
+        blobUrl &&
+        !video.dataset.blobApplied &&
+        video.src !== blobUrl
+      ) {
+        try {
+          video.src = blobUrl; // a direct src overrides the <source> child
+          video.dataset.blobApplied = "1";
+          video.load();
+        } catch {
+          /* fall back to streaming the <source> URL */
+        }
+      }
       const p = video.play();
       if (p && typeof p.catch === "function") p.catch(() => {});
     };
@@ -599,6 +648,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       window.removeEventListener("refgd:heavy-assets-ready", openGate);
       window.removeEventListener("refgd:loading-complete", openGate);
       video.removeEventListener("loadeddata", onLoadedData);
+      video.removeEventListener("error", onVideoError);
       const l = lenis();
       if (l && l.start) l.start();
       setHeroFlight(false);
