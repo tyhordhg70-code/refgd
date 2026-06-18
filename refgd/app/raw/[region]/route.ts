@@ -1,38 +1,30 @@
 import type { Region, Store, StoreTag } from "@/lib/types";
 import { getPool, initDb } from "@/lib/db";
-import {
-  getCategoryLabels,
-  getExtraCategories,
-  getCategoryOrder,
-  CANNED_CATEGORIES,
-} from "@/lib/categories-store";
 import { getAllContentMap } from "@/lib/content";
-import {
-  getTelegraphContent,
-  getStoreInfoByDomain,
-  type TelegraphContent,
-} from "@/data/telegraph-content";
+import { getStoreInfoByDomain } from "@/data/telegraph-content";
 
 /**
  * HIDDEN, PLAIN-TEXT MIRROR of the live store list — one URL per region:
  *   /raw/usa   /raw/cad   /raw/eu   /raw/uk
  *
- * Purpose: a fully scrapeable (e.g. Jina AI) clone of every field a store
- * carries on /store-list — name, domain, regions, categories (+the cosmetic
- * label overrides), price/item limits, fee, timeframe, tags, notes, and the
- * full "info"/telegraph popup content — as a bare HTML document with no app
- * chrome, fonts, CSS, or hydration scripts.
+ * Purpose: a fully scrapeable (e.g. Jina AI) clone of the store list in the
+ * SAME simple, plain-HTML layout the original site uses — each store is its
+ * original one-line entry, prefixed with its featured tag as a bare EMOJI
+ * (🔥 / 💎 / 👑 / 🌎 / ✨, never the word), with any links kept clickable.
+ *
+ * Deliberately MINIMAL: no internal metadata (featured glow, sort order,
+ * logo URL, store id, created/updated), no "original line" label, and no
+ * dump of the info-popup ("boxcard") text — for stores that have a popup we
+ * keep ONLY the link(s) so a reader can follow them for the full info.
  *
  * ALWAYS IN SYNC: this route reads the live database on EVERY request,
  * bypassing the in-process store cache (the same "query every request"
  * approach lib/content.ts already uses), so an admin edit is reflected
  * immediately even on a multi-worker Render deployment where another
  * worker's cache could otherwise be stale. Stores come straight from the
- * `stores` table (same SQL + row mapping as lib/stores.ts); category
- * names/labels/order come from the cache-disabled content_blocks reads;
- * info-popup overrides come from getAllContentMap(). Any add/remove/edit
- * of a store, category, label, fee, limit, note, or tag shows up here
- * automatically.
+ * `stores` table (same SQL + row mapping as lib/stores.ts); info-popup
+ * overrides come from getAllContentMap(). Any add/remove/edit of a store,
+ * fee, limit, note, or tag shows up here automatically.
  *
  * SAFETY: this file is purely additive and read-only. It edits NO existing
  * file, imports no client components, performs no DB writes, and shares
@@ -65,13 +57,15 @@ const REGION_FULL: Record<Region, string> = {
   UK: "United Kingdom (UK)",
 };
 
-// Mirrors the human labels shown on the store cards' tag chips.
-const TAG_TEXT: Record<StoreTag, string> = {
-  fire: "🔥 hot",
-  diamond: "💎 premium",
-  crown: "👑 luxury",
-  global: "🌎 worldwide",
-  new: "✨ new",
+// Bare emoji for each featured tag — matches the chip emoji on the store
+// cards, but WITHOUT the word ("🔥" not "🔥 hot"). The original line stored
+// in rawText already has its tag emoji stripped, so we re-add it here.
+const TAG_EMOJI: Record<StoreTag, string> = {
+  fire: "🔥",
+  diamond: "💎",
+  crown: "👑",
+  global: "🌎",
+  new: "✨",
 };
 
 /* ------------------------------------------------------------------ *
@@ -145,31 +139,6 @@ async function loadStoresFresh(region: Region): Promise<Store[]> {
     .filter((s) => s.regions.includes(region));
 }
 
-/** Build the merged category taxonomy exactly like getAllCategoriesMerged,
- *  but using the FRESH region stores for the "used" set so it can't lag. */
-function mergeCategories(
-  stores: Store[],
-  extras: string[],
-  order: string[],
-): string[] {
-  const used = new Set(stores.flatMap((s) => s.categories).filter(Boolean));
-  const out: string[] = [];
-  const seen = new Set<string>();
-  const push = (c: string) => {
-    if (c && !seen.has(c)) {
-      seen.add(c);
-      out.push(c);
-    }
-  };
-  order.forEach(push);
-  CANNED_CATEGORIES.forEach(push);
-  extras.forEach(push);
-  Array.from(used)
-    .sort((a, b) => a.localeCompare(b))
-    .forEach(push);
-  return out;
-}
-
 /* ------------------------------------------------------------------ *
  * Text helpers
  * ------------------------------------------------------------------ */
@@ -183,89 +152,55 @@ function esc(value: unknown): string {
     .replace(/'/g, "&#39;");
 }
 
-/** Decode the small set of HTML entities the mirrored info HTML uses. The
- *  result is later re-escaped by esc() before it lands in the page, so this
- *  must turn entities back into their real characters (no double-encoding). */
-function decodeEntities(input: string): string {
-  return input
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&mdash;/gi, "—")
-    .replace(/&ndash;/gi, "–")
-    .replace(/&hellip;/gi, "…")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#0?39;|&apos;/gi, "'")
-    .replace(/&#(\d+);/g, (_m, d: string) => {
-      try {
-        return String.fromCodePoint(Number(d));
-      } catch {
-        return "";
-      }
-    })
-    .replace(/&#x([0-9a-f]+);/gi, (_m, h: string) => {
-      try {
-        return String.fromCodePoint(parseInt(h, 16));
-      } catch {
-        return "";
-      }
-    })
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&amp;/gi, "&");
+// Build a safe anchor. Coerce a bare domain to https://, then validate via the
+// URL parser and only allow http/https/mailto/tel — anything else (javascript:,
+// data:, relative, garbage) falls back to rendering the label as plain text, so
+// no unsafe scheme can ever reach the href.
+const SAFE_SCHEMES = new Set(["http:", "https:", "mailto:", "tel:"]);
+function anchor(href: string, label: string): string {
+  const clean = href.trim().replace(/&amp;/gi, "&");
+  const candidate = /^(https?:|mailto:|tel:)/i.test(clean)
+    ? clean
+    : `https://${clean}`;
+  let safe: string | null = null;
+  try {
+    const u = new URL(candidate);
+    if (SAFE_SCHEMES.has(u.protocol.toLowerCase())) safe = u.toString();
+  } catch {
+    safe = null;
+  }
+  if (!safe) return esc(label);
+  return `<a href="${esc(safe)}" target="_blank" rel="noopener noreferrer nofollow">${esc(label)}</a>`;
 }
 
-/** Convert the stored info/telegraph HTML into readable plain text. The HTML
- *  is sanitised/controlled, but to be safe we OUTPUT text (esc()'d by the
- *  caller) — we never inject the raw HTML into this page. */
-function htmlToText(html: string): string {
-  let s = html || "";
-  s = s.replace(/\r\n?/g, "\n");
-  // <a href="url">text</a> -> "text (url)"
-  s = s.replace(
-    /<a\b[^>]*?href\s*=\s*"([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi,
-    (_m, href: string, txt: string) => {
-      const t = txt.replace(/<[^>]+>/g, "").trim();
-      return t ? `${t} (${href})` : href;
-    },
-  );
-  // <img src alt> -> "[image: alt | src]"
-  s = s.replace(/<img\b[^>]*>/gi, (m: string) => {
-    const src = (m.match(/src\s*=\s*"([^"]*)"/i) || [])[1] || "";
-    const alt = (m.match(/alt\s*=\s*"([^"]*)"/i) || [])[1] || "";
-    return src ? `\n[image: ${alt ? `${alt} | ` : ""}${src}]\n` : "";
-  });
-  s = s.replace(/<br\s*\/?>/gi, "\n");
-  s = s.replace(/<hr\s*\/?>/gi, "\n----------\n");
-  s = s.replace(/<li\b[^>]*>/gi, "\n• ");
-  s = s.replace(
-    /<\/(p|div|li|ul|ol|h[1-6]|blockquote|figure|figcaption|tr|table|section|article)>/gi,
-    "\n",
-  );
-  s = s.replace(
-    /<(p|div|h[1-6]|blockquote|figure|figcaption|ul|ol|tr|table|section|article)\b[^>]*>/gi,
-    "\n",
-  );
-  s = s.replace(/<[^>]+>/g, ""); // strip any remaining tags
-  s = decodeEntities(s);
-  s = s
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/[ \t]{2,}/g, " ");
-  return s.trim();
-}
-
-/** Render multi-line plain text as escaped <p>/<br> paragraphs (clean for
- *  markdown converters / scrapers). */
-function textToParagraphs(text: string): string {
-  const t = (text ?? "").toString();
-  if (!t.trim()) return "";
-  return t
+/** Render a store's original line: collapse whitespace, escape it, and turn
+ *  any markdown links [label](url) or bare http(s) URLs into real anchors so
+ *  the link is kept (and clickable) while everything else is plain text. */
+function renderInline(text: string): string {
+  const s = (text ?? "")
     .replace(/\r\n?/g, "\n")
-    .split(/\n{2,}/)
-    .map((block) => `<p>${esc(block).replace(/\n/g, "<br>")}</p>`)
-    .join("\n");
+    .replace(/\s*\n+\s*/g, " ")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+  const re = /\[([^\]]+)\]\(([^)]+)\)|(https?:\/\/[^\s)]+)/g;
+  let out = "";
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(s))) {
+    if (m.index > last) out += esc(s.slice(last, m.index));
+    if (m[2]) {
+      out += anchor(m[2], m[1]);
+    } else if (m[3]) {
+      out += anchor(m[3], m[3]);
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < s.length) out += esc(s.slice(last));
+  return out;
 }
 
-/** Pull every [label](url) link out of a note string. */
+/** Pull every [label](url) link out of a note string (used to resolve which
+ *  telegra.ph info popup a store points at). */
 function extractNoteLinks(notes: string): { label: string; url: string }[] {
   const re = /\[([^\]]+)\]\(([^)]+)\)/g;
   const out: { label: string; url: string }[] = [];
@@ -274,113 +209,99 @@ function extractNoteLinks(notes: string): { label: string; url: string }[] {
   return out;
 }
 
-/** Resolve the full "info" popup content a store would show: from any
- *  mirrored telegra.ph note links AND from a domain match (e.g. StubHub),
- *  preferring the admin override saved under content_blocks `info.<id>.html`
- *  EXACTLY like InfoModal (an explicitly-saved value wins even when empty —
- *  key presence, not truthiness), de-duplicated by content id. Blocks that
- *  resolve to empty text (e.g. an admin who cleared the popup) are dropped,
- *  matching the blank popup a visitor would see. */
-function resolveStoreInfo(
-  store: Store,
-  contentMap: Record<string, string>,
-): { title: string; text: string }[] {
-  const entries: TelegraphContent[] = [];
+/** Every href found in a chunk of (controlled) info HTML, de-duplicated.
+ *  Accepts both double- and single-quoted href attributes. */
+function extractHrefs(html: string): string[] {
+  const re = /href\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
+  const out: string[] = [];
   const seen = new Set<string>();
-  const push = (c: TelegraphContent | null) => {
-    if (c && !seen.has(c.id)) {
-      seen.add(c.id);
-      entries.push(c);
-    }
-  };
-  if (store.notes) {
-    for (const { url } of extractNoteLinks(store.notes)) {
-      push(getTelegraphContent(url));
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    const href = (m[1] ?? m[2] ?? "").replace(/&amp;/gi, "&").trim();
+    const k = href.toLowerCase();
+    if (href && !seen.has(k)) {
+      seen.add(k);
+      out.push(href);
     }
   }
-  push(getStoreInfoByDomain(store.domain));
-  return entries
-    .map((e) => {
-      const key = `info.${e.id}.html`;
-      const html = Object.prototype.hasOwnProperty.call(contentMap, key)
-        ? contentMap[key]
-        : e.html;
-      return { title: e.title, text: htmlToText(html || "") };
-    })
-    .filter((b) => b.text.trim().length > 0);
+  return out;
 }
 
-function categoryDisplay(key: string, labels: Record<string, string>): string {
-  const label = labels[key];
-  return label && label !== key ? `${label} (${key})` : key;
+/** The link(s) a store offers for "full info": any links inside its notes
+ *  (these are the pages a card would open for the full write-up) plus, for a
+ *  store whose popup is matched purely by domain (no inline note link), the
+ *  link(s) embedded in that popup. We keep ONLY links here — never the popup
+ *  body text — honoring an admin override saved under `info.<id>.html`
+ *  (key presence wins, even when cleared to empty), de-duplicated by URL. */
+function resolveStoreInfoLinks(
+  store: Store,
+  contentMap: Record<string, string>,
+): { label: string; url: string }[] {
+  const out: { label: string; url: string }[] = [];
+  const seen = new Set<string>();
+  const add = (label: string, url: string) => {
+    const u = url.trim();
+    const k = u.toLowerCase();
+    if (u && !seen.has(k)) {
+      seen.add(k);
+      out.push({ label: label.trim() || u, url: u });
+    }
+  };
+
+  if (store.notes) {
+    for (const { label, url } of extractNoteLinks(store.notes)) add(label, url);
+  }
+
+  const domainInfo = getStoreInfoByDomain(store.domain);
+  if (domainInfo) {
+    const key = `info.${domainInfo.id}.html`;
+    const html = Object.prototype.hasOwnProperty.call(contentMap, key)
+      ? contentMap[key]
+      : domainInfo.html;
+    for (const href of extractHrefs(html || "")) add(href, href);
+  }
+
+  return out;
 }
 
 function renderStore(
   store: Store,
-  idx: number,
-  labels: Record<string, string>,
   contentMap: Record<string, string>,
 ): string {
-  const cats = (store.categories ?? []).map((k) => categoryDisplay(k, labels));
-  const tags = (store.tags ?? []).map((t) => `${TAG_TEXT[t] ?? t} (${t})`);
-  const info = resolveStoreInfo(store, contentMap);
+  const emojis = (store.tags ?? [])
+    .map((t) => TAG_EMOJI[t])
+    .filter(Boolean)
+    .join(" ");
+  const prefix = emojis ? `${emojis} ` : "";
 
-  const rows: string[] = [
-    `<li><strong>Name:</strong> ${esc(store.name)}</li>`,
-    `<li><strong>Domain:</strong> ${store.domain ? esc(store.domain) : "—"}</li>`,
-    `<li><strong>Regions:</strong> ${esc((store.regions ?? []).join(", ") || "—")}</li>`,
-    `<li><strong>Categories:</strong> ${cats.length ? esc(cats.join(", ")) : "—"}</li>`,
-    `<li><strong>Price limit:</strong> ${esc(store.priceLimit ?? "—")}</li>`,
-    `<li><strong>Item limit:</strong> ${esc(store.itemLimit ?? "—")}</li>`,
-    `<li><strong>Fee:</strong> ${esc(store.fee ?? "—")}</li>`,
-    `<li><strong>Timeframe:</strong> ${esc(store.timeframe ?? "—")}</li>`,
-    `<li><strong>Tags:</strong> ${tags.length ? esc(tags.join(", ")) : "—"}</li>`,
-    `<li><strong>Featured glow:</strong> ${store.prismaticGlow ? "yes" : "no"}</li>`,
-    `<li><strong>Sort order:</strong> ${esc(store.sortOrder)}</li>`,
-    `<li><strong>Logo URL:</strong> ${store.logoUrl ? esc(store.logoUrl) : "—"}</li>`,
-    `<li><strong>Store ID:</strong> ${esc(store.id)}</li>`,
-    `<li><strong>Created:</strong> ${esc(store.createdAt)}</li>`,
-    `<li><strong>Updated:</strong> ${esc(store.updatedAt)}</li>`,
-  ];
+  let line = `${prefix}${renderInline(store.rawText || store.name || "")}`;
 
-  const parts: string[] = [
-    `<article>`,
-    `<h3>${idx}. ${esc(store.name)}</h3>`,
-    `<ul>`,
-    rows.join("\n"),
-    `</ul>`,
-  ];
+  // Keep the store's own link. Only append it when the original line doesn't
+  // already contain the domain, to avoid a redundant repeat.
+  const dom = (store.domain || "").trim();
+  if (dom) {
+    const bare = dom.replace(/^https?:\/\//i, "").replace(/^www\./i, "").toLowerCase();
+    const haystack = (store.rawText || "").toLowerCase();
+    if (bare && !haystack.includes(bare)) {
+      line += ` — ${anchor(dom, dom)}`;
+    }
+  }
 
-  if (store.notes && store.notes.trim()) {
-    parts.push(`<p><strong>Notes:</strong></p>`);
-    parts.push(textToParagraphs(store.notes));
-  }
-  if (store.rawText && store.rawText.trim()) {
-    parts.push(`<p><strong>Original line:</strong> ${esc(store.rawText)}</p>`);
-  }
-  for (const block of info) {
-    parts.push(`<p><strong>Full info — ${esc(block.title)}:</strong></p>`);
-    parts.push(textToParagraphs(block.text));
-  }
-  parts.push(`</article>`);
-  parts.push(`<hr>`);
-  return parts.join("\n");
+  // For stores with an info popup, keep ONLY the link(s) — never the text.
+  const infoLinks = resolveStoreInfoLinks(store, contentMap);
+  const more = infoLinks.length
+    ? `<br>More info: ${infoLinks.map((l) => anchor(l.url, l.label)).join(" · ")}`
+    : "";
+
+  return `<li>${line}${more}</li>`;
 }
 
 function buildDocument(
   region: Region,
   stores: Store[],
-  mergedCategories: string[],
-  labels: Record<string, string>,
   contentMap: Record<string, string>,
 ): string {
-  const catList = mergedCategories
-    .map((k) => `<li>${esc(categoryDisplay(k, labels))}</li>`)
-    .join("\n");
-
-  const storeList = stores
-    .map((s, i) => renderStore(s, i + 1, labels, contentMap))
-    .join("\n");
+  const list = stores.map((s) => renderStore(s, contentMap)).join("\n");
 
   return `<!doctype html>
 <html lang="en">
@@ -388,20 +309,16 @@ function buildDocument(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>RefundGod — Store List (RAW plain text) — ${esc(REGION_FULL[region])}</title>
+<title>RefundGod — Store List (RAW plain-text mirror) — ${esc(REGION_FULL[region])}</title>
 </head>
 <body>
 <h1>RefundGod — Store List (RAW plain-text mirror)</h1>
 <p><strong>Region:</strong> ${esc(REGION_FULL[region])}</p>
-<p>This is an auto-generated, plain-text mirror of the live store list, intended for scraping. It is rebuilt from the live database on every request, so it always stays in sync with the /store-list page — any add, remove, or edit of a store, category, label, fee, limit, note, or tag is reflected here automatically.</p>
-<p><strong>Total stores in this region:</strong> ${stores.length}</p>
-<p><strong>Generated at:</strong> ${esc(new Date().toISOString())}</p>
-<h2>Categories (${mergedCategories.length})</h2>
-<ul>
-${catList}
-</ul>
-<h2>Stores (${stores.length})</h2>
-${storeList || "<p>No stores in this region.</p>"}
+<p><strong>Total stores:</strong> ${stores.length}</p>
+<p>Auto-generated, plain-text mirror of the live store list, rebuilt from the database on every request so it always matches /store-list.</p>
+<ol>
+${list || "<li>No stores in this region.</li>"}
+</ol>
 </body>
 </html>`;
 }
@@ -436,21 +353,11 @@ export async function GET(
   }
 
   try {
-    const [stores, contentMap, labels, extras, order] = await Promise.all([
+    const [stores, contentMap] = await Promise.all([
       loadStoresFresh(region),
       getAllContentMap(),
-      getCategoryLabels(),
-      getExtraCategories(),
-      getCategoryOrder(),
     ]);
-    const mergedCategories = mergeCategories(stores, extras, order);
-    const html = buildDocument(
-      region,
-      stores,
-      mergedCategories,
-      labels,
-      contentMap,
-    );
+    const html = buildDocument(region, stores, contentMap);
     return new Response(html, { status: 200, headers: baseHeaders() });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
