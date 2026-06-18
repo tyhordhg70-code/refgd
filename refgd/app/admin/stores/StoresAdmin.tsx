@@ -28,17 +28,35 @@ function detectCategory(text: string, allowed: string[]): StoreCategory {
   return "Other";
 }
 
+type BulkDefaults = {
+  priceLimit: string;
+  itemLimit: string;
+  fee: string;
+  timeframe: string;
+  notes: string;
+};
+
 type BulkRow = {
   name: string;
   domain: string;
   category: StoreCategory;
   region: Region;
+  priceLimit: string;
+  itemLimit: string;
+  fee: string;
+  timeframe: string;
+  notes: string;
   raw: string;
   ok: boolean;
   err?: string;
 };
 
-function parseBulkPaste(text: string, defaultRegion: Region, allowedCats: string[]): BulkRow[] {
+function parseBulkPaste(
+  text: string,
+  defaultRegion: Region,
+  allowedCats: string[],
+  defaults: BulkDefaults,
+): BulkRow[] {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const rows: BulkRow[] = [];
   for (const line of lines) {
@@ -46,14 +64,23 @@ function parseBulkPaste(text: string, defaultRegion: Region, allowedCats: string
     const regionHeader = line.match(/^[\s\-=#*]*\b(USA|US|CAD|CA|CANADA|EU|UK|GB|BRITAIN|EUROPE)\b[\s:\-]*$/i);
     if (regionHeader) continue;
 
-    // Pipe-delimited "Name | category | domain"
-    const parts = line.split("|").map((p) => p.trim()).filter(Boolean);
+    // Pipe-delimited, in order:
+    //   Name | category | domain | priceLimit | itemLimit | fee | timeframe | notes
+    // Trailing fields are optional; blanks fall back to the bulk defaults.
+    // NOTE: we keep blank segments here (no .filter(Boolean)) so a deliberately
+    // empty slot like "Nike || nike.com" still maps domain to the 3rd column.
+    const parts = line.split("|").map((p) => p.trim());
     let name = "";
     let category: StoreCategory | "" = "";
     let domain = "";
-    if (parts.length >= 1) name = parts[0];
-    if (parts.length >= 2) category = parts[1];
-    if (parts.length >= 3) domain = parts[2];
+    const rowPrice = parts[3]?.trim() ?? "";
+    const rowItems = parts[4]?.trim() ?? "";
+    const rowFee = parts[5]?.trim() ?? "";
+    const rowTime = parts[6]?.trim() ?? "";
+    const rowNotes = parts[7]?.trim() ?? "";
+    if (parts.length >= 1) name = parts[0].trim();
+    if (parts.length >= 2 && parts[1].trim()) category = parts[1].trim();
+    if (parts.length >= 3 && parts[2].trim()) domain = parts[2].trim();
 
     // Strip a trailing "(.com)" / domain in parens from the name.
     const parenDomain = name.match(/\(([^)]+\.[a-z]{2,})\)/i);
@@ -85,6 +112,11 @@ function parseBulkPaste(text: string, defaultRegion: Region, allowedCats: string
       domain,
       category,
       region: defaultRegion,
+      priceLimit: rowPrice || defaults.priceLimit,
+      itemLimit: rowItems || defaults.itemLimit,
+      fee: rowFee || defaults.fee,
+      timeframe: rowTime || defaults.timeframe,
+      notes: rowNotes || defaults.notes,
       raw: line,
       ok: true,
     });
@@ -144,6 +176,13 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
   
   const [bulkText, setBulkText] = useState("");
   const [bulkRegion, setBulkRegion] = useState<Region>("USA");
+  // Default boxcard fields applied to EVERY imported row (a per-row pipe
+  // value or an inline preview edit still overrides these).
+  const [bulkPriceLimit, setBulkPriceLimit] = useState("");
+  const [bulkItemLimit, setBulkItemLimit] = useState("");
+  const [bulkFee, setBulkFee] = useState("");
+  const [bulkTimeframe, setBulkTimeframe] = useState("");
+  const [bulkNotes, setBulkNotes] = useState("");
   const [bulkRows, setBulkRows] = useState<BulkRow[]>([]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
@@ -168,12 +207,32 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
       ta.setSelectionRange(urlStart, urlStart + 3);
     });
   }, [editing]);
-  // Re-parse whenever the textarea / region / known-categories change.
+  // Re-parse whenever the textarea / region / default fields / known
+  // categories change. Changing a default re-applies it to every row
+  // (so any per-row inline edits are intentionally reset).
   useEffect(() => {
     if (!bulkOpen) return;
     setClassifyErr(null);
-    setBulkRows(parseBulkPaste(bulkText, bulkRegion, allCategories));
-  }, [bulkText, bulkRegion, bulkOpen, allCategories]);
+    setBulkRows(
+      parseBulkPaste(bulkText, bulkRegion, allCategories, {
+        priceLimit: bulkPriceLimit,
+        itemLimit: bulkItemLimit,
+        fee: bulkFee,
+        timeframe: bulkTimeframe,
+        notes: bulkNotes,
+      }),
+    );
+  }, [
+    bulkText,
+    bulkRegion,
+    bulkOpen,
+    allCategories,
+    bulkPriceLimit,
+    bulkItemLimit,
+    bulkFee,
+    bulkTimeframe,
+    bulkNotes,
+  ]);
 
   async function classifyWithAI() {
     if (!bulkRows.length) return;
@@ -350,11 +409,12 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
             (<code className="text-amber-200">Anker</code>), a name + domain
             (<code className="text-amber-200">Anker anker.com</code> or
             <code className="text-amber-200"> Anker (anker.com)</code>),
-            or pipe-separated name | category | domain
-            (<code className="text-amber-200">Anker | Electronics | anker.com</code>).
-            We auto-detect the domain and category from the name when
-            either is omitted. Lines like <code className="text-amber-200">USA:</code>
-            are skipped.
+            or pipe-separated
+            <code className="text-amber-200"> name | category | domain | price limit | item limit | fee | timeframe | notes</code>.
+            Trailing fields are optional — leave them blank to use the
+            defaults below. We auto-detect the domain and category from the
+            name when either is omitted. Lines like
+            <code className="text-amber-200"> USA:</code> are skipped.
           </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
             <textarea
@@ -373,6 +433,47 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
               >
                 {REGIONS.map((r) => <option key={r} value={r} className="bg-ink-900 text-white">{r}</option>)}
               </select>
+
+              {/* Default boxcard fields — applied to every imported row.
+                  A per-row pipe value or an inline preview edit overrides
+                  these, exactly like editing a single store. */}
+              <label className="mt-1 text-white/55">Default price limit</label>
+              <input
+                value={bulkPriceLimit}
+                onChange={(e) => setBulkPriceLimit(e.target.value)}
+                placeholder="e.g. $500"
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/30"
+              />
+              <label className="text-white/55">Default item limit</label>
+              <input
+                value={bulkItemLimit}
+                onChange={(e) => setBulkItemLimit(e.target.value)}
+                placeholder="e.g. 3 items"
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/30"
+              />
+              <label className="text-white/55">Default fee</label>
+              <input
+                value={bulkFee}
+                onChange={(e) => setBulkFee(e.target.value)}
+                placeholder="e.g. 10%"
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/30"
+              />
+              <label className="text-white/55">Default timeframe</label>
+              <input
+                value={bulkTimeframe}
+                onChange={(e) => setBulkTimeframe(e.target.value)}
+                placeholder="e.g. 5-7 days"
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/30"
+              />
+              <label className="text-white/55">Default notes</label>
+              <textarea
+                value={bulkNotes}
+                onChange={(e) => setBulkNotes(e.target.value)}
+                rows={2}
+                placeholder="Applied to every row"
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/30"
+              />
+
               <p className="text-white/45">
                 Detected: <span className="font-bold text-white">{bulkRows.length}</span> stores
               </p>
@@ -419,6 +520,11 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
                           domain: row.domain || null,
                           region: row.region,
                           category: row.category,
+                          priceLimit: row.priceLimit.trim() || null,
+                          itemLimit: row.itemLimit.trim() || null,
+                          fee: row.fee.trim() || null,
+                          timeframe: row.timeframe.trim() || null,
+                          notes: row.notes.trim() || null,
                           tags: [],
                           prismaticGlow: false,
                           sortOrder: 1000 + i,
@@ -455,11 +561,24 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
                     <th className="px-2 py-1.5">Domain</th>
                     <th className="px-2 py-1.5">Category</th>
                     <th className="px-2 py-1.5">Region</th>
+                    <th className="px-2 py-1.5">Price limit</th>
+                    <th className="px-2 py-1.5">Item limit</th>
+                    <th className="px-2 py-1.5">Fee</th>
+                    <th className="px-2 py-1.5">Timeframe</th>
+                    <th className="px-2 py-1.5">Notes</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {bulkRows.map((r, i) => (
-                    <tr key={i} className="border-t border-white/5">
+                  {bulkRows.map((r, i) => {
+                    const setField = (
+                      field: "priceLimit" | "itemLimit" | "fee" | "timeframe" | "notes",
+                      value: string,
+                    ) =>
+                      setBulkRows((prev) =>
+                        prev.map((row, idx) => (idx === i ? { ...row, [field]: value } : row)),
+                      );
+                    return (
+                    <tr key={i} className="border-t border-white/5 align-top">
                       <td className="px-2 py-1.5 text-white">{r.name}</td>
                       <td className="px-2 py-1.5 text-white/55">{r.domain || "—"}</td>
                       <td className="px-2 py-1.5">
@@ -482,8 +601,49 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
                         </select>
                       </td>
                       <td className="px-2 py-1.5 text-white/55">{r.region}</td>
+                      <td className="px-2 py-1.5">
+                        <input
+                          value={r.priceLimit}
+                          onChange={(e) => setField("priceLimit", e.target.value)}
+                          placeholder="—"
+                          className="w-20 rounded border border-white/10 bg-white/5 px-1 py-0.5 text-xs text-white placeholder:text-white/25 focus:border-amber-300 focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <input
+                          value={r.itemLimit}
+                          onChange={(e) => setField("itemLimit", e.target.value)}
+                          placeholder="—"
+                          className="w-20 rounded border border-white/10 bg-white/5 px-1 py-0.5 text-xs text-white placeholder:text-white/25 focus:border-amber-300 focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <input
+                          value={r.fee}
+                          onChange={(e) => setField("fee", e.target.value)}
+                          placeholder="—"
+                          className="w-16 rounded border border-white/10 bg-white/5 px-1 py-0.5 text-xs text-white placeholder:text-white/25 focus:border-amber-300 focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <input
+                          value={r.timeframe}
+                          onChange={(e) => setField("timeframe", e.target.value)}
+                          placeholder="—"
+                          className="w-20 rounded border border-white/10 bg-white/5 px-1 py-0.5 text-xs text-white placeholder:text-white/25 focus:border-amber-300 focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <input
+                          value={r.notes}
+                          onChange={(e) => setField("notes", e.target.value)}
+                          placeholder="—"
+                          className="w-32 rounded border border-white/10 bg-white/5 px-1 py-0.5 text-xs text-white placeholder:text-white/25 focus:border-amber-300 focus:outline-none"
+                        />
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
