@@ -8,9 +8,22 @@ import { getStoreInfoByDomain } from "@/data/telegraph-content";
  *   /raw/usa   /raw/cad   /raw/eu   /raw/uk
  *
  * Purpose: a fully scrapeable (e.g. Jina AI) clone of the store list in the
- * SAME simple, plain-HTML layout the original site uses — each store is its
- * original one-line entry, prefixed with its featured tag as a bare EMOJI
- * (🔥 / 💎 / 👑 / 🌎 / ✨, never the word), with any links kept clickable.
+ * SAME simple, plain-HTML layout the original site uses — each store is ONE
+ * line built from its LIVE, admin-editable fields (tag emoji + name + the
+ * structured limit/items/fee/time tiles + the notes detail), with any links
+ * kept clickable.
+ *
+ * IMPORTANT — uses LIVE data, never the reference import: the line is
+ * composed from the store's current `name`, `tags`, the structured metric
+ * tiles (`priceLimit`, `itemLimit`, `fee`, `timeframe`) and `notes` — the
+ * exact same fields the live store card renders — NEVER from the frozen
+ * `rawText`. `rawText` is the ORIGINAL one-line entry scraped from
+ * refundgod.io at import time and it does NOT change when a store is edited,
+ * so rendering it made this mirror show the reference site's data instead of
+ * the live store list. Every field used here is admin-editable, so any edit
+ * on /store-list is reflected here automatically. A metric tile is appended
+ * only when its value isn't already spelled out in the notes, so rows whose
+ * notes already carry the detail aren't shown twice.
  *
  * Deliberately MINIMAL: no internal metadata (featured glow, sort order,
  * logo URL, store id, created/updated), no "original line" label, and no
@@ -58,8 +71,7 @@ const REGION_FULL: Record<Region, string> = {
 };
 
 // Bare emoji for each featured tag — matches the chip emoji on the store
-// cards, but WITHOUT the word ("🔥" not "🔥 hot"). The original line stored
-// in rawText already has its tag emoji stripped, so we re-add it here.
+// cards, but WITHOUT the word ("🔥" not "🔥 hot").
 const TAG_EMOJI: Record<StoreTag, string> = {
   fire: "🔥",
   diamond: "💎",
@@ -150,6 +162,12 @@ function esc(value: unknown): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+// Normalize for "is this value already in the notes" checks: lowercase and drop
+// all whitespace so "1 item" matches "1item", "$2,000" matches "$2,000", etc.
+function norm(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, "");
 }
 
 // Build a safe anchor. Coerce a bare domain to https://, then validate via the
@@ -274,21 +292,45 @@ function renderStore(
     .join(" ");
   const prefix = emojis ? `${emojis} ` : "";
 
-  let line = `${prefix}${renderInline(store.rawText || store.name || "")}`;
+  // LIVE detail, built from the same fields the store card renders (NEVER the
+  // frozen rawText import). `notes` is the descriptive line; strip a leading
+  // separator so "Name – – detail" can't happen.
+  const notesSrc = (store.notes ?? "").replace(/^\s*[–—\-/|•]+\s*/, "").trim();
+  const notesNorm = norm(notesSrc);
 
-  // Keep the store's own link. Only append it when the original line doesn't
-  // already contain the domain, to avoid a redundant repeat.
+  // The structured tiles (limit / items / fee / time). Append a tile ONLY when
+  // its value isn't already spelled out in the notes, so a tile-only edit (or
+  // a new store with empty notes) still shows up, while current rows whose
+  // notes already carry the detail aren't shown twice.
+  const segments = [esc(store.name ?? "")];
+  for (const v of [store.priceLimit, store.itemLimit, store.fee, store.timeframe]) {
+    const val = (v ?? "").trim();
+    if (val && !notesNorm.includes(norm(val))) segments.push(esc(val));
+  }
+  // Render the notes last, keeping any markdown / URL link clickable so a
+  // "click to view" link survives.
+  if (notesSrc) segments.push(renderInline(notesSrc));
+  let line = `${prefix}${segments.join(" – ")}`;
+
+  // Keep the store's own website link (the live card shows it). Append only
+  // when the notes don't already mention the domain, to avoid a redundant
+  // repeat.
   const dom = (store.domain || "").trim();
   if (dom) {
     const bare = dom.replace(/^https?:\/\//i, "").replace(/^www\./i, "").toLowerCase();
-    const haystack = (store.rawText || "").toLowerCase();
-    if (bare && !haystack.includes(bare)) {
-      line += ` — ${anchor(dom, dom)}`;
+    if (bare && !notesNorm.includes(norm(bare))) {
+      line += ` – ${anchor(dom, dom)}`;
     }
   }
 
-  // For stores with an info popup, keep ONLY the link(s) — never the text.
-  const infoLinks = resolveStoreInfoLinks(store, contentMap);
+  // For stores with an info popup, keep ONLY the link(s) — never the body
+  // text — and drop any link already rendered inline from the notes above.
+  const inlineUrls = new Set(
+    extractNoteLinks(store.notes || "").map((l) => l.url.trim().toLowerCase()),
+  );
+  const infoLinks = resolveStoreInfoLinks(store, contentMap).filter(
+    (l) => !inlineUrls.has(l.url.trim().toLowerCase()),
+  );
   const more = infoLinks.length
     ? `<br>More info: ${infoLinks.map((l) => anchor(l.url, l.label)).join(" · ")}`
     : "";
