@@ -97,7 +97,7 @@ export function heavyAssetsForPath(pathname: string): HeavyAsset[] {
     return [{ url: "/mentorship-bg.mp4", bytesHint: 8231222 }];
   }
   // The home page is the usual first visit, so we DO gate it: download the
-  // ~40 MB "sphere montage" hero (/sphere-montage.mp4, served immutable) in
+  // ~32 MB "sphere montage" hero (/sphere-montage.mp4, served immutable) in
   // full behind the splash so the hero plays with zero buffering on reveal.
   // CosmicJourney dispatches `refgd:scene-ready` on the video's loadeddata, so
   // the splash lifts the instant the download finishes + the first frame is
@@ -106,7 +106,7 @@ export function heavyAssetsForPath(pathname: string): HeavyAsset[] {
   // cache. (The 17 MB /sphere-bg.mp4 left in public/ is a stale, unused file —
   // the live hero <video> in CosmicJourney points at /sphere-montage.mp4.)
   if (p === "/") {
-    return [{ url: "/sphere-montage.mp4", bytesHint: 40549919 }];
+    return [{ url: "/sphere-montage.mp4", bytesHint: 32156163 }];
   }
   return [];
 }
@@ -359,10 +359,10 @@ export async function downloadHeavyAssets(
 export type PrefetchAsset = HeavyAsset & { routes: string[] };
 
 export const PREFETCHABLE_HEAVY_MEDIA: PrefetchAsset[] = [
-  // Home "sphere montage" hero loop (~40 MB). It IS splash-gated on the home
+  // Home "sphere montage" hero loop (~32 MB). It IS splash-gated on the home
   // page (see heavyAssetsForPath), so this entry only warms it when the user
   // is browsing OTHER pages — prefetchOtherRouteMedia skips the current route.
-  { url: "/sphere-montage.mp4", bytesHint: 40549919, routes: ["/"] },
+  { url: "/sphere-montage.mp4", bytesHint: 32156163, routes: ["/"] },
   // Evade-Cancelations neon-vortex hero.
   { url: "/uploads/evade-hero-vortex.mp4", bytesHint: 12987759, routes: ["/evade-cancelations"] },
   // Exclusive-Mentorships "Liquid Reflections" hero loop.
