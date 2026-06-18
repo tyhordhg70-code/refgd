@@ -7,11 +7,14 @@ import { getStoreInfoByDomain } from "@/data/telegraph-content";
  * HIDDEN, PLAIN-TEXT MIRROR of the live store list — one URL per region:
  *   /raw/usa   /raw/cad   /raw/eu   /raw/uk
  *
- * Purpose: a fully scrapeable (e.g. Jina AI) clone of the store list in the
- * SAME simple, plain-HTML layout the original site uses — each store is ONE
- * line built from its LIVE, admin-editable fields (tag emoji + name + the
- * structured limit/items/fee/time tiles + the notes detail), with any links
- * kept clickable.
+ * Purpose: a fully scrapeable (e.g. Jina AI) clone of the LIVE store list,
+ * grouped under the SAME category headings (and in the same order) as
+ * /store-list, in a simple plain-HTML layout — each store is ONE line built
+ * from its LIVE, admin-editable fields (tag emoji + name + the structured
+ * limit/items/fee/time tiles + the notes detail), with any links kept
+ * clickable. Nothing here is taken from, or points at, the reference site
+ * (refundgod.io): the frozen `rawText` import is never rendered, and any
+ * link back to refundgod.io is dropped (see isReferenceSite).
  *
  * IMPORTANT — uses LIVE data, never the reference import: the line is
  * composed from the store's current `name`, `tags`, the structured metric
@@ -78,6 +81,42 @@ const TAG_EMOJI: Record<StoreTag, string> = {
   crown: "👑",
   global: "🌎",
   new: "✨",
+};
+
+/* ------------------------------------------------------------------ *
+ * Category model — mirrors the live /store-list grouping EXACTLY.
+ *
+ * /store-list groups cards under category headings whose ORDER comes
+ * from getAllCategoriesMerged() (admin-saved `_category_order`, then the
+ * canned defaults, then admin `_extra_categories`) and whose DISPLAY
+ * LABEL is `{ ...CATEGORY_LABEL, ...adminLabelOverrides }`, where the
+ * overrides are the admin-saved `_category_labels`. All three keys are
+ * persisted in the `content_blocks` table, which this route already
+ * reads via getAllContentMap(), so the very same admin edit that
+ * reorders or renames a heading on /store-list is reflected here too.
+ * ------------------------------------------------------------------ */
+
+// Canned default category order (lib/categories-store.ts CANNED_CATEGORIES).
+const CANNED_CATEGORIES: readonly string[] = [
+  "Electronics",
+  "Clothing",
+  "Home",
+  "Jewelry",
+  "Food",
+  "Meal Plans",
+  "Other",
+];
+
+// Hardcoded default labels (components/StoreFilters.tsx CATEGORY_LABEL).
+// Admin overrides from `_category_labels` are layered on top at runtime.
+const CATEGORY_LABEL: Record<string, string> = {
+  Electronics: "🎮 Electronics & High-Resell",
+  Clothing: "👕 Clothing",
+  Home: "🏠 Home & Furniture",
+  Jewelry: "💎 Jewelry",
+  Food: "🍔 Food",
+  "Meal Plans": "🥗 Meal Plans",
+  Other: "✨ Other",
 };
 
 /* ------------------------------------------------------------------ *
@@ -170,6 +209,86 @@ function norm(value: string): string {
   return value.toLowerCase().replace(/\s+/g, "");
 }
 
+// The reference site this project was originally cloned from. The LIVE store
+// list is the only source of truth here, so any link that points back to
+// refundgod.io (or a subdomain) is dropped — never rendered as a link and
+// never echoed as plain text — so nothing on these pages points at, or
+// reflects, the reference site. Coerce a bare domain to https:// first so a
+// "refundgod.io/foo" written without a scheme is still caught.
+function isReferenceSite(href: string): boolean {
+  const clean = (href || "").trim().replace(/&amp;/gi, "&");
+  const candidate = /^(https?:|mailto:|tel:)/i.test(clean)
+    ? clean
+    : `https://${clean}`;
+  try {
+    const host = new URL(candidate).hostname.toLowerCase().replace(/^www\./, "");
+    return host === "refundgod.io" || host.endsWith(".refundgod.io");
+  } catch {
+    return false;
+  }
+}
+
+// Parse a content_blocks JSON array (e.g. `_category_order`,
+// `_extra_categories`) into a cleaned list of strings; "" on any problem.
+function parseStringArray(raw: string | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr.map((x) => String(x ?? "").trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+// Parse a content_blocks JSON object (e.g. `_category_labels`) into a cleaned
+// key→label map; drops empty keys/values and ignores anything malformed.
+function parseStringMap(raw: string | undefined): Record<string, string> {
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      const key = String(k ?? "").trim();
+      const label = String(v ?? "").trim();
+      if (key && label) out[key] = label;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** The merged category display ORDER, mirroring getAllCategoriesMerged():
+ *  the admin-saved order first, then the canned defaults, then admin
+ *  extras — de-duped, preserving first-seen order. Any leftover category
+ *  that only exists on a store (legacy / typo'd value) is appended
+ *  alphabetically by the caller. */
+function categoryOrder(contentMap: Record<string, string>): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (c: string) => {
+    const v = c.trim();
+    if (v && !seen.has(v)) {
+      seen.add(v);
+      out.push(v);
+    }
+  };
+  parseStringArray(contentMap["_category_order"]).forEach(push);
+  CANNED_CATEGORIES.forEach(push);
+  parseStringArray(contentMap["_extra_categories"]).forEach(push);
+  return out;
+}
+
+/** The merged category LABELS, mirroring the live store list's
+ *  `effectiveLabels = { ...CATEGORY_LABEL, ...labelOverrides }`. */
+function categoryLabels(
+  contentMap: Record<string, string>,
+): Record<string, string> {
+  return { ...CATEGORY_LABEL, ...parseStringMap(contentMap["_category_labels"]) };
+}
+
 // Build a safe anchor. Coerce a bare domain to https://, then validate via the
 // URL parser and only allow http/https/mailto/tel — anything else (javascript:,
 // data:, relative, garbage) falls back to rendering the label as plain text, so
@@ -207,9 +326,12 @@ function renderInline(text: string): string {
   while ((m = re.exec(s))) {
     if (m.index > last) out += esc(s.slice(last, m.index));
     if (m[2]) {
-      out += anchor(m[2], m[1]);
+      // Markdown [label](url): keep the label text, but drop a link back to
+      // the reference site (refundgod.io) so nothing points at it.
+      out += isReferenceSite(m[2]) ? esc(m[1]) : anchor(m[2], m[1]);
     } else if (m[3]) {
-      out += anchor(m[3], m[3]);
+      // Bare http(s) URL: omit entirely when it points to the reference site.
+      if (!isReferenceSite(m[3])) out += anchor(m[3], m[3]);
     }
     last = m.index + m[0].length;
   }
@@ -260,7 +382,7 @@ function resolveStoreInfoLinks(
   const add = (label: string, url: string) => {
     const u = url.trim();
     const k = u.toLowerCase();
-    if (u && !seen.has(k)) {
+    if (u && !isReferenceSite(u) && !seen.has(k)) {
       seen.add(k);
       out.push({ label: label.trim() || u, url: u });
     }
@@ -316,7 +438,7 @@ function renderStore(
   // when the notes don't already mention the domain, to avoid a redundant
   // repeat.
   const dom = (store.domain || "").trim();
-  if (dom) {
+  if (dom && !isReferenceSite(dom)) {
     const bare = dom.replace(/^https?:\/\//i, "").replace(/^www\./i, "").toLowerCase();
     if (bare && !notesNorm.includes(norm(bare))) {
       line += ` – ${anchor(dom, dom)}`;
@@ -343,7 +465,57 @@ function buildDocument(
   stores: Store[],
   contentMap: Record<string, string>,
 ): string {
-  const list = stores.map((s) => renderStore(s, contentMap)).join("\n");
+  const labels = categoryLabels(contentMap);
+  const order = categoryOrder(contentMap);
+
+  // Group this region's stores by category. A store assigned to several
+  // categories appears under EACH of them, exactly like the live
+  // /store-list grid (which iterates a card into every one of its
+  // categories). Stores keep their loaded order (sort_order, then name).
+  const byCat = new Map<string, Store[]>();
+  for (const s of stores) {
+    const cats = s.categories && s.categories.length ? s.categories : ["Other"];
+    for (const c of cats) {
+      const key = (c || "").trim() || "Other";
+      if (!byCat.has(key)) byCat.set(key, []);
+      byCat.get(key)!.push(s);
+    }
+  }
+
+  // Emit categories in the merged admin order first, then any leftover
+  // category (legacy / typo'd value not in the order) alphabetically —
+  // mirroring StoreFilters' grouping passes for a normal visitor (only
+  // categories that actually have stores in this region are shown).
+  const sections: { category: string; stores: Store[] }[] = [];
+  const emitted = new Set<string>();
+  for (const cat of order) {
+    const list = byCat.get(cat);
+    if (list && list.length) {
+      sections.push({ category: cat, stores: list });
+      emitted.add(cat);
+    }
+  }
+  for (const cat of Array.from(byCat.keys())
+    .filter((c) => !emitted.has(c))
+    .sort((a, b) => a.localeCompare(b))) {
+    const list = byCat.get(cat)!;
+    if (list.length) sections.push({ category: cat, stores: list });
+  }
+
+  const body = sections.length
+    ? sections
+        .map(({ category, stores: list }) => {
+          const heading = esc(labels[category] ?? category);
+          const items = list.map((s) => renderStore(s, contentMap)).join("\n");
+          return `<section>
+<h2>${heading} (${list.length})</h2>
+<ol>
+${items}
+</ol>
+</section>`;
+        })
+        .join("\n")
+    : "<p>No stores in this region.</p>";
 
   return `<!doctype html>
 <html lang="en">
@@ -357,10 +529,9 @@ function buildDocument(
 <h1>RefundGod — Store List (RAW plain-text mirror)</h1>
 <p><strong>Region:</strong> ${esc(REGION_FULL[region])}</p>
 <p><strong>Total stores:</strong> ${stores.length}</p>
-<p>Auto-generated, plain-text mirror of the live store list, rebuilt from the database on every request so it always matches /store-list.</p>
-<ol>
-${list || "<li>No stores in this region.</li>"}
-</ol>
+<p><strong>Categories:</strong> ${sections.length}</p>
+<p>Auto-generated, plain-text mirror of the live store list — grouped by the same categories, in the same order, as /store-list — rebuilt from the database on every request so it always matches.</p>
+${body}
 </body>
 </html>`;
 }
