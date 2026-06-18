@@ -505,6 +505,26 @@ export default function LoadingScreen() {
         )
       : Promise.resolve();
 
+    // Once the heavy file is 100% in the HTTP cache, tell the hero video it may
+    // start loading. It defers its own fetch until this fires so it reads from
+    // the warm cache instead of racing this download and re-buffering. The
+    // video then paints + dispatches refgd:scene-ready, letting the Promise.all
+    // below win the race quickly (no postDownloadGrace penalty).
+    if (hasHeavyAsset) {
+      void assetsPromise.then(() => {
+        try {
+          // Sticky flag so a hero that mounts/subscribes AFTER this fires
+          // (bfcache restore, warm-cache fast resolve) still sees readiness
+          // and opens its gate without waiting for the one-shot event.
+          (window as unknown as Record<string, boolean>).__refgdHeavyAssetsReady =
+            true;
+          window.dispatchEvent(new Event("refgd:heavy-assets-ready"));
+        } catch {
+          /* noop */
+        }
+      });
+    }
+
     const ceilingPromise = new Promise<void>((r) => {
       // Heavy-asset routes hold for a safety window so the splash can wait for
       // the full download + first paint; the real download and scene-ready

@@ -189,6 +189,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
 
     // Keep the sphere looping while it is on screen.
     const playLoop = () => {
+      // Hold the very first network load until the loading screen has finished
+      // pre-downloading the clip (see the gate below) so the <video> reads from
+      // the warm HTTP cache instead of racing the splash's fetch and buffering.
+      if (!canLoad) return;
       const p = video.play();
       if (p && typeof p.catch === "function") p.catch(() => {});
     };
@@ -383,6 +387,49 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       handoffRaf = requestAnimationFrame(drive);
     };
 
+    // ── Defer the hero clip's first network load until the loading screen has
+    //    finished pre-downloading /sphere-montage.mp4 ──────────────────────────
+    // On a fresh full-page load the splash streams the whole clip into the HTTP
+    // cache. If this <video> also fetches concurrently (autoPlay / preload) it
+    // plays from its own half-finished stream and visibly re-buffers even though
+    // the splash already cached the file. So we hold the first play() until the
+    // splash signals its download is complete (refgd:heavy-assets-ready), at
+    // which point play() reads straight from the warm cache → no buffering.
+    // Opens immediately on client-side navigations (no splash) and via a safety
+    // timer / loading-complete fallback so the hero can never be stranded.
+    const splashActive =
+      (window as unknown as Record<string, unknown>).__refgdLoadingActive ===
+      true;
+    // Sticky readiness flag set by <LoadingScreen> when the pre-download
+    // finishes — covers the race where that completes before this effect
+    // subscribes (bfcache restore / warm-cache fast resolve).
+    const heavyAlreadyReady =
+      (window as unknown as Record<string, unknown>).__refgdHeavyAssetsReady ===
+      true;
+    let canLoad = !splashActive || heavyAlreadyReady;
+    let openTimer = 0;
+    const openGate = () => {
+      if (canLoad) return;
+      canLoad = true;
+      window.clearTimeout(openTimer);
+      window.removeEventListener("refgd:heavy-assets-ready", openGate);
+      window.removeEventListener("refgd:loading-complete", openGate);
+      if (heroVisible && state !== "handoff") {
+        playLoop();
+        startSampling();
+      }
+    };
+    if (!canLoad) {
+      window.addEventListener("refgd:heavy-assets-ready", openGate);
+      window.addEventListener("refgd:loading-complete", openGate);
+      // Last-resort backstop: never leave the hero on a static poster if both
+      // signals are somehow missed (e.g. splash disabled mid-session). Set ABOVE
+      // the splash's 30s hard ceiling so this can never fire mid-download and
+      // re-introduce the concurrent fetch this gate exists to prevent — by 32s
+      // the splash has already lifted and dispatched refgd:loading-complete.
+      openTimer = window.setTimeout(openGate, 32000);
+    }
+
     // ── Off-screen suspend (perf): stop loop AND sampling when hero leaves ──
     const io = new IntersectionObserver(
       ([entry]) => {
@@ -548,6 +595,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       releaseBlock();
       cleanupTriggers();
       io.disconnect();
+      window.clearTimeout(openTimer);
+      window.removeEventListener("refgd:heavy-assets-ready", openGate);
+      window.removeEventListener("refgd:loading-complete", openGate);
       video.removeEventListener("loadeddata", onLoadedData);
       const l = lenis();
       if (l && l.start) l.start();
@@ -595,9 +645,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         className="cj-hero-video absolute left-1/2 top-1/2"
         muted
         loop={!reduced}
-        autoPlay={!reduced}
         playsInline
-        preload="auto"
+        preload="none"
         poster="/sphere-poster.webp"
         style={{
           width: "100%",
