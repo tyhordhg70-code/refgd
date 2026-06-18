@@ -468,18 +468,20 @@ function buildDocument(
   const labels = categoryLabels(contentMap);
   const order = categoryOrder(contentMap);
 
-  // Group this region's stores by category. A store assigned to several
-  // categories appears under EACH of them, exactly like the live
-  // /store-list grid (which iterates a card into every one of its
-  // categories). Stores keep their loaded order (sort_order, then name).
+  // Group this region's stores by category. Each store appears EXACTLY ONCE,
+  // under its PRIMARY ("best suited") category — `categories[0]` — which is the
+  // same value the live store list treats as a card's home category (the one
+  // the edit dialog seeds and that drag-reorder keys on). A store can be tagged
+  // with several categories but it is still a single card/row, so it is listed
+  // once here; because the line is rebuilt from that one row on every request,
+  // an edit on /store-list updates it here no matter how many categories it
+  // carries. Stores keep their loaded order (sort_order, then name).
   const byCat = new Map<string, Store[]>();
   for (const s of stores) {
-    const cats = s.categories && s.categories.length ? s.categories : ["Other"];
-    for (const c of cats) {
-      const key = (c || "").trim() || "Other";
-      if (!byCat.has(key)) byCat.set(key, []);
-      byCat.get(key)!.push(s);
-    }
+    const primary =
+      (s.categories ?? []).map((c) => (c || "").trim()).find(Boolean) || "Other";
+    if (!byCat.has(primary)) byCat.set(primary, []);
+    byCat.get(primary)!.push(s);
   }
 
   // Emit categories in the merged admin order first, then any leftover
