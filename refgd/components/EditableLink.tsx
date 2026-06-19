@@ -19,6 +19,46 @@ import EditorIsland from "@/components/EditorIsland";
 import { useEffect, useRef, useState } from "react";
 import { useEditContext } from "@/lib/edit-context";
 
+/**
+ * Resolve a stored link value into the href to render + whether it is
+ * EXTERNAL — derived from the value itself, not from a static flag.
+ *
+ * Why: nav/CTA links are admin-editable, so the `external` prop (a build-time
+ * default) goes stale the moment an admin types a new URL. An admin who enters
+ * an off-site link — especially a scheme-less one like "t.me/foo" or
+ * "example.com/x" — would otherwise have it treated as an INTERNAL, relative
+ * path (resolved against the current origin) instead of leaving the site.
+ *
+ * Rules:
+ *  - "/…", "#…", "?…"            → internal (in-app route / anchor / query).
+ *  - "https://…", "//…",
+ *    "mailto:…", "tel:…"         → external, used as-is.
+ *  - bare "host.tld[/path]"      → external; coerce to "https://" so it does
+ *                                   NOT resolve as a relative internal path.
+ *  - anything else (no dot,
+ *    e.g. "store-list")          → honor the static `external` hint (default
+ *                                   internal), preserving prior behavior.
+ */
+function resolveLinkTarget(
+  raw: string,
+  fallbackExternal?: boolean,
+): { href: string; isExternal: boolean } {
+  const s = (raw || "").trim();
+  if (!s) return { href: "#", isExternal: false };
+  // Protocol-relative "//host" is external — test it before the leading-slash
+  // internal check below (which would otherwise swallow it).
+  if (/^(https?:)?\/\//i.test(s) || /^(mailto:|tel:)/i.test(s)) {
+    return { href: s, isExternal: true };
+  }
+  if (s.startsWith("/") || s.startsWith("#") || s.startsWith("?")) {
+    return { href: s, isExternal: false };
+  }
+  if (/^[^\s/]+\.[^\s/]+/.test(s)) {
+    return { href: `https://${s}`, isExternal: true };
+  }
+  return { href: s, isExternal: !!fallbackExternal };
+}
+
 type Props = {
   /** Content id holding the URL (e.g. "hero.cta.url"). */
   idHref: string;
@@ -52,6 +92,10 @@ function EditableLinkInner({
 }: Props) {
   const { isAdmin, editMode, getValue, setValue } = useEditContext();
   const href = getValue(idHref, defaultHref);
+  // Derive the actual navigation target + external-ness from the stored value,
+  // so an admin-entered off-site URL leaves the site instead of being treated
+  // as an internal route. `href` (raw) still drives the URL editor below.
+  const { href: anchorHref, isExternal } = resolveLinkTarget(href, external);
   const label = idLabel ? getValue(idLabel, defaultLabel ?? "") : (defaultLabel ?? "");
   const editing = isAdmin && editMode;
 
@@ -141,9 +185,9 @@ function EditableLinkInner({
   return (
     <span className="relative inline-flex items-center">
       <a
-        href={href || "#"}
-        target={external ? "_blank" : undefined}
-        rel={external ? "noopener noreferrer" : undefined}
+        href={anchorHref}
+        target={isExternal ? "_blank" : undefined}
+        rel={isExternal ? "noopener noreferrer" : undefined}
         className={linkClass}
         onClick={onClick}
         aria-label={ariaLabel}
