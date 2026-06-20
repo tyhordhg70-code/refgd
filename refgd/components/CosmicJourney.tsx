@@ -171,8 +171,13 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       try {
         video.src = VIDEO_SRC_MP4;
         video.load();
-        const p = video.play();
-        if (p && typeof p.catch === "function") p.catch(() => {});
+        // Put the fallback source in place regardless, but never start decoding
+        // in a backgrounded tab — if the blob errors while hidden, the
+        // visibilitychange resume path will play() the now-set src on return.
+        if (!document.hidden) {
+          const p = video.play();
+          if (p && typeof p.catch === "function") p.catch(() => {});
+        }
       } catch {
         /* noop */
       }
@@ -256,6 +261,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // Diagnostic kill switch (see ENABLE_GLOW_SAMPLING): when off, leave the
       // glow at its static cool-blue and skip ALL readback/crossfade work.
       if (!ENABLE_GLOW_SAMPLING) return;
+      // Don't churn the readback/crossfade RAF in a backgrounded tab (the video
+      // is paused there anyway, so there's nothing new to sample).
+      if (typeof document !== "undefined" && document.hidden) return;
       // Runs on mobile too: the dual-buffer crossfade keeps the big blurs from
       // re-rastering every frame (the old cause of phone scroll-jank), so the
       // live glow is cheap enough for phones at a lower sample cadence.
@@ -273,6 +281,11 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       // Hold the very first network load until the loading screen has finished
       // pre-downloading the clip (see the gate below).
       if (!canLoad) return;
+      // Never start/resume decoding while the tab is backgrounded. Centralised
+      // here so EVERY caller (IO, openGate, handoff-end, mount kickoff, the
+      // visibilitychange handler) is covered — async callers can otherwise fire
+      // while document.hidden and restart hidden playback.
+      if (typeof document !== "undefined" && document.hidden) return;
       // Prefer the in-memory Blob the splash captured (the EXACT bytes it
       // already downloaded). Playing from an object URL removes the dependency
       // on the browser reusing the HTTP cache for this <video>'s byte-range
@@ -553,6 +566,25 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     );
     io.observe(section);
 
+    // ── Tab-away suspend (perf + battery) ──
+    // The IntersectionObserver above only reacts to the hero leaving the
+    // VIEWPORT — it does NOT fire when the visitor switches to another browser
+    // tab (the element is still laid out on-screen, just on a backgrounded
+    // page). Without this the sphere <video> + colour sampler keep decoding in
+    // the hidden tab. Mirror the off-screen suspend on document visibility:
+    // pause + stop sampling when hidden, and resume only if the gate is open,
+    // the hero is still on-screen, and we're not mid-handoff.
+    const onTabVisibility = () => {
+      if (document.hidden) {
+        video.pause();
+        stopSampling();
+      } else if (canLoad && heroVisible && state !== "handoff") {
+        playLoop();
+        startSampling();
+      }
+    };
+    document.addEventListener("visibilitychange", onTabVisibility);
+
     // Kick things off immediately (the IO callback also fires shortly after).
     playLoop();
     startSampling();
@@ -697,6 +729,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       releaseBlock();
       cleanupTriggers();
       io.disconnect();
+      document.removeEventListener("visibilitychange", onTabVisibility);
       window.clearTimeout(openTimer);
       window.removeEventListener("refgd:heavy-assets-ready", openGate);
       window.removeEventListener("refgd:loading-complete", openGate);

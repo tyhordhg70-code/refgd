@@ -137,10 +137,31 @@ export default function YouTubeTheater({
     // scrolled past it.
     if (!inView) {
       sendCmd("pauseVideo");
-    } else if (readyRef.current) {
+    } else if (readyRef.current && !document.hidden) {
       sendCmd("playVideo");
     }
   }, [inView]);
+
+  // ── Tab-away suspend ──────────────────────────────────────────
+  // The IntersectionObserver does NOT fire on a tab switch (the iframe stays
+  // "in view" in the layout), so a YouTube embed keeps playing — and keeps
+  // playing AUDIO — in a backgrounded tab. Gate playback on document
+  // visibility too: pause whenever the tab is hidden, and resume on return
+  // only if the player is still on-screen and the API is ready (so we never
+  // re-start a trailer the visitor has already scrolled past).
+  useEffect(() => {
+    const onTabVisibility = () => {
+      if (document.hidden) {
+        sendCmd("pauseVideo");
+      } else if (inViewRef.current && readyRef.current) {
+        sendCmd("playVideo");
+      }
+    };
+    document.addEventListener("visibilitychange", onTabVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", onTabVisibility);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Build the embed URL. autoplay=1 + mute=0 — the browser may force-
   // mute on the very first visit if the user hasn't interacted yet,
@@ -282,7 +303,13 @@ export default function YouTubeTheater({
       // blare out of view.
       if (data.event === "onReady") {
         readyRef.current = true;
-        sendCmd(inViewRef.current ? "playVideo" : "pauseVideo");
+        // Honour BOTH on-screen AND tab visibility — if the visitor tabbed away
+        // (or scrolled past) during the iframe's slow load, the hidden-tab pause
+        // effect already ran as a no-op, so the player must boot paused here or
+        // it would start blaring audio in a backgrounded tab.
+        sendCmd(
+          inViewRef.current && !document.hidden ? "playVideo" : "pauseVideo",
+        );
         return;
       }
 
@@ -300,10 +327,11 @@ export default function YouTubeTheater({
       if (state === 0) {
         // ENDED → exit fullscreen back to portrait.
         exitFullscreen();
-      } else if (state === 1 && !inViewRef.current) {
-        // Began PLAYING while off-screen — i.e. a late autoplay that fired
-        // after a fast scroll-past. Stop it. This is the definitive guard
-        // against delayed out-of-view sound, independent of message timing.
+      } else if (state === 1 && (!inViewRef.current || document.hidden)) {
+        // Began PLAYING while off-screen OR in a backgrounded tab — i.e. a late
+        // autoplay that fired after a fast scroll-past or a tab switch. Stop it.
+        // This is the definitive guard against delayed out-of-view / hidden-tab
+        // sound, independent of message timing.
         sendCmd("pauseVideo");
       }
     };
