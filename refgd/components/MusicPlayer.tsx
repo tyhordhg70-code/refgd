@@ -149,6 +149,12 @@ export default function MusicPlayer() {
 
     let unmuteListenersAttached = false;
     let cancelled = false;
+    // A desktop scroll/wheel can NEVER grant user-activation, but a visitor
+    // with enough media engagement (the owner / returning visitors) is still
+    // allowed to start audible playback. We attempt that audible start ONCE on
+    // the first non-activation event; this flag then prevents re-attempting on
+    // every later scroll/mousemove, which would storm play()/pause().
+    let nonActivationTried = false;
 
     const userPrefersMuted = mutedRef.current;
 
@@ -182,16 +188,27 @@ export default function MusicPlayer() {
       }
       // Browsers only let us turn sound ON during a gesture that grants "user
       // activation": click / tap / keydown / pointerdown / pointerup / touchend.
-      // Scroll, wheel, mousemove and touchstart do NOT. If THIS event carries no
-      // transient activation, unmuting here would not only fail — it would PAUSE
-      // the muted autoplay and leave the page silent. So when the platform tells
-      // us there's no activation, keep the muted clip playing (decoder warm) and
-      // wait for the next real gesture instead of breaking what's already going.
+      // Scroll, wheel, mousemove and touchstart do NOT grant activation.
+      let hasActivation = true;
       try {
         const ua = (navigator as Navigator & {
           userActivation?: { isActive: boolean };
         }).userActivation;
-        if (ua && !ua.isActive) {
+        if (ua) hasActivation = ua.isActive;
+      } catch {
+        /* userActivation unsupported (older Safari) — assume activation, try */
+        hasActivation = true;
+      }
+      // No transient activation (e.g. a desktop wheel-scroll). A wheel can never
+      // grant activation, but a media-engaged visitor (the owner / returning
+      // visitors) is still ALLOWED to autoplay audible — so on the FIRST such
+      // event we let the audible attempt below run once (its .catch restores
+      // muted if the browser refuses). After that first try we stop attempting
+      // on non-activation events so repeated scroll/mousemove can't storm
+      // play()/pause() (which causes audible glitching); we keep the muted clip
+      // playing (decoder warm) and wait for a real activating gesture instead.
+      if (!hasActivation) {
+        if (nonActivationTried) {
           if (a.paused) {
             a.muted = true;
             const pp = a.play();
@@ -199,8 +216,9 @@ export default function MusicPlayer() {
           }
           return; // listeners stay attached for the next, activating gesture
         }
-      } catch {
-        /* userActivation unsupported (older Safari) — fall through and try */
+        nonActivationTried = true;
+        // fall through to the audible attempt below (covers media-engagement
+        // autoplay for the owner / returning visitors).
       }
       a.muted = false;
       // Important: re-issue play() INSIDE the user-gesture stack so
