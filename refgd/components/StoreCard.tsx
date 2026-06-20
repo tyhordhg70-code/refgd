@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import type { Store, StoreTag } from "@/lib/types";
+import type { Store, StoreTag, Region } from "@/lib/types";
 import { logoChainForStore } from "@/lib/logo";
+import { applyRegionCurrency } from "@/lib/currency";
 import { useEditContext } from "@/lib/edit-context";
 import InfoModal from "./InfoModal";
 import { getTelegraphContent, getStoreInfoByDomain, type TelegraphContent } from "@/data/telegraph-content";
@@ -72,6 +73,10 @@ const TAG_LABEL: Record<string, { label: string; cls: string }> = {
 
 type StoreCardProps = {
   store: Store;
+  /** Active region tab the card is shown under. Drives the price-limit
+   *  currency symbol (UK → £, EU → €, USA/CAD → $) so a store that spans
+   *  several regions shows the right currency in each region's list. */
+  region?: Region;
   idx: number;
   /** Admin display-label overrides (category key → label). When a category
    *  has a renamed label it is shown here so the card matches the section
@@ -90,6 +95,7 @@ type StoreCardProps = {
 
 export default function StoreCard({
   store,
+  region,
   idx,
   categoryLabels,
   onEdit,
@@ -265,7 +271,7 @@ export default function StoreCard({
 
         {/* Metric tiles */}
         <div className="mt-4 grid grid-cols-2 gap-2">
-          <Metric label="Limit" value={store.priceLimit ?? "—"} accent="amber" />
+          <Metric label="Limit" value={applyRegionCurrency(store.priceLimit, region ?? store.regions?.[0] ?? "USA") ?? "—"} accent="amber" />
           <Metric label="Items" value={store.itemLimit ?? "—"} accent="sky" />
           <Metric label="Fee" value={store.fee ?? "—"} accent="emerald" />
           <Metric label="Time" value={store.timeframe ?? "—"} accent="violet" />

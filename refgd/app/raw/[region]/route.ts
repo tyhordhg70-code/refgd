@@ -1,5 +1,6 @@
 import type { Region, Store, StoreTag } from "@/lib/types";
 import { getPool, initDb } from "@/lib/db";
+import { applyRegionCurrency } from "@/lib/currency";
 import { getAllContentMap } from "@/lib/content";
 import { getStoreInfoByDomain } from "@/data/telegraph-content";
 
@@ -187,7 +188,8 @@ async function loadStoresFresh(region: Region): Promise<Store[]> {
   );
   return (rows as Record<string, unknown>[])
     .map(rowToStore)
-    .filter((s) => s.regions.includes(region));
+    .filter((s) => s.regions.includes(region))
+    .map((s) => ({ ...s, priceLimit: applyRegionCurrency(s.priceLimit, region) }));
 }
 
 /* ------------------------------------------------------------------ *

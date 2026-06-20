@@ -17,6 +17,7 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import type { Region, Store, StoreCategory, StoreTag } from "@/lib/types";
+import { applyRegionCurrency } from "@/lib/currency";
 
 const REGIONS: Region[] = ["USA", "CAD", "EU", "UK"];
 const CATEGORIES: StoreCategory[] = [
@@ -174,7 +175,12 @@ export default function StoreEditDialog({
   // the stale snapshot, breaking retry. `relatedStores` is read fresh on open.
   useEffect(() => {
     if (!open) return;
-    setDraft(store ? editDraftFrom(store, relatedStores) : emptyDraft(defaultRegion, defaultCategory));
+    setDraft(() => {
+      const d = store ? editDraftFrom(store, relatedStores) : emptyDraft(defaultRegion, defaultCategory);
+      // Show the price limit in the home region's currency so the input
+      // matches the card the admin clicked (UK → £, EU → €, USA/CAD → $).
+      return { ...d, priceLimit: applyRegionCurrency(d.priceLimit || null, defaultRegion ?? "USA") ?? "" };
+    });
     setErr(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, store, defaultRegion, defaultCategory]);
@@ -273,20 +279,33 @@ export default function StoreEditDialog({
         logoUrl: draft.logoUrl.trim() || null,
       };
 
-      // ── CREATE: a single new row in the highlighted region(s). ──
+      // Currency follows the region: each written row gets its own region's
+      // symbol on the price limit (UK → £, EU → €, USA/CAD → $), regardless
+      // of which symbol the admin typed.
+      const priceFor = (r: Region): string | null =>
+        applyRegionCurrency(draft.priceLimit.trim() || null, r);
+
+      // ── CREATE: one row PER highlighted region, each carrying that
+      //    region's own currency — so adding a store to several regions
+      //    auto-matches £/€/$ per region instead of sharing one symbol. ──
       if (!store?.id) {
-        const res = await fetch("/api/admin/stores", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ ...fields, regions: draft.regions }),
-        });
-        if (!res.ok) {
-          const j = await res.json().catch(() => null);
-          throw new Error(j?.error || `Save failed: ${res.status}`);
+        const createRegions = draft.regions.length > 0 ? draft.regions : (["USA"] as Region[]);
+        const created: Store[] = [];
+        for (const r of createRegions) {
+          const res = await fetch("/api/admin/stores", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ ...fields, regions: [r], priceLimit: priceFor(r) }),
+          });
+          if (!res.ok) {
+            const j = await res.json().catch(() => null);
+            throw new Error(j?.error || `Save failed: ${res.status}`);
+          }
+          const j = await res.json();
+          created.push(j.store as Store);
         }
-        const j = await res.json();
-        onSaved({ upserts: [j.store as Store], deletedIds: [] });
+        onSaved({ upserts: created, deletedIds: [] });
         onClose();
         return;
       }
@@ -311,7 +330,7 @@ export default function StoreEditDialog({
           method: "PATCH",
           credentials: "same-origin",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ ...fields, regions: currentRegions }),
+          body: JSON.stringify({ ...fields, regions: currentRegions, priceLimit: priceFor(currentRegions[0] ?? "USA") }),
         });
         if (!res.ok) {
           const j = await res.json().catch(() => null);
@@ -340,7 +359,7 @@ export default function StoreEditDialog({
           method: "POST",
           credentials: "same-origin",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ ...fields, regions: [r] }),
+          body: JSON.stringify({ ...fields, regions: [r], priceLimit: priceFor(r) }),
         });
         const j = await res.json().catch(() => null);
         if (!res.ok || !j?.store) {

@@ -555,6 +555,7 @@ export default function StoreFilters({
                   <StoreCard
                     key={s.id}
                     store={s}
+                    region={region}
                     idx={i}
                     categoryLabels={effectiveLabels}
                     onEdit={isAdmin && editMode ? openEdit : undefined}

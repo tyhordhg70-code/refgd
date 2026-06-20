@@ -10,6 +10,8 @@
  * drifts materially, just edit the number here.
  */
 
+import type { Region } from "./types";
+
 export type CurrencyCode =
   | "USD" | "EUR" | "GBP" | "CAD" | "AUD"
   | "INR" | "NGN" | "BRL" | "JPY" | "ZAR";
@@ -52,4 +54,83 @@ export function toUsd(amount: number, code: string): number {
 
 export function isCurrencyCode(code: string): code is CurrencyCode {
   return Object.prototype.hasOwnProperty.call(BY_CODE, (code || "").toUpperCase());
+}
+
+/* ------------------------------------------------------------------ *
+ * Store-list price-limit currency, by region
+ * ------------------------------------------------------------------ *
+ * A store's `priceLimit` is free text with the currency symbol baked in
+ * (e.g. "$2,000", "NO LIMIT"), and a single store row can span several
+ * regions — so the symbol must be derived from the region it's shown
+ * under, not from whatever the admin happened to type. These helpers do
+ * that. This is a DISPLAY style and is intentionally separate from
+ * CURRENCIES above (where CAD is "C$" for FX/checkout maths): on the
+ * storefront Canada uses the plain dollar sign, same as the USA.
+ */
+export const REGION_CURRENCY_SYMBOL: Record<Region, string> = {
+  USA: "$",
+  CAD: "$",
+  EU: "€",
+  UK: "£",
+};
+
+export function regionCurrencySymbol(region: Region): string {
+  return REGION_CURRENCY_SYMBOL[region] ?? "$";
+}
+
+/* Currency tokens we may need to rewrite. Multi-char tokens come first so
+ * e.g. "US$" / "C$" win over a bare "$". A lone letter that clashes with
+ * prose (e.g. "R" for Rand) is deliberately excluded — only "R$" is here. */
+const CUR_TOKEN =
+  "US\\$|U\\$|CA\\$|C\\$|AU\\$|A\\$|NZ\\$|HK\\$|S\\$|R\\$|\\$|£|€|¥|₹|₦|USD|EUR|GBP|CAD|AUD|INR|NGN|BRL|JPY|ZAR";
+
+function prependBeforeFirstNumber(s: string, sym: string): string {
+  return s.replace(/\d/, (d) => `${sym}${d}`);
+}
+
+/**
+ * Return `value` with its currency symbol normalised to `region`'s currency.
+ *
+ *  - null / empty                   → unchanged
+ *  - no digits ("NO LIMIT")         → unchanged (nothing to price)
+ *  - token directly before a number → swapped in place ("$2,000" → "£2,000")
+ *  - token directly after a number  → moved to a prefix ("2,000 USD" → "£2,000")
+ *  - bare number ("2000")           → symbol prepended ("£2000")
+ *
+ * A function replacer is used everywhere because the target symbol can itself
+ * contain "$", which a string replacement would treat as a special token.
+ */
+export function applyRegionCurrency(
+  value: string | null | undefined,
+  region: Region,
+): string | null {
+  if (value == null) return null;
+  const raw = String(value).trim();
+  if (!raw) return value as string; // keep "" semantics
+  if (!/\d/.test(raw)) return raw; // phrases like "NO LIMIT"
+
+  const sym = regionCurrencySymbol(region);
+
+  // 1) currency token(s) immediately before a number → swap in place. We
+  //    detect existence with a non-global test first, so an already-correct
+  //    value (e.g. "£2,000" under UK) is returned untouched rather than
+  //    falling through to the prepend branch and getting double-marked.
+  const before = new RegExp(`(?:${CUR_TOKEN})\\s*(?=\\d)`, "i");
+  if (before.test(raw)) {
+    return raw.replace(new RegExp(`(?:${CUR_TOKEN})\\s*(?=\\d)`, "gi"), () => sym);
+  }
+
+  // 2) currency token immediately after a number → drop it, prefix instead.
+  //    Global so trailing-code ranges ("1,000 EUR - 2,000 EUR") get every
+  //    amount normalised, not just the first ("£1,000 - £2,000").
+  const after = new RegExp(`(\\d[\\d.,]*)\\s*(?:${CUR_TOKEN})`, "i");
+  if (after.test(raw)) {
+    return raw.replace(
+      new RegExp(`(\\d[\\d.,]*)\\s*(?:${CUR_TOKEN})`, "gi"),
+      (_m, num) => `${sym}${num}`,
+    );
+  }
+
+  // 3) bare number with no currency token → prefix the region symbol.
+  return prependBeforeFirstNumber(raw, sym);
 }

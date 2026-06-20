@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Store, Region, StoreCategory, StoreTag } from "@/lib/types";
+import { applyRegionCurrency } from "@/lib/currency";
 
 const REGIONS: Region[] = ["USA", "CAD", "EU", "UK"];
 const CATEGORIES: StoreCategory[] = ["Electronics", "Clothing", "Jewelry", "Food", "Meal Plans", "Home", "Other"];
@@ -297,7 +298,10 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
         {
           method: isUpdate ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(editing),
+          body: JSON.stringify({
+            ...editing,
+            priceLimit: applyRegionCurrency(editing.priceLimit, (editing.regions ?? [])[0] ?? "USA"),
+          }),
         },
       );
       if (!r.ok) {
@@ -520,7 +524,7 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
                           domain: row.domain || null,
                           region: row.region,
                           category: row.category,
-                          priceLimit: row.priceLimit.trim() || null,
+                          priceLimit: applyRegionCurrency(row.priceLimit.trim() || null, row.region),
                           itemLimit: row.itemLimit.trim() || null,
                           fee: row.fee.trim() || null,
                           timeframe: row.timeframe.trim() || null,
@@ -700,7 +704,7 @@ export default function StoresAdmin({ initialStores }: { initialStores: Store[] 
                 <td className="px-3 py-2 font-medium text-white">{s.name}</td>
                 <td className="px-3 py-2 text-white/65">{(s.regions ?? []).join(', ')}</td>
                 <td className="px-3 py-2 text-white/65">{(s.categories ?? []).join(', ')}</td>
-                <td className="px-3 py-2 text-white/65">{s.priceLimit ?? "—"}</td>
+                <td className="px-3 py-2 text-white/65">{applyRegionCurrency(s.priceLimit, (s.regions ?? [])[0] ?? "USA") ?? "—"}</td>
                 <td className="px-3 py-2 text-white/65">{s.itemLimit ?? "—"}</td>
                 <td className="px-3 py-2 text-white/65">{s.timeframe ?? "—"}</td>
                 <td className="px-3 py-2">
