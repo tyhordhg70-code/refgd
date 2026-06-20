@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useEntranceReady } from "@/lib/loading-screen-gate";
 
 /**
  * Background music — only mounted on the home page (so it stops when you
@@ -33,6 +34,10 @@ const FADE_MS = 250;
 const VISIT_KEY = "rg:music-track";
 const MUTE_KEY = "rg:music-muted";
 const DISMISSED_KEY = "rg:music-dismissed";
+// Desktop "tap to enter" gate — shown at most once per session. Set when the
+// visitor clicks Enter OR when audible autoplay already succeeded (an engaged
+// visitor whose browser permits audible autoplay → no gate is needed).
+const ENTERED_KEY = "rg:music-entered";
 
 function pickTrack() {
   if (typeof window === "undefined") return TRACKS[0];
@@ -89,6 +94,25 @@ export default function MusicPlayer() {
   // Mount-time bootstrap: pick track + read mute preference.
   const [dismissed, setDismissed] = useState<boolean>(false);
 
+  // ── Desktop "tap to enter" gate state ──────────────────────────
+  // entranceReady flips true when the loading splash finishes (or
+  // immediately on SPA navigation); the gate only ever arms after that.
+  const entranceReady = useEntranceReady();
+  // Desktop-only. Resolved in an effect so SSR + the first client render
+  // both see `false` (the overlay is never in the initial HTML → no
+  // hydration drift), and mobile keeps its existing scroll/tap path.
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [showEnter, setShowEnter] = useState(false);
+  // Set the instant audible playback actually begins on ANY path. Lets the
+  // gate auto-skip for media-engaged visitors whose browser already allowed
+  // audible autoplay, so they never see an unnecessary overlay.
+  const hasAudibleStartedRef = useRef(false);
+  // Mirror of the session "already entered" flag for synchronous reads.
+  const enteredOnceRef = useRef(false);
+  // The bootstrap effect's detach() — exposed so the Enter click can drop the
+  // window unmute listeners once it has actually started audible playback.
+  const detachUnmuteListenersRef = useRef<null | (() => void)>(null);
+
   useEffect(() => {
     setTrack(pickTrack());
     const initial = readMutePref();
@@ -124,6 +148,21 @@ export default function MusicPlayer() {
       else { fadeRafRef.current = null; onDone?.(); }
     };
     fadeRafRef.current = requestAnimationFrame(step);
+  }
+
+  function markEnteredOnce() {
+    enteredOnceRef.current = true;
+    try { sessionStorage.setItem(ENTERED_KEY, "1"); } catch {}
+  }
+
+  // Called from EVERY path that achieves audible playback (bootstrap unmuted
+  // success, gesture unmute, canplay retry, Enter click). Records that sound is
+  // on, hides the gate if it happened to be showing, and marks the session
+  // entered so the gate never re-appears.
+  function markAudibleStarted() {
+    hasAudibleStartedRef.current = true;
+    markEnteredOnce();
+    setShowEnter(false);
   }
 
   // ── Bootstrap effect: only depends on the chosen track. ──────────
@@ -231,6 +270,7 @@ export default function MusicPlayer() {
           fadeVolumeTo(TARGET_VOLUME, FADE_MS);
           // Only stop listening once sound is ACTUALLY playing.
           detach();
+          markAudibleStarted();
         }).catch(() => {
           // The gesture didn't start audio (clip not buffered yet at that
           // instant, or the browser refused this particular gesture). KEEP the
@@ -247,6 +287,7 @@ export default function MusicPlayer() {
         // Legacy browsers: play() returns void → assume it started.
         fadeVolumeTo(TARGET_VOLUME, FADE_MS);
         detach();
+        markAudibleStarted();
       }
     };
 
@@ -277,6 +318,9 @@ export default function MusicPlayer() {
       window.removeEventListener("click", unmuteOnInteraction);
       unmuteListenersAttached = false;
     };
+    // Expose detach so the desktop Enter button can drop these listeners
+    // once IT has started audible playback inside the click gesture.
+    detachUnmuteListenersRef.current = detach;
 
     if (userPrefersMuted) {
       // Honor explicit mute pref → start muted, no unmute listeners.
@@ -301,6 +345,7 @@ export default function MusicPlayer() {
           if (cancelled) return;
           fadeVolumeTo(TARGET_VOLUME, FADE_MS);
           detach();
+          markAudibleStarted();
         }).catch(() => {
           // Unmuted blocked → keep listeners attached and stay muted
           // until first interaction. tryPlay above keeps muted decoder
@@ -339,6 +384,7 @@ export default function MusicPlayer() {
             a.muted = false;
             fadeVolumeTo(TARGET_VOLUME, FADE_MS);
             detach();
+            markAudibleStarted();
           }).catch(() => {});
         }
       }
@@ -370,6 +416,7 @@ export default function MusicPlayer() {
       cancelled = true;
       cancelFade();
       detach();
+      detachUnmuteListenersRef.current = null;
       a.removeEventListener("canplay", onCanPlay);
       document.removeEventListener("visibilitychange", onVisible);
       // Do NOT stop playback on unmount — MusicPlayer is in the root
@@ -440,14 +487,249 @@ export default function MusicPlayer() {
     return () => window.removeEventListener("refgd:music-dim", onDim as EventListener);
   }, []);
 
+  // ── Desktop "tap to enter" gate ────────────────────────────────
+  // Resolve desktop vs touch once on mount (SSR-safe) and read the session
+  // "entered" flag. Mobile keeps its existing scroll/tap unmute path entirely
+  // untouched — this overlay is desktop-only.
+  useEffect(() => {
+    try {
+      const touch = window.matchMedia("(pointer: coarse), (max-width: 768px)").matches;
+      setIsDesktop(!touch);
+    } catch {
+      setIsDesktop(false);
+    }
+    try {
+      if (sessionStorage.getItem(ENTERED_KEY) === "1") enteredOnceRef.current = true;
+    } catch {}
+  }, []);
+
+  // Arm the overlay only once the splash is done AND we're on desktop AND the
+  // visitor hasn't muted / already entered. We then wait a bounded window for
+  // audible autoplay to land: if the browser already allowed sound (an engaged
+  // visitor) the gate is skipped silently; only a still-silent page shows the
+  // Enter button. Nothing renders during the wait, so an engaged visitor never
+  // sees a flash of the overlay.
+  useEffect(() => {
+    if (!entranceReady || !isDesktop || !track) return;
+    if (mutedRef.current || enteredOnceRef.current) return;
+    if (hasAudibleStartedRef.current) {
+      markEnteredOnce();
+      return;
+    }
+    const t = window.setTimeout(() => {
+      if (hasAudibleStartedRef.current || mutedRef.current || enteredOnceRef.current) {
+        markEnteredOnce();
+        return;
+      }
+      setShowEnter(true);
+    }, 1500);
+    return () => window.clearTimeout(t);
+  }, [entranceReady, isDesktop, track]);
+
+  // Lock background scroll while the gate is up so the cosmic hero scroll
+  // handoff can't fire behind it. Restored the instant the overlay clears.
+  useEffect(() => {
+    if (!showEnter) return;
+    const prevOverflow = document.body.style.overflow;
+    const prevTouch = document.body.style.touchAction;
+    document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.touchAction = prevTouch;
+    };
+  }, [showEnter]);
+
+  // Enter click — runs INSIDE the user gesture, so a.play() is allowed to start
+  // audible sound on every browser. On the rare reject (clip not buffered at
+  // that exact instant) we restore warm muted playback and KEEP the overlay so
+  // the next click retries — we never strand the page silent or dismiss the
+  // gate without sound (only audible success / auto-skip marks the session).
+  const handleEnter = () => {
+    const a = audioRef.current;
+    if (!a) {
+      setShowEnter(false);
+      return;
+    }
+    if (mutedRef.current) {
+      setShowEnter(false);
+      markEnteredOnce();
+      return;
+    }
+    a.muted = false;
+    a.volume = 0;
+    const p = a.play();
+    if (p) {
+      p.then(() => {
+        fadeVolumeTo(TARGET_VOLUME, FADE_MS);
+        detachUnmuteListenersRef.current?.();
+        markAudibleStarted();
+      }).catch(() => {
+        a.muted = true;
+        const pp = a.play();
+        if (pp) pp.catch(() => {});
+      });
+    } else {
+      fadeVolumeTo(TARGET_VOLUME, FADE_MS);
+      detachUnmuteListenersRef.current?.();
+      markAudibleStarted();
+    }
+  };
+
+  const enterOverlay =
+    showEnter && isDesktop ? (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Enter RefundGod with sound"
+        onClick={(e) => { e.stopPropagation(); handleEnter(); }}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9998,
+          background:
+            "radial-gradient(ellipse at 30% 30%, #1b1340 0%, #0a0c1a 55%, #000 100%)",
+          display: "grid",
+          placeItems: "center",
+          cursor: "pointer",
+          WebkitBackdropFilter: "blur(2px)",
+          backdropFilter: "blur(2px)",
+        }}
+      >
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "radial-gradient(circle at 22% 28%, rgba(167,139,250,0.28), transparent 45%)," +
+              "radial-gradient(circle at 78% 70%, rgba(34,211,238,0.22), transparent 50%)," +
+              "radial-gradient(circle at 50% 100%, rgba(245,185,69,0.18), transparent 60%)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            position: "relative",
+            zIndex: 1,
+            textAlign: "center",
+            maxWidth: 460,
+            padding: "0 24px",
+          }}
+        >
+          <div
+            className="pulse-glow-violet"
+            style={{
+              display: "inline-grid",
+              placeItems: "center",
+              width: 104,
+              height: 104,
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle at 30% 30%, rgba(255,225,140,0.42), rgba(167,139,250,0.22) 55%, transparent 100%)",
+              border: "1px solid rgba(255,225,140,0.35)",
+              marginBottom: 30,
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "'Space Grotesk', Geist, system-ui, sans-serif",
+                fontWeight: 800,
+                fontSize: 40,
+                letterSpacing: "-0.04em",
+                background:
+                  "linear-gradient(135deg, #ffe28a 0%, #ffffff 50%, #a78bfa 100%)",
+                backgroundClip: "text",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                lineHeight: 1,
+              }}
+            >
+              RG
+            </div>
+          </div>
+
+          <h2
+            style={{
+              fontFamily: "'Space Grotesk', Geist, system-ui, sans-serif",
+              fontWeight: 700,
+              fontSize: 24,
+              letterSpacing: "0.30em",
+              textTransform: "uppercase",
+              color: "rgba(255,255,255,0.96)",
+              margin: 0,
+              marginBottom: 10,
+              textShadow:
+                "0 0 24px rgba(167,139,250,0.55), 0 0 48px rgba(255,225,140,0.18)",
+            }}
+          >
+            RefundGod
+          </h2>
+
+          <p
+            style={{
+              fontFamily: "Geist, system-ui, sans-serif",
+              fontSize: 12,
+              letterSpacing: "0.30em",
+              textTransform: "uppercase",
+              color: "rgba(167,139,250,0.95)",
+              margin: 0,
+              marginBottom: 34,
+            }}
+          >
+            Tap to enter — with sound
+          </p>
+
+          <button
+            type="button"
+            autoFocus
+            onClick={(e) => { e.stopPropagation(); handleEnter(); }}
+            aria-label="Enter with sound on"
+            data-cursor="link"
+            data-cursor-label="enter"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "16px 40px",
+              borderRadius: 999,
+              border: "1px solid rgba(255,225,140,0.45)",
+              background: "linear-gradient(135deg, #ffe28a, #f5b945 55%, #d99520)",
+              color: "#0a0c1a",
+              fontFamily: "'Space Grotesk', Geist, system-ui, sans-serif",
+              fontWeight: 800,
+              fontSize: 16,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+              boxShadow:
+                "0 0 30px rgba(245,185,69,0.45), 0 10px 40px rgba(0,0,0,0.45)",
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M11 5 6 9H2v6h4l5 4V5z" />
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+            </svg>
+            Enter
+          </button>
+        </div>
+      </div>
+    ) : null;
+
     // If dismissed: render audio-only (music keeps playing, controls hidden).
     // On touch/mobile dismissal is session-scoped so this self-heals next visit;
     // on desktop it persists (localStorage), exactly as before.
     if (dismissed) {
-      return track ? (
-        <audio ref={audioRef} src={track.src} loop autoPlay muted preload="auto"
-          aria-label={`Background music — ${track.label}`} />
-      ) : null;
+      return (
+        <>
+          {track && (
+            <audio ref={audioRef} src={track.src} loop autoPlay muted preload="auto"
+              aria-label={`Background music — ${track.label}`} />
+          )}
+          {enterOverlay}
+        </>
+      );
     }
 
     return (
@@ -521,6 +803,7 @@ export default function MusicPlayer() {
             </button>
           </div>
         </div>
+        {enterOverlay}
       </>
     );
   }
