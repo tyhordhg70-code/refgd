@@ -38,6 +38,26 @@ export const HOME_SCENE_URL = "/hero-scene.splinecode";
  */
 const SCENE_CACHE = "refgd-scene-v1";
 
+/**
+ * Durable Cache Storage bucket for the captured hero video bytes.
+ *
+ * The browser HTTP cache is NOT a reliable home for the ~32 MB hero clip: a
+ * <video> element fetches it with byte-RANGE requests, and reusing a
+ * fetch()-warmed full-GET entry for those ranges does not hold on desktop or
+ * iOS — so on every hard refresh the clip re-streams from the origin and the
+ * splash bar crawls from 0. The in-memory object URL we publish per session
+ * fixes playback WITHIN a load but is destroyed on reload.
+ *
+ * So we additionally persist the exact full file here (Cache Storage has a
+ * large, durable quota) and rebuild the object URL straight from it on every
+ * load — making the clip download exactly once, ever. Bump the version suffix
+ * to force a one-time refetch for all visitors.
+ */
+const MEDIA_CACHE = "refgd-media-v1";
+
+/** URLs whose freshness we've already HEAD-checked during this page load. */
+const mediaRevalidated = new Set<string>();
+
 /** True for the heavy remote Spline scene file (the only thing we persist). */
 function isSceneAsset(url: string): boolean {
   return /\.splinecode(\?|$)/.test(url);
@@ -224,6 +244,14 @@ export async function downloadAsset(
       /* Cache Storage unavailable — fall through to a normal network download */
     }
   }
+  // Repeat-visit fast path for the captured hero video: rebuild the in-memory
+  // object URL straight from the durable media cache so a refresh NEVER
+  // re-streams the ~32 MB clip (its byte-range requests don't reuse the HTTP
+  // cache on desktop/iOS, and the per-session Blob dies on reload).
+  if (await serveCapturedFromCache(asset)) {
+    onProgress?.(asset.bytesHint ?? 1, asset.bytesHint ?? 1);
+    return;
+  }
   // Resumable streaming download.
   //
   // A mobile tab that the user backgrounds (switches apps, opens another tab,
@@ -241,6 +269,10 @@ export async function downloadAsset(
   let received = 0;
   let total = asset.bytesHint ?? 0;
   let attempts = 0;
+  // Captured-video metadata from the first full response, used to persist an
+  // accurate, revalidate-able copy into the durable media cache on completion.
+  let mediaType = "";
+  let mediaEtag = "";
   // When asked, collect the streamed bytes so we can hand the player an
   // in-memory Blob (deterministic playback, no HTTP-cache-reuse dependency).
   // Set to null the moment we cannot guarantee contiguous bytes, which leaves
@@ -295,6 +327,10 @@ export async function downloadAsset(
         ) {
           void persistScene(asset.url, res.clone());
         }
+        if (asset.captureBlob) {
+          mediaType = res.headers.get("content-type") || mediaType;
+          mediaEtag = res.headers.get("etag") || mediaEtag;
+        }
         const lenHeader = res.headers.get("content-length");
         if (lenHeader) total = parseInt(lenHeader, 10) || total;
       }
@@ -326,8 +362,20 @@ export async function downloadAsset(
         }
         continue;
       }
-      // Whole file in hand → publish the in-memory object URL for the player.
-      if (chunks && total > 0 && received === total) publishHeroBlobUrl(chunks);
+      // Whole file in hand → publish the in-memory object URL for the player
+      // AND persist the exact bytes into the durable media cache so the next
+      // load (including a hard refresh) rebuilds the clip from disk instead of
+      // re-streaming it from the network.
+      if (chunks && total > 0 && received === total) {
+        publishHeroBlobUrl(chunks);
+        // Await the durable write so an IMMEDIATE post-load hard refresh still
+        // finds the clip in Cache Storage. Safe to await: persistMedia swallows
+        // its own quota/unavailable errors, so it can't hang or throw. Only the
+        // first-ever visit pays this short local write; repeats hit the fast path.
+        if (asset.captureBlob) {
+          await persistMedia(asset.url, chunks, mediaType, mediaEtag, total);
+        }
+      }
       onProgress?.(received, total || received);
       return;
     } catch {
@@ -362,6 +410,86 @@ async function persistScene(url: string, res: Response): Promise<void> {
     if (!existing) await cache.put(url, res);
   } catch {
     /* quota exceeded / Cache Storage unavailable — fine, the SW still caches it */
+  }
+}
+
+/**
+ * Repeat-visit fast path for a captured hero clip: if its exact bytes already
+ * live in the durable media cache, rebuild the in-memory object URL straight
+ * from them (zero network) and report success. Also kicks off a cheap
+ * background ETag check so a re-published clip self-heals on the NEXT load.
+ */
+async function serveCapturedFromCache(asset: HeavyAsset): Promise<boolean> {
+  if (!asset.captureBlob) return false;
+  if (typeof caches === "undefined" || typeof URL === "undefined") return false;
+  try {
+    const cache = await caches.open(MEDIA_CACHE);
+    const hit = await cache.match(asset.url, { ignoreVary: true });
+    if (!hit || !hit.ok) return false;
+    const lenHdr = parseInt(hit.headers.get("content-length") || "0", 10);
+    const buf = await hit.arrayBuffer();
+    // Only trust a byte-complete copy. We only ever store full files, but guard
+    // against a truncated/evicted entry so we never publish a broken clip.
+    if (!buf.byteLength || (lenHdr && buf.byteLength !== lenHdr)) {
+      await cache.delete(asset.url);
+      return false;
+    }
+    publishHeroBlobUrl([new Uint8Array(buf)]);
+    void revalidateMedia(asset.url, hit);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Persist the freshly-downloaded hero clip into the durable media cache so the
+ * next load rebuilds it from disk instead of re-streaming. Stores a Response
+ * carrying the original content-type/etag/length so `revalidateMedia` can later
+ * detect a re-published clip. Best-effort; swallows quota errors.
+ */
+async function persistMedia(
+  url: string,
+  chunks: Uint8Array[],
+  type: string,
+  etag: string,
+  total: number,
+): Promise<void> {
+  if (typeof caches === "undefined") return;
+  try {
+    const cache = await caches.open(MEDIA_CACHE);
+    const headers: Record<string, string> = {
+      "content-type": type || "video/mp4",
+      "content-length": String(total),
+    };
+    if (etag) headers.etag = etag;
+    const body = new Blob(chunks as BlobPart[], { type: type || "video/mp4" });
+    await cache.put(url, new Response(body, { headers }));
+  } catch {
+    /* quota exceeded / unavailable — fall back to the HTTP cache */
+  }
+}
+
+/**
+ * Cheap freshness check for a cached hero clip — never re-downloads the body.
+ * HEAD the URL and compare ETags; if the clip was re-published at the same URL,
+ * drop the cached copy so the NEXT load fetches the new one exactly once. Runs
+ * at most once per URL per page load.
+ */
+async function revalidateMedia(url: string, cached: Response): Promise<void> {
+  if (mediaRevalidated.has(url)) return;
+  mediaRevalidated.add(url);
+  try {
+    const head = await fetch(url, { method: "HEAD", cache: "no-store" });
+    if (!head || !head.ok) return;
+    const fresh = head.headers.get("etag");
+    const have = cached.headers.get("etag");
+    if (fresh && have && fresh !== have && typeof caches !== "undefined") {
+      const cache = await caches.open(MEDIA_CACHE);
+      await cache.delete(url);
+    }
+  } catch {
+    /* offline / HEAD blocked — keep the cached copy */
   }
 }
 

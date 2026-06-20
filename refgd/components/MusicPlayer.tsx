@@ -180,6 +180,28 @@ export default function MusicPlayer() {
         detach();
         return;
       }
+      // Browsers only let us turn sound ON during a gesture that grants "user
+      // activation": click / tap / keydown / pointerdown / pointerup / touchend.
+      // Scroll, wheel, mousemove and touchstart do NOT. If THIS event carries no
+      // transient activation, unmuting here would not only fail — it would PAUSE
+      // the muted autoplay and leave the page silent. So when the platform tells
+      // us there's no activation, keep the muted clip playing (decoder warm) and
+      // wait for the next real gesture instead of breaking what's already going.
+      try {
+        const ua = (navigator as Navigator & {
+          userActivation?: { isActive: boolean };
+        }).userActivation;
+        if (ua && !ua.isActive) {
+          if (a.paused) {
+            a.muted = true;
+            const pp = a.play();
+            if (pp) pp.catch(() => {});
+          }
+          return; // listeners stay attached for the next, activating gesture
+        }
+      } catch {
+        /* userActivation unsupported (older Safari) — fall through and try */
+      }
       a.muted = false;
       // Important: re-issue play() INSIDE the user-gesture stack so
       // mobile browsers actually authorise sound. Don't depend on the
@@ -192,13 +214,16 @@ export default function MusicPlayer() {
           // Only stop listening once sound is ACTUALLY playing.
           detach();
         }).catch(() => {
-          // The gesture didn't start audio (commonly the clip wasn't
-          // buffered yet at that instant, or the browser refused this
-          // particular gesture). Previously we detached here regardless,
-          // which left the page permanently silent — no listeners, no
-          // retry. Now we KEEP the listeners attached so the visitor's
-          // NEXT gesture tries again, and the canplay handler below also
-          // retries the moment enough audio has buffered.
+          // The gesture didn't start audio (clip not buffered yet at that
+          // instant, or the browser refused this particular gesture). KEEP the
+          // listeners attached so the NEXT gesture retries (the canplay handler
+          // below also retries once enough audio buffers) AND restore muted
+          // playback so the decoder stays warm — otherwise the failed unmute
+          // just paused the clip and the page would sit silent until then.
+          if (cancelled) return;
+          a.muted = true;
+          const pp = a.play();
+          if (pp) pp.catch(() => {});
         });
       } else {
         // Legacy browsers: play() returns void → assume it started.
@@ -210,9 +235,11 @@ export default function MusicPlayer() {
     function attachUnmuteListeners() {
       if (unmuteListenersAttached) return;
       window.addEventListener("pointerdown", unmuteOnInteraction, { passive: true });
+      window.addEventListener("pointerup", unmuteOnInteraction, { passive: true });
       window.addEventListener("keydown", unmuteOnInteraction);
       window.addEventListener("scroll", unmuteOnInteraction, { passive: true });
       window.addEventListener("touchstart", unmuteOnInteraction, { passive: true });
+      window.addEventListener("touchend", unmuteOnInteraction, { passive: true });
       window.addEventListener("wheel", unmuteOnInteraction, { passive: true });
       window.addEventListener("mousemove", unmuteOnInteraction, { passive: true });
       window.addEventListener("click", unmuteOnInteraction);
@@ -222,9 +249,11 @@ export default function MusicPlayer() {
     const detach = () => {
       if (!unmuteListenersAttached) return;
       window.removeEventListener("pointerdown", unmuteOnInteraction);
+      window.removeEventListener("pointerup", unmuteOnInteraction);
       window.removeEventListener("keydown", unmuteOnInteraction);
       window.removeEventListener("scroll", unmuteOnInteraction);
       window.removeEventListener("touchstart", unmuteOnInteraction);
+      window.removeEventListener("touchend", unmuteOnInteraction);
       window.removeEventListener("wheel", unmuteOnInteraction);
       window.removeEventListener("mousemove", unmuteOnInteraction);
       window.removeEventListener("click", unmuteOnInteraction);
