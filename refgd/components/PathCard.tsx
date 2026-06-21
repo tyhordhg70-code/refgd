@@ -365,7 +365,12 @@ export default function PathCard({
       <div style={{ animation: floatDisabled ? "none" : `floatSlow ${floatDuration} ease-in-out ${floatDelay} infinite` }} className="h-full">
         <Tilt3D intensity={0.85} className="h-full">
           {/* Outer glow — inset:0 flush on card; filter:blur(48px) fans colour 48px outward, no hard ring */}
-          <div aria-hidden="true" className={`absolute ${radius} pointer-events-none ${OUTER_GLOW[accent]}`} style={{ inset: 0 }} />
+          {/* perf: translateZ(0)+backface-visibility promote this blurred layer to its own
+              composited texture so the 48px blur is rasterised ONCE; the entrance
+              scale/rotateX on the ancestor then samples that texture instead of
+              re-running the blur filter every frame (×5 cards during Lenis autoscroll).
+              Identity transform on a non-text, no-blend solid-colour layer → pixel-identical. */}
+          <div aria-hidden="true" className={`absolute ${radius} pointer-events-none ${OUTER_GLOW[accent]}`} style={{ inset: 0, transform: "translateZ(0)", backfaceVisibility: "hidden" }} />
           <Tag
             {...linkProps}
             data-testid={`path-card-${index + 1}-link`}

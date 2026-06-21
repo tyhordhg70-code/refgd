@@ -32,6 +32,17 @@ import { useEntranceReady } from "@/lib/loading-screen-gate";
  * above the loading splash hold their initial state until the
  * splash lifts (otherwise the entrance plays silently behind the
  * overlay).
+ *
+ * PERF (shared scheduler): previously EACH card ran its own
+ * requestAnimationFrame loop. When several cards (a How-it-works row,
+ * a Rules grid, the Why-choose-us boxes) entered the viewport in the
+ * same scroll, N independent rAF loops each rebuilt a 3D transform
+ * string and wrote inline styles every frame — N style/layout flushes
+ * per frame, saturating the main thread and dropping FPS. The math,
+ * per-variant transforms, easing, opacity ramp, rim-flash curve and
+ * final settle are now driven VERBATIM by a single module-level rAF
+ * that ticks every active card in one flush per frame. Visually
+ * identical; one rAF instead of N.
  */
 export type CinematicAccent =
   | "amber"
@@ -50,6 +61,93 @@ const ACCENT_RGB: Record<CinematicAccent, string> = {
   emerald: "52, 211, 153",
 };
 
+// Easing: ease-out-back — overshoots then settles, the signature
+// "snap" that reads as cinematic without the dizzying compositor
+// work of a blur/displacement filter.
+const easeOutBack = (t: number) => {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+};
+
+type CinematicVariant = "flip" | "shuffle" | "zoom";
+
+type Job = {
+  inner: HTMLDivElement;
+  rim: HTMLDivElement;
+  variant: CinematicVariant;
+  duration: number; // ms
+  startAt: number; // performance.now() timestamp the entrance begins
+};
+
+// ── Single shared scheduler ──────────────────────────────────────────
+// One rAF drives every active card. Adding/removing jobs starts/stops
+// the loop. Deleting the current job during the for…of pass is safe for
+// a Set (only the visited entry is removed).
+const jobs = new Set<Job>();
+let rafId = 0;
+
+function frame(now: number) {
+  for (const job of jobs) {
+    const { inner, rim, variant, duration, startAt } = job;
+    const raw = Math.max(0, Math.min(1, (now - startAt) / duration));
+    const e = easeOutBack(raw);
+    const opacity = Math.min(1, raw * 1.4);
+
+    if (variant === "flip") {
+      const ry = -78 * (1 - e);
+      const rx = 8 * (1 - e);
+      const tz = -220 * (1 - e);
+      const sc = 0.82 + (1 - 0.82) * e;
+      inner.style.transform = `perspective(1400px) rotateY(${ry.toFixed(2)}deg) rotateX(${rx.toFixed(2)}deg) translateZ(${tz.toFixed(1)}px) scale(${sc.toFixed(3)})`;
+    } else if (variant === "zoom") {
+      const tz = -480 * (1 - e);
+      const rz = -5 * (1 - e);
+      const sc = 0.72 + (1 - 0.72) * e;
+      inner.style.transform = `perspective(1400px) translateZ(${tz.toFixed(1)}px) rotateZ(${rz.toFixed(2)}deg) scale(${sc.toFixed(3)})`;
+    } else {
+      const rx = 34 * (1 - e);
+      const ty = 60 * (1 - e);
+      const tz = -160 * (1 - e);
+      const sc = 0.88 + (1 - 0.88) * e;
+      inner.style.transform = `perspective(1400px) rotateX(${rx.toFixed(2)}deg) translateY(${ty.toFixed(1)}px) translateZ(${tz.toFixed(1)}px) scale(${sc.toFixed(3)})`;
+    }
+    inner.style.opacity = opacity.toFixed(3);
+
+    // Rim glow flashes bright at settle (raw ≈ 0.6→1) and then fades to
+    // a quiet 18 % steady-state, so the card keeps a permanent thin
+    // accent edge.
+    const flash = raw < 0.6 ? raw / 0.6 : Math.max(0, 1 - (raw - 0.6) / 0.4);
+    rim.style.opacity = (0.18 + flash * 0.82).toFixed(3);
+
+    if (raw >= 1) {
+      inner.style.transform = "none";
+      inner.style.opacity = "1";
+      rim.style.opacity = "0.18";
+      jobs.delete(job);
+    }
+  }
+
+  if (jobs.size > 0) {
+    rafId = requestAnimationFrame(frame);
+  } else {
+    rafId = 0;
+  }
+}
+
+function scheduleJob(job: Job) {
+  jobs.add(job);
+  if (!rafId) rafId = requestAnimationFrame(frame);
+}
+
+function unscheduleJob(job: Job) {
+  jobs.delete(job);
+  if (jobs.size === 0 && rafId) {
+    cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+}
+
 export default function CinematicCard3D({
   children,
   className = "",
@@ -62,7 +160,7 @@ export default function CinematicCard3D({
   className?: string;
   delay?: number;
   duration?: number;
-  variant?: "flip" | "shuffle" | "zoom";
+  variant?: CinematicVariant;
   accent?: CinematicAccent;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -88,17 +186,8 @@ export default function CinematicCard3D({
       return;
     }
 
-    let raf = 0;
     let played = false;
-
-    // Easing: ease-out-back — overshoots then settles, the
-    // signature "snap" that reads as cinematic without the
-    // dizzying compositor work of a blur/displacement filter.
-    const easeOutBack = (t: number) => {
-      const c1 = 1.70158;
-      const c3 = c1 + 1;
-      return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-    };
+    let job: Job | null = null;
 
     const startTransform =
       variant === "flip"
@@ -111,48 +200,17 @@ export default function CinematicCard3D({
     inner.style.transform = startTransform;
 
     const play = () => {
-      const startAt = performance.now() + delay * 1000;
-      const tick = (now: number) => {
-        const raw = Math.max(0, Math.min(1, (now - startAt) / duration));
-        const e = easeOutBack(raw);
-        const opacity = Math.min(1, raw * 1.4);
-
-        if (variant === "flip") {
-          const ry = -78 * (1 - e);
-          const rx = 8 * (1 - e);
-          const tz = -220 * (1 - e);
-          const sc = 0.82 + (1 - 0.82) * e;
-          inner.style.transform = `perspective(1400px) rotateY(${ry.toFixed(2)}deg) rotateX(${rx.toFixed(2)}deg) translateZ(${tz.toFixed(1)}px) scale(${sc.toFixed(3)})`;
-        } else if (variant === "zoom") {
-          const tz = -480 * (1 - e);
-          const rz = -5 * (1 - e);
-          const sc = 0.72 + (1 - 0.72) * e;
-          inner.style.transform = `perspective(1400px) translateZ(${tz.toFixed(1)}px) rotateZ(${rz.toFixed(2)}deg) scale(${sc.toFixed(3)})`;
-        } else {
-          const rx = 34 * (1 - e);
-          const ty = 60 * (1 - e);
-          const tz = -160 * (1 - e);
-          const sc = 0.88 + (1 - 0.88) * e;
-          inner.style.transform = `perspective(1400px) rotateX(${rx.toFixed(2)}deg) translateY(${ty.toFixed(1)}px) translateZ(${tz.toFixed(1)}px) scale(${sc.toFixed(3)})`;
-        }
-        inner.style.opacity = opacity.toFixed(3);
-
-        // Rim glow flashes bright at settle (raw ≈ 0.6→1) and
-        // then fades to a quiet 18 % steady-state, so the card
-        // keeps a permanent thin accent edge.
-        const flash =
-          raw < 0.6 ? raw / 0.6 : Math.max(0, 1 - (raw - 0.6) / 0.4);
-        rim.style.opacity = (0.18 + flash * 0.82).toFixed(3);
-
-        if (raw < 1) {
-          raf = requestAnimationFrame(tick);
-        } else {
-          inner.style.transform = "none";
-          inner.style.opacity = "1";
-          rim.style.opacity = "0.18";
-        }
+      // startAt embeds the per-card `delay`; the shared frame() leaves
+      // the card at its start transform (raw=0) until startAt is reached,
+      // exactly like the old per-card delay window.
+      job = {
+        inner,
+        rim,
+        variant,
+        duration,
+        startAt: performance.now() + delay * 1000,
       };
-      raf = requestAnimationFrame(tick);
+      scheduleJob(job);
     };
 
     const io = new IntersectionObserver(
@@ -183,7 +241,7 @@ export default function CinematicCard3D({
 
     return () => {
       io.disconnect();
-      if (raf) cancelAnimationFrame(raf);
+      if (job) unscheduleJob(job);
     };
   }, [delay, duration, variant, entranceReady]);
 
