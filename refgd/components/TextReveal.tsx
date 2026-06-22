@@ -26,6 +26,7 @@ type Props = {
   style?: React.CSSProperties;
   variant?: Variant;
   editId?: string;
+  delay?: number;
 };
 
 /**
@@ -62,6 +63,7 @@ export default function TextReveal({
   style,
   variant = "wordFade",
   editId,
+  delay = 0,
 }: Props) {
   const reduce = useReducedMotion();
   const [mounted, setMounted] = useState(false);
@@ -109,7 +111,7 @@ export default function TextReveal({
         initial={{ opacity: 0, filter: "blur(6px)", y: 24 }}
         whileInView={{ opacity: 1, filter: "blur(0px)", y: 0 }}
         viewport={{ once: true, amount: 0.15 }}
-        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1], delay }}
         suppressHydrationWarning
       >
         {text}
@@ -136,7 +138,7 @@ export default function TextReveal({
   const container: Variants = {
     hidden: {},
     show: {
-      transition: { staggerChildren: step },
+      transition: { staggerChildren: step, delayChildren: delay },
     },
   };
 

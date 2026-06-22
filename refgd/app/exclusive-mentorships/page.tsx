@@ -162,19 +162,19 @@ export default function MentorshipsPage() {
               </Reveal>
 
               <div className="mt-8 space-y-6 text-base leading-relaxed text-white/85 sm:text-lg">
-                <TextReveal variant="wordBlur" editId="ment.refund.p1">
+                <TextReveal variant="wordBlur" editId="ment.refund.p1" delay={0.08}>
                   Refunding is a manipulation technique that exploits human
                   error and finds loopholes in company policies — deceiving
                   the company into processing a full refund for your item,
                   with various methods, while you keep it.
                 </TextReveal>
-                <TextReveal variant="wordSlide" editId="ment.refund.p2">
+                <TextReveal variant="wordSlide" editId="ment.refund.p2" delay={0.16}>
                   Refunding centres around your use of persuasion and
                   confidence. When exposed to these tactics, company agents
                   are far more likely to take actions they otherwise
                   wouldn&apos;t.
                 </TextReveal>
-                <TextReveal variant="wordWave" editId="ment.refund.p3">
+                <TextReveal variant="wordWave" editId="ment.refund.p3" delay={0.24}>
                   Among many methods, you target specific emotions —
                   emotional manipulation gives you the upper hand in any
                   interaction. The agent is far more likely to take
@@ -216,14 +216,14 @@ export default function MentorshipsPage() {
                   continually invest in research so they can protect against
                   situations like Refunders or SE&rsquo;ers.
                 </TextReveal>
-                <TextReveal variant="lineMask" editId="ment.covid.p2">
+                <TextReveal variant="lineMask" editId="ment.covid.p2" delay={0.08}>
                   By learning how to play on human emotion and decipher long,
                   tedious company policies, you can develop your own unique
                   methods to exploit company vulnerabilities, capitalise on
                   crises to launch opportunistic attacks, distribute
                   infrastructures and more.
                 </TextReveal>
-                <TextReveal variant="charBounce" editId="ment.covid.p3">
+                <TextReveal variant="charBounce" editId="ment.covid.p3" delay={0.16}>
                   Sure enough, as soon as the World Health Organization named
                   the global health emergency &ldquo;COVID-19&rdquo;, Refunders
                   and SE&rsquo;ers started actively deploying opportunistic
@@ -266,19 +266,19 @@ export default function MentorshipsPage() {
                 />
               </Reveal>
               <div className="mt-8 space-y-6 text-base leading-relaxed text-white/85 sm:text-lg">
-                <TextReveal variant="wordWave" editId="ment.insider.p1">
+                <TextReveal variant="wordWave" editId="ment.insider.p1" delay={0.08}>
                   Aside from refunding — as an add-on — we also teach you how
                   to deceive the company by properly studying it, gathering
                   background information, and eventually infiltrating the
                   company to become an &ldquo;insider&rdquo;.
                 </TextReveal>
-                <TextReveal variant="charBounce" editId="ment.insider.p2">
+                <TextReveal variant="charBounce" editId="ment.insider.p2" delay={0.16}>
                   As you may know, most companies outsource their customer
                   service jobs to overseas countries, saving significantly on
                   employee salary. This is where Access Tailgating Attacks
                   come in.
                 </TextReveal>
-                <TextReveal variant="wordBlur" editId="ment.insider.p3">
+                <TextReveal variant="wordBlur" editId="ment.insider.p3" delay={0.24}>
                   Tailgating, or piggybacking, is the act of trailing an
                   authorised staff member into a restricted-access area.
                   Attackers may play on social courtesy to get you to hold
@@ -286,7 +286,7 @@ export default function MentorshipsPage() {
                   authorised to be in the area. Pretexting can play a role
                   here too.
                 </TextReveal>
-                <TextReveal variant="charGlitch" editId="ment.insider.p4">
+                <TextReveal variant="charGlitch" editId="ment.insider.p4" delay={0.32}>
                   Tailgating attacks rely on social engineering because they
                   use an understanding of psychology to manipulate people
                   into specific actions — typically, attackers exploit
@@ -328,7 +328,7 @@ export default function MentorshipsPage() {
                       abilities, and how to get promoted to higher status to
                       increase those abilities.
                     </TextReveal>
-                    <TextReveal variant="wordSlide" editId="ment.insider.addon.p2">
+                    <TextReveal variant="wordSlide" editId="ment.insider.addon.p2" delay={0.08}>
                       Push your own orders through while being fully
                       masqueraded and disguised as a persona that you will
                       submerge yourself into.
@@ -401,7 +401,7 @@ export default function MentorshipsPage() {
               depth={200}
               className="mt-10 space-y-6 text-left text-base leading-relaxed text-white/85 sm:text-lg"
             >
-              <TextReveal variant="wordBlur" editId="ment.pullquote.body">
+              <TextReveal variant="wordBlur" editId="ment.pullquote.body" delay={0.2}>
                 This mentorship covers all the fundamentals of
                 refunding or social engineering (depending on your
                 choice). It includes all the knowledge and the
@@ -571,7 +571,7 @@ export default function MentorshipsPage() {
               </Reveal>
 
               <div className="mt-8 space-y-6 text-base leading-relaxed text-white/85 sm:text-lg">
-                <TextReveal variant="wordBlur" editId="ment.se.p1">
+                <TextReveal variant="wordBlur" editId="ment.se.p1" delay={0.08}>
                   So what exactly is Social Engineering? When you hit a
                   Google search with &ldquo;social engineering&rdquo; as the
                   keywords, you&apos;ll find countless pages defining it as
@@ -579,11 +579,11 @@ export default function MentorshipsPage() {
                   passwords, bank account details, infecting computers with
                   malware to gain remote access, and so on.
                 </TextReveal>
-                <TextReveal variant="wordSlide" editId="ment.se.p2">
+                <TextReveal variant="wordSlide" editId="ment.se.p2" delay={0.16}>
                   All that relates to the boring old-school SEing — which is
                   NOT what this mentorship is about.
                 </TextReveal>
-                <TextReveal variant="wordWave" editId="ment.se.p3">
+                <TextReveal variant="wordWave" editId="ment.se.p3" delay={0.24}>
                   Our focus is a more modern approach which takes advantage
                   of companies&apos; warranty policy, allowing you to obtain
                   warranty replacement products directly from the company,
@@ -591,7 +591,7 @@ export default function MentorshipsPage() {
                   anxiety of failure, and does not cut into your budget
                   while waiting for a result.
                 </TextReveal>
-                <TextReveal variant="charBounce" editId="ment.se.p4">
+                <TextReveal variant="charBounce" editId="ment.se.p4" delay={0.32}>
                   We introduce you to methodologies on how to manipulate any
                   company into issuing an &ldquo;advanced replacement&rdquo;
                   or refund — by using a calculated approach for why sending
@@ -600,13 +600,13 @@ export default function MentorshipsPage() {
                   essentially leaves an advance replacement as the only
                   viable alternative.
                 </TextReveal>
-                <TextReveal variant="lineMask" editId="ment.se.p5">
+                <TextReveal variant="lineMask" editId="ment.se.p5" delay={0.08}>
                   Note: this mostly relates to technology-based products that
                   require some type of functionality to operate, but we&apos;ve
                   also added several topics that apply to just about any
                   item of your choice.
                 </TextReveal>
-                <TextReveal variant="wordSlide" editId="ment.se.p6">
+                <TextReveal variant="wordSlide" editId="ment.se.p6" delay={0.16}>
                   Social Engineering — &ldquo;SE&rdquo; — is the next big
                   thing closest to refunding. It revolves around obtaining
                   product replacements from companies via warranty policy.
@@ -765,7 +765,7 @@ export default function MentorshipsPage() {
                 {ADDONS.map((a, i) => (
                   <li key={i} className="flex items-start gap-4">
                     <span className="mt-3 h-1 w-4 shrink-0 bg-amber-300" />
-                    <TextReveal variant="wordSlide" editId={`ment.addons.${i}`} className="flex-1">
+                    <TextReveal variant="wordSlide" editId={`ment.addons.${i}`} delay={0.06 * i} className="flex-1">
                       {a}
                     </TextReveal>
                   </li>
@@ -773,12 +773,12 @@ export default function MentorshipsPage() {
               </ul>
 
               <div className="mt-10 space-y-6 text-base leading-relaxed text-white/85 sm:text-lg">
-                <TextReveal variant="wordBlur" editId="ment.addons.outro">
+                <TextReveal variant="wordBlur" editId="ment.addons.outro" delay={0.1}>
                   Aside from the mentorship we also offer: Private
                   Methods, 1:1 Stealth Setup, Scripts (when they get
                   released) and more. There is a whole new world to explore.
                 </TextReveal>
-                <TextReveal variant="charBounce" editId="ment.addons.worldwide">
+                <TextReveal variant="charBounce" editId="ment.addons.worldwide" delay={0.2}>
                   This mentorship is suitable for EVERYONE — and can be done
                   WORLDWIDE.
                 </TextReveal>
