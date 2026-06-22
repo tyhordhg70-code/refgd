@@ -56,15 +56,37 @@ export default function StoreListVideoBackground() {
       window.addEventListener("click", onFirstGesture);
     }
 
+    // A full-viewport modal (InfoModal) lays a backdrop-blur sheet on top of
+    // this video. Re-blurring a PLAYING video every frame melts the compositor
+    // (the "popup freezes up" report), yet the video is invisible behind the
+    // modal's bg-black/80. So pause while any overlay is open and resume only
+    // once ALL overlays have closed. A depth counter (not a boolean) keeps
+    // stacked/nested overlays safe — one close can't resume the video while
+    // another overlay is still up.
+    let overlayDepth = 0;
+    const onOverlayOpen = () => {
+      overlayDepth += 1;
+      video.pause();
+    };
+    const onOverlayClose = () => {
+      overlayDepth = Math.max(0, overlayDepth - 1);
+      if (overlayDepth === 0 && !reduce && !document.hidden) tryPlay();
+    };
+    window.addEventListener("refgd:overlay-open", onOverlayOpen);
+    window.addEventListener("refgd:overlay-close", onOverlayClose);
+
     const onVisibility = () => {
       if (document.hidden) video.pause();
-      else if (!reduce) tryPlay();
+      // Don't resume while a modal is open — it paused us on purpose.
+      else if (!reduce && overlayDepth === 0) tryPlay();
     };
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       window.removeEventListener("touchstart", onFirstGesture);
       window.removeEventListener("click", onFirstGesture);
+      window.removeEventListener("refgd:overlay-open", onOverlayOpen);
+      window.removeEventListener("refgd:overlay-close", onOverlayClose);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);

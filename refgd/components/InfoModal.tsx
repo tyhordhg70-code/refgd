@@ -109,6 +109,20 @@ export default function InfoModal({ open, onClose, title, html, contentId }: Inf
     };
   }, [open, onClose, editing]);
 
+  // Pause heavy full-viewport background work while this modal is open. The
+  // modal lays a bg-black/80 + backdrop-blur sheet over the ENTIRE viewport;
+  // on the store-list page a fixed <video> backdrop keeps playing behind it,
+  // and re-blurring that moving video every frame pegs the compositor (the
+  // "popup freezes up" report). We broadcast open/close so the video bg (and
+  // any future heavy backdrop) can pause while it is invisible behind us.
+  // Keyed ONLY on `open` so it fires exactly once per open, and the cleanup
+  // also covers an unmount-while-open (e.g. route change).
+  useEffect(() => {
+    if (!open) return;
+    window.dispatchEvent(new Event("refgd:overlay-open"));
+    return () => window.dispatchEvent(new Event("refgd:overlay-close"));
+  }, [open]);
+
   // Seed the contentEditable surface ONCE when edit mode turns on. We set
   // innerHTML imperatively (not through React) so React never reconciles — and
   // wipes — the admin's in-progress edits while they type.

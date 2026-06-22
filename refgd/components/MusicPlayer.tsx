@@ -107,6 +107,11 @@ export default function MusicPlayer() {
   // gate auto-skip for media-engaged visitors whose browser already allowed
   // audible autoplay, so they never see an unnecessary overlay.
   const hasAudibleStartedRef = useRef(false);
+  // Mirror of `showEnter` for synchronous reads inside window event handlers:
+  // while the desktop Enter gate is up, the ONLY way in is an explicit button
+  // choice, so non-activation events (mousemove/scroll/wheel) must NOT attempt
+  // audible playback and bypass / blip past it.
+  const showEnterRef = useRef(false);
   // Mirror of the session "already entered" flag for synchronous reads.
   const enteredOnceRef = useRef(false);
   // The bootstrap effect's detach() — exposed so the Enter click can drop the
@@ -159,10 +164,26 @@ export default function MusicPlayer() {
   // success, gesture unmute, canplay retry, Enter click). Records that sound is
   // on, hides the gate if it happened to be showing, and marks the session
   // entered so the gate never re-appears.
+  // Single source of truth for the gate: update the synchronous ref FIRST (so
+  // any window/audio event firing in the same tick already sees the new value)
+  // then the React state that drives rendering. Avoids the gap where
+  // setShowEnter(true) had committed but a passive sync effect hadn't run yet.
+  function setGate(next: boolean) {
+    showEnterRef.current = next;
+    if (next) {
+      // Arming the gate: force the element back to muted warm-up so any
+      // already-pending automatic unmuted play() can't blip audibly behind the
+      // overlay before its .then() guard runs. The explicit Enter re-enables it.
+      const a = audioRef.current;
+      if (a) { a.muted = true; a.volume = 0; }
+    }
+    setShowEnter(next);
+  }
+
   function markAudibleStarted() {
     hasAudibleStartedRef.current = true;
     markEnteredOnce();
-    setShowEnter(false);
+    setGate(false);
   }
 
   // ── Bootstrap effect: only depends on the chosen track. ──────────
@@ -247,7 +268,16 @@ export default function MusicPlayer() {
       // play()/pause() (which causes audible glitching); we keep the muted clip
       // playing (decoder warm) and wait for a real activating gesture instead.
       if (!hasActivation) {
-        if (nonActivationTried) {
+        // While the desktop Enter gate is showing, the ONLY way in is an
+        // explicit button choice. Never let a non-activation event (mousemove/
+        // scroll/wheel) sneak in an audible attempt that could bypass the gate
+        // or blip just before "Enter without sound" — keep the decoder warm
+        // MUTED instead. (Before the gate is shown we still allow ONE audible
+        // attempt for media-engaged visitors so they skip the gate entirely.)
+        if (showEnterRef.current || nonActivationTried) {
+          // If the visitor muted / entered without sound, don't keep the
+          // decoder warm by resuming — leave it PAUSED.
+          if (mutedRef.current) return;
           if (a.paused) {
             a.muted = true;
             const pp = a.play();
@@ -257,7 +287,7 @@ export default function MusicPlayer() {
         }
         nonActivationTried = true;
         // fall through to the audible attempt below (covers media-engagement
-        // autoplay for the owner / returning visitors).
+        // autoplay for the owner / returning visitors) — only BEFORE the gate.
       }
       a.muted = false;
       // Important: re-issue play() INSIDE the user-gesture stack so
@@ -267,6 +297,23 @@ export default function MusicPlayer() {
       if (p) {
         p.then(() => {
           if (cancelled) return;
+          // If the visitor muted / chose "Enter without sound" between this
+          // gesture firing and the promise resolving, honor it: stay silent +
+          // PAUSED and do NOT mark the session as audibly entered.
+          if (mutedRef.current) {
+            a.muted = true;
+            a.volume = 0;
+            try { a.pause(); } catch {}
+            return;
+          }
+          // A non-activation pre-gate attempt whose promise resolved AFTER the
+          // gate armed must NOT auto-unmute behind the overlay — only an
+          // activating gesture may enter with sound. Keep muted warm-up.
+          if (showEnterRef.current && !hasActivation) {
+            a.muted = true;
+            a.volume = 0;
+            return;
+          }
           fadeVolumeTo(TARGET_VOLUME, FADE_MS);
           // Only stop listening once sound is ACTUALLY playing.
           detach();
@@ -280,6 +327,9 @@ export default function MusicPlayer() {
           // just paused the clip and the page would sit silent until then.
           if (cancelled) return;
           a.muted = true;
+          // But if the visitor muted / entered without sound, leave it PAUSED —
+          // don't warm-resume a track they silenced.
+          if (mutedRef.current) return;
           const pp = a.play();
           if (pp) pp.catch(() => {});
         });
@@ -343,6 +393,20 @@ export default function MusicPlayer() {
       if (p) {
         p.then(() => {
           if (cancelled) return;
+          // If the visitor chose "Enter without sound" (or muted) in the gap
+          // before this resolved, honor it: stay silent + PAUSED (muted ==
+          // paused, same as the mute button) and do NOT mark the session as
+          // audibly entered.
+          if (mutedRef.current) {
+            a.muted = true;
+            a.volume = 0;
+            try { a.pause(); } catch {}
+            return;
+          }
+          // If the Enter gate appeared before this late-resolving autoplay
+          // promise settled, the explicit choice is now authoritative — stay
+          // muted warm-up rather than auto-starting sound behind the overlay.
+          if (showEnterRef.current) { a.muted = true; a.volume = 0; return; }
           fadeVolumeTo(TARGET_VOLUME, FADE_MS);
           detach();
           markAudibleStarted();
@@ -350,10 +414,12 @@ export default function MusicPlayer() {
           // Unmuted blocked → keep listeners attached and stay muted
           // until first interaction. tryPlay above keeps muted decoder
           // alive so the gesture-driven unmute is instant.
-          if (!cancelled) {
-            a.muted = true;
-            tryPlay();
-          }
+          if (cancelled) return;
+          a.muted = true;
+          // But if the visitor chose mute / "Enter without sound", leave it
+          // PAUSED — don't warm-resume a track they silenced.
+          if (mutedRef.current) return;
+          tryPlay();
         });
       }
     }
@@ -367,13 +433,28 @@ export default function MusicPlayer() {
     // race entirely.
     const onCanPlay = () => {
       if (cancelled) return;
-      if (a.paused) {
-        // Honor current mute preference — if user toggled mute while
-        // we were waiting for buffer, don't override their choice.
-        if (mutedRef.current) {
+      // Honor current mute preference — if the user muted / chose "Enter
+      // without sound" while we were waiting for buffer, leave the clip
+      // PAUSED (muted == paused, same as the mute button). Don't resurrect
+      // playback they silenced.
+      if (mutedRef.current) {
+        a.muted = true;
+        a.volume = 0;
+        return;
+      }
+      // While the desktop Enter gate is showing, the explicit button is the ONLY
+      // way to start audible / mark entered. Keep the decoder warm MUTED here so
+      // a buffer-ready retry can't unmute and bypass the gate.
+      if (showEnterRef.current) {
+        if (a.paused) {
           a.muted = true;
           a.volume = 0;
+          const pp = a.play();
+          if (pp) pp.catch(() => {});
         }
+        return;
+      }
+      if (a.paused) {
         const p = a.play();
         if (p) {
           p.then(() => {
@@ -381,6 +462,10 @@ export default function MusicPlayer() {
             // visitor, fade in and drop the interaction listeners so they
             // don't linger — the gesture-driven unmute is no longer needed.
             if (cancelled || mutedRef.current) return;
+            // If the gate appeared while we were waiting for buffer, do NOT
+            // unmute / mark-entered automatically — leave it muted warm-up so
+            // the explicit Enter choice stays authoritative.
+            if (showEnterRef.current) { a.muted = true; a.volume = 0; return; }
             a.muted = false;
             fadeVolumeTo(TARGET_VOLUME, FADE_MS);
             detach();
@@ -405,6 +490,16 @@ export default function MusicPlayer() {
         a.muted = true;
         return;
       }
+      // While the Enter gate is up, a tab refocus must not resume/unmute and
+      // bypass the explicit choice — keep it muted warm-up only.
+      if (showEnterRef.current) {
+        a.muted = true;
+        if (a.paused) {
+          const p = a.play();
+          if (p) p.catch(() => {});
+        }
+        return;
+      }
       if (a.paused) {
         const p = a.play();
         if (p) p.catch(() => {});
@@ -412,12 +507,36 @@ export default function MusicPlayer() {
     };
     document.addEventListener("visibilitychange", onVisible);
 
+    // ── Auto-advance the playlist when a track finishes ──────────────
+    // The <audio> no longer carries `loop`, so a finished track fires `ended`
+    // exactly once. Move to the NEXT track (wrapping after the last) by swapping
+    // React state, which re-runs THIS bootstrap for the new clip — reusing all
+    // of its play / unmute / buffer robustness. The new <audio> starts
+    // autoPlay+muted and bootstrap unmutes it if the visitor hasn't muted, so
+    // the queue keeps advancing with sound. When the visitor IS muted the clip
+    // is paused (mute-toggle effect), so `ended` never fires and the queue
+    // simply waits — exactly "advance to the next song if not muted".
+    const currentSrc = track.src;
+    const onEnded = () => {
+      if (cancelled) return;
+      // Spec: advance ONLY if not muted. Muted normally means PAUSED (so `ended`
+      // never fires), but the muted warm-up paths can play a muted clip to its
+      // end — in that case do NOT advance the queue.
+      if (mutedRef.current) return;
+      const idx = TRACKS.findIndex((t) => t.src === currentSrc);
+      const next = TRACKS[(idx + 1) % TRACKS.length];
+      try { sessionStorage.setItem(VISIT_KEY, next.src); } catch {}
+      setTrack(next);
+    };
+    a.addEventListener("ended", onEnded);
+
     return () => {
       cancelled = true;
       cancelFade();
       detach();
       detachUnmuteListenersRef.current = null;
       a.removeEventListener("canplay", onCanPlay);
+      a.removeEventListener("ended", onEnded);
       document.removeEventListener("visibilitychange", onVisible);
       // Do NOT stop playback on unmount — MusicPlayer is in the root
       // layout and should continue playing across page navigations.
@@ -437,12 +556,22 @@ export default function MusicPlayer() {
   // start". Skipping the first run hands ownership of initial
   // playback cleanly to the bootstrap effect.
   const isFirstMuteRun = useRef(true);
+  // Tracks the last APPLIED mute state so this effect can tell a real mute
+  // toggle apart from a track change (it depends on both `muted` and `track`).
+  // On a track change the bootstrap effect already owns playback for the new
+  // clip; if this effect ALSO re-issued play()/pause() in the same tick we'd
+  // hit the documented double-play() "music doesn't start / glitches" storm.
+  const prevMutedRef = useRef(false);
   useEffect(() => {
     mutedRef.current = muted;
     if (isFirstMuteRun.current) {
       isFirstMuteRun.current = false;
+      prevMutedRef.current = muted;
       return;
     }
+    // Only act on an actual mute change — ignore track-change re-runs.
+    if (muted === prevMutedRef.current) return;
+    prevMutedRef.current = muted;
     const a = audioRef.current;
     if (!a || !track) return;
     try { sessionStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch {}
@@ -504,26 +633,28 @@ export default function MusicPlayer() {
   }, []);
 
   // Arm the overlay only once the splash is done AND we're on desktop AND the
-  // visitor hasn't muted / already entered. We then wait a bounded window for
-  // audible autoplay to land: if the browser already allowed sound (an engaged
-  // visitor) the gate is skipped silently; only a still-silent page shows the
-  // Enter button. Nothing renders during the wait, so an engaged visitor never
-  // sees a flash of the overlay.
+  // visitor hasn't muted / already entered. If the browser already allowed
+  // audible autoplay (an engaged visitor) the gate is skipped silently;
+  // otherwise the Enter overlay shows immediately as the splash clears.
   useEffect(() => {
     if (!entranceReady || !isDesktop || !track) return;
     if (mutedRef.current || enteredOnceRef.current) return;
+    // Decide synchronously the instant the splash clears. The audible-autoplay
+    // attempt is fired by the bootstrap effect AT MOUNT — i.e. during the
+    // >=1.5s loading splash — so its outcome (hasAudibleStartedRef) is already
+    // settled here. An engaged visitor whose browser allowed sound never needs
+    // the gate; everyone else gets the Enter overlay immediately.
+    //
+    // The previous code waited an EXTRA 1500ms "in case" audible was still
+    // landing, which left the bare home page visible for ~1.5s before the Enter
+    // overlay appeared — the reported "home flashes, THEN press-to-enter shows
+    // up". The splash (z9999) sits above the Enter overlay (z9998), so showing
+    // Enter now simply crossfades straight out of the splash with no home flash.
     if (hasAudibleStartedRef.current) {
       markEnteredOnce();
       return;
     }
-    const t = window.setTimeout(() => {
-      if (hasAudibleStartedRef.current || mutedRef.current || enteredOnceRef.current) {
-        markEnteredOnce();
-        return;
-      }
-      setShowEnter(true);
-    }, 1500);
-    return () => window.clearTimeout(t);
+    setGate(true);
   }, [entranceReady, isDesktop, track]);
 
   // Lock background scroll while the gate is up so the cosmic hero scroll
@@ -548,11 +679,11 @@ export default function MusicPlayer() {
   const handleEnter = () => {
     const a = audioRef.current;
     if (!a) {
-      setShowEnter(false);
+      setGate(false);
       return;
     }
     if (mutedRef.current) {
-      setShowEnter(false);
+      setGate(false);
       markEnteredOnce();
       return;
     }
@@ -561,11 +692,21 @@ export default function MusicPlayer() {
     const p = a.play();
     if (p) {
       p.then(() => {
+        // If the visitor flipped to muted / "Enter without sound" before this
+        // resolved, honor it: stay silent + PAUSED, don't fade or mark audible.
+        if (mutedRef.current) {
+          a.muted = true;
+          a.volume = 0;
+          try { a.pause(); } catch {}
+          return;
+        }
         fadeVolumeTo(TARGET_VOLUME, FADE_MS);
         detachUnmuteListenersRef.current?.();
         markAudibleStarted();
       }).catch(() => {
         a.muted = true;
+        // Don't warm-resume if the visitor chose mute in the meantime.
+        if (mutedRef.current) return;
         const pp = a.play();
         if (pp) pp.catch(() => {});
       });
@@ -574,6 +715,27 @@ export default function MusicPlayer() {
       detachUnmuteListenersRef.current?.();
       markAudibleStarted();
     }
+  };
+
+  // Secondary Enter path: enter the site but keep the music OFF. Sets the mute
+  // preference (session-scoped, the same store/key the mute button uses), marks
+  // the session entered so the gate never re-appears, and clears the overlay.
+  // We mute + pause synchronously so no sound can blip out between this click
+  // and the mute-toggle effect running; that effect then keeps it silenced.
+  const handleEnterMuted = () => {
+    const a = audioRef.current;
+    if (a) {
+      a.muted = true;
+      try { a.pause(); } catch {}
+    }
+    mutedRef.current = true;
+    // Drop the global gesture (pointer/touch/scroll/click…) listeners NOW so a
+    // stray interaction can't kick off muted playback the visitor opted out of.
+    detachUnmuteListenersRef.current?.();
+    setMuted(true);
+    try { sessionStorage.setItem(MUTE_KEY, "1"); } catch {}
+    markEnteredOnce();
+    setGate(false);
   };
 
   const enterOverlay =
@@ -713,6 +875,36 @@ export default function MusicPlayer() {
             </svg>
             Enter
           </button>
+
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); handleEnterMuted(); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            aria-label="Enter with sound off"
+            data-cursor="link"
+            data-cursor-label="enter muted"
+            style={{
+              display: "block",
+              margin: "20px auto 0",
+              padding: "8px 16px",
+              border: "none",
+              background: "none",
+              color: "rgba(167,139,250,0.78)",
+              fontFamily: "Geist, system-ui, sans-serif",
+              fontSize: 11,
+              letterSpacing: "0.22em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+              textDecoration: "underline",
+              textUnderlineOffset: 4,
+            }}
+          >
+            Enter without sound
+          </button>
         </div>
       </div>
     ) : null;
@@ -724,7 +916,7 @@ export default function MusicPlayer() {
       return (
         <>
           {track && (
-            <audio ref={audioRef} src={track.src} loop autoPlay muted preload="auto"
+            <audio ref={audioRef} src={track.src} autoPlay muted preload="auto"
               aria-label={`Background music — ${track.label}`} />
           )}
           {enterOverlay}
@@ -738,7 +930,6 @@ export default function MusicPlayer() {
           <audio
             ref={audioRef}
             src={track.src}
-            loop
             autoPlay
             muted
             preload="auto"

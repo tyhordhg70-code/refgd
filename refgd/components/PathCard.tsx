@@ -379,6 +379,18 @@ export default function PathCard({
               background: "linear-gradient(180deg, rgb(18,16,30), rgb(8,8,16))",
               // Override glass-strong's 1px white border ring
               border: "none",
+              // AUTOSCROLL PERF FIX — drop glass-strong's live
+              // backdrop-filter: blur(28px). The opaque gradient above already
+              // covers the card completely (identical to the mobile/noReveal
+              // branch above), so the blur is VISUALLY INERT — yet it forced a
+              // full 28px backdrop re-rasterisation over the moving page every
+              // frame, for all ~5 cards, during the Lenis hero→#paths
+              // autoscroll. That was the dominant cause of the glide "freezing
+              // up". The existing `#paths .liquid-glass-3d` CSS override never
+              // matched these cards (they carry `glass-strong`, not
+              // `liquid-glass-3d`), so the blur was live on desktop.
+              backdropFilter: "none",
+              WebkitBackdropFilter: "none",
             }}
           >
             {/* Animated gradient ring */}
