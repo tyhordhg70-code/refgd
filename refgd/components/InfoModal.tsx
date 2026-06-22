@@ -120,7 +120,9 @@ export default function InfoModal({ open, onClose, title, html, contentId }: Inf
   useEffect(() => {
     if (!open) return;
     window.dispatchEvent(new Event("refgd:overlay-open"));
-    return () => window.dispatchEvent(new Event("refgd:overlay-close"));
+    return () => {
+      window.dispatchEvent(new Event("refgd:overlay-close"));
+    };
   }, [open]);
 
   // Seed the contentEditable surface ONCE when edit mode turns on. We set
