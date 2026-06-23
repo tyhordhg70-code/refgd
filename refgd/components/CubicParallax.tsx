@@ -13,6 +13,15 @@ type Props = {
   /** Z-depth shift in pixels on entrance. */
   depth?: number;
   className?: string;
+  /**
+   * Use a lenient amount-based viewport trigger (no negative bottom
+   * margin) instead of the default `margin:"-80px"`. Needed for the
+   * LAST element on a page: a last element can never scroll far enough
+   * to satisfy a negative bottom inset, so without this it stays stuck
+   * at the initial `opacity:0` and reads as "missing". With `eager` it
+   * reveals as soon as a small fraction crosses the real viewport.
+   */
+  eager?: boolean;
 };
 
 /**
@@ -47,6 +56,7 @@ export default function CubicParallax({
   rotate = 4,
   depth = 60,
   className = "",
+  eager = false,
 }: Props) {
   const reduce = useReducedMotion();
 
@@ -81,7 +91,7 @@ export default function CubicParallax({
           z: 0,
           opacity: 1,
         }}
-        viewport={{ once: true, margin: "-80px" }}
+        viewport={eager ? { once: true, amount: 0.1 } : { once: true, margin: "-80px" }}
         transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
         style={{
           transformStyle: "preserve-3d",

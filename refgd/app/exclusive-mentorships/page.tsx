@@ -8,7 +8,7 @@ import { Reveal } from "@/components/Reveal";
 import ChapterPill from "@/components/ChapterPill";
 import MentorshipHero from "@/components/MentorshipHero";
 import KineticText from "@/components/KineticText";
-import MagneticButton from "@/components/MagneticButton";
+import EditableMagneticButton from "@/components/EditableMagneticButton";
 import FactoryIllustration from "@/components/FactoryIllustration";
 import ScrollImage from "@/components/ScrollImage";
 import TextReveal from "@/components/TextReveal";
@@ -112,12 +112,20 @@ export default function MentorshipsPage() {
             translate + rotate + Z-depth, one-shot once:true so it never
             vanishes on backscroll) instead of the plain fade Reveal. */}
         <CubicParallax axis="y" amount={70} rotate={10} depth={160}>
-          <MagneticButton href="https://refundgod.bgng.io/" external variant="primary">
-            Buy Now
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
-            </svg>
-          </MagneticButton>
+          <EditableMagneticButton
+            labelKey="ment.cta.top.label"
+            defaultLabel="Buy Now"
+            urlKey="ment.cta.top.url"
+            defaultUrl="https://refundgod.bgng.io/"
+            external
+            variant="primary"
+            testId="ment-cta-top"
+            icon={
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
+              </svg>
+            }
+          />
         </CubicParallax>
       </section>
 
@@ -812,15 +820,29 @@ export default function MentorshipsPage() {
             }}
           />
           {/* v44 — final CTA Buy Now also flies in with the parallax
-              entrance (one-shot, latches visible — no backscroll vanish). */}
+              entrance (one-shot, latches visible — no backscroll vanish).
+              `eager` is REQUIRED here: this is the LAST element on the page,
+              so it can never scroll far enough to satisfy CubicParallax's
+              default `margin:"-80px"` bottom inset — it stayed stuck at the
+              initial opacity:0 (the reported "Buy Now button missing after
+              Stop watching. Start earning."). `eager` switches it to a
+              lenient amount-based viewport trigger so it always reveals. */}
           <div className="mt-5 sm:mt-6">
-            <CubicParallax axis="y" amount={70} rotate={10} depth={160}>
-              <MagneticButton href="https://refundgod.bgng.io/" external variant="primary">
-                Buy Now
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
-                </svg>
-              </MagneticButton>
+            <CubicParallax axis="y" amount={70} rotate={10} depth={160} eager>
+              <EditableMagneticButton
+                labelKey="ment.cta.final.label"
+                defaultLabel="Buy Now"
+                urlKey="ment.cta.final.url"
+                defaultUrl="https://refundgod.bgng.io/"
+                external
+                variant="primary"
+                testId="ment-cta-final"
+                icon={
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="m12 5 7 7-7 7" /><path d="M5 12h14" />
+                  </svg>
+                }
+              />
             </CubicParallax>
           </div>
         </div>
