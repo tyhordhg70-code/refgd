@@ -3,6 +3,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import type { Store, StoreTag, Region } from "@/lib/types";
 import { logoChainForStore } from "@/lib/logo";
+import { cachedSrc } from "@/lib/img";
 import { applyRegionCurrency } from "@/lib/currency";
 import { useEditContext } from "@/lib/edit-context";
 import InfoModal from "./InfoModal";
@@ -225,7 +226,7 @@ export default function StoreCard({
             {logoSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={logoSrc}
+                src={cachedSrc(logoSrc)}
                 alt={`${store.name} logo`}
                 width={56}
                 height={56}
