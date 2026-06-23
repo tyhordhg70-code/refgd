@@ -44,9 +44,35 @@ import MoveHandle, { useMoveOffset as useMoveOffsetEditable } from "@/components
  * hydration mismatch. Left untouched: data:/blob:/relative URLs and
  * anything already pointing at our own image routes.
  */
+/**
+ * v6.14.1 — Fast-path known hot-linkable CDN hosts.
+ *
+ * Default brand logos / favicons come from a handful of public image CDNs
+ * (Wikimedia's media host + Google's favicon service) that are designed to
+ * be hot-linked, never block by Referer, and already ship long-lived cache
+ * headers + a global edge. Routing those through `/api/img` only HURTS: it
+ * forces a serial extra round-trip per image (browser → our single Render
+ * instance → upstream), so a grid of brand logos pops in slowly on first
+ * visit because every request queues through one server. We already prove
+ * direct loading works for these exact URLs in <BrandLogo>'s plain <img>.
+ * So load them straight from the source CDN (massively parallel, edge-fast)
+ * and keep the proxy ONLY for admin-pasted arbitrary-host images, which is
+ * where the hot-link fixes + caching actually matter. Deterministic on
+ * server & client (no `window`) to avoid hydration mismatch.
+ */
+const DIRECT_IMG_HOSTS = new Set(["upload.wikimedia.org", "www.google.com", "google.com"]);
+function isDirectImgHost(host: string): boolean {
+  const h = host.toLowerCase();
+  return DIRECT_IMG_HOSTS.has(h) || h.endsWith(".gstatic.com");
+}
 function cachedSrc(u: string): string {
   if (!u || !/^https?:\/\//i.test(u)) return u;
   if (/^https?:\/\/[^/]+\/(api\/img|gc-img|_next)/i.test(u)) return u;
+  try {
+    if (isDirectImgHost(new URL(u).hostname)) return u;
+  } catch {
+    /* malformed URL → fall through to the proxy */
+  }
   return `/api/img?u=${encodeURIComponent(u)}`;
 }
 
