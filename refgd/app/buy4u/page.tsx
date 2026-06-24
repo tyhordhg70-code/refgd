@@ -354,7 +354,7 @@ function BrandCard({ secId, mode, card, onDelete }: { secId: string; mode: "buy4
 }
 
 function CardGrid({ secId, mode, cards, wide }: { secId: string; mode: "buy4u"|"refund"; cards: Card[]; wide?: boolean }) {
-    const { isAdmin, editMode, getValue, setValue } = useEditContext();
+    const { isAdmin, editMode, getValue, saveBlock } = useEditContext();
     const [showAdd, setShowAdd] = useState(false);
     const [addKind, setAddKind] = useState<CardKind>("brand");
     const [addName, setAddName] = useState("");
@@ -379,16 +379,36 @@ function CardGrid({ secId, mode, cards, wide }: { secId: string; mode: "buy4u"|"
         return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
       });
 
+    // Structural card changes (add / remove) persist IMMEDIATELY via saveBlock
+    // — a write-through to the DB — instead of only queueing a pending edit that
+    // needs a separate Publish. Admins expect "remove card" to be final, so the
+    // old queue-only behaviour made removals silently revert on refresh when the
+    // admin didn't also Publish. Local state updates first for instant UI; on a
+    // save failure we revert it and warn.
+    //
+    // Saves for this grid are SERIALIZED through one promise chain: each save
+    // sends the FULL array, so landing them in click-order guarantees
+    // last-write-wins even when the admin removes several cards rapidly.
+    const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
+    const persistBlock = (id: string, value: string, revert: () => void) => {
+      saveChainRef.current = saveChainRef.current
+        .then(() => saveBlock(id, value))
+        .then(ok => { if (!ok) { revert(); alert("Couldn't save that change — please try again."); } })
+        .catch(() => { revert(); alert("Couldn't save that change — please try again."); });
+    };
+
     const handleDelete = (key: string) => {
       const isExtraCard = extra.some(c => c.key === key);
       if (isExtraCard) {
+        const prevExtra = extra;
         const next = extra.filter(c => c.key !== key);
         setExtra(next);
-        setValue(`buy4u.${secId}.${mode}.extra`, JSON.stringify(next));
+        persistBlock(`buy4u.${secId}.${mode}.extra`, JSON.stringify(next), () => setExtra(prevExtra));
       } else {
+        const prevDeleted = deleted;
         const next = [...deleted, key];
         setDeleted(next);
-        setValue(`buy4u.${secId}.${mode}.deleted`, JSON.stringify(next));
+        persistBlock(`buy4u.${secId}.${mode}.deleted`, JSON.stringify(next), () => setDeleted(prevDeleted));
       }
     };
 
@@ -398,6 +418,7 @@ function CardGrid({ secId, mode, cards, wide }: { secId: string; mode: "buy4u"|"
       const nc: Card = addKind === "brand"
         ? { key: nk, name: addName.trim(), kind: "brand", domain: addVal.trim() || "example.com", compact: true }
         : { key: nk, name: addName.trim(), kind: "photo", photo: addVal.trim() || "https://loremflickr.com/400/300/travel", compact: true };
+      const prevExtra = extra;
       const next = [...extra, nc].sort((a, b) => {
           const ap = a.name.trim().startsWith("+") ? 1 : 0;
           const bp = b.name.trim().startsWith("+") ? 1 : 0;
@@ -405,8 +426,8 @@ function CardGrid({ secId, mode, cards, wide }: { secId: string; mode: "buy4u"|"
           return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
         });
       setExtra(next);
-      setValue(`buy4u.${secId}.${mode}.extra`, JSON.stringify(next));
       setAddName(""); setAddVal(""); setShowAdd(false);
+      persistBlock(`buy4u.${secId}.${mode}.extra`, JSON.stringify(next), () => setExtra(prevExtra));
     };
 
     if (!visible.length && !(isAdmin && editMode)) return null;
@@ -692,7 +713,7 @@ const GC_CARDS: GiftCard[] = [
 const CARDS_PER_PAGE = 24;
 
   function GiftCardsSection() {
-    const { isAdmin, editMode, getValue, setValue } = useEditContext();
+    const { isAdmin, editMode, getValue, saveBlock } = useEditContext();
     const [cat, setCat] = useState("");
     const [state, setState] = useState("");
     const [avail, setAvail] = useState("");
@@ -726,16 +747,30 @@ const CARDS_PER_PAGE = 24;
     const shown = filtered.slice(0, visible);
     const hasMore = visible < filtered.length;
 
+    // Write-through persistence (see CardGrid above): add / remove a gift card
+    // saves straight to the DB so it survives a refresh without a separate
+    // Publish. Local state updates first for instant UI; revert on save failure.
+    // Saves are serialized per-grid so rapid removals land in click-order.
+    const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
+    const persistBlock = (id: string, value: string, revert: () => void) => {
+      saveChainRef.current = saveChainRef.current
+        .then(() => saveBlock(id, value))
+        .then(ok => { if (!ok) { revert(); alert("Couldn't save that change — please try again."); } })
+        .catch(() => { revert(); alert("Couldn't save that change — please try again."); });
+    };
+
     const handleDelete = (key: string) => {
       const isExtraCard = extra.some(c => c.key === key);
       if (isExtraCard) {
+        const prevExtra = extra;
         const next = extra.filter(c => c.key !== key);
         setExtra(next);
-        setValue("buy4u.giftcards.extra", JSON.stringify(next));
+        persistBlock("buy4u.giftcards.extra", JSON.stringify(next), () => setExtra(prevExtra));
       } else {
+        const prevDeleted = deleted;
         const next = [...deleted, key];
         setDeleted(next);
-        setValue("buy4u.giftcards.deleted", JSON.stringify(next));
+        persistBlock("buy4u.giftcards.deleted", JSON.stringify(next), () => setDeleted(prevDeleted));
       }
     };
 
@@ -751,10 +786,11 @@ const CARDS_PER_PAGE = 24;
         image: addImage.trim() || undefined,
         price: addPrice.trim() || undefined,
       };
+      const prevExtra = extra;
       const next = [...extra, nc].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
       setExtra(next);
-      setValue("buy4u.giftcards.extra", JSON.stringify(next));
       setAddName(""); setAddPrice(""); setAddImage(""); setShowAdd(false);
+      persistBlock("buy4u.giftcards.extra", JSON.stringify(next), () => setExtra(prevExtra));
     };
 
     return (
