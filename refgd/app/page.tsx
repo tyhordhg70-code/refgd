@@ -8,6 +8,7 @@ import HomeCTAButton from "@/components/HomeCTAButton";
 import CosmicJourney from "@/components/CosmicJourney";
 import PathsHorizontalReveal from "@/components/PathsHorizontalReveal";
 import MobilePathsTelegramHandoff from "@/components/MobilePathsTelegramHandoff";
+import HashDeepLink from "@/components/HashDeepLink";
 import ChapterCosmos from "@/components/ChapterCosmos";
 import { getContentBlock } from "@/lib/content";
 import { ReorderableContainer, ReorderableSection } from "@/components/ReorderableSection";
@@ -263,6 +264,11 @@ export default async function HomePage() {
           unchanged. Kept OUTSIDE ReorderableContainer so it never counts as a
           reorderable section. */}
       <MobilePathsTelegramHandoff />
+
+      {/* Shareable deep link: opening "/#telegram" lands the visitor straight
+          on the Telegram box above. Renders nothing and no-ops for every other
+          (or absent) hash, so default page behaviour is untouched. */}
+      <HashDeepLink />
     </>
   );
 }
