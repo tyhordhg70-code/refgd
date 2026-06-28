@@ -10,7 +10,6 @@ import CategoryFilter from "./CategoryFilter";
 import { motion } from "framer-motion";
 import { useEditContext } from "@/lib/edit-context";
 import { catAnchorId, storeAnchorId, slugify } from "@/lib/anchor";
-import CopyLinkButton from "./CopyLinkButton";
 import StoreListHashScroll from "./StoreListHashScroll";
 
 interface Props {
@@ -60,12 +59,12 @@ const CATEGORY_LABEL: Record<string, string> = {
   Other:       "✨ Other",
 };
 
-// Deep-link anchors (id + scroll-mt-24) are added to EVERY section and to the
-// CRYPTO card so any shared link resolves, but a VISIBLE "copy link" affordance
-// is rendered only for these owner-requested targets — keeping the page free of
-// any unrequested visual change. Slugs are compared against the stable category
-// KEY / store NAME via slugify(), never the (emoji / renamable) display label.
-const SHAREABLE_CATEGORY_SLUGS = new Set(["travel"]);
+// Deep-link anchors (id + scroll-mt-24) are added to EVERY category section so
+// any shared #cat-<slug> link resolves. Cards in this set additionally get a
+// stable #store-<slug> anchor that AUTO-OPENS the card's popup on load. The
+// visible "Copy link" pills were removed per owner request; the anchors +
+// auto-open stay so the direct URLs still work. Slugs compare against the stable
+// category KEY / store NAME via slugify(), never the (emoji / renamable) label.
 const SHAREABLE_STORE_SLUGS = new Set(["crypto-refunds"]);
 
 export default function StoreFilters({
@@ -548,14 +547,6 @@ export default function StoreFilters({
                 <p className="mt-1 text-xs uppercase tracking-widest text-white/40">
                   {list.length} {list.length === 1 ? "store" : "stores"}
                 </p>
-                {SHAREABLE_CATEGORY_SLUGS.has(slugify(category)) && (
-                  <CopyLinkButton
-                    anchorId={catAnchorId(category)}
-                    label="Copy link"
-                    title="Copy a direct link to this section"
-                    className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-200 transition hover:border-amber-300/60 hover:bg-amber-400/20"
-                  />
-                )}
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {/* "+ Add" tile renders FIRST in every category so the

@@ -7,7 +7,6 @@ import { cachedSrc } from "@/lib/img";
 import { applyRegionCurrency } from "@/lib/currency";
 import { useEditContext } from "@/lib/edit-context";
 import InfoModal from "./InfoModal";
-import CopyLinkButton from "./CopyLinkButton";
 import { useEntranceReady } from "@/lib/loading-screen-gate";
 import { getTelegraphContent, getStoreInfoByDomain, type TelegraphContent } from "@/data/telegraph-content";
 
@@ -95,8 +94,8 @@ type StoreCardProps = {
   onDrop?: (e: React.DragEvent<HTMLElement>) => void;
   onDragEnd?: (e: React.DragEvent<HTMLElement>) => void;
   /** When set, this card is a shareable deep-link target: it renders
-   *  `id={anchorId}` + scroll-mt, auto-opens its info popup when the page loads
-   *  with `#<anchorId>`, and shows a "copy link" affordance. */
+   *  `id={anchorId}` + scroll-mt and auto-opens its info popup when the page
+   *  loads with `#<anchorId>`. (The visible "copy link" pill was removed.) */
   anchorId?: string;
 };
 
@@ -355,17 +354,6 @@ export default function StoreCard({
               <path d="M7 17 17 7M7 7h10v10" />
             </svg>
           </a>
-        )}
-
-        {anchorId && (
-          <div className="mt-3">
-            <CopyLinkButton
-              anchorId={anchorId}
-              label="Copy link"
-              title="Copy a direct link to this store"
-              className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-200 transition hover:border-amber-300/60 hover:bg-amber-400/20"
-            />
-          </div>
         )}
 
         {info && (
