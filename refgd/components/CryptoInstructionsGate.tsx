@@ -79,7 +79,7 @@ export default function CryptoInstructionsGate() {
   }
 
   return (
-    <div className="px-5 pb-5 pt-1">
+    <div className="px-5 pb-5 -mt-2">
       {stage === "locked" ? (
         <button
           type="button"
