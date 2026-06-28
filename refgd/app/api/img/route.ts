@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import dns from "node:dns/promises";
+import dnsCb from "node:dns";
 import net from "node:net";
+import http from "node:http";
+import https from "node:https";
+import type { IncomingMessage } from "node:http";
 
 /**
  * Generic cached image proxy.
@@ -28,6 +32,7 @@ export const runtime = "nodejs";
 
 const MAX_BYTES = 15 * 1024 * 1024; // 15 MB
 const TIMEOUT_MS = 10_000;
+const MAX_REDIRECTS = 3;
 
 /** True for loopback / private / link-local / reserved / CGNAT / multicast. */
 function isBlockedIp(ip: string): boolean {
@@ -38,16 +43,21 @@ function isBlockedIp(ip: string): boolean {
   if (net.isIPv4(ip)) {
     const o = ip.split(".").map(Number);
     if (o.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true;
-    const [a, b] = o;
+    const [a, b, c] = o;
     if (a === 0 || a === 10 || a === 127) return true; // this-net, private, loopback
     if (a === 169 && b === 254) return true; // link-local (incl. 169.254.169.254 metadata)
     if (a === 172 && b >= 16 && b <= 31) return true; // private
     if (a === 192 && b === 168) return true; // private
     if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
-    if (a === 192 && b === 0) return true; // 192.0.0.0/24 + 192.0.2.0/24 (special/test)
-    if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking
-    if (a === 198 && b === 51) return true; // 198.51.100.0/24 test
-    if (a === 203 && b === 0) return true; // 203.0.113.0/24 test
+    // Documentation / test-net blocks below are ONLY the named /24s. The
+    // previous checks dropped the third octet and so blocked the entire
+    // surrounding /16, wrongly rejecting legitimate PUBLIC space — most
+    // notably Automattic's 192.0.64.0/18 CDN (i*.wp.com, hosts on 192.0.66 /
+    // 192.0.77), which made admin-pasted images on those hosts 400 here.
+    if (a === 192 && b === 0 && (c === 0 || c === 2)) return true; // 192.0.0.0/24 + 192.0.2.0/24
+    if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking 198.18.0.0/15
+    if (a === 198 && b === 51 && c === 100) return true; // 198.51.100.0/24 test
+    if (a === 203 && b === 0 && c === 113) return true; // 203.0.113.0/24 test
     if (a >= 224) return true; // multicast + reserved
     return false;
   }
@@ -77,6 +87,72 @@ async function hostIsSafe(hostname: string): Promise<boolean> {
   }
 }
 
+/**
+ * Custom DNS lookup used for the OUTBOUND connection. This is the real SSRF
+ * gate: `hostIsSafe()` above runs before we connect, but a hostile authority
+ * can return a public IP to that check and a private IP to the socket's own
+ * resolution milliseconds later (DNS rebinding / TOCTOU). Because Node calls
+ * this function at *connect time* and connects to exactly the address we hand
+ * back, validating here pins the connection to a vetted IP. We resolve every
+ * candidate, reject if ANY is private/reserved, and otherwise return the first.
+ * SNI/Host stay the original hostname, so TLS still validates normally.
+ */
+const safeLookup: net.LookupFunction = (hostname, options, callback) => {
+  const family =
+    typeof options === "number" ? options : options?.family ?? 0;
+  dnsCb.lookup(
+    hostname,
+    { all: true, family, hints: typeof options === "object" ? options?.hints : undefined },
+    (err, addresses) => {
+      if (err) {
+        callback(err, "", 4);
+        return;
+      }
+      const list = Array.isArray(addresses) ? addresses : [];
+      if (!list.length || list.some((r) => isBlockedIp(r.address))) {
+        callback(new Error("blocked address"), "", 4);
+        return;
+      }
+      const chosen = list[0];
+      callback(null, chosen.address, chosen.family);
+    },
+  );
+};
+
+/**
+ * Single GET over node:http(s) with the validating lookup above. Returns the
+ * live IncomingMessage (caller drains or streams it). Rejects on socket error
+ * or timeout — the caller turns any rejection into the safe 302 fallback.
+ */
+function requestOnce(u: URL): Promise<IncomingMessage> {
+  const mod = u.protocol === "https:" ? https : http;
+  return new Promise<IncomingMessage>((resolve, reject) => {
+    const req = mod.request(
+      {
+        protocol: u.protocol,
+        hostname: u.hostname,
+        port: u.port || (u.protocol === "https:" ? 443 : 80),
+        path: `${u.pathname}${u.search}`,
+        method: "GET",
+        headers: {
+          Host: u.host,
+          "User-Agent": "Mozilla/5.0",
+          Accept: "image/*,*/*",
+          // We forward bytes verbatim (no decompression), so make the
+          // no-compression assumption explicit and never receive gzip.
+          "Accept-Encoding": "identity",
+        },
+        lookup: safeLookup,
+        timeout: TIMEOUT_MS,
+      },
+      resolve,
+    );
+    req.on("error", reject);
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.end();
+  });
+}
+
 export async function GET(req: NextRequest) {
   const u = req.nextUrl.searchParams.get("u");
   if (!u) return new NextResponse(null, { status: 400 });
@@ -95,19 +171,73 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const upstream = await fetch(target.toString(), {
-      headers: { "User-Agent": "Mozilla/5.0", Accept: "image/*,*/*" },
-      cache: "force-cache",
-      redirect: "follow",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
+    // Follow redirects MANUALLY so each hop's host is re-validated before we
+    // connect. With an auto-following client a public URL could 30x-bounce the
+    // server into the private network / cloud metadata AFTER the initial host
+    // check passed — a classic SSRF gap. We resolve each Location, re-run the
+    // protocol + host checks, and bail to the safe "load it directly" 302 on
+    // any blocked or malformed redirect. The actual connection additionally
+    // re-validates the resolved IP at connect time (safeLookup), closing the
+    // DNS-rebinding window that a pre-connect host check alone leaves open.
+    let current = target;
+    let upstream: IncomingMessage | null = null;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      const resp = await requestOnce(current);
+      const status = resp.statusCode ?? 0;
 
-    const ct = upstream.headers.get("content-type") || "";
-    const cl = Number(upstream.headers.get("content-length") || "0");
-    if (!upstream.ok || !upstream.body || !ct.startsWith("image/") || cl > MAX_BYTES) {
-      // Let the browser try the original directly.
+      if (status >= 300 && status < 400) {
+        const loc = resp.headers.location;
+        resp.resume(); // drain the redirect body so the socket frees up
+        if (!loc) break; // malformed redirect -> fall through to direct fallback
+        let next: URL;
+        try {
+          next = new URL(loc, current); // resolve relative Location values
+        } catch {
+          return NextResponse.redirect(target.toString(), 302);
+        }
+        if (next.protocol !== "http:" && next.protocol !== "https:") {
+          return NextResponse.redirect(target.toString(), 302);
+        }
+        if (!(await hostIsSafe(next.hostname))) {
+          return NextResponse.redirect(target.toString(), 302);
+        }
+        current = next;
+        continue;
+      }
+
+      upstream = resp;
+      break;
+    }
+
+    // Redirect chain never resolved to a final response (too many hops or a
+    // bodyless redirect) -> behave no worse than loading the original directly.
+    if (!upstream) {
       return NextResponse.redirect(target.toString(), 302);
     }
+
+    const status = upstream.statusCode ?? 0;
+    const ct = (upstream.headers["content-type"] as string | undefined) || "";
+    const clHeader = Number(upstream.headers["content-length"] || "0");
+    if (status < 200 || status >= 300 || !ct.startsWith("image/") || clHeader > MAX_BYTES) {
+      upstream.resume(); // discard the body we won't forward
+      return NextResponse.redirect(target.toString(), 302);
+    }
+
+    // Buffer with a HARD cap enforced as we read: Content-Length is advisory
+    // (absent on chunked responses, and a hostile host could lie), so we count
+    // real bytes and bail the moment we cross the limit.
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of upstream) {
+      const buf = chunk as Buffer;
+      total += buf.length;
+      if (total > MAX_BYTES) {
+        upstream.destroy();
+        return NextResponse.redirect(target.toString(), 302);
+      }
+      chunks.push(buf);
+    }
+    const body = new Uint8Array(Buffer.concat(chunks, total));
 
     const headers = new Headers({
       "Content-Type": ct,
@@ -115,12 +245,12 @@ export async function GET(req: NextRequest) {
       // CDN: 7 days, serve stale while revalidating.
       "Cache-Control":
         "public, max-age=31536000, immutable, s-maxage=604800, stale-while-revalidate=86400",
+      "Content-Length": String(body.byteLength),
     });
-    if (cl) headers.set("Content-Length", String(cl));
-    const etag = upstream.headers.get("etag");
-    if (etag) headers.set("ETag", etag);
+    const etag = upstream.headers.etag;
+    if (etag) headers.set("ETag", Array.isArray(etag) ? etag[0] : etag);
 
-    return new NextResponse(upstream.body, { status: 200, headers });
+    return new NextResponse(body, { status: 200, headers });
   } catch {
     return NextResponse.redirect(target.toString(), 302);
   }

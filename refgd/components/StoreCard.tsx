@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import type { Store, StoreTag, Region } from "@/lib/types";
 import { logoChainForStore } from "@/lib/logo";
@@ -7,6 +7,8 @@ import { cachedSrc } from "@/lib/img";
 import { applyRegionCurrency } from "@/lib/currency";
 import { useEditContext } from "@/lib/edit-context";
 import InfoModal from "./InfoModal";
+import CopyLinkButton from "./CopyLinkButton";
+import { useEntranceReady } from "@/lib/loading-screen-gate";
 import { getTelegraphContent, getStoreInfoByDomain, type TelegraphContent } from "@/data/telegraph-content";
 
 function parseNotes(text: string, onOpen: (content: TelegraphContent) => void) {
@@ -92,6 +94,10 @@ type StoreCardProps = {
   onDragOver?: (e: React.DragEvent<HTMLElement>) => void;
   onDrop?: (e: React.DragEvent<HTMLElement>) => void;
   onDragEnd?: (e: React.DragEvent<HTMLElement>) => void;
+  /** When set, this card is a shareable deep-link target: it renders
+   *  `id={anchorId}` + scroll-mt, auto-opens its info popup when the page loads
+   *  with `#<anchorId>`, and shows a "copy link" affordance. */
+  anchorId?: string;
 };
 
 export default function StoreCard({
@@ -99,6 +105,7 @@ export default function StoreCard({
   region,
   idx,
   categoryLabels,
+  anchorId,
   onEdit,
   onDelete,
   draggable,
@@ -122,6 +129,44 @@ export default function StoreCard({
   // for stores with no inline link, by domain match (e.g. StubHub).
   const [info, setInfo] = useState<TelegraphContent | null>(null);
   const domainInfo = getStoreInfoByDomain(store.domain);
+
+  // Gate the deep-link auto-open on the same boot signal the scroller uses.
+  const entranceReady = useEntranceReady();
+
+  // The popup this card opens when deep-linked: the first mirrored note link
+  // that resolves to recreated content, else a domain match (e.g. StubHub).
+  const primaryInfo = useMemo<TelegraphContent | null>(() => {
+    if (store.notes) {
+      const re = /\[([^\]]+)\]\(([^)]+)\)/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(store.notes))) {
+        const linked = getTelegraphContent(m[2]);
+        if (linked) return linked;
+      }
+    }
+    return domainInfo ?? null;
+  }, [store.notes, domainInfo]);
+
+  // Deep link: on a fresh load of /store-list#<anchorId> auto-open this card's
+  // info popup. Opening is DELAYED so StoreListHashScroll's instant-scroll
+  // lands FIRST — InfoModal sets `document.body.style.overflow = "hidden"` on
+  // open, which would otherwise freeze the page before it reached the card.
+  useEffect(() => {
+    if (!anchorId || typeof window === "undefined" || !primaryInfo) return;
+    // Wait until any boot splash has cleared (mirrors StoreListHashScroll) so
+    // the deep-link scroll lands BEFORE the modal locks body scroll. With no
+    // splash present `entranceReady` is true on mount, so this runs right away.
+    if (!entranceReady) return;
+    let frag = "";
+    try {
+      frag = decodeURIComponent(window.location.hash.slice(1));
+    } catch {
+      frag = window.location.hash.slice(1);
+    }
+    if (frag !== anchorId) return;
+    const t = window.setTimeout(() => setInfo(primaryInfo), 600);
+    return () => window.clearTimeout(t);
+  }, [anchorId, primaryInfo, entranceReady]);
 
   const initial = store.name.replace(/[^a-zA-Z]/g, "")[0]?.toUpperCase() || "?";
 
@@ -152,12 +197,13 @@ export default function StoreCard({
   return (
     <motion.article
       suppressHydrationWarning
+      id={anchorId}
       data-cursor="hover"
       data-cursor-label={store.name}
       data-testid={`store-card-${store.id}`}
       data-editable-skip
       whileHover={{ y: -4 }}
-      className={`group relative ${glowClass ? "p-[1.5px]" : "p-px"} rounded-2xl ${
+      className={`group relative scroll-mt-24 ${glowClass ? "p-[1.5px]" : "p-px"} rounded-2xl ${
         glowClass ?? "bg-white/10"
       } transition-shadow duration-300 hover:shadow-[0_30px_70px_-25px_rgba(245,185,69,0.18)] ${
         showOverlay ? "ring-2 ring-amber-300/0 hover:ring-amber-300/40" : ""
@@ -309,6 +355,17 @@ export default function StoreCard({
               <path d="M7 17 17 7M7 7h10v10" />
             </svg>
           </a>
+        )}
+
+        {anchorId && (
+          <div className="mt-3">
+            <CopyLinkButton
+              anchorId={anchorId}
+              label="Copy link"
+              title="Copy a direct link to this store"
+              className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-200 transition hover:border-amber-300/60 hover:bg-amber-400/20"
+            />
+          </div>
         )}
 
         {info && (

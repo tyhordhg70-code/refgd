@@ -9,6 +9,9 @@ import StoreEditDialog from "./StoreEditDialog";
 import CategoryFilter from "./CategoryFilter";
 import { motion } from "framer-motion";
 import { useEditContext } from "@/lib/edit-context";
+import { catAnchorId, storeAnchorId, slugify } from "@/lib/anchor";
+import CopyLinkButton from "./CopyLinkButton";
+import StoreListHashScroll from "./StoreListHashScroll";
 
 interface Props {
   stores: Store[];
@@ -56,6 +59,14 @@ const CATEGORY_LABEL: Record<string, string> = {
   "Meal Plans": "🥗 Meal Plans",
   Other:       "✨ Other",
 };
+
+// Deep-link anchors (id + scroll-mt-24) are added to EVERY section and to the
+// CRYPTO card so any shared link resolves, but a VISIBLE "copy link" affordance
+// is rendered only for these owner-requested targets — keeping the page free of
+// any unrequested visual change. Slugs are compared against the stable category
+// KEY / store NAME via slugify(), never the (emoji / renamable) display label.
+const SHAREABLE_CATEGORY_SLUGS = new Set(["travel"]);
+const SHAREABLE_STORE_SLUGS = new Set(["crypto-refunds"]);
 
 export default function StoreFilters({
   stores: initialStores,
@@ -508,10 +519,13 @@ export default function StoreFilters({
           every section to simultaneously exit-animate on each region/filter
           change (7+ framer-motion exit sequences at once), which was the
           primary source of scroll jank on mobile. Entry animations remain. */}
+      <StoreListHashScroll />
       <div className="space-y-12">
           {grouped.map(({ category, stores: list }, secIdx) => (
             <motion.section
               key={category}
+              id={catAnchorId(category)}
+              className="scroll-mt-24"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: Math.min(secIdx * 0.05, 0.2) }}
@@ -534,6 +548,14 @@ export default function StoreFilters({
                 <p className="mt-1 text-xs uppercase tracking-widest text-white/40">
                   {list.length} {list.length === 1 ? "store" : "stores"}
                 </p>
+                {SHAREABLE_CATEGORY_SLUGS.has(slugify(category)) && (
+                  <CopyLinkButton
+                    anchorId={catAnchorId(category)}
+                    label="Copy link"
+                    title="Copy a direct link to this section"
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-200 transition hover:border-amber-300/60 hover:bg-amber-400/20"
+                  />
+                )}
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {/* "+ Add" tile renders FIRST in every category so the
@@ -558,6 +580,11 @@ export default function StoreFilters({
                     region={region}
                     idx={i}
                     categoryLabels={effectiveLabels}
+                    anchorId={
+                      SHAREABLE_STORE_SLUGS.has(slugify(s.name))
+                        ? storeAnchorId(s.name)
+                        : undefined
+                    }
                     onEdit={isAdmin && editMode ? openEdit : undefined}
                     onDelete={isAdmin && editMode ? handleDelete : undefined}
                     draggable={isAdmin && editMode}
