@@ -7,6 +7,7 @@ import Image from "next/image";
 import { useEditContext } from "@/lib/edit-context";
 import InfoModal from "@/components/InfoModal";
 import { getTelegraphContent } from "@/data/telegraph-content";
+import { LOADING_FLAG, LOADING_COMPLETE_EVENT } from "@/lib/loading-screen-gate";
 
 type CardKind = "brand" | "photo";
 type Card = { key: string; name: string; kind: CardKind; domain?: string; photo?: string; gradient?: string; compact?: boolean; };
@@ -534,9 +535,191 @@ function TabBody({ section, mode, service }: { section: Section; mode: "buy4u"|"
   </div>);
 }
 
+// ── Section deep-linking ────────────────────────────────────────────────────
+// Every section is reachable by URL fragment: "#buy4u-<id>" opens it normally
+// and "#buy4u-<id>-refund" opens it with the REFUND tab pre-selected. Section
+// ids never contain a hyphen, so the optional "-refund" suffix is unambiguous.
+
+type Buy4uTarget = { id: string; refund: boolean };
+
+function parseBuy4uHash(): Buy4uTarget | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.location.hash;
+  if (!raw || raw.length < 2) return null;
+  let frag = "";
+  try {
+    frag = decodeURIComponent(raw.slice(1));
+  } catch {
+    frag = raw.slice(1);
+  }
+  if (!frag.startsWith("buy4u-")) return null;
+  let id = frag.slice("buy4u-".length);
+  let refund = false;
+  if (id.endsWith("-refund")) {
+    refund = true;
+    id = id.slice(0, -"-refund".length);
+  }
+  if (!id) return null;
+  return { id, refund };
+}
+
+// Matches every section's Tailwind `scroll-mt-24` (6rem = 96px) so a deep-linked
+// section lands at the same spot the in-page pill-nav anchors do, clear of the
+// sticky nav + section bar.
+const SECTION_SCROLL_MARGIN = 96;
+
+// Re-jump a few times once scrolling is unlocked: early attempts cover the
+// loading-screen unlock race, later ones correct the layout shift when a section
+// opens on its (different-height) refund tab. The schedule aborts on user input.
+const DEEPLINK_ATTEMPT_DELAYS_MS = [0, 200, 500, 1000, 1600];
+
+type LenisLike = { scrollTo?: (target: unknown, options?: unknown) => void };
+
+/**
+ * Buy4uHashScroll — renders nothing. On a fresh load of
+ * /buy4u#buy4u-<id>[-refund] it scrolls the visitor to that section. A custom
+ * handler is needed because the site-wide <LoadingScreen> locks body scroll
+ * during boot (so the browser's native fragment scroll is clamped to the top and
+ * never retried) and the "-refund" variant has no matching element id for native
+ * scrolling to find at all. Desktop scrolls via Lenis (a native window.scrollTo
+ * is reverted by Lenis); mobile / no-Lenis uses an instant native scroll. The
+ * matching refund TAB is selected independently by each SectionBlock from the
+ * same hash. No / unrelated hashes return immediately, leaving normal loads
+ * untouched.
+ */
+function Buy4uHashScroll() {
+  useEffect(() => {
+    const target = parseBuy4uHash();
+    if (!target) return;
+    const elId = `buy4u-${target.id}`;
+
+    let cancelled = false;
+    let userInteracted = false;
+    const timers: number[] = [];
+    let raf1 = 0;
+    let raf2 = 0;
+    let onComplete: (() => void) | null = null;
+    let safety = 0;
+
+    const onUserInteract = () => {
+      userInteracted = true;
+    };
+
+    const jumpToTarget = () => {
+      if (cancelled || userInteracted) return;
+      const el = document.getElementById(elId);
+      if (!el) return;
+      const lenis = (window as unknown as { __lenis?: LenisLike }).__lenis;
+      if (lenis && typeof lenis.scrollTo === "function") {
+        lenis.scrollTo(el, {
+          offset: -SECTION_SCROLL_MARGIN,
+          immediate: true,
+          force: true,
+        });
+      } else {
+        const top = Math.max(
+          0,
+          window.scrollY + el.getBoundingClientRect().top - SECTION_SCROLL_MARGIN,
+        );
+        const opts: ScrollToOptions = { top };
+        (opts as Record<string, unknown>).behavior = "instant";
+        window.scrollTo(opts);
+      }
+    };
+
+    const runSchedule = () => {
+      if (cancelled) return;
+      raf1 = requestAnimationFrame(() => {
+        if (cancelled) return;
+        raf2 = requestAnimationFrame(() => {
+          if (cancelled) return;
+          for (const delay of DEEPLINK_ATTEMPT_DELAYS_MS) {
+            timers.push(window.setTimeout(jumpToTarget, delay));
+          }
+        });
+      });
+    };
+
+    // Abort the corrective re-jumps the moment the visitor takes over.
+    window.addEventListener("wheel", onUserInteract, { passive: true });
+    window.addEventListener("touchstart", onUserInteract, { passive: true });
+    window.addEventListener("keydown", onUserInteract, { passive: true });
+    window.addEventListener("pointerdown", onUserInteract, { passive: true });
+
+    const loadingActive =
+      (window as unknown as Record<string, unknown>)[LOADING_FLAG] === true;
+
+    if (loadingActive) {
+      onComplete = () => {
+        if (safety) window.clearTimeout(safety);
+        runSchedule();
+      };
+      window.addEventListener(LOADING_COMPLETE_EVENT, onComplete, {
+        once: true,
+      });
+      // Safety: if the completion event somehow never fires, run anyway.
+      safety = window.setTimeout(() => {
+        if (onComplete) {
+          window.removeEventListener(LOADING_COMPLETE_EVENT, onComplete);
+        }
+        runSchedule();
+      }, 8000);
+    } else {
+      runSchedule();
+    }
+
+    return () => {
+      cancelled = true;
+      if (raf1) cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+      for (const t of timers) window.clearTimeout(t);
+      if (safety) window.clearTimeout(safety);
+      if (onComplete) {
+        window.removeEventListener(LOADING_COMPLETE_EVENT, onComplete);
+      }
+      window.removeEventListener("wheel", onUserInteract);
+      window.removeEventListener("touchstart", onUserInteract);
+      window.removeEventListener("keydown", onUserInteract);
+      window.removeEventListener("pointerdown", onUserInteract);
+    };
+  }, []);
+
+  return null;
+}
+
 function SectionBlock({ section }: { section: Section }) {
   const [mode, setMode] = useState<"buy4u"|"refund">("buy4u");
   const [svc, setSvc] = useState(0);
+  const canRefund = section.hasRefund && !!section.refund;
+
+  // Deep-link IN: if the page was opened on "#buy4u-<id>-refund" for THIS
+  // section, start it on the refund tab. Read in an effect (not in useState) so
+  // the server and first client render agree — no hydration mismatch.
+  useEffect(() => {
+    if (!canRefund) return;
+    const target = parseBuy4uHash();
+    if (target && target.id === section.id && target.refund) setMode("refund");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Anchor OUT: reflect the chosen tab in the URL so the current view is a
+  // copy-pasteable direct link ("#buy4u-<id>-refund" / "#buy4u-<id>").
+  // replaceState avoids both a scroll jump and back-button clutter.
+  const selectMode = (m: "buy4u" | "refund") => {
+    setMode(m);
+    if (typeof window === "undefined") return;
+    const base = `#buy4u-${section.id}`;
+    try {
+      window.history.replaceState(
+        null,
+        "",
+        m === "refund" ? `${base}-refund` : base,
+      );
+    } catch {
+      /* history may be unavailable (e.g. sandboxed) — the toggle still works */
+    }
+  };
+
   return (
     <section id={`buy4u-${section.id}`} className="scroll-mt-24 rounded-3xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -547,7 +730,7 @@ function SectionBlock({ section }: { section: Section }) {
         {section.hasRefund && section.refund ? (
             <div className="inline-flex rounded-full border border-white/10 bg-ink-900 p-1">
               {(["buy4u","refund"] as const).map(m => (
-                <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition ${mode===m ? "bg-amber-400 text-ink-950 shadow-[0_0_18px_-4px_rgba(245,185,69,0.6)]" : "text-white/65 hover:text-white"}`}>{section.modeLabels?.[m] ?? (m==="buy4u"?"BUY4U":"REFUND")}</button>
+                <button key={m} type="button" onClick={() => selectMode(m)} className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition ${mode===m ? "bg-amber-400 text-ink-950 shadow-[0_0_18px_-4px_rgba(245,185,69,0.6)]" : "text-white/65 hover:text-white"}`}>{section.modeLabels?.[m] ?? (m==="buy4u"?"BUY4U":"REFUND")}</button>
               ))}
             </div>
           ) : section.serviceModes ? (
@@ -957,6 +1140,7 @@ export default function Buy4uPage() {
   const { isAdmin } = useEditContext();
   return (
     <>
+        <Buy4uHashScroll />
         <style>{
           `@keyframes gradientPulse{0%,100%{opacity:.7;transform:scale(1) rotate(0deg)}50%{opacity:1;transform:scale(1.08) rotate(1.5deg)}}
            @keyframes gradientPulse2{0%,100%{opacity:.5;transform:scale(1) rotate(0deg)}50%{opacity:.95;transform:scale(1.12) rotate(-2deg)}}`
