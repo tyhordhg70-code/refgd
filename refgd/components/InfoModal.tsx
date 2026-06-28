@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useEditContext } from "@/lib/edit-context";
 
@@ -19,6 +19,13 @@ type InfoModalProps = {
    * any editing affordance.
    */
   contentId?: string;
+  /**
+   * Optional React content rendered inside the scroll area immediately AFTER
+   * the (read-only) recreated HTML body. Used to append interactive UI that
+   * cannot live inside the dangerouslySetInnerHTML string — e.g. the crypto
+   * popup's password-gated instructions. Not shown while editing.
+   */
+  afterContent?: ReactNode;
 };
 
 // Shared typographic classes for the recreated content. Used for BOTH the
@@ -26,8 +33,17 @@ type InfoModalProps = {
 // to viewing. `data-lenis-prevent` + `overscroll-contain` stop the site-wide
 // Lenis smooth-scroller from swallowing the wheel/touch gesture inside the
 // scroll box (the reason the popups "couldn't scroll" on mobile/desktop).
-const BODY_CLS =
-  "max-h-[75vh] overflow-y-auto overscroll-contain px-5 py-4 text-sm leading-relaxed text-white/85 [&_a]:break-words [&_a]:text-amber-300 [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:text-amber-200 [&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-amber-300/40 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-white/75 [&_em]:text-amber-100 [&_figcaption]:mt-1 [&_figcaption]:text-center [&_figcaption]:text-xs [&_figcaption]:text-white/50 [&_figure]:my-3 [&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:text-lg [&_h3]:font-bold [&_h3]:text-white [&_h4]:mb-1.5 [&_h4]:mt-4 [&_h4]:font-bold [&_h4]:text-white [&_hr]:my-4 [&_hr]:border-white/10 [&_img]:my-3 [&_img]:w-full [&_img]:rounded-xl [&_img]:border [&_img]:border-white/10 [&_li]:marker:text-amber-300/70 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_p]:my-3 [&_strong]:font-semibold [&_strong]:text-white [&_ul]:my-3 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5";
+const BODY_SCROLL = "max-h-[75vh] overflow-y-auto overscroll-contain";
+
+// Typographic styling for the recreated content. Exported so other surfaces
+// (e.g. the crypto instructions gate, which renders decrypted HTML) can match
+// the popup body exactly.
+export const INFO_BODY_PROSE =
+  "px-5 py-4 text-sm leading-relaxed text-white/85 [&_a]:break-words [&_a]:text-amber-300 [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:text-amber-200 [&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-amber-300/40 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-white/75 [&_em]:text-amber-100 [&_figcaption]:mt-1 [&_figcaption]:text-center [&_figcaption]:text-xs [&_figcaption]:text-white/50 [&_figure]:my-3 [&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:text-lg [&_h3]:font-bold [&_h3]:text-white [&_h4]:mb-1.5 [&_h4]:mt-4 [&_h4]:font-bold [&_h4]:text-white [&_hr]:my-4 [&_hr]:border-white/10 [&_img]:my-3 [&_img]:w-full [&_img]:rounded-xl [&_img]:border [&_img]:border-white/10 [&_li]:marker:text-amber-300/70 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_p]:my-3 [&_strong]:font-semibold [&_strong]:text-white [&_ul]:my-3 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5";
+
+// Combined classes for the contentEditable surface (scroll box + prose) so
+// editing looks identical to viewing.
+const BODY_CLS = `${BODY_SCROLL} ${INFO_BODY_PROSE}`;
 
 const CHROME_BTN =
   "rounded-lg border px-2.5 py-1 text-xs font-semibold transition disabled:opacity-50";
@@ -76,7 +92,7 @@ function sanitizeHtml(dirty: string): string {
  * admin edit-mode click guard (which preventDefaults every <a> on non-/admin
  * routes) does NOT swallow the links inside the recreated content.
  */
-export default function InfoModal({ open, onClose, title, html, contentId }: InfoModalProps) {
+export default function InfoModal({ open, onClose, title, html, contentId, afterContent }: InfoModalProps) {
   const { isAdmin, editMode, getValue, saveBlock } = useEditContext();
 
   const htmlKey = contentId ? `info.${contentId}.html` : null;
@@ -240,11 +256,13 @@ export default function InfoModal({ open, onClose, title, html, contentId }: Inf
             className={`${BODY_CLS} outline-none ring-1 ring-inset ring-amber-300/40 focus:ring-amber-300/70`}
           />
         ) : (
-          <div
-            data-lenis-prevent
-            className={BODY_CLS}
-            dangerouslySetInnerHTML={{ __html: effectiveHtml }}
-          />
+          <div data-lenis-prevent className={BODY_SCROLL}>
+            <div
+              className={INFO_BODY_PROSE}
+              dangerouslySetInnerHTML={{ __html: effectiveHtml }}
+            />
+            {afterContent}
+          </div>
         )}
       </div>
     </div>,

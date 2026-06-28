@@ -7,6 +7,7 @@ import { cachedSrc } from "@/lib/img";
 import { applyRegionCurrency } from "@/lib/currency";
 import { useEditContext } from "@/lib/edit-context";
 import InfoModal from "./InfoModal";
+import CryptoInstructionsGate from "./CryptoInstructionsGate";
 import { useEntranceReady } from "@/lib/loading-screen-gate";
 import { getTelegraphContent, getStoreInfoByDomain, type TelegraphContent } from "@/data/telegraph-content";
 
@@ -363,6 +364,9 @@ export default function StoreCard({
             title={store.name}
             html={info.html}
             contentId={info.id}
+            afterContent={
+              info.id === "crypto" ? <CryptoInstructionsGate /> : undefined
+            }
           />
         )}
       </div>
