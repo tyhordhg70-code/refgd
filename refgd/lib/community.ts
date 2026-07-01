@@ -167,14 +167,22 @@ export async function addVouchMedia(
   bytes: Buffer,
   mime: string,
   sha256?: string | null,
-): Promise<string> {
+): Promise<string | null> {
   await initDb();
+  // Guard against re-ingesting the same photo (Telegram retries the webhook,
+  // and album parts can race) by content hash within a vouch. Returns null
+  // when the identical image is already attached.
   const { rows } = await getPool().query<{ id: string }>(
     `INSERT INTO vouch_media (vouch_id, bytes, mime, sha256)
-     VALUES ($1, $2, $3, $4) RETURNING id`,
+     SELECT $1, $2, $3, $4
+      WHERE $4::text IS NULL
+         OR NOT EXISTS (
+           SELECT 1 FROM vouch_media WHERE vouch_id = $1 AND sha256 = $4
+         )
+     RETURNING id`,
     [vouchId, bytes, mime, sha256 ?? null],
   );
-  return String(rows[0].id);
+  return rows[0] ? String(rows[0].id) : null;
 }
 
 export async function getVouchMedia(
@@ -208,6 +216,33 @@ export async function setModConfig(key: string, value: unknown): Promise<void> {
        SET value = EXCLUDED.value, updated_at = NOW()`,
     [key, JSON.stringify(value)],
   );
+}
+
+/** Backfill an album's caption if the first-arriving part had no text. */
+export async function updateVouchBodyIfEmpty(
+  vouchId: string,
+  body: string,
+): Promise<void> {
+  if (!body) return;
+  await initDb();
+  await getPool().query(
+    `UPDATE vouches SET body = $2 WHERE id = $1 AND (body IS NULL OR body = '')`,
+    [vouchId, body],
+  );
+}
+
+/**
+ * Active ingestion section — a single global toggle the admin flips from the
+ * bot (/testimonials, /buy4u, /announcements). Kept in mod_config so it
+ * survives restarts and is shared across Render instances.
+ */
+export async function getActiveSection(): Promise<VouchSection> {
+  const v = await getModConfig<{ section?: string }>("active_section", {});
+  return isVouchSection(v.section) ? v.section : "testimonials";
+}
+
+export async function setActiveSection(section: VouchSection): Promise<void> {
+  await setModConfig("active_section", { section });
 }
 
 // ── recent_actions: admin audit log (3-day retention swept elsewhere) ─
