@@ -9,6 +9,7 @@
  * swappable ingestion/launcher/notifier on top of these tables.
  */
 import { getPool, initDb } from "./db";
+import { isCommunityAdmin } from "./community-bot";
 
 export type VouchSection = "testimonials" | "buy4u" | "announcements";
 
@@ -307,4 +308,273 @@ export async function listRecentActions(limit = 200): Promise<RecentAction[]> {
     meta: r.meta ?? {},
     createdAt: r.created_at,
   }));
+}
+
+// ── Group chat: members, messages, reactions ─────────────────────────
+export interface ChatMemberInput {
+  tgId: string;
+  name: string;
+  photo: string | null;
+  isAdmin: boolean;
+  inviteSlug?: string | null;
+}
+
+/** Join / refresh a chat member (called when a signed-in member loads or posts). */
+export async function upsertChatMember(m: ChatMemberInput): Promise<void> {
+  await initDb();
+  await getPool().query(
+    `INSERT INTO chat_members (tg_id, first_name, photo_url, is_admin, invite_slug, last_seen)
+     VALUES ($1, $2, $3, $4, $5, NOW())
+     ON CONFLICT (tg_id) DO UPDATE
+       SET first_name  = EXCLUDED.first_name,
+           photo_url   = EXCLUDED.photo_url,
+           is_admin    = EXCLUDED.is_admin,
+           last_seen   = NOW(),
+           invite_slug = COALESCE(chat_members.invite_slug, EXCLUDED.invite_slug)`,
+    [m.tgId, m.name, m.photo, m.isAdmin, m.inviteSlug ?? null],
+  );
+}
+
+export async function countChatMembers(): Promise<number> {
+  await initDb();
+  const { rows } = await getPool().query<{ n: number }>(
+    `SELECT COUNT(*)::int AS n FROM chat_members WHERE is_banned = FALSE`,
+  );
+  return rows[0]?.n ?? 0;
+}
+
+export interface ChatMemberModState {
+  exists: boolean;
+  isBanned: boolean;
+  mutedUntil: string | null;
+}
+
+export async function getChatMemberModState(
+  tgId: string,
+): Promise<ChatMemberModState> {
+  await initDb();
+  const { rows } = await getPool().query<{
+    is_banned: boolean;
+    muted_until: string | null;
+  }>(`SELECT is_banned, muted_until FROM chat_members WHERE tg_id = $1`, [tgId]);
+  if (!rows[0]) return { exists: false, isBanned: false, mutedUntil: null };
+  return {
+    exists: true,
+    isBanned: rows[0].is_banned,
+    mutedUntil: rows[0].muted_until,
+  };
+}
+
+export interface ChatReaction {
+  emoji: string;
+  count: number;
+  mine: boolean;
+}
+
+export interface ChatMessage {
+  id: string;
+  tgId: string;
+  authorName: string;
+  authorPhoto: string | null;
+  body: string;
+  isAdmin: boolean;
+  pinned: boolean;
+  createdAt: string;
+  reactions: ChatReaction[];
+}
+
+interface ChatMsgRow {
+  id: string;
+  tg_id: string;
+  author_name: string;
+  body: string;
+  pinned: boolean;
+  created_at: string;
+  photo_url: string | null;
+}
+
+/** Attach aggregated reactions (with a per-viewer `mine` flag) to messages. */
+async function attachReactions(
+  rows: ChatMsgRow[],
+  viewerTid: string | null,
+): Promise<ChatMessage[]> {
+  const base: ChatMessage[] = rows.map((r) => ({
+    id: String(r.id),
+    tgId: String(r.tg_id),
+    authorName: r.author_name,
+    authorPhoto: r.photo_url,
+    body: r.body,
+    isAdmin: isCommunityAdmin(r.tg_id),
+    pinned: r.pinned,
+    createdAt: r.created_at,
+    reactions: [],
+  }));
+  if (base.length === 0) return base;
+  const ids = base.map((m) => m.id);
+  const { rows: rx } = await getPool().query<{
+    message_id: string;
+    emoji: string;
+    n: number;
+    mine: boolean;
+  }>(
+    `SELECT message_id, emoji, COUNT(*)::int AS n,
+            bool_or(tg_id::text = $2) AS mine
+       FROM message_reactions
+      WHERE message_id = ANY($1::bigint[])
+      GROUP BY message_id, emoji
+      ORDER BY emoji`,
+    [ids, viewerTid ?? ""],
+  );
+  const byId = new Map<string, ChatReaction[]>();
+  for (const r of rx) {
+    const arr = byId.get(String(r.message_id)) ?? [];
+    arr.push({ emoji: r.emoji, count: r.n, mine: Boolean(r.mine) });
+    byId.set(String(r.message_id), arr);
+  }
+  for (const m of base) m.reactions = byId.get(m.id) ?? [];
+  return base;
+}
+
+export interface ListChatOptions {
+  afterId?: string | null;
+  limit?: number;
+  viewerTid?: string | null;
+}
+
+/** Chat messages in chronological (ASC) order. With afterId → only newer. */
+export async function listChatMessages(
+  opts: ListChatOptions = {},
+): Promise<ChatMessage[]> {
+  await initDb();
+  const limit = Math.min(Math.max(opts.limit ?? 60, 1), 200);
+  const viewer = opts.viewerTid ?? null;
+  let rows: ChatMsgRow[];
+  if (opts.afterId && /^\d+$/.test(opts.afterId)) {
+    const res = await getPool().query<ChatMsgRow>(
+      `SELECT m.id, m.tg_id, m.author_name, m.body, m.pinned, m.created_at,
+              cm.photo_url
+         FROM chat_messages m
+         LEFT JOIN chat_members cm ON cm.tg_id = m.tg_id
+        WHERE m.deleted = FALSE
+          AND (m.expires_at IS NULL OR m.expires_at > NOW())
+          AND m.id > $1
+        ORDER BY m.id ASC
+        LIMIT $2`,
+      [opts.afterId, limit],
+    );
+    rows = res.rows;
+  } else {
+    const res = await getPool().query<ChatMsgRow>(
+      `SELECT m.id, m.tg_id, m.author_name, m.body, m.pinned, m.created_at,
+              cm.photo_url
+         FROM chat_messages m
+         LEFT JOIN chat_members cm ON cm.tg_id = m.tg_id
+        WHERE m.deleted = FALSE
+          AND (m.expires_at IS NULL OR m.expires_at > NOW())
+        ORDER BY m.id DESC
+        LIMIT $1`,
+      [limit],
+    );
+    rows = res.rows.reverse();
+  }
+  return attachReactions(rows, viewer);
+}
+
+export interface CreateChatMessageInput {
+  tgId: string;
+  authorName: string;
+  body: string;
+  expiresAt?: Date | string | null;
+}
+
+export async function createChatMessage(
+  input: CreateChatMessageInput,
+): Promise<ChatMessage | null> {
+  await initDb();
+  const { rows } = await getPool().query<ChatMsgRow>(
+    `INSERT INTO chat_messages (tg_id, author_name, body, expires_at)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id, tg_id, author_name, body, pinned, created_at,
+               (SELECT photo_url FROM chat_members WHERE tg_id = $1) AS photo_url`,
+    [input.tgId, input.authorName, input.body, input.expiresAt ?? null],
+  );
+  if (!rows[0]) return null;
+  const [msg] = await attachReactions(rows, input.tgId);
+  return msg ?? null;
+}
+
+export const CHAT_REACTION_EMOJI = [
+  "👍",
+  "❤️",
+  "🔥",
+  "😂",
+  "😮",
+  "🙏",
+  "💯",
+  "🎉",
+];
+
+/** Toggle a reaction; returns the updated reaction summary for the message. */
+export async function toggleReaction(
+  messageId: string,
+  tgId: string,
+  emoji: string,
+): Promise<ChatReaction[]> {
+  await initDb();
+  const ins = await getPool().query(
+    `INSERT INTO message_reactions (message_id, tg_id, emoji)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (message_id, tg_id, emoji) DO NOTHING`,
+    [messageId, tgId, emoji],
+  );
+  if (ins.rowCount === 0) {
+    await getPool().query(
+      `DELETE FROM message_reactions
+        WHERE message_id = $1 AND tg_id = $2 AND emoji = $3`,
+      [messageId, tgId, emoji],
+    );
+  }
+  const { rows } = await getPool().query<{
+    emoji: string;
+    n: number;
+    mine: boolean;
+  }>(
+    `SELECT emoji, COUNT(*)::int AS n, bool_or(tg_id::text = $2) AS mine
+       FROM message_reactions
+      WHERE message_id = $1
+      GROUP BY emoji
+      ORDER BY emoji`,
+    [messageId, tgId],
+  );
+  return rows.map((r) => ({ emoji: r.emoji, count: r.n, mine: Boolean(r.mine) }));
+}
+
+export async function chatMessageExists(id: string): Promise<boolean> {
+  await initDb();
+  const { rows } = await getPool().query<{ x: number }>(
+    `SELECT 1 AS x FROM chat_messages WHERE id = $1 AND deleted = FALSE`,
+    [id],
+  );
+  return rows.length > 0;
+}
+
+/**
+ * Seconds since this member's most recent message, or null if they have never
+ * posted. DB-backed so the throttle holds across Render instances (no shared
+ * in-process state). Used to rate-limit the open chat POST endpoint.
+ */
+export async function secondsSinceLastMessage(
+  tgId: string,
+): Promise<number | null> {
+  await initDb();
+  const { rows } = await getPool().query<{ secs: number | null }>(
+    `SELECT EXTRACT(EPOCH FROM (NOW() - created_at))::float8 AS secs
+       FROM chat_messages
+      WHERE tg_id = $1
+      ORDER BY id DESC
+      LIMIT 1`,
+    [tgId],
+  );
+  if (!rows[0] || rows[0].secs === null) return null;
+  return rows[0].secs;
 }

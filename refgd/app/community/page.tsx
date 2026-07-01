@@ -39,6 +39,14 @@ export default async function CommunityPage() {
       blurb: "Official updates from the RefundGod team.",
       vouches: announcements,
     },
+    {
+      key: "chat",
+      label: "Group Chat",
+      blurb:
+        "Talk to the community live. Sign in with Telegram to post — your name and photo only, never your @username.",
+      vouches: [],
+      kind: "chat",
+    },
   ];
 
   return (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import CommunityChat from "./CommunityChat";
 
 /**
  * Client-side community feed: a Telegram-style, tabbed message stream fed
@@ -24,6 +25,8 @@ export interface FeedSection {
   label: string;
   blurb: string;
   vouches: VouchView[];
+  /** "chat" renders the live group chat instead of a vouch feed. */
+  kind?: "vouches" | "chat";
 }
 
 const MONTHS = [
@@ -174,11 +177,13 @@ export default function CommunityFeed({ sections }: { sections: FeedSection[] })
                 }`}
               >
                 {s.label}
-                <span
-                  className={`ml-2 text-xs ${on ? "text-black/60" : "text-white/40"}`}
-                >
-                  {s.vouches.length}
-                </span>
+                {s.kind !== "chat" && (
+                  <span
+                    className={`ml-2 text-xs ${on ? "text-black/60" : "text-white/40"}`}
+                  >
+                    {s.vouches.length}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -186,7 +191,9 @@ export default function CommunityFeed({ sections }: { sections: FeedSection[] })
 
         <p className="mb-5 text-sm text-white/55">{current.blurb}</p>
 
-        {current.vouches.length === 0 ? (
+        {current.kind === "chat" ? (
+          <CommunityChat />
+        ) : current.vouches.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-16 text-center">
             <p className="text-white/60">Nothing here yet — check back soon.</p>
           </div>
