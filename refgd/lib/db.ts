@@ -145,6 +145,153 @@
 
         CREATE INDEX IF NOT EXISTS orders_token_idx ON orders (delivery_token);
         CREATE INDEX IF NOT EXISTS orders_created_idx ON orders (created_at DESC);
+
+        -- ── Community / vouch / group-chat feature ───────────────────────────
+        CREATE TABLE IF NOT EXISTS vouches (
+          id             BIGSERIAL PRIMARY KEY,
+          section        TEXT NOT NULL DEFAULT 'testimonials',
+          author_name    TEXT NOT NULL DEFAULT 'Anonymous',
+          body           TEXT NOT NULL DEFAULT '',
+          origin_chat_id BIGINT,
+          origin_msg_id  BIGINT,
+          media_group_id TEXT,
+          dedupe_hash    TEXT,
+          origin_date    TIMESTAMPTZ,
+          pinned         BOOLEAN NOT NULL DEFAULT FALSE,
+          created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS vouches_origin_idx
+          ON vouches (origin_chat_id, origin_msg_id)
+          WHERE origin_msg_id IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS vouches_dedupe_idx
+          ON vouches (dedupe_hash) WHERE dedupe_hash IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS vouches_section_idx
+          ON vouches (section, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS vouch_media (
+          id         BIGSERIAL PRIMARY KEY,
+          vouch_id   BIGINT NOT NULL,
+          bytes      BYTEA NOT NULL,
+          mime       TEXT NOT NULL DEFAULT 'image/jpeg',
+          sha256     TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS vouch_media_vouch_idx ON vouch_media (vouch_id);
+
+        CREATE TABLE IF NOT EXISTS chat_members (
+          tg_id       BIGINT PRIMARY KEY,
+          first_name  TEXT NOT NULL DEFAULT '',
+          last_name   TEXT,
+          photo_url   TEXT,
+          is_admin    BOOLEAN NOT NULL DEFAULT FALSE,
+          is_banned   BOOLEAN NOT NULL DEFAULT FALSE,
+          muted_until TIMESTAMPTZ,
+          warn_count  INTEGER NOT NULL DEFAULT 0,
+          invite_slug TEXT,
+          joined_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          last_seen   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS chat_media (
+          id         BIGSERIAL PRIMARY KEY,
+          bytes      BYTEA NOT NULL,
+          mime       TEXT NOT NULL DEFAULT 'image/jpeg',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS chat_messages (
+          id          BIGSERIAL PRIMARY KEY,
+          tg_id       BIGINT NOT NULL,
+          author_name TEXT NOT NULL DEFAULT '',
+          body        TEXT NOT NULL DEFAULT '',
+          media_id    BIGINT,
+          reply_to    BIGINT,
+          pinned      BOOLEAN NOT NULL DEFAULT FALSE,
+          deleted     BOOLEAN NOT NULL DEFAULT FALSE,
+          expires_at  TIMESTAMPTZ,
+          created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS chat_messages_live_idx
+          ON chat_messages (id DESC) WHERE deleted = FALSE;
+        CREATE INDEX IF NOT EXISTS chat_messages_expiry_idx
+          ON chat_messages (expires_at) WHERE expires_at IS NOT NULL;
+
+        CREATE TABLE IF NOT EXISTS message_reactions (
+          message_id BIGINT NOT NULL,
+          tg_id      BIGINT NOT NULL,
+          emoji      TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (message_id, tg_id, emoji)
+        );
+
+        CREATE TABLE IF NOT EXISTS mod_config (
+          key        TEXT PRIMARY KEY,
+          value      JSONB NOT NULL DEFAULT '{}',
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS mod_filters (
+          trigger    TEXT PRIMARY KEY,
+          response   TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS mod_blocklist (
+          pattern    TEXT PRIMARY KEY,
+          action     TEXT NOT NULL DEFAULT 'delete',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS mod_warns (
+          id         BIGSERIAL PRIMARY KEY,
+          tg_id      BIGINT NOT NULL,
+          by_tg_id   BIGINT,
+          reason     TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS mod_warns_tg_idx ON mod_warns (tg_id);
+
+        CREATE TABLE IF NOT EXISTS invite_links (
+          slug       TEXT PRIMARY KEY,
+          name       TEXT NOT NULL DEFAULT '',
+          clicks     INTEGER NOT NULL DEFAULT 0,
+          joins      INTEGER NOT NULL DEFAULT 0,
+          created_by BIGINT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS invite_events (
+          id         BIGSERIAL PRIMARY KEY,
+          slug       TEXT NOT NULL,
+          type       TEXT NOT NULL,
+          tg_id      BIGINT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS invite_events_slug_idx ON invite_events (slug);
+
+        CREATE TABLE IF NOT EXISTS notif_subs (
+          id         BIGSERIAL PRIMARY KEY,
+          tg_id      BIGINT,
+          endpoint   TEXT,
+          keys       JSONB,
+          categories JSONB NOT NULL DEFAULT '{}',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS notif_subs_endpoint_idx
+          ON notif_subs (endpoint) WHERE endpoint IS NOT NULL;
+
+        CREATE TABLE IF NOT EXISTS recent_actions (
+          id          BIGSERIAL PRIMARY KEY,
+          actor_tg_id BIGINT,
+          actor_name  TEXT,
+          action      TEXT NOT NULL,
+          target      TEXT,
+          meta        JSONB NOT NULL DEFAULT '{}',
+          created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS recent_actions_created_idx
+          ON recent_actions (created_at DESC);
       `)
       .then(async () => {
         // v6.13.60 — One-time migration: clear known-bad saved admin-drag
