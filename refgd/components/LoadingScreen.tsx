@@ -6,6 +6,7 @@ import { markLoadingActive, markLoadingComplete } from "@/lib/loading-screen-gat
 import {
   heavyAssetsForPath,
   downloadHeavyAssets,
+  splashDisabledForPath,
 } from "@/lib/asset-preloader";
 
 /**
@@ -67,7 +68,11 @@ const PREFETCH_ROUTES = [
 // otherwise entrance components on a soft-refreshed page would wait
 // for a `refgd:loading-complete` event that never comes (because
 // LoadingScreen never renders).
-if (typeof window !== "undefined" && (!alreadyLoadedThisSession() || forceSplashThisRoute())) {
+if (
+  typeof window !== "undefined" &&
+  !splashDisabledForPath(window.location.pathname) &&
+  (!alreadyLoadedThisSession() || forceSplashThisRoute())
+) {
   markLoadingActive();
 }
 
@@ -165,6 +170,15 @@ export default function LoadingScreen() {
   }, [router]);
 
   useEffect(() => {
+    // /community (and subpages) explicitly opt out of the splash entirely —
+    // no cinematic boot for the community hub. Open the entrance gate and
+    // drop the overlay immediately so the section is instantly usable.
+    if (splashDisabledForPath(window.location.pathname)) {
+      markLoadingComplete();
+      setVisible(false);
+      setRemoved(true);
+      return;
+    }
     // Already done this session → don't even spin up the trackers.
     // EXCEPTION: heavy-scene routes (home galaxy) always re-run so the
     // splash holds until the Spline scene has painted, never popping in late.

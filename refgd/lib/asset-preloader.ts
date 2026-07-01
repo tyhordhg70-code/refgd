@@ -154,6 +154,18 @@ export function pathHasScene(pathname: string): boolean {
 }
 
 /**
+ * Routes that OPT OUT of the boot splash entirely — no cinematic overlay, no
+ * body-scroll lock, even on a cold direct load. The community hub is an
+ * app-like, instantly-available section (owner: "no loading screen for this
+ * section"), so it must never sit behind the cosmic splash the way the
+ * marketing pages do.
+ */
+export function splashDisabledForPath(pathname: string): boolean {
+  const p = norm(pathname);
+  return p === "/community" || p.startsWith("/community/");
+}
+
+/**
  * Resolve once the page is foregrounded (or immediately if it already is).
  * Used to pause-and-resume heavy downloads around mobile tab suspensions:
  * while the tab is hidden the browser runs no timers and may have killed the
