@@ -190,10 +190,14 @@ export function verifyLoginWidget(
   });
 }
 
+/** Audience claim that isolates member tokens from the admin (`rg_admin`) JWT. */
+const MEMBER_AUD = "rg_member";
+
 /** Mint the `rg_member` session cookie for a verified member. */
 export async function createMemberSession(m: CommunityMember): Promise<void> {
   const token = await new SignJWT({ tid: m.tid, name: m.name, photo: m.photo ?? "" })
     .setProtectedHeader({ alg: "HS256" })
+    .setAudience(MEMBER_AUD)
     .setIssuedAt()
     .setExpirationTime("7d")
     .sign(jwtSecret());
@@ -217,7 +221,9 @@ export async function readMemberSession(): Promise<CommunityMember | null> {
   const c = store.get(COOKIE_NAME);
   if (!c) return null;
   try {
-    const { payload } = await jwtVerify(c.value, jwtSecret());
+    const { payload } = await jwtVerify(c.value, jwtSecret(), {
+      audience: MEMBER_AUD,
+    });
     const tid = String(payload.tid ?? "");
     if (!tid) return null;
     const photo = payload.photo ? String(payload.photo) : null;

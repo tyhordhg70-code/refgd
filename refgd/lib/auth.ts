@@ -90,7 +90,11 @@ export async function readSession(): Promise<{ username: string } | null> {
   if (!c) return null;
   try {
     const { payload } = await jwtVerify(c.value, jwtSecret());
-    return { username: String(payload.u) };
+    // Reject tokens that are not admin tokens (e.g. an rg_member token pasted
+    // into the rg_admin cookie). Admin tokens carry a non-empty string `u`;
+    // member tokens carry `tid`/`name` and no `u`, so this fails closed.
+    if (typeof payload.u !== "string" || payload.u.length === 0) return null;
+    return { username: payload.u };
   } catch {
     return null;
   }
