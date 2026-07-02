@@ -49,11 +49,11 @@ export const CHAT_NOTICE_SEED_TIME = "21:25";
 export const ANNOUNCEMENT_SEED_TIME = "21:24";
 
 /**
- * The photo attached to the original READ ME post. Only the 72px blurred
- * placeholder survived in the saved page (the full-size blob died with the
- * browser session), so it renders as Telegram's blurred media preview.
+ * The full-quality WELCOME banner illustration attached to the original
+ * READ ME post (supplied by the owner). Replaces the 72px blurred
+ * placeholder that was all the saved page preserved.
  */
-export const README_SEED_PHOTO = "/tg-assets/readme-photo-thumb.png";
+export const README_SEED_PHOTO = "/tg-assets/readme-welcome-photo.png";
 
 /** The ❤️ reaction on the original READ ME post. */
 export const README_SEED_REACTIONS = [
@@ -182,5 +182,80 @@ export const CHAT_NOTICE_SEED_BODY: ReactNode = (
     <br />
     <br />
     Clearing occurs once every three days.
+  </>
+);
+
+/**
+ * The email / paper-plane illustration attached to the Announcements post
+ * (supplied by the owner).
+ */
+export const ANNOUNCEMENT_SEED_PHOTO = "/tg-assets/announcement-bot-photo.png";
+
+/**
+ * The pinned Announcements post — the owner's "ask the bot" notice,
+ * transcribed from the saved screenshot: bold highlight line, custom 💬
+ * emoji and @refundgodbot mention links, blank-line layout preserved. (The
+ * red marker and blue mascot bullets have no recoverable custom-emoji doc
+ * ids in a screenshot, so they fall back to the Apple sprite.)
+ */
+export const ANNOUNCEMENT_SEED_BODY: ReactNode = (
+  <>
+    Dear members,
+    <br />
+    <br />
+    <Em ch="🖊️" /> Do you have a question, and do not want to wait for a
+    response?
+    <br />
+    <br />
+    <strong data-entity-type="MessageEntityBold">
+      Wait no longer, because now you can receive instant responses.
+    </strong>
+    <br />
+    <br />
+    <Ce id="5417915203100613993" alt="💬" /> Please from now on, ask all of your
+    questions to{" "}
+    <a
+      className="text-entity-link"
+      dir="auto"
+      data-entity-type="MessageEntityMention"
+      href="https://t.me/refundgodbot"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      @refundgodbot
+    </a>{" "}
+    and receive near instant detailed responses.
+    <br />
+    The bot is equipped to handle everything other than giving status updates on
+    live orders.
+    <br />
+    <br />
+    If for some reason the bot is unable to answer your question, please only
+    then reach out to us.
+    <br />
+    <br />
+    <Em ch="🐺" />{" "}
+    <a
+      className="text-entity-link"
+      dir="auto"
+      data-entity-type="MessageEntityMention"
+      href="https://t.me/refundgodbot"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <strong data-entity-type="MessageEntityBold">@refundgodbot</strong>
+    </a>
+    <br />
+    <Em ch="🐺" />{" "}
+    <a
+      className="text-entity-link"
+      dir="auto"
+      data-entity-type="MessageEntityMention"
+      href="https://t.me/refundgodbot"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <strong data-entity-type="MessageEntityBold">@refundgodbot</strong>
+    </a>
   </>
 );

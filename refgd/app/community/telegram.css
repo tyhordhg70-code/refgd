@@ -1334,11 +1334,3 @@ button.tg-reply-embed {
   height: 100%;
   vertical-align: top;
 }
-
-/* The original READ ME photo only survives as Telegram's 72px blurred
-   placeholder — smooth the upscale so it reads as the real client's
-   blur-up preview rather than raw pixelation. */
-.tg-html .tg-media img[src$="readme-photo-thumb.png"] {
-  filter: blur(10px);
-  transform: scale(1.08);
-}

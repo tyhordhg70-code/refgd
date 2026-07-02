@@ -16,8 +16,9 @@ import MiddleHeader from "./MiddleHeader";
 import MessageBubble from "./MessageBubble";
 import VouchHistory from "./VouchTopic";
 import {
+  ANNOUNCEMENT_SEED_BODY,
+  ANNOUNCEMENT_SEED_PHOTO,
   ANNOUNCEMENT_SEED_TIME,
-  CHAT_NOTICE_SEED_BODY,
   README_SEED_BODY,
   README_SEED_PHOTO,
   README_SEED_REACTIONS,
@@ -214,13 +215,13 @@ export default function TelegramApp({
     }
     const last = latest(byTopic[key] ?? []);
     if (!last) {
-      // Announcements' latest post in the real group is the seeded clearing
-      // notice, so mirror it in the row preview until the bot ingests more.
+      // Announcements' latest post in the real group is the seeded "ask the
+      // bot" notice, so mirror it in the row preview until the bot ingests more.
       if (key === "announcements") {
         return {
           sender: SEED_AUTHOR,
           summary:
-            "All group chat messages will be cleared, to assert attorney-client privilege 🧹",
+            "Dear members, Do you have a question, and do not want to wait for a response?",
           time: ANNOUNCEMENT_SEED_TIME,
         };
       }
@@ -437,7 +438,8 @@ export default function TelegramApp({
                       avatar={{ name: SEED_AUTHOR, photo: SEED_AVATAR, peer: 0 }}
                       hasAppendix
                       pinned
-                      body={CHAT_NOTICE_SEED_BODY}
+                      media={[ANNOUNCEMENT_SEED_PHOTO]}
+                      body={ANNOUNCEMENT_SEED_BODY}
                       time={ANNOUNCEMENT_SEED_TIME}
                     />
                   </div>
