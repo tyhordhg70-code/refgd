@@ -192,12 +192,26 @@ export function verifyMiniAppInitDataDetailed(initData: string): {
   const hash = entries.get("hash");
   if (!hash) return { member: null, reason: "no_hash", debug };
 
-  // `signature` (Ed25519 third-party validation) is not part of the HMAC hash.
-  const dcs = dataCheckString(entries, new Set(["hash", "signature"]));
+  // Telegram's HMAC data-check-string always excludes `hash`. Whether it ALSO
+  // excludes the newer `signature` field (Ed25519 third-party validation) varies
+  // by client: some launches sign a DCS that KEEPS `signature`, others exclude
+  // it. Accept EITHER construction — an HMAC match is unforgeable without the
+  // token secret, so trying both is secure, and the two are identical whenever
+  // no `signature` field is present (older clients). This is the fix for real
+  // launches that only validate as `miniapp_excl_hash_dec` (signature kept).
   const secret = createHmac("sha256", "WebAppData").update(token).digest();
-  const computed = createHmac("sha256", secret).update(dcs).digest("hex");
-  if (!timingEqualHex(computed, hash))
-    return { member: null, reason: "bad_signature", debug };
+  const dcsExclBoth = dataCheckString(entries, new Set(["hash", "signature"]));
+  const dcsExclHash = dataCheckString(entries, new Set(["hash"]));
+  const hashOk =
+    timingEqualHex(
+      createHmac("sha256", secret).update(dcsExclBoth).digest("hex"),
+      hash,
+    ) ||
+    timingEqualHex(
+      createHmac("sha256", secret).update(dcsExclHash).digest("hex"),
+      hash,
+    );
+  if (!hashOk) return { member: null, reason: "bad_signature", debug };
 
   if (!authDateFresh(authDateNum))
     return { member: null, reason: "stale_auth_date", debug };
