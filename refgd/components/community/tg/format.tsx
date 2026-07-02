@@ -9,6 +9,9 @@ import { useEffect, useState, type ReactNode } from "react";
  * be a pure function of the data (no locale/timezone reads) or hydration
  * breaks. <LocalTime> renders a deterministic UTC value first and swaps to
  * the visitor's local clock after mount.
+ *
+ * Emoji render as Telegram Web A's Apple emoji sprites (img-apple-64), the
+ * exact same <img class="emoji emoji-small"> markup the real client emits.
  */
 
 const MONTHS = [
@@ -86,9 +89,56 @@ export function LocalTime({ iso }: { iso: string }) {
   return <>{text}</>;
 }
 
+/* ── Apple emoji (Telegram Web A img-apple-64 sprites) ───────────── */
+
+const EMOJI_RE =
+  /\p{Regional_Indicator}\p{Regional_Indicator}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:[\u{1F3FB}-\u{1F3FF}]|\uFE0F)?(?:\u200D\p{Extended_Pictographic}(?:[\u{1F3FB}-\u{1F3FF}]|\uFE0F)?)*/gu;
+
+/** img-apple-64 sprite URL for an emoji sequence (FE0F stripped, hex-joined). */
+export function emojiSrc(seq: string): string {
+  const codes = Array.from(seq)
+    .map((c) => (c.codePointAt(0) ?? 0).toString(16))
+    .filter((h) => h !== "fe0f");
+  return `https://web.telegram.org/a/img-apple-64/${codes.join("-")}.png`;
+}
+
+/**
+ * Plain text → React nodes with Web A Apple-emoji imgs and <br> line breaks
+ * (the real client emits <br> between lines, not pre-wrap text).
+ */
+export function renderTextWithEmoji(text: string, keyPrefix = "t"): ReactNode[] {
+  const out: ReactNode[] = [];
+  const lines = text.split("\n");
+  lines.forEach((line, li) => {
+    if (li > 0) out.push(<br key={`${keyPrefix}-b${li}`} />);
+    let last = 0;
+    let k = 0;
+    EMOJI_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = EMOJI_RE.exec(line)) !== null) {
+      if (m.index > last) out.push(line.slice(last, m.index));
+      out.push(
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={`${keyPrefix}-e${li}-${k}`}
+          src={emojiSrc(m[0])}
+          className="emoji emoji-small"
+          alt={m[0]}
+          draggable={false}
+          loading="lazy"
+        />,
+      );
+      k += 1;
+      last = m.index + m[0].length;
+    }
+    if (last < line.length) out.push(line.slice(last));
+  });
+  return out;
+}
+
 const URL_RE = /(https?:\/\/[^\s]+|t\.me\/[^\s]+)/g;
 
-/** Body text with URLs linkified (React escapes everything else). */
+/** Body text with URLs linkified + Apple emoji (React escapes the rest). */
 export function renderBody(body: string): ReactNode {
   if (!body) return null;
   const out: ReactNode[] = [];
@@ -97,7 +147,9 @@ export function renderBody(body: string): ReactNode {
   URL_RE.lastIndex = 0;
   let k = 0;
   while ((match = URL_RE.exec(body)) !== null) {
-    if (match.index > last) out.push(body.slice(last, match.index));
+    if (match.index > last) {
+      out.push(...renderTextWithEmoji(body.slice(last, match.index), `s${k}`));
+    }
     const raw = match[0];
     const href = raw.startsWith("http") ? raw : `https://${raw}`;
     out.push(
@@ -108,6 +160,8 @@ export function renderBody(body: string): ReactNode {
     last = match.index + raw.length;
     k += 1;
   }
-  if (last < body.length) out.push(body.slice(last));
+  if (last < body.length) {
+    out.push(...renderTextWithEmoji(body.slice(last), `s${k}`));
+  }
   return out;
 }

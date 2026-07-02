@@ -1,6 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import NotificationSettings from "./NotificationSettings";
 import AdminPanel from "./AdminPanel";
 import MiddleHeader from "./tg/MiddleHeader";
@@ -12,9 +18,7 @@ import {
   IconClose,
   IconCollapse,
   IconExpand,
-  IconMore,
   IconReply,
-  IconSend,
   IconSettings,
 } from "./tg/TgIcons";
 import {
@@ -33,9 +37,12 @@ import {
 
 /**
  * The "Group Chat" forum topic, rendered as an exact Telegram Web A light
- * theme replica. All live behaviour (polling, sending, reactions, Mini App
- * sign-in, moderation) lives in useCommunityChat — this component is purely
- * presentational.
+ * theme replica: real MessageList DOM (Transition-wrapped custom-scroll list,
+ * sticky date pills, sender-group runs) and the real Composer DOM
+ * (.composer-wrapper with the #composerAppendix tail, #editable-message-text
+ * contenteditable input and the round send button). All live behaviour
+ * (polling, sending, reactions, Mini App sign-in, moderation) lives in
+ * useCommunityChat — this component is purely presentational.
  */
 
 interface DateGroup {
@@ -64,18 +71,40 @@ function buildGroups(messages: ChatMessage[]): DateGroup[] {
   return groups;
 }
 
+const LIST_STYLE = {
+  "--message-list-bottom-inset": "76px",
+  "--message-list-bottom-fade": "68px",
+} as CSSProperties;
+
+const MAX_LEN = 2000;
+
 export default function CommunityChat({ onBack }: { onBack?: () => void }) {
   const chat = useCommunityChat();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [fsDismissed, setFsDismissed] = useState(false);
+  const inputRef = useRef<HTMLDivElement>(null);
 
   const { state, me } = chat;
   const groups = useMemo(
     () => buildGroups(state?.messages ?? []),
     [state?.messages],
   );
+
+  // Keep the contenteditable input in sync with chat.text when it changes
+  // programmatically (e.g. cleared after send) without clobbering the caret
+  // while the user is typing.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const current = el.innerText.replace(/\n$/, "");
+    if (chat.text === "" && current !== "") {
+      el.innerText = "";
+    } else if (current !== chat.text && document.activeElement !== el) {
+      el.innerText = chat.text;
+    }
+  }, [chat.text]);
 
   const subtitle =
     state === null
@@ -86,15 +115,34 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
 
   return (
     <>
-      <MiddleHeader title="Group Chat" subtitle={subtitle} onBack={onBack}>
+      <MiddleHeader
+        title="Group Chat"
+        subtitle={subtitle}
+        icon={
+          <i
+            className="icon icon-hashtag I0-98vJl P6JY5GgC general-forum-icon"
+            aria-hidden
+          />
+        }
+        onBack={onBack}
+      >
         <button
           type="button"
-          className="tg-icon-btn"
-          onClick={() => setMenuOpen((v) => !v)}
-          aria-label="More actions"
-          aria-expanded={menuOpen}
+          className="Button smaller translucent round"
+          aria-label="Search this chat"
+          title="Search this chat"
         >
-          <IconMore />
+          <i className="icon icon-search" aria-hidden />
+        </button>
+        <button
+          type="button"
+          className="Button smaller translucent round"
+          aria-label="More actions"
+          title="More actions"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          <i className="icon icon-more" aria-hidden />
         </button>
       </MiddleHeader>
 
@@ -198,124 +246,154 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
         </div>
       )}
 
-      <div className="tg-messages">
-        <div
-          ref={chat.scrollRef}
-          onScroll={chat.onScroll}
-          className="tg-messages-scroll tg-scroll"
-        >
-          <div className="tg-messages-inner">
-            {state === null ? (
-              <div className="tg-loading">Loading chat…</div>
-            ) : (
-              <>
-                {state.welcome && (
-                  <div className="tg-service-card">
-                    {renderBody(state.welcome)}
-                  </div>
-                )}
-                {state.messages.length === 0 && (
-                  <div className="tg-action">No messages yet — say hello!</div>
-                )}
-                {groups.map((g) => (
-                  <div key={g.key} className="tg-date-group">
-                    <div className="tg-date is-sticky">{g.label}</div>
-                    {g.runs.map((run) =>
-                      run.map((m, i) => {
-                        const own = Boolean(me && m.tgId === me.tid);
-                        const first = i === 0;
-                        const last = i === run.length - 1;
-                        const peer = peerIdx(m.authorName);
-                        return (
-                          <MessageBubble
-                            key={m.id}
-                            own={own}
-                            showAvatarGutter
-                            sender={
-                              first
-                                ? {
-                                    name: m.authorName,
-                                    peer,
-                                    admin: m.isAdmin,
-                                  }
-                                : null
-                            }
-                            avatar={
-                              last
-                                ? {
-                                    name: m.authorName,
-                                    photo: m.authorPhoto,
-                                    peer,
-                                  }
-                                : null
-                            }
-                            hasAppendix={last}
-                            pinned={m.pinned}
-                            reply={m.reply}
-                            body={m.body ? renderBody(m.body) : undefined}
-                            time={<LocalTime iso={m.createdAt} />}
-                            ticks={own}
-                            reactions={m.reactions}
-                            onReact={(emoji) => void chat.react(m.id, emoji)}
-                            actionsOpen={chat.reactOpen === m.id}
-                            actions={
-                              me ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      chat.setReplyTo({
-                                        id: m.id,
-                                        authorName: m.authorName,
-                                        body: m.body,
-                                      })
-                                    }
-                                    aria-label="Reply"
-                                  >
-                                    <IconReply />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      chat.setReactOpen(
-                                        chat.reactOpen === m.id ? null : m.id,
-                                      )
-                                    }
-                                    aria-label="Add reaction"
-                                  >
-                                    😊
-                                  </button>
-                                </>
-                              ) : undefined
-                            }
-                            picker={
-                              chat.reactOpen === m.id ? (
-                                <div className="tg-reaction-picker">
-                                  {REACTIONS.map((e) => (
-                                    <button
-                                      key={e}
-                                      type="button"
-                                      onClick={() => void chat.react(m.id, e)}
-                                    >
-                                      {e}
-                                    </button>
-                                  ))}
-                                </div>
-                              ) : undefined
-                            }
-                          />
-                        );
-                      }),
+      <div className="Transition">
+        <div className="Transition_slide Transition_slide-active">
+          <div
+            ref={chat.scrollRef}
+            onScroll={chat.onScroll}
+            className="Transition MessageList custom-scroll with-default-bg"
+            style={LIST_STYLE}
+          >
+            <div className="Transition_slide Transition_slide-active">
+              <div className="messages-container" style={{ paddingBottom: 76 }}>
+                <div className="backwards-trigger" />
+                {state === null ? (
+                  <div className="tg-loading">Loading chat…</div>
+                ) : (
+                  <>
+                    {state.welcome && (
+                      <div className="tg-service-card">
+                        {renderBody(state.welcome)}
+                      </div>
                     )}
-                  </div>
-                ))}
-              </>
-            )}
+                    {state.messages.length === 0 && (
+                      <div className="tg-action">
+                        No messages yet — say hello!
+                      </div>
+                    )}
+                    {groups.map((g, gi) => (
+                      <div
+                        key={g.key}
+                        className={`message-date-group${
+                          gi === 0 ? " first-message-date-group" : ""
+                        }`}
+                      >
+                        <div className="sticky-date interactive">
+                          <span dir="auto">{g.label}</span>
+                        </div>
+                        {g.runs.map((run) => (
+                          <div
+                            key={run[0].id}
+                            className="sender-group-container sKXqbu2I"
+                          >
+                            {run.map((m, i) => {
+                              const own = Boolean(me && m.tgId === me.tid);
+                              const first = i === 0;
+                              const last = i === run.length - 1;
+                              const peer = peerIdx(m.authorName);
+                              return (
+                                <MessageBubble
+                                  key={m.id}
+                                  own={own}
+                                  first={first}
+                                  last={last}
+                                  showAvatarGutter
+                                  sender={
+                                    first
+                                      ? {
+                                          name: m.authorName,
+                                          peer,
+                                          admin: m.isAdmin,
+                                        }
+                                      : null
+                                  }
+                                  avatar={
+                                    last
+                                      ? {
+                                          name: m.authorName,
+                                          photo: m.authorPhoto,
+                                          peer,
+                                        }
+                                      : null
+                                  }
+                                  hasAppendix={last}
+                                  pinned={m.pinned}
+                                  reply={m.reply}
+                                  body={
+                                    m.body ? renderBody(m.body) : undefined
+                                  }
+                                  time={<LocalTime iso={m.createdAt} />}
+                                  ticks={own}
+                                  reactions={m.reactions}
+                                  onReact={(emoji) =>
+                                    void chat.react(m.id, emoji)
+                                  }
+                                  actionsOpen={chat.reactOpen === m.id}
+                                  actions={
+                                    me ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            chat.setReplyTo({
+                                              id: m.id,
+                                              authorName: m.authorName,
+                                              body: m.body,
+                                            })
+                                          }
+                                          aria-label="Reply"
+                                        >
+                                          <IconReply />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            chat.setReactOpen(
+                                              chat.reactOpen === m.id
+                                                ? null
+                                                : m.id,
+                                            )
+                                          }
+                                          aria-label="Add reaction"
+                                        >
+                                          😊
+                                        </button>
+                                      </>
+                                    ) : undefined
+                                  }
+                                  picker={
+                                    chat.reactOpen === m.id ? (
+                                      <div className="tg-reaction-picker">
+                                        {REACTIONS.map((e) => (
+                                          <button
+                                            key={e}
+                                            type="button"
+                                            onClick={() =>
+                                              void chat.react(m.id, e)
+                                            }
+                                          >
+                                            {e}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    ) : undefined
+                                  }
+                                />
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="tg-composer-area">
+      <div className="middle-column-footer">
         {chat.error && (
           <div className="tg-composer-alert is-error">
             <span>{chat.error}</span>
@@ -342,9 +420,9 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
         )}
 
         {state !== null && me && (
-          <div className="tg-composer">
-            <div className="tg-input-wrap">
-              <Appendix own={false} />
+          <div className="Composer shown mounted">
+            <div className="composer-wrapper">
+              <Appendix own={false} composer />
               {chat.replyTo && (
                 <div className="tg-reply-bar">
                   <span className="tg-reply-embed">
@@ -384,32 +462,81 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
                   </select>
                 </div>
               )}
-              <div className="tg-input-row">
-                <textarea
-                  className="tg-input"
-                  value={chat.text}
-                  onChange={(e) => chat.setText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      void chat.send();
-                    }
-                  }}
-                  rows={1}
-                  maxLength={2000}
-                  placeholder="Message"
-                  aria-label={`Message as ${me.name}`}
-                />
+              <div className="message-input-wrapper">
+                <div id="message-input-text">
+                  <div className="custom-scroll input-scroller">
+                    <div className="input-scroller-content">
+                      <div
+                        ref={inputRef}
+                        id="editable-message-text"
+                        className="form-control allow-selection"
+                        contentEditable
+                        suppressContentEditableWarning
+                        role="textbox"
+                        dir="auto"
+                        tabIndex={0}
+                        aria-label={`Message as ${me.name}`}
+                        onInput={(e) => {
+                          let v = e.currentTarget.innerText.replace(
+                            /\u00A0/g,
+                            " ",
+                          );
+                          if (v === "\n") v = "";
+                          if (v.length > MAX_LEN) {
+                            v = v.slice(0, MAX_LEN);
+                            e.currentTarget.innerText = v;
+                            const sel = window.getSelection();
+                            sel?.selectAllChildren(e.currentTarget);
+                            sel?.collapseToEnd();
+                          }
+                          chat.setText(v);
+                        }}
+                        onKeyDown={(e) => {
+                          if (
+                            e.key === "Enter" &&
+                            !e.shiftKey &&
+                            !e.nativeEvent.isComposing
+                          ) {
+                            e.preventDefault();
+                            void chat.send();
+                          }
+                        }}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const text = e.clipboardData.getData("text/plain");
+                          document.execCommand("insertText", false, text);
+                        }}
+                      />
+                      {!chat.text && (
+                        <span className="placeholder-text" dir="auto">
+                          Message
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="AttachMenu">
+                  <button
+                    id="attach-menu-button"
+                    type="button"
+                    className="Button AttachMenu--button composer-action-button default translucent round"
+                    aria-label="Add an attachment"
+                    title="Add an attachment"
+                  >
+                    <i className="icon icon-attach" aria-hidden />
+                  </button>
+                </div>
               </div>
             </div>
             <button
               type="button"
-              className="tg-send"
+              className="Button send main-button default secondary round click-allowed"
+              aria-label="Send message"
+              title="Send message"
               onClick={() => void chat.send()}
               disabled={chat.sending || !chat.text.trim()}
-              aria-label="Send message"
             >
-              <IconSend />
+              <i className="icon icon-send" aria-hidden />
             </button>
           </div>
         )}

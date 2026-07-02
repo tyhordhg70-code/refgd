@@ -1,14 +1,17 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Appendix from "./Appendix";
-import { IconChecks } from "./TgIcons";
 import { initials } from "./format";
 
 /**
- * A single Telegram Web A message row: optional avatar gutter (incoming,
- * last-in-group), the bubble (sender name, reply embed, media, text, floated
- * time meta, reactions) and the exact appendix tail on group-closing bubbles.
+ * A single Telegram Web A message row emitting the exact saved DOM:
+ * .Message.message-list-item with grouping classes, the absolute-positioned
+ * .Avatar in the gutter (incoming, last-in-group), .message-content-wrapper >
+ * .message-content with .content-inner (title / reply / media / .text-content
+ * with the floated .MessageMeta) and the verbatim .svg-appendix tail on
+ * group-closing bubbles. Reactions, hover actions and the picker keep the
+ * replica's tg-* chrome inside the real structure.
  */
 
 export interface BubbleReaction {
@@ -23,8 +26,12 @@ export interface BubbleSender {
   admin?: boolean;
 }
 
+const AVATAR_SIZE = { "--_size": "2.125rem" } as CSSProperties;
+
 export default function MessageBubble({
   own,
+  first,
+  last,
   sender,
   avatar,
   showAvatarGutter,
@@ -42,6 +49,10 @@ export default function MessageBubble({
   actionsOpen,
 }: {
   own: boolean;
+  /** First message of its author run (adds first-in-group). */
+  first?: boolean;
+  /** Last message of its author run (adds last-in-group). */
+  last?: boolean;
   /** Shown inside the bubble on the first message of an incoming group. */
   sender?: BubbleSender | null;
   /** Shown in the gutter on the last message of an incoming group. */
@@ -68,107 +79,159 @@ export default function MessageBubble({
   const hasReactions = Boolean(reactions && reactions.length > 0);
   const mediaFlush = mediaList.length > 0 && !sender && !reply;
   const mediaOnly = mediaList.length > 0 && !hasBody && !hasReactions;
+  const isFirst = first ?? Boolean(sender) ?? true;
+  const isLast = last ?? hasAppendix;
+  const showAvatar = !own && Boolean(showAvatarGutter) && Boolean(avatar);
 
-  const meta = time !== undefined && (
-    <span className="tg-meta">
-      {pinned && (
-        <span className="tg-pin-flag" aria-label="Pinned">
-          📌
-        </span>
-      )}
-      {time}
-      {ticks && (
-        <span className="tg-ticks" aria-label="Delivered">
-          <IconChecks />
-        </span>
-      )}
-    </span>
-  );
+  const rootCls = [
+    "Message",
+    "message-list-item",
+    isFirst ? "first-in-group" : "",
+    "allow-selection",
+    isLast ? "last-in-group" : "",
+    own ? "own" : "",
+    showAvatar ? "has-avatar" : "",
+    "shown",
+    "open",
+    actionsOpen ? "is-actions-open" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const contentCls = [
+    "message-content",
+    "peer-color-count-2",
+    hasBody || hasReactions ? "text" : "",
+    "has-shadow",
+    "has-solid-background",
+    hasAppendix ? "has-appendix" : "",
+    hasBody ? "has-footer" : "",
+    mediaOnly ? "is-media-only" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const meta =
+    time !== undefined ? (
+      <span className="MessageMeta" dir="ltr">
+        {pinned && (
+          <i
+            className="icon icon-pinned-message message-pinned"
+            aria-label="Pinned"
+          />
+        )}
+        <span className="message-time">{time}</span>
+        {own && ticks && (
+          <div className="MessageOutgoingStatus">
+            <div className="Transition">
+              <div className="Transition_slide Transition_slide-active">
+                <i className="icon icon-message-succeeded" aria-hidden />
+              </div>
+            </div>
+          </div>
+        )}
+      </span>
+    ) : null;
 
   return (
-    <div
-      className={`tg-msg${own ? " own" : ""}${
-        actionsOpen ? " is-actions-open" : ""
-      }`}
-    >
-      {!own && showAvatarGutter && (
+    <div className={rootCls}>
+      {showAvatar && avatar && (
         <div
-          className={
-            avatar
-              ? `tg-msg-avatar tg-bg-peer-${avatar.peer}`
-              : "tg-msg-avatar is-spacer"
-          }
+          className={`Avatar size-small no-photo tg-bg-peer-${avatar.peer}`}
+          style={AVATAR_SIZE}
           aria-hidden
         >
-          {avatar &&
-            (avatar.photo ? (
+          <div className="inner">
+            {avatar.photo ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatar.photo} alt="" loading="lazy" />
+              <img
+                src={avatar.photo}
+                className="avatar-media"
+                alt=""
+                loading="lazy"
+              />
             ) : (
-              initials(avatar.name)
-            ))}
+              <span className="letters">{initials(avatar.name)}</span>
+            )}
+          </div>
         </div>
       )}
 
-      <div
-        className={`tg-bubble${hasAppendix ? " has-appendix" : ""}${
-          mediaOnly ? " is-media-only" : ""
-        }`}
-      >
-        {hasAppendix && <Appendix own={own} />}
+      <div className="message-content-wrapper can-select-text">
+        <div className={contentCls} dir="auto">
+          <div className="content-inner" dir="auto">
+            {sender && !own && (
+              <div className="message-title" dir="ltr">
+                <span className="message-title-name-container">
+                  <span
+                    className={`message-title-name interactive tg-peer-${sender.peer}`}
+                  >
+                    {sender.name}
+                  </span>
+                  {sender.admin && (
+                    <span className="admin-title" dir="auto">
+                      admin
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
 
-        {sender && !own && (
-          <span className={`tg-sender tg-peer-${sender.peer}`}>
-            {sender.name}
-            {sender.admin && <span className="tg-admin-tag">admin</span>}
-          </span>
-        )}
+            {reply && (
+              <span className="tg-reply-embed">
+                <span className="tg-reply-sender">
+                  {reply.authorName || "message"}
+                </span>
+                <span className="tg-reply-text">{reply.body || "message"}</span>
+              </span>
+            )}
 
-        {reply && (
-          <span className="tg-reply-embed">
-            <span className="tg-reply-sender">
-              {reply.authorName || "message"}
-            </span>
-            <span className="tg-reply-text">{reply.body || "message"}</span>
-          </span>
-        )}
+            {mediaList.length > 0 && (
+              <div className={`tg-media${mediaFlush ? "" : " is-inset"}`}>
+                {mediaList.map((src) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={src} src={src} alt="" loading="lazy" />
+                ))}
+              </div>
+            )}
 
-        {mediaList.length > 0 && (
-          <div className={`tg-media${mediaFlush ? "" : " is-inset"}`}>
-            {mediaList.map((src) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={src} src={src} alt="" loading="lazy" />
-            ))}
-          </div>
-        )}
-
-        {hasBody && (
-          <div className="tg-text">
-            {body}
-            {!hasReactions && meta}
-          </div>
-        )}
-
-        {!hasBody && !hasReactions && meta && (
-          <div className="tg-meta-row">{meta}</div>
-        )}
-
-        {hasReactions && (
-          <div className="tg-reactions">
-            {(reactions ?? []).map((r) => (
-              <button
-                key={r.emoji}
-                type="button"
-                className={`tg-reaction${r.mine ? " is-chosen" : ""}`}
-                onClick={onReact ? () => onReact(r.emoji) : undefined}
+            {hasBody && (
+              <div
+                className={`text-content clearfix with-meta${
+                  own ? " with-outgoing-icon" : ""
+                }`}
+                dir="auto"
               >
-                <span>{r.emoji}</span>
-                <span>{r.count}</span>
-              </button>
-            ))}
-            {meta}
+                {body}
+                {!hasReactions && meta}
+              </div>
+            )}
+
+            {!hasBody && !hasReactions && meta && (
+              <div className="text-content clearfix with-meta" dir="auto">
+                {meta}
+              </div>
+            )}
+
+            {hasReactions && (
+              <div className="tg-reactions">
+                {(reactions ?? []).map((r) => (
+                  <button
+                    key={r.emoji}
+                    type="button"
+                    className={`tg-reaction${r.mine ? " is-chosen" : ""}`}
+                    onClick={onReact ? () => onReact(r.emoji) : undefined}
+                  >
+                    <span>{r.emoji}</span>
+                    <span>{r.count}</span>
+                  </button>
+                ))}
+                {meta}
+              </div>
+            )}
           </div>
-        )}
+          {hasAppendix && <Appendix own={own} />}
+        </div>
       </div>
 
       {actions && <div className="tg-msg-actions">{actions}</div>}

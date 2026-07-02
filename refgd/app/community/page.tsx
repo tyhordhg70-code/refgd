@@ -1,3 +1,4 @@
+import "./tg-webapp.css";
 import "./telegram.css";
 import {
   countChatMembers,

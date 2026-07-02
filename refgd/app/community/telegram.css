@@ -1,73 +1,24 @@
 /*
- * Telegram Web A replica — LIGHT theme, scoped under .tg-app.
+ * Telegram Web A replica harness — LIGHT theme, scoped under .tg-app.
  *
- * Every value here is lifted from the owner's saved web.telegram.org/a
- * exports ("law" forum group, theme-light): CSS custom properties, the
- * #EEFFDE own-bubble fill, the 9x20 appendix tail path, #99BA92 default
- * chat background, Roboto stack, metrics (15px message text, 18px meta).
- *
- * .tg-app is position:fixed inset:0 — a full-viewport standalone app.
- * This is deliberate: globals.css paints html/body in the site's dark
- * cosmic theme with its own scrollbars/overscroll; fixing the app over
- * the viewport with its own background and scoped scrollbars means none
- * of that bleeds through and no page-level scrollbar ever shows.
+ * The heavy lifting is done by tg-webapp.css (imported before this file in
+ * page.tsx): the owner's saved web.telegram.org/a stylesheets, transformed so
+ * `:root`→`.tg-html`, `html`→`.tg-html`, `body`→`.tg-body`, with all asset
+ * urls pointing at /tg-assets/. Components emit the REAL Web A DOM/classes
+ * (#Main, #LeftColumn, .MiddleHeader, .Message, .Composer …), so this file
+ * only provides:
+ *   1. the fixed full-viewport shell (.tg-app) + the .tg-html/.tg-body
+ *      stand-ins carrying the saved runtime style attributes (theme vars);
+ *   2. small glue rules for pieces the saved pages don't cover (avatar
+ *      photos, custom-emoji topic icons);
+ *   3. the replica-only chrome kept from the previous build: header menu,
+ *      reply embeds, media grids, reaction pills/picker, hover actions,
+ *      composer strips, sign-in notice, modals/admin panel, banners,
+ *      loading states — reparented onto the real .Message/.Composer DOM.
  */
 
+/* ── 1. Full-viewport standalone app shell ───────────────────────── */
 .tg-app {
-  /* ── palette (from exported theme vars, light) ─────────────────── */
-  --color-primary: rgb(20% 56.471% 92.549%);
-  --color-primary-opacity: rgb(31.373% 63.529% 91.373% / 0.11765);
-  --color-primary-opacity-hover: rgb(31.373% 63.529% 91.373% / 0.25098);
-  --color-primary-shade: rgb(29.02% 58.431% 83.922%);
-  --color-background: rgb(100% 100% 100%);
-  --color-background-secondary: rgb(95.686% 95.686% 96.078%);
-  --color-background-secondary-accent: rgb(89.412% 89.412% 89.804%);
-  --color-background-own: rgb(93.333% 100% 87.059%);
-  --color-chat-hover: rgb(95.686% 95.686% 96.078%);
-  --color-chat-active: rgb(20% 56.471% 92.549%);
-  --color-item-hover: rgb(95.686% 95.686% 96.078%);
-  --color-text: rgb(0% 0% 0%);
-  --color-text-secondary: rgb(43.922% 45.882% 47.451%);
-  --color-icon-secondary: rgb(43.922% 45.882% 47.451%);
-  --color-borders: rgb(85.49% 86.275% 87.843%);
-  --color-dividers: rgb(78.431% 77.647% 80%);
-  --color-links: rgb(20% 56.471% 92.549%);
-  --color-gray: rgb(76.863% 78.824% 80%);
-  --color-default-shadow: rgb(44.706% 44.706% 44.706% / 0.25098);
-  --color-light-shadow: rgb(44.706% 44.706% 44.706% / 0.16863);
-  --color-accent-own: rgb(27.059% 68.627% 32.941%);
-  --color-message-meta-own: rgb(30.98% 68.235% 30.588%);
-  --color-composer-button: rgb(43.922% 45.882% 47.451% / 0.8);
-  --color-message-reaction: rgb(92.157% 95.294% 99.216%);
-  --color-message-reaction-hover: rgb(77.255% 87.059% 97.647%);
-  --color-message-reaction-own: rgb(77.647% 91.765% 69.804%);
-  --color-message-reaction-hover-own: rgb(70.98% 87.843% 64.314%);
-  --color-reply-hover: rgb(95.686% 95.686% 95.686%);
-  --color-reply-own-hover: rgb(85.098% 96.078% 80.784%);
-  --color-chat-username: rgb(23.529% 49.412% 69.02%);
-  --color-hover-overlay: rgb(0% 0% 0% / 0.02353);
-  --color-topic-blue: rgb(18.431% 46.667% 44.706%);
-  --color-topic-yellow: rgb(49.804% 41.176% 23.137%);
-  --color-topic-violet: rgb(54.51% 35.294% 58.824%);
-  --color-topic-green: rgb(26.667% 46.667% 29.02%);
-  --color-topic-rose: rgb(60.784% 34.118% 41.961%);
-  --color-topic-grey: rgb(42.353% 42.353% 42.353%);
-  --theme-background-color: #99ba92;
-  /* peer/sender name palette (Telegram accent set) */
-  --peer-red: #cc5049;
-  --peer-orange: #d67722;
-  --peer-violet: #955cdb;
-  --peer-green: #40a920;
-  --peer-cyan: #309eba;
-  --peer-blue: #368ad1;
-  --peer-pink: #c7508b;
-  /* metrics (from export) */
-  --message-text-size: 15px;
-  --composer-text-size: 15px;
-  --message-meta-height: 18px;
-  --header-height: 3.5rem;
-
-  /* ── full-viewport standalone app ──────────────────────────────── */
   position: fixed;
   inset: 0;
   z-index: 40;
@@ -78,16 +29,9 @@
      `contain: layout` on it (or an ancestor) would re-scope this fixed
      element's inset:0 to a zero-height box → black screen on ≤768px. */
   contain: none;
-  background: var(--color-background);
-  color: var(--color-text);
+  background: #fff;
+  color: #000;
   color-scheme: light;
-  font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
-    sans-serif;
-  font-size: var(--message-text-size);
-  line-height: 1.3125;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
   cursor: auto;
 }
 .tg-app *,
@@ -95,26 +39,156 @@
 .tg-app *::after {
   box-sizing: border-box;
 }
-.tg-app button {
-  font: inherit;
-  border: 0;
-  background: none;
-  padding: 0;
-  color: inherit;
-  cursor: pointer;
+
+/* .tg-html / .tg-body — stand-ins for Web A's <html>/<body>. The saved
+   runtime style attribute from the owner's export (theme vars, sizes) is
+   injected verbatim below; --vh falls back to 1vh until the JS setter runs. */
+.tg-html {
+  display: block;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+  font-size: 16px;
+  --vh: 1vh;
+  --scrollbar-width: 10px;
+  --composer-text-size: 15px;
+  --message-meta-height: 18px;
+  --message-text-size: 15px;
+  --color-primary: rgb(20% 56.471% 92.549%);
+  --color-primary-opacity: rgb(31.373% 63.529% 91.373% / 0.11765);
+  --color-primary-opacity-hover: rgb(31.373% 63.529% 91.373% / 0.25098);
+  --color-primary-tint: rgb(20% 56.471% 92.549% / 0.10196);
+  --color-primary-shade: rgb(29.02% 58.431% 83.922%);
+  --color-primary-shade-rgb: 74,149,214;
+  --color-background: rgb(100% 100% 100%);
+  --color-background-compact-menu: rgb(100% 100% 100% / 0.73333);
+  --color-web-app-browser: rgb(100% 100% 100% / 0.73333);
+  --color-background-compact-menu-reactions: rgb(100% 100% 100% / 0.92157);
+  --color-background-compact-menu-hover: rgb(0% 0% 0% / 0.06667);
+  --color-background-secondary: rgb(95.686% 95.686% 96.078%);
+  --color-background-secondary-accent: rgb(89.412% 89.412% 89.804%);
+  --color-background-sidebar: rgb(89.412% 89.412% 89.804%);
+  --color-background-own: rgb(93.333% 100% 87.059%);
+  --color-background-own-apple: rgb(86.275% 97.255% 77.255%);
+  --color-background-selected: rgb(95.686% 95.686% 96.078%);
+  --color-background-own-selected: rgb(81.569% 100% 67.451%);
+  --color-chat-hover: rgb(95.686% 95.686% 96.078%);
+  --color-chat-active: rgb(20% 56.471% 92.549%);
+  --color-chat-active-greyed: rgb(37.647% 65.49% 94.118%);
+  --color-item-hover: rgb(95.686% 95.686% 96.078%);
+  --color-item-active: rgb(92.941% 92.941% 92.941%);
+  --color-text: rgb(0% 0% 0%);
+  --color-text-rgb: 0,0,0;
+  --color-text-secondary: rgb(43.922% 45.882% 47.451%);
+  --color-text-secondary-rgb: 112,117,121;
+  --color-icon-secondary: rgb(43.922% 45.882% 47.451%);
+  --color-text-secondary-apple: rgb(55.686% 55.686% 57.255%);
+  --color-borders: rgb(85.49% 86.275% 87.843%);
+  --color-borders-input: rgb(85.49% 86.275% 87.843%);
+  --color-dividers: rgb(78.431% 77.647% 80%);
+  --color-dividers-android: rgb(90.588% 90.588% 90.588%);
+  --color-links: rgb(20% 56.471% 92.549%);
+  --color-gray: rgb(76.863% 78.824% 80%);
+  --color-list-icon: rgb(67.059% 68.627% 69.412%);
+  --color-default-shadow: rgb(44.706% 44.706% 44.706% / 0.25098);
+  --color-light-shadow: rgb(44.706% 44.706% 44.706% / 0.16863);
+  --color-active: rgb(0% 78.039% 24.314%);
+  --color-active-darker: rgb(0% 65.49% 20.392%);
+  --color-green: rgb(0% 78.039% 24.314%);
+  --color-green-darker: rgb(0% 65.49% 20.392%);
+  --color-success: rgb(0% 78.039% 24.314%);
+  --color-text-meta-colored: rgb(30.196% 80.392% 36.863%);
+  --color-reply-hover: rgb(95.686% 95.686% 95.686%);
+  --color-reply-active: rgb(90.98% 91.373% 91.373%);
+  --color-reply-own-hover: rgb(85.098% 96.078% 80.784%);
+  --color-reply-own-hover-apple: rgb(79.608% 93.725% 71.765%);
+  --color-reply-own-active: rgb(77.255% 92.549% 74.51%);
+  --color-reply-own-active-apple: rgb(72.941% 90.196% 65.882%);
+  --color-accent-own: rgb(27.059% 68.627% 32.941%);
+  --color-accent-own-rgb: 69,175,84;
+  --color-message-meta-own: rgb(30.98% 68.235% 30.588%);
+  --color-own-links: rgb(20% 56.471% 92.549%);
+  --color-code: rgb(29.02% 44.706% 60.392%);
+  --color-code-own: rgb(23.529% 47.451% 25.098%);
+  --color-code-bg: rgb(43.922% 45.882% 47.451% / 0.07843);
+  --color-code-own-bg: rgb(43.922% 45.882% 47.451% / 0.07843);
+  --color-composer-button: rgb(43.922% 45.882% 47.451% / 0.8);
+  --color-message-reaction: rgb(92.157% 95.294% 99.216%);
+  --color-message-reaction-hover: rgb(77.255% 87.059% 97.647%);
+  --color-message-reaction-own: rgb(77.647% 91.765% 69.804%);
+  --color-message-reaction-hover-own: rgb(70.98% 87.843% 64.314%);
+  --color-message-reaction-chosen-hover: rgb(10.196% 50.98% 91.765%);
+  --color-message-reaction-chosen-hover-own: rgb(24.706% 61.569% 29.412%);
+  --color-message-non-contact: rgb(80% 93.333% 74.902%);
+  --color-voice-transcribe-button: rgb(90.98% 95.294% 100%);
+  --color-voice-transcribe-button-own: rgb(80% 93.333% 74.902%);
+  --color-topic-blue: rgb(18.431% 46.667% 44.706%);
+  --color-topic-yellow: rgb(49.804% 41.176% 23.137%);
+  --color-topic-violet: rgb(54.51% 35.294% 58.824%);
+  --color-topic-green: rgb(26.667% 46.667% 29.02%);
+  --color-topic-rose: rgb(60.784% 34.118% 41.961%);
+  --color-topic-red: rgb(92.157% 40.784% 34.51%);
+  --color-topic-grey: rgb(42.353% 42.353% 42.353%);
+  --color-forum-unread-topic-hover: rgb(91.373% 91.373% 91.373%);
+  --color-forum-hover-unread-topic-hover: rgb(88.627% 88.627% 88.627%);
+  --color-chat-username: rgb(23.529% 49.412% 69.02%);
+  --color-borders-read-story: rgb(76.863% 78.824% 80%);
+  --color-background-menu-separator: rgb(0% 0% 0% / 0.10196);
+  --color-hover-overlay: rgb(0% 0% 0% / 0.02353);
+  --color-toast-background: rgb(12.549% 12.549% 12.549% / 0.8);
+  --input-custom-emoji-filter: url(#color-filter-000000);
 }
-.tg-app a {
-  color: var(--color-links);
-  text-decoration: none;
+.tg-body {
+  display: block;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  margin: 0;
+  /* saved <body> runtime style attribute (chat wallpaper + action pill bg) */
+  --theme-background-color: #99ba92;
+  --action-message-bg: #4a8e3a8c;
 }
-.tg-app a:hover {
-  text-decoration: underline;
-}
-.tg-app img {
-  max-width: 100%;
+.tg-app .tg-body #Main {
+  height: 100%;
 }
 
-/* scoped thin scrollbars (Web A style) */
+/* replica palette aliases still used by the glue rules below (identical to
+   the exported light-theme values that tg-webapp.css sets on .tg-html) */
+.tg-app {
+  --color-primary: rgb(20% 56.471% 92.549%);
+  --color-primary-opacity: rgb(31.373% 63.529% 91.373% / 0.11765);
+  --color-primary-shade: rgb(29.02% 58.431% 83.922%);
+  --color-background: rgb(100% 100% 100%);
+  --color-chat-hover: rgb(95.686% 95.686% 96.078%);
+  --color-item-hover: rgb(95.686% 95.686% 96.078%);
+  --color-text: rgb(0% 0% 0%);
+  --color-text-secondary: rgb(43.922% 45.882% 47.451%);
+  --color-icon-secondary: rgb(43.922% 45.882% 47.451%);
+  --color-borders: rgb(85.49% 86.275% 87.843%);
+  --color-default-shadow: rgb(44.706% 44.706% 44.706% / 0.25098);
+  --color-light-shadow: rgb(44.706% 44.706% 44.706% / 0.16863);
+  --color-accent-own: rgb(27.059% 68.627% 32.941%);
+  --color-message-meta-own: rgb(30.98% 68.235% 30.588%);
+  --color-composer-button: rgb(43.922% 45.882% 47.451% / 0.8);
+  --color-message-reaction: rgb(92.157% 95.294% 99.216%);
+  --color-message-reaction-hover: rgb(77.255% 87.059% 97.647%);
+  --color-message-reaction-own: rgb(77.647% 91.765% 69.804%);
+  --color-message-reaction-hover-own: rgb(70.98% 87.843% 64.314%);
+  --peer-red: #cc5049;
+  --peer-orange: #d67722;
+  --peer-violet: #955cdb;
+  --peer-green: #40a920;
+  --peer-cyan: #309eba;
+  --peer-blue: #368ad1;
+  --peer-pink: #c7508b;
+  --message-text-size: 15px;
+}
+
+/* scoped thin scrollbars for replica-only surfaces (modal bodies etc.) */
 .tg-scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -133,180 +207,113 @@
   background: transparent;
 }
 
-/* ── Left column: forum topic list ───────────────────────────────── */
-.tg-left {
-  display: flex;
-  flex-direction: column;
-  width: clamp(16rem, 25vw, 26.5rem);
-  min-width: 16rem;
-  flex-shrink: 0;
-  background: var(--color-background);
-  border-right: 1px solid var(--color-borders);
+/* ── 2. Glue for real-DOM pieces ─────────────────────────────────── */
+/* peer palette (sender names / letter avatars) */
+.tg-peer-0 { color: var(--peer-red); }
+.tg-peer-1 { color: var(--peer-orange); }
+.tg-peer-2 { color: var(--peer-violet); }
+.tg-peer-3 { color: var(--peer-green); }
+.tg-peer-4 { color: var(--peer-cyan); }
+.tg-peer-5 { color: var(--peer-blue); }
+.tg-peer-6 { color: var(--peer-pink); }
+.tg-bg-peer-0 { background: var(--peer-red); }
+.tg-bg-peer-1 { background: var(--peer-orange); }
+.tg-bg-peer-2 { background: var(--peer-violet); }
+.tg-bg-peer-3 { background: var(--peer-green); }
+.tg-bg-peer-4 { background: var(--peer-cyan); }
+.tg-bg-peer-5 { background: var(--peer-blue); }
+.tg-bg-peer-6 { background: var(--peer-pink); }
+.tg-app .Avatar[class*="tg-bg-peer-"] {
+  color: #fff;
 }
-.tg-left-header {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  height: var(--header-height);
-  flex-shrink: 0;
-  padding: 0 0.8125rem;
-}
-.tg-left-header .tg-group-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-.tg-left-header .tg-group-title h1 {
-  margin: 0;
-  font-size: 1.0625rem;
-  font-weight: 500;
-  line-height: 1.375rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tg-left-header .tg-group-title p {
-  margin: 0;
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tg-topics {
-  flex: 1;
-  padding: 0 0.4375rem 0.5rem;
-}
-.tg-topic {
-  display: flex;
+.tg-app .Avatar .avatar-media {
   width: 100%;
-  align-items: center;
-  gap: 0.5625rem;
-  padding: 0.5625rem;
-  border-radius: 0.75rem;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
-}
-.tg-topic:hover {
-  background: var(--color-chat-hover);
-}
-.tg-topic[aria-current="true"] {
-  background: var(--color-chat-active);
-  color: #fff;
-}
-.tg-topic[aria-current="true"] .tg-topic-preview,
-.tg-topic[aria-current="true"] .tg-topic-time {
-  color: rgba(255, 255, 255, 0.85);
-}
-.tg-topic-avatar {
-  width: 3.375rem;
-  height: 3.375rem;
-  flex-shrink: 0;
+  height: 100%;
+  object-fit: cover;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  font-weight: 500;
-  color: #fff;
-  user-select: none;
 }
-.tg-topic-body {
-  flex: 1;
-  min-width: 0;
-}
-.tg-topic-top {
-  display: flex;
-  align-items: baseline;
-  gap: 0.375rem;
-}
-.tg-topic-title {
-  flex: 1;
-  min-width: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.3125rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tg-topic-time {
-  flex-shrink: 0;
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-}
-.tg-topic-preview {
-  margin-top: 0.125rem;
-  font-size: 0.9375rem;
-  color: var(--color-text-secondary);
-  line-height: 1.25rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* sender name colors inside bubbles */
+.tg-app .message-title-name.tg-peer-0 { color: var(--peer-red); }
+.tg-app .message-title-name.tg-peer-1 { color: var(--peer-orange); }
+.tg-app .message-title-name.tg-peer-2 { color: var(--peer-violet); }
+.tg-app .message-title-name.tg-peer-3 { color: var(--peer-green); }
+.tg-app .message-title-name.tg-peer-4 { color: var(--peer-cyan); }
+.tg-app .message-title-name.tg-peer-5 { color: var(--peer-blue); }
+.tg-app .message-title-name.tg-peer-6 { color: var(--peer-pink); }
+
+/* Apple-emoji topic icon in the left panel rows (static PNG, no lottie) */
+.tg-app .tg-topic-icon img.emoji {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-/* ── Middle column ───────────────────────────────────────────────── */
-.tg-middle {
+/* virtualised topic list: rows are absolutely positioned like Web A */
+.tg-app .chat-list .ListItem {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 65px;
+}
+
+/* pinned flag inside MessageMeta (replica keeps the emoji glyph) */
+.tg-app .MessageMeta .tg-pin-flag {
+  margin-right: 0.125rem;
+  font-size: 0.75rem;
+}
+
+/* select-a-topic placeholder pill (desktop, no topic open) */
+.tg-empty-middle {
   position: relative;
-  display: flex;
-  flex-direction: column;
   flex: 1;
-  min-width: 0;
-}
-.tg-mid-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  height: var(--header-height);
-  flex-shrink: 0;
-  padding: 0 0.8125rem 0 1.5rem;
-  background: var(--color-background);
-  box-shadow: 0 1px 2px var(--color-light-shadow);
-  z-index: 2;
-}
-.tg-mid-header .tg-back {
-  display: none;
-}
-.tg-mid-info {
-  flex: 1;
-  min-width: 0;
-  cursor: default;
-}
-.tg-mid-info h2 {
-  margin: 0;
-  font-size: 1.0625rem;
-  font-weight: 500;
-  line-height: 1.375rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tg-mid-info p {
-  margin: 0;
-  font-size: 0.875rem;
-  line-height: 1.125rem;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tg-icon-btn {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  flex-shrink: 0;
-  border-radius: 50%;
-  color: var(--color-icon-secondary);
-  transition: background-color 0.15s;
 }
-.tg-icon-btn:hover {
-  background: var(--color-item-hover);
+.tg-empty-middle .tg-action {
+  padding: 0.1875rem 0.5rem;
+  border-radius: 0.75rem;
+  background: rgba(0, 0, 0, 0.24);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.125rem;
+  user-select: none;
 }
-.tg-icon-btn svg {
-  width: 1.5rem;
-  height: 1.5rem;
+.tg-action {
+  align-self: center;
+  max-width: 100%;
+  margin: 0.5rem 0 0.25rem;
+  padding: 0.1875rem 0.5rem;
+  border-radius: 0.75rem;
+  background: rgba(0, 0, 0, 0.24);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.125rem;
+  text-align: center;
+  word-break: break-word;
+  user-select: none;
+}
+
+/* Web A also ships a `.Message > .Avatar { display: none }` rule for other
+   list modes — we only render the Avatar node when it should be visible. */
+.tg-app .Message.has-avatar > .Avatar {
+  display: block;
+}
+
+/* ── 3. Replica chrome kept from the previous build ──────────────── */
+
+/* invisible click-away layer behind the header menu */
+.tg-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: transparent;
+  border: 0;
+  cursor: default;
 }
 
 /* header ⋮ dropdown */
@@ -331,6 +338,11 @@
   font-weight: 500;
   text-align: left;
   white-space: nowrap;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
 }
 .tg-menu-item:hover {
   background: var(--color-chat-hover);
@@ -341,172 +353,7 @@
   color: var(--color-icon-secondary);
 }
 
-/* ── Message list (with-default-bg) ──────────────────────────────── */
-.tg-messages {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.tg-messages::before {
-  /* default light chat background: pattern-green base */
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-color: var(--theme-background-color);
-  background-image: linear-gradient(
-    140deg,
-    #dbddbb 0%,
-    #99ba92 33%,
-    #6ba587 66%,
-    #d5d88d 100%
-  );
-}
-.tg-messages-scroll {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  z-index: 1;
-}
-.tg-messages-inner {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  min-height: 100%;
-  max-width: 45.5rem;
-  margin: 0 auto;
-  width: 100%;
-  padding: 0.5rem 1rem 0.625rem;
-}
-
-/* date / action pills */
-.tg-date,
-.tg-action {
-  align-self: center;
-  max-width: 100%;
-  margin: 0.5rem 0 0.25rem;
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.75rem;
-  background: rgba(0, 0, 0, 0.24);
-  color: #fff;
-  font-size: 0.875rem;
-  font-weight: 500;
-  line-height: 1.125rem;
-  text-align: center;
-  word-break: break-word;
-  user-select: none;
-}
-.tg-date.is-sticky {
-  position: sticky;
-  top: 0.375rem;
-  z-index: 3;
-}
-
-/* ── Messages & bubbles ──────────────────────────────────────────── */
-.tg-msg {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  gap: 0.375rem;
-  margin-top: 0.375rem;
-  max-width: 100%;
-}
-.tg-msg.own {
-  flex-direction: row-reverse;
-}
-.tg-msg-avatar {
-  width: 2.125rem;
-  height: 2.125rem;
-  flex-shrink: 0;
-  border-radius: 50%;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #fff;
-  user-select: none;
-}
-.tg-msg-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.tg-msg-avatar.is-spacer {
-  visibility: hidden;
-  height: 0;
-}
-
-.tg-bubble {
-  position: relative;
-  max-width: min(29rem, 85%);
-  padding: 0.3125rem 0.5rem 0.375rem;
-  border-radius: 0.9375rem;
-  background: var(--color-background);
-  box-shadow: 0 1px 2px var(--color-default-shadow);
-  font-size: var(--message-text-size);
-  line-height: 1.3125;
-  word-break: break-word;
-  white-space: pre-wrap;
-}
-.tg-msg:not(.own) .tg-bubble.has-appendix {
-  border-bottom-left-radius: 0;
-}
-.tg-msg.own .tg-bubble {
-  background: #eeffde;
-}
-.tg-msg.own .tg-bubble.has-appendix {
-  border-bottom-right-radius: 0;
-}
-/* appendix tail (exact Web A path, 9x20) */
-.tg-appendix {
-  position: absolute;
-  bottom: -0.0625rem;
-  width: 9px;
-  height: 20px;
-  filter: drop-shadow(0 1px 1px var(--color-light-shadow));
-}
-.tg-msg:not(.own) .tg-appendix {
-  left: -9px;
-  transform: scaleX(-1);
-}
-.tg-msg.own .tg-appendix {
-  right: -9px;
-}
-
-.tg-sender {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 600;
-  line-height: 1.125rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tg-sender .tg-admin-tag {
-  margin-left: 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: var(--color-text-secondary);
-}
-.tg-peer-0 { color: var(--peer-red); }
-.tg-peer-1 { color: var(--peer-orange); }
-.tg-peer-2 { color: var(--peer-violet); }
-.tg-peer-3 { color: var(--peer-green); }
-.tg-peer-4 { color: var(--peer-cyan); }
-.tg-peer-5 { color: var(--peer-blue); }
-.tg-peer-6 { color: var(--peer-pink); }
-.tg-bg-peer-0 { background: var(--peer-red); }
-.tg-bg-peer-1 { background: var(--peer-orange); }
-.tg-bg-peer-2 { background: var(--peer-violet); }
-.tg-bg-peer-3 { background: var(--peer-green); }
-.tg-bg-peer-4 { background: var(--peer-cyan); }
-.tg-bg-peer-5 { background: var(--peer-blue); }
-.tg-bg-peer-6 { background: var(--peer-pink); }
-
-/* embedded reply (Web A style block above text) */
+/* embedded reply (block above bubble text) */
 .tg-reply-embed {
   display: block;
   width: 100%;
@@ -519,6 +366,12 @@
   text-align: left;
   font-size: 0.875rem;
   line-height: 1.125rem;
+  border: 0;
+  font-family: inherit;
+  color: inherit;
+}
+button.tg-reply-embed {
+  cursor: pointer;
 }
 .tg-reply-embed::before {
   content: "";
@@ -529,10 +382,10 @@
   width: 3px;
   background: var(--color-primary);
 }
-.tg-msg.own .tg-reply-embed {
+.Message.own .tg-reply-embed {
   background: rgb(27.059% 68.627% 32.941% / 0.1);
 }
-.tg-msg.own .tg-reply-embed::before {
+.Message.own .tg-reply-embed::before {
   background: var(--color-accent-own);
 }
 .tg-reply-embed .tg-reply-sender {
@@ -543,7 +396,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.tg-msg.own .tg-reply-embed .tg-reply-sender {
+.Message.own .tg-reply-embed .tg-reply-sender {
   color: var(--color-accent-own);
 }
 .tg-reply-embed .tg-reply-text {
@@ -553,61 +406,32 @@
   text-overflow: ellipsis;
 }
 
-/* media */
-.tg-bubble .tg-media {
+/* media inside bubbles */
+.message-content .tg-media {
   margin: -0.3125rem -0.5rem 0.25rem;
   overflow: hidden;
   border-radius: 0.9375rem 0.9375rem 0 0;
 }
-.tg-bubble .tg-media.is-inset {
+.message-content .tg-media.is-inset {
   margin-top: 0.25rem;
   border-radius: 0.625rem;
 }
-.tg-bubble .tg-media img {
+.message-content .tg-media img {
   display: block;
   width: 100%;
   max-height: 26rem;
   object-fit: cover;
 }
-.tg-bubble.is-media-only .tg-media {
+.message-content.is-media-only .tg-media {
   margin-bottom: -0.375rem;
   border-radius: 0.9375rem;
 }
 
-/* message meta (time + ticks), floated bottom-right like Web A */
-.tg-meta {
-  position: relative;
-  float: right;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.1875rem;
-  height: var(--message-meta-height);
-  margin: 0.25rem -0.125rem -0.25rem 0.4375rem;
-  font-size: 0.75rem;
-  line-height: 1;
-  color: var(--color-text-secondary);
-  user-select: none;
-}
-.tg-msg.own .tg-meta {
-  color: var(--color-message-meta-own);
-}
-.tg-meta .tg-ticks {
-  display: inline-flex;
-  width: 1.1875rem;
-  height: 0.8125rem;
-}
-.tg-meta .tg-ticks svg {
-  width: 100%;
-  height: 100%;
-}
-.tg-msg .tg-pin-flag {
-  margin-right: 0.125rem;
-}
-
-/* reactions */
+/* reaction pills */
 .tg-reactions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.25rem;
   padding: 0.25rem 0 0.125rem;
 }
@@ -623,6 +447,9 @@
   font-weight: 500;
   color: var(--color-primary);
   transition: background-color 0.15s;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
 }
 .tg-reaction:hover {
   background: var(--color-message-reaction-hover);
@@ -631,16 +458,21 @@
   background: var(--color-primary);
   color: #fff;
 }
-.tg-msg.own .tg-reaction {
+.Message.own .tg-reaction {
   background: var(--color-message-reaction-own);
   color: var(--color-accent-own);
 }
-.tg-msg.own .tg-reaction:hover {
+.Message.own .tg-reaction:hover {
   background: var(--color-message-reaction-hover-own);
 }
-.tg-msg.own .tg-reaction.is-chosen {
+.Message.own .tg-reaction.is-chosen {
   background: var(--color-accent-own);
   color: #fff;
+}
+.tg-reactions .MessageMeta {
+  position: static;
+  float: none;
+  margin-left: auto;
 }
 .tg-reaction-picker {
   position: absolute;
@@ -662,6 +494,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 0;
+  background: none;
+  cursor: pointer;
 }
 .tg-reaction-picker button:hover {
   background: var(--color-item-hover);
@@ -680,12 +515,12 @@
   box-shadow: 0 1px 2px var(--color-default-shadow);
   z-index: 4;
 }
-.tg-msg.own .tg-msg-actions {
+.Message.own .tg-msg-actions {
   right: auto;
   left: 0.5rem;
 }
-.tg-msg:hover .tg-msg-actions,
-.tg-msg.is-actions-open .tg-msg-actions {
+.Message:hover .tg-msg-actions,
+.Message.is-actions-open .tg-msg-actions {
   display: inline-flex;
 }
 .tg-msg-actions button {
@@ -697,37 +532,15 @@
   border-radius: 50%;
   color: var(--color-icon-secondary);
   font-size: 0.9375rem;
+  border: 0;
+  background: none;
+  cursor: pointer;
 }
 .tg-msg-actions button:hover {
   background: var(--color-item-hover);
 }
 
-/* ── Composer ────────────────────────────────────────────────────── */
-.tg-composer-area {
-  position: relative;
-  z-index: 2;
-  flex-shrink: 0;
-  padding: 0 1rem 1.25rem;
-}
-.tg-composer {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.5rem;
-  max-width: 45.5rem;
-  margin: 0 auto;
-}
-.tg-input-wrap {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  background: var(--color-background);
-  border-radius: 1rem 1rem 0 1rem;
-  box-shadow: 0 1px 2px var(--color-default-shadow);
-}
-.tg-input-wrap .tg-appendix {
-  right: -9px;
-  bottom: -0.0625rem;
-}
+/* reply strip above the composer input */
 .tg-reply-bar {
   display: flex;
   align-items: center;
@@ -738,70 +551,34 @@
   margin: 0;
   flex: 1;
 }
-.tg-input-row {
-  display: flex;
-  align-items: flex-end;
-}
-.tg-input {
-  flex: 1;
-  min-width: 0;
-  max-height: 25vh;
-  overflow-y: auto;
-  padding: 0.8125rem 0.5rem 0.8125rem 1.125rem;
-  font-size: var(--composer-text-size);
-  line-height: 1.25rem;
-  background: transparent;
-  border: 0;
-  outline: none;
-  resize: none;
-  color: var(--color-text);
-  font-family: inherit;
-}
-.tg-input::placeholder {
-  color: var(--color-text-secondary);
-}
-.tg-composer-btn {
+.tg-reply-bar .tg-icon-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 3rem;
-  height: 3.375rem;
-  flex-shrink: 0;
-  color: var(--color-composer-button);
-}
-.tg-send {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 3.375rem;
-  height: 3.375rem;
+  width: 2.5rem;
+  height: 2.5rem;
   flex-shrink: 0;
   border-radius: 50%;
-  background: var(--color-primary);
-  color: #fff;
-  box-shadow: 0 1px 2px var(--color-default-shadow);
-  transition: background-color 0.15s;
+  color: var(--color-icon-secondary);
+  border: 0;
+  background: none;
+  cursor: pointer;
 }
-.tg-send:hover {
-  background: var(--color-primary-shade);
+.tg-reply-bar .tg-icon-btn:hover {
+  background: var(--color-item-hover);
 }
-.tg-send:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-.tg-send svg {
+.tg-reply-bar .tg-icon-btn svg {
   width: 1.5rem;
   height: 1.5rem;
 }
 
-/* sign-in / notice strip in place of composer */
+/* sign-in / notice strip in place of the composer */
 .tg-composer-notice {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  max-width: 45.5rem;
-  margin: 0 auto;
+  width: 100%;
   min-height: 3.375rem;
   padding: 0.5rem 1rem;
   border-radius: 1rem;
@@ -821,6 +598,10 @@
   background: var(--color-primary);
   color: #fff;
   font-weight: 500;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9375rem;
 }
 .tg-composer-notice .tg-signin-btn:hover {
   background: var(--color-primary-shade);
@@ -1282,39 +1063,4 @@
   font-size: 0.875rem;
   position: relative;
   z-index: 1;
-}
-
-/* ── Mobile: stacked columns (Web A behaviour) ───────────────────── */
-@media (max-width: 925px) {
-  .tg-left {
-    width: 100%;
-    min-width: 0;
-    border-right: 0;
-  }
-  .tg-middle {
-    display: none;
-  }
-  .tg-app.is-topic-open .tg-left {
-    display: none;
-  }
-  .tg-app.is-topic-open .tg-middle {
-    display: flex;
-  }
-  .tg-mid-header {
-    padding-left: 0.5rem;
-  }
-  .tg-mid-header .tg-back {
-    display: flex;
-  }
-  .tg-bubble {
-    max-width: min(29rem, 92%);
-  }
-  .tg-messages-inner,
-  .tg-composer-area {
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
-  }
-  .tg-composer-area {
-    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-  }
 }
