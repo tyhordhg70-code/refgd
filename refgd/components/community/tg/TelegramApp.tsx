@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import CommunityChat from "../CommunityChat";
+import { ensureTelegramReady } from "../useCommunityChat";
 import MiddleHeader from "./MiddleHeader";
 import MessageBubble from "./MessageBubble";
 import VouchTopic from "./VouchTopic";
@@ -68,6 +69,22 @@ export default function TelegramApp({
   chatPreview: ChatPreview | null;
 }) {
   const [active, setActive] = useState<TopicKey | null>(null);
+
+  // Inside the Telegram Mini App webview, the client shows an opaque loading
+  // placeholder (black screen) until WebApp.ready() fires — so signal ready
+  // at SHELL mount, not only when the chat topic mounts. The mini app has
+  // always opened straight into the live group chat, so jump there too.
+  useEffect(() => {
+    let cancelled = false;
+    void ensureTelegramReady().then((inside) => {
+      if (inside && !cancelled) {
+        setActive((cur) => cur ?? "chat");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const byTopic: Record<string, VouchView[]> = {
     testimonials,

@@ -111,6 +111,26 @@ function insideTelegram(wa: TelegramWebApp | undefined): boolean {
   return Boolean(wa.platform && wa.platform !== "unknown");
 }
 
+/**
+ * Load the bridge and — when running inside the Mini App webview — signal
+ * `ready()` IMMEDIATELY. Telegram keeps its opaque loading placeholder (a
+ * black screen) until ready() is called, so this must run on shell mount,
+ * NOT only when the chat topic is opened. Returns whether we are inside
+ * Telegram. Safe to call multiple times (ready/expand are idempotent).
+ */
+export async function ensureTelegramReady(): Promise<boolean> {
+  await loadTelegramBridge();
+  const wa = window.Telegram?.WebApp;
+  if (!insideTelegram(wa)) return false;
+  try {
+    wa?.ready?.();
+    wa?.expand?.();
+  } catch {
+    /* bridge quirk — non-fatal */
+  }
+  return true;
+}
+
 export function useCommunityChat() {
   const [state, setState] = useState<ChatState | null>(null);
   const [text, setText] = useState("");
@@ -229,17 +249,11 @@ export function useCommunityChat() {
   // Load the Mini App bridge, silent sign-in, then initial load.
   useEffect(() => {
     void (async () => {
-      await loadTelegramBridge();
+      const inside = await ensureTelegramReady();
       const wa = window.Telegram?.WebApp;
-      if (insideTelegram(wa)) {
+      if (inside) {
         setInTelegram(true);
         setIsFullscreen(Boolean(wa?.isFullscreen));
-        try {
-          wa?.ready?.();
-          wa?.expand?.();
-        } catch {
-          /* bridge quirk — non-fatal */
-        }
       }
       const initData = wa?.initData;
       if (initData && !authTriedRef.current) {
