@@ -16,6 +16,7 @@ import {
   recordAction,
   type VouchSection,
 } from "@/lib/community";
+import { notifyCategory } from "@/lib/community-notify";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -232,6 +233,13 @@ export async function POST(req: Request) {
       chatId,
       `✅ Posted to <b>${sectionLabel(section)}</b>${largest ? " (with photo)" : ""}.`,
     );
+    // Fan out to opted-in subscribers for this section (fail-soft — must
+    // never delay or fail the webhook's 200).
+    await notifyCategory(section, {
+      title: `New ${sectionLabel(section)}`,
+      body: body ? body.slice(0, 140) : "A new post is up on the community.",
+      url: "/community",
+    }).catch(() => undefined);
   }
 
   return NextResponse.json({ ok: true });

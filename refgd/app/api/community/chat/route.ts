@@ -11,7 +11,10 @@ import {
   getModConfig,
   matchBlocklist,
   recordAction,
+  sweepExpiredMessages,
+  claimNotifySlot,
 } from "@/lib/community";
+import { notifyCategory } from "@/lib/community-notify";
 import { parseCommand, executeModCommand } from "@/lib/moderation";
 
 export const runtime = "nodejs";
@@ -45,6 +48,12 @@ export async function GET(req: Request) {
       isAdmin: me.admin,
     }).catch(() => undefined);
   }
+  // Opportunistic auto-delete sweep on the full load only (idempotent, no
+  // cron needed on Render). Expired messages are already hidden by
+  // listChatMessages; this just soft-deletes them so they don't accumulate.
+  if (!after) {
+    await sweepExpiredMessages().catch(() => undefined);
+  }
 
   const [messages, memberCount, hideMembers, botUsername, welcome] =
     await Promise.all([
@@ -77,9 +86,13 @@ export async function POST(req: Request) {
     );
   }
 
-  let payload: { text?: unknown; replyTo?: unknown };
+  let payload: { text?: unknown; replyTo?: unknown; ttlSeconds?: unknown };
   try {
-    payload = (await req.json()) as { text?: unknown; replyTo?: unknown };
+    payload = (await req.json()) as {
+      text?: unknown;
+      replyTo?: unknown;
+      ttlSeconds?: unknown;
+    };
   } catch {
     return NextResponse.json(
       { ok: false, error: "Invalid JSON" },
@@ -106,6 +119,20 @@ export async function POST(req: Request) {
     /^\d+$/.test(String(payload.replyTo))
       ? String(payload.replyTo)
       : null;
+
+  // Auto-delete TTL is an admin-only affordance (ephemeral announcements /
+  // temporary notices). Non-admin values are ignored. Capped at 30 days.
+  let expiresAt: Date | null = null;
+  if (me.admin) {
+    const raw =
+      typeof payload.ttlSeconds === "number"
+        ? payload.ttlSeconds
+        : typeof payload.ttlSeconds === "string" && /^\d+$/.test(payload.ttlSeconds)
+          ? Number(payload.ttlSeconds)
+          : 0;
+    const ttl = Math.min(Math.max(Math.floor(raw), 0), 2_592_000);
+    if (ttl > 0) expiresAt = new Date(Date.now() + ttl * 1000);
+  }
 
   const mod = await getChatMemberModState(me.tid);
   if (mod.isBanned) {
@@ -174,7 +201,26 @@ export async function POST(req: Request) {
     authorName: me.name,
     body: text,
     replyTo,
+    expiresAt,
   });
+
+  // Throttled chat notification: at most one fan-out per window across all
+  // workers (atomic claim on mod_config), fail-soft so it can never break the
+  // send. Subscribers opted into "chat" get "there's activity", not a ping
+  // per message.
+  if (message) {
+    void claimNotifySlot("chat_notify_last", 900)
+      .then((claimed) =>
+        claimed
+          ? notifyCategory("chat", {
+              title: "Group Chat is active",
+              body: `${me.name}: ${text.slice(0, 120)}`,
+              url: "/community",
+            })
+          : undefined,
+      )
+      .catch(() => undefined);
+  }
 
   return NextResponse.json({ ok: true, message });
 }

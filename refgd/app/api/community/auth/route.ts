@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import {
   verifyMiniAppInitData,
   verifyLoginWidget,
@@ -6,6 +7,7 @@ import {
   readMemberSession,
   clearMemberSession,
 } from "@/lib/community-auth";
+import { isValidInviteSlug, recordInviteJoin } from "@/lib/community";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,7 +51,22 @@ export async function POST(req: Request) {
   }
 
   await createMemberSession(member);
-  return NextResponse.json({ ok: true, member });
+
+  // Attribute a join to the invite link that brought them in (if any), then
+  // clear the cookie so re-signing-in doesn't re-attribute. De-duped per
+  // tg_id in recordInviteJoin, so this is safe even if the cookie lingers.
+  const res = NextResponse.json({ ok: true, member });
+  try {
+    const jar = await cookies();
+    const slug = jar.get("rg_invite")?.value;
+    if (slug && isValidInviteSlug(slug) && member.tid) {
+      await recordInviteJoin(slug, member.tid).catch(() => undefined);
+      res.cookies.set("rg_invite", "", { path: "/", maxAge: 0 });
+    }
+  } catch {
+    // never let attribution break sign-in
+  }
+  return res;
 }
 
 /** DELETE /api/community/auth — sign out. */

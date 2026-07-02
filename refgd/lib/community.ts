@@ -219,6 +219,29 @@ export async function setModConfig(key: string, value: unknown): Promise<void> {
   );
 }
 
+/**
+ * Atomically claim a rate-limited notification slot. Returns true for at most
+ * one caller per `intervalS` window — safe across Render's multiple workers
+ * because the guard is a single conditional upsert on mod_config.updated_at.
+ * Used to throttle chat notifications so subscribers aren't pinged on every
+ * message.
+ */
+export async function claimNotifySlot(
+  key: string,
+  intervalS: number,
+): Promise<boolean> {
+  await initDb();
+  const { rowCount } = await getPool().query(
+    `INSERT INTO mod_config (key, value, updated_at)
+     VALUES ($1, 'true'::jsonb, NOW())
+     ON CONFLICT (key) DO UPDATE SET updated_at = NOW()
+       WHERE mod_config.updated_at <= NOW() - make_interval(secs => $2)
+     RETURNING key`,
+    [key, intervalS],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
 /** Backfill an album's caption if the first-arriving part had no text. */
 export async function updateVouchBodyIfEmpty(
   vouchId: string,
@@ -505,6 +528,24 @@ export async function listChatMessages(
     rows = res.rows.reverse();
   }
   return attachReactions(rows, viewer);
+}
+
+/**
+ * Opportunistic hard-sweep of expired messages. Soft-deletes any message
+ * whose expires_at has passed so the table doesn't accumulate ghosts. Runs on
+ * the chat full-load path (never the short-poll); idempotent across instances
+ * so no cross-worker lock is needed. listChatMessages already hides expired
+ * rows, so this is cleanup, not correctness.
+ */
+export async function sweepExpiredMessages(): Promise<number> {
+  await initDb();
+  const { rowCount } = await getPool().query(
+    `UPDATE chat_messages SET deleted = TRUE
+      WHERE deleted = FALSE
+        AND expires_at IS NOT NULL
+        AND expires_at <= NOW()`,
+  );
+  return rowCount ?? 0;
 }
 
 export interface CreateChatMessageInput {
@@ -814,4 +855,286 @@ export async function getMessageAuthor(
   }>(`SELECT tg_id, author_name FROM chat_messages WHERE id = $1`, [id]);
   if (!rows[0]) return null;
   return { tgId: String(rows[0].tg_id), authorName: rows[0].author_name };
+}
+
+// ── Invite links ─────────────────────────────────────────────────────
+// Custom-named shareable links (/i/<slug>) that redirect into /community
+// and track clicks + join attribution. Slugs are admin-created.
+
+export interface InviteLink {
+  slug: string;
+  name: string;
+  clicks: number;
+  joins: number;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+/** Valid slug: 1-64 chars of [a-z0-9-_], lowercased by the caller. */
+export function isValidInviteSlug(x: unknown): x is string {
+  return typeof x === "string" && /^[a-z0-9][a-z0-9_-]{0,63}$/.test(x);
+}
+
+export async function createInviteLink(
+  slug: string,
+  name: string,
+  createdBy?: string | number | null,
+): Promise<InviteLink | null> {
+  await initDb();
+  const { rows } = await getPool().query<{
+    slug: string;
+    name: string;
+    clicks: number;
+    joins: number;
+    created_by: string | null;
+    created_at: string;
+  }>(
+    `INSERT INTO invite_links (slug, name, created_by)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (slug) DO NOTHING
+     RETURNING slug, name, clicks, joins, created_by, created_at`,
+    [slug, name, createdBy ?? null],
+  );
+  if (!rows[0]) return null;
+  const r = rows[0];
+  return {
+    slug: r.slug,
+    name: r.name,
+    clicks: Number(r.clicks),
+    joins: Number(r.joins),
+    createdBy: r.created_by ? String(r.created_by) : null,
+    createdAt: r.created_at,
+  };
+}
+
+export async function deleteInviteLink(slug: string): Promise<boolean> {
+  await initDb();
+  const { rowCount } = await getPool().query(
+    `DELETE FROM invite_links WHERE slug = $1`,
+    [slug],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
+export async function listInviteLinks(): Promise<InviteLink[]> {
+  await initDb();
+  const { rows } = await getPool().query<{
+    slug: string;
+    name: string;
+    clicks: number;
+    joins: number;
+    created_by: string | null;
+    created_at: string;
+  }>(
+    `SELECT slug, name, clicks, joins, created_by, created_at
+       FROM invite_links
+      ORDER BY created_at DESC`,
+  );
+  return rows.map((r) => ({
+    slug: r.slug,
+    name: r.name,
+    clicks: Number(r.clicks),
+    joins: Number(r.joins),
+    createdBy: r.created_by ? String(r.created_by) : null,
+    createdAt: r.created_at,
+  }));
+}
+
+// ── Notification subscriptions ───────────────────────────────────────
+// Per-category opt-in for web push (VAPID) and Telegram. Both live in the
+// one notif_subs table: web-push rows key off the real PushSubscription
+// endpoint; Telegram rows use a synthetic `telegram:<tg_id>` endpoint with
+// empty keys. `categories` is a jsonb array of NotifCategory strings.
+
+export type NotifCategory =
+  | "testimonials"
+  | "buy4u"
+  | "announcements"
+  | "chat";
+
+export const NOTIF_CATEGORIES: NotifCategory[] = [
+  "testimonials",
+  "buy4u",
+  "announcements",
+  "chat",
+];
+
+export function isNotifCategory(x: unknown): x is NotifCategory {
+  return (
+    typeof x === "string" && (NOTIF_CATEGORIES as string[]).includes(x)
+  );
+}
+
+export function sanitizeCategories(input: unknown): NotifCategory[] {
+  if (!Array.isArray(input)) return [];
+  const out: NotifCategory[] = [];
+  for (const v of input) {
+    if (isNotifCategory(v) && !out.includes(v)) out.push(v);
+  }
+  return out;
+}
+
+export interface PushKeys {
+  p256dh: string;
+  auth: string;
+}
+
+export interface NotifSub {
+  endpoint: string;
+  keys: PushKeys | Record<string, never>;
+  categories: NotifCategory[];
+}
+
+/** Upsert a web-push subscription with its opted-in categories. */
+export async function upsertPushSub(
+  tgId: string | number,
+  endpoint: string,
+  keys: PushKeys,
+  categories: NotifCategory[],
+): Promise<void> {
+  await initDb();
+  await getPool().query(
+    `INSERT INTO notif_subs (tg_id, endpoint, keys, categories, updated_at)
+     VALUES ($1, $2, $3::jsonb, $4::jsonb, NOW())
+     ON CONFLICT (endpoint) WHERE endpoint IS NOT NULL DO UPDATE
+       SET tg_id = EXCLUDED.tg_id,
+           keys = EXCLUDED.keys,
+           categories = EXCLUDED.categories,
+           updated_at = NOW()`,
+    [tgId, endpoint, JSON.stringify(keys), JSON.stringify(categories)],
+  );
+}
+
+/** Upsert the Telegram opt-in row for a member (synthetic endpoint). */
+export async function setTelegramNotify(
+  tgId: string | number,
+  categories: NotifCategory[],
+): Promise<void> {
+  await initDb();
+  const endpoint = `telegram:${tgId}`;
+  await getPool().query(
+    `INSERT INTO notif_subs (tg_id, endpoint, keys, categories, updated_at)
+     VALUES ($1, $2, '{}'::jsonb, $3::jsonb, NOW())
+     ON CONFLICT (endpoint) WHERE endpoint IS NOT NULL DO UPDATE
+       SET categories = EXCLUDED.categories, updated_at = NOW()`,
+    [tgId, endpoint, JSON.stringify(categories)],
+  );
+}
+
+export async function deletePushSub(endpoint: string): Promise<void> {
+  await initDb();
+  await getPool().query(`DELETE FROM notif_subs WHERE endpoint = $1`, [
+    endpoint,
+  ]);
+}
+
+/** All web-push (non-telegram) subs opted into a category. */
+export async function getWebSubsForCategory(
+  category: NotifCategory,
+): Promise<NotifSub[]> {
+  await initDb();
+  const { rows } = await getPool().query<{
+    endpoint: string;
+    keys: PushKeys;
+    categories: NotifCategory[];
+  }>(
+    `SELECT endpoint, keys, categories FROM notif_subs
+      WHERE endpoint NOT LIKE 'telegram:%' AND categories ? $1`,
+    [category],
+  );
+  return rows.map((r) => ({
+    endpoint: r.endpoint,
+    keys: r.keys,
+    categories: r.categories ?? [],
+  }));
+}
+
+/** All Telegram tg_ids opted into a category. */
+export async function getTelegramSubsForCategory(
+  category: NotifCategory,
+): Promise<string[]> {
+  await initDb();
+  const { rows } = await getPool().query<{ tg_id: string }>(
+    `SELECT tg_id FROM notif_subs
+      WHERE endpoint LIKE 'telegram:%' AND categories ? $1 AND tg_id IS NOT NULL`,
+    [category],
+  );
+  return rows.map((r) => String(r.tg_id));
+}
+
+/** Current opt-in state for a member (web + telegram), for settings UI. */
+export async function getMemberNotifState(
+  tgId: string | number,
+): Promise<{ web: NotifCategory[]; telegram: NotifCategory[] }> {
+  await initDb();
+  const { rows } = await getPool().query<{
+    endpoint: string;
+    categories: NotifCategory[];
+  }>(
+    `SELECT endpoint, categories FROM notif_subs WHERE tg_id = $1`,
+    [tgId],
+  );
+  const web = new Set<NotifCategory>();
+  let telegram: NotifCategory[] = [];
+  for (const r of rows) {
+    if (r.endpoint.startsWith("telegram:")) {
+      telegram = sanitizeCategories(r.categories);
+    } else {
+      for (const c of sanitizeCategories(r.categories)) web.add(c);
+    }
+  }
+  return { web: [...web], telegram };
+}
+
+/** Return true if the slug exists (so /i/<slug> knows whether to track). */
+export async function inviteLinkExists(slug: string): Promise<boolean> {
+  await initDb();
+  const { rows } = await getPool().query(
+    `SELECT 1 FROM invite_links WHERE slug = $1`,
+    [slug],
+  );
+  return rows.length > 0;
+}
+
+/** Record a click on an invite link (increments counter + logs an event). */
+export async function recordInviteClick(slug: string): Promise<void> {
+  await initDb();
+  const { rowCount } = await getPool().query(
+    `UPDATE invite_links SET clicks = clicks + 1 WHERE slug = $1`,
+    [slug],
+  );
+  if ((rowCount ?? 0) === 0) return; // unknown slug — don't log noise
+  await getPool()
+    .query(
+      `INSERT INTO invite_events (slug, type, tg_id) VALUES ($1, 'click', NULL)`,
+      [slug],
+    )
+    .catch(() => undefined);
+}
+
+/**
+ * Attribute a join to an invite slug. De-duped: a given tg_id counts once
+ * per slug, so re-signing-in with the same invite cookie won't inflate joins.
+ */
+export async function recordInviteJoin(
+  slug: string,
+  tgId: string | number,
+): Promise<void> {
+  await initDb();
+  const exists = await getPool().query(
+    `SELECT 1 FROM invite_events WHERE slug = $1 AND type = 'join' AND tg_id = $2`,
+    [slug, tgId],
+  );
+  if (exists.rows.length > 0) return;
+  const { rowCount } = await getPool().query(
+    `UPDATE invite_links SET joins = joins + 1 WHERE slug = $1`,
+    [slug],
+  );
+  if ((rowCount ?? 0) === 0) return;
+  await getPool()
+    .query(
+      `INSERT INTO invite_events (slug, type, tg_id) VALUES ($1, 'join', $2)`,
+      [slug, tgId],
+    )
+    .catch(() => undefined);
 }

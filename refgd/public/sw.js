@@ -101,3 +101,48 @@ async function revalidate(cache, href, cached) {
     /* offline / HEAD blocked — keep serving the cached copy */
   }
 }
+
+/* ── Community web-push notifications (additive) ──────────────────────
+ * Independent of the scene cache above. Payload is JSON:
+ * { title, body, url }. Clicking focuses an existing /community tab or
+ * opens one. */
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : "" };
+  }
+  const title = data.title || "RefundGod";
+  const options = {
+    body: data.body || "",
+    icon: "/icon.png",
+    badge: "/icon.png",
+    data: { url: data.url || "/community" },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "/community";
+  event.waitUntil(
+    (async () => {
+      const all = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      for (const client of all) {
+        try {
+          if (new URL(client.url).pathname.startsWith("/community")) {
+            await client.focus();
+            return;
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      if (self.clients.openWindow) await self.clients.openWindow(target);
+    })(),
+  );
+});

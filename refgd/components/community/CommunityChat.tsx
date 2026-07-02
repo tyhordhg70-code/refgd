@@ -7,6 +7,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import NotificationSettings from "./NotificationSettings";
+import AdminPanel from "./AdminPanel";
 
 /**
  * Live group chat for /community. The DB is the source of truth; this client
@@ -183,6 +185,10 @@ export default function CommunityChat() {
   const [reactOpen, setReactOpen] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
   const [systemNote, setSystemNote] = useState<string | null>(null);
+  const [showNotif, setShowNotif] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  // Admin-only auto-delete TTL (seconds) applied to the next message; 0 = keep.
+  const [ttlSeconds, setTtlSeconds] = useState(0);
 
   const lastIdRef = useRef<string>("0");
   const pollingRef = useRef(false);
@@ -401,7 +407,11 @@ export default function CommunityChat() {
       const res = await fetch("/api/community/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: body, replyTo: replyTo?.id ?? null }),
+        body: JSON.stringify({
+          text: body,
+          replyTo: replyTo?.id ?? null,
+          ttlSeconds: me?.admin ? ttlSeconds : 0,
+        }),
       });
       const data = (await res.json()) as {
         ok: boolean;
@@ -431,7 +441,7 @@ export default function CommunityChat() {
     } finally {
       setSending(false);
     }
-  }, [text, sending, replyTo, mergeMessages]);
+  }, [text, sending, replyTo, ttlSeconds, me, mergeMessages]);
 
   const react = useCallback(
     async (messageId: string, emoji: string) => {
@@ -514,15 +524,44 @@ export default function CommunityChat() {
             )}
           </p>
         </div>
-        <a
-          href={ADMIN_TG}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="shrink-0 rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-400/20"
-        >
-          Message admin
-        </a>
+        <div className="flex shrink-0 items-center gap-2">
+          {me && (
+            <button
+              type="button"
+              onClick={() => setShowNotif(true)}
+              className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/10"
+              aria-label="Notification settings"
+              title="Notifications"
+            >
+              🔔
+            </button>
+          )}
+          {me?.admin && (
+            <button
+              type="button"
+              onClick={() => setShowAdmin(true)}
+              className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/10"
+              aria-label="Admin console"
+              title="Admin"
+            >
+              ⚙️
+            </button>
+          )}
+          <a
+            href={ADMIN_TG}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-400/20"
+          >
+            Message admin
+          </a>
+        </div>
       </div>
+
+      {showNotif && <NotificationSettings onClose={() => setShowNotif(false)} />}
+      {showAdmin && me?.admin && (
+        <AdminPanel onClose={() => setShowAdmin(false)} />
+      )}
 
       {/* Messages */}
       <div
@@ -678,6 +717,21 @@ export default function CommunityChat() {
           <p className="mb-2 text-[11px] text-white/40">
             Command mode — try <span className="text-amber-200/80">/help</span> for the full list.
           </p>
+        )}
+        {me?.admin && (
+          <div className="mb-2 flex items-center gap-2 text-[11px] text-white/40">
+            <span>Auto-delete this message:</span>
+            <select
+              value={ttlSeconds}
+              onChange={(e) => setTtlSeconds(Number(e.target.value))}
+              className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-white/70 focus:border-amber-400/50 focus:outline-none"
+            >
+              <option value={0}>Keep</option>
+              <option value={3600}>1 hour</option>
+              <option value={86400}>1 day</option>
+              <option value={604800}>1 week</option>
+            </select>
+          </div>
         )}
         {me ? (
           <div className="flex items-end gap-2">
