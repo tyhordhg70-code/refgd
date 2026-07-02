@@ -23,7 +23,11 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
-import { isCommunityAdmin, communityBotToken } from "@/lib/community-bot";
+import {
+  isCommunityAdmin,
+  communityBotToken,
+  communityBotTokenInfo,
+} from "@/lib/community-bot";
 
 const COOKIE_NAME = "rg_member";
 const SESSION_TTL_SEC = 60 * 60 * 24 * 7; // 7 days
@@ -134,12 +138,31 @@ export type MiniAppAuthFailReason =
   | "no_user";
 
 /**
+ * Non-sensitive diagnostics returned alongside a verification result so a
+ * failure can be pinpointed from the client without exposing any secret. NEVER
+ * contains token material, the payload hash, or user PII.
+ */
+export interface MiniAppAuthDebug {
+  /** Field names present in initData, sorted (all standard Telegram keys). */
+  fields: string[];
+  /** Whether Telegram included the newer Ed25519 `signature` field. */
+  hasSignature: boolean;
+  /** now - auth_date, in seconds (null if auth_date missing/unparseable). */
+  authDateAgeSec: number | null;
+  /** Length of the trimmed COMMUNITY_BOT_TOKEN (0 = not set). No material. */
+  tokenLen: number;
+  /** True if the env var had surrounding whitespace — a common silent cause. */
+  tokenHadWhitespace: boolean;
+}
+
+/**
  * Verify Telegram Mini App `initData`, reporting WHY it failed so the auth
  * route can surface an actionable message instead of a silent 401.
  */
 export function verifyMiniAppInitDataDetailed(initData: string): {
   member: CommunityMember | null;
   reason: MiniAppAuthFailReason | null;
+  debug?: MiniAppAuthDebug;
 } {
   const token = communityBotToken();
   if (!token) return { member: null, reason: "no_token" };
@@ -147,31 +170,44 @@ export function verifyMiniAppInitDataDetailed(initData: string): {
     return { member: null, reason: "no_hash" };
 
   const entries = parseRaw(initData);
+  const info = communityBotTokenInfo();
+  const authDateNum = Number(entries.get("auth_date"));
+  const debug: MiniAppAuthDebug = {
+    fields: [...entries.keys()].sort(),
+    hasSignature: entries.has("signature"),
+    authDateAgeSec:
+      entries.has("auth_date") && Number.isFinite(authDateNum)
+        ? Math.floor(Date.now() / 1000) - authDateNum
+        : null,
+    tokenLen: info.len,
+    tokenHadWhitespace: info.hadWhitespace,
+  };
+
   const hash = entries.get("hash");
-  if (!hash) return { member: null, reason: "no_hash" };
+  if (!hash) return { member: null, reason: "no_hash", debug };
 
   // `signature` (Ed25519 third-party validation) is not part of the HMAC hash.
   const dcs = dataCheckString(entries, new Set(["hash", "signature"]));
   const secret = createHmac("sha256", "WebAppData").update(token).digest();
   const computed = createHmac("sha256", secret).update(dcs).digest("hex");
   if (!timingEqualHex(computed, hash))
-    return { member: null, reason: "bad_signature" };
+    return { member: null, reason: "bad_signature", debug };
 
-  if (!authDateFresh(Number(entries.get("auth_date"))))
-    return { member: null, reason: "stale_auth_date" };
+  if (!authDateFresh(authDateNum))
+    return { member: null, reason: "stale_auth_date", debug };
 
   const userRaw = entries.get("user");
-  if (!userRaw) return { member: null, reason: "no_user" };
+  if (!userRaw) return { member: null, reason: "no_user", debug };
   let u: TgUser;
   try {
     u = JSON.parse(userRaw) as TgUser;
   } catch {
-    return { member: null, reason: "no_user" };
+    return { member: null, reason: "no_user", debug };
   }
   const member = toMember(u);
   return member
-    ? { member, reason: null }
-    : { member: null, reason: "no_user" };
+    ? { member, reason: null, debug }
+    : { member: null, reason: "no_user", debug };
 }
 
 /**

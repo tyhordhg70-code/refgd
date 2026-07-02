@@ -15,7 +15,26 @@ import { createHash } from "node:crypto";
 type SendResult = { ok: boolean; error?: string };
 
 export function communityBotToken(): string {
-  return process.env.COMMUNITY_BOT_TOKEN ?? "";
+  // Trim: a trailing newline/space in the hosting env var silently changes the
+  // HMAC secret and makes Mini App initData fail its "signature check" even when
+  // the token value is otherwise correct — and it would equally corrupt the
+  // token inside Bot API request URLs (getMe / getFile / sendMessage).
+  return (process.env.COMMUNITY_BOT_TOKEN ?? "").trim();
+}
+
+/**
+ * Non-sensitive diagnostics for the configured token. Leaks NO token material —
+ * only its length and whether the env var had surrounding whitespace — so a
+ * "same token but signature fails" report can be pinpointed from the client.
+ */
+export function communityBotTokenInfo(): {
+  configured: boolean;
+  len: number;
+  hadWhitespace: boolean;
+} {
+  const raw = process.env.COMMUNITY_BOT_TOKEN ?? "";
+  const t = raw.trim();
+  return { configured: t.length > 0, len: t.length, hadWhitespace: t !== raw };
 }
 
 /** Parse COMMUNITY_ADMIN_TG_IDS (comma/space separated numeric ids). */

@@ -6,6 +6,7 @@ import {
   readMemberSession,
   clearMemberSession,
   type MiniAppAuthFailReason,
+  type MiniAppAuthDebug,
 } from "@/lib/community-auth";
 import { getCommunityBotUsername } from "@/lib/community-bot";
 import { isValidInviteSlug, recordInviteJoin } from "@/lib/community";
@@ -35,10 +36,12 @@ export async function POST(req: Request) {
 
   let member = null;
   let failReason: MiniAppAuthFailReason | null = null;
+  let authDebug: MiniAppAuthDebug | undefined;
   if (typeof body.initData === "string" && body.initData) {
     const detailed = verifyMiniAppInitDataDetailed(body.initData);
     member = detailed.member;
     failReason = detailed.reason;
+    authDebug = detailed.debug;
   } else {
     return NextResponse.json(
       { ok: false, error: "This chat is Telegram members only — open it inside Telegram." },
@@ -58,9 +61,13 @@ export async function POST(req: Request) {
       no_token:
         "The server has no community bot token configured — set COMMUNITY_BOT_TOKEN.",
       no_hash: "Telegram didn't include a signature in the sign-in payload.",
-      bad_signature: serverBot
-        ? `Signature check failed — this app was opened from a different bot than the server is configured for (@${serverBot}). Open it via @${serverBot}.`
-        : "Signature check failed — the server's COMMUNITY_BOT_TOKEN doesn't match the bot that opened this app.",
+      bad_signature:
+        (serverBot
+          ? `Signature check failed — the server is configured for @${serverBot}. Confirm COMMUNITY_BOT_TOKEN is that exact bot's token and the latest build is deployed.`
+          : "Signature check failed — the server couldn't validate this session against COMMUNITY_BOT_TOKEN. Confirm it's the exact bot that opened this app and the latest build is deployed.") +
+        (authDebug?.tokenHadWhitespace
+          ? " (The configured token has surrounding whitespace — re-paste it with no spaces or newlines.)"
+          : ""),
       stale_auth_date:
         "This Telegram session is stale — close and reopen the mini app.",
       no_user: "No Telegram user was included in the sign-in payload.",
@@ -70,6 +77,9 @@ export async function POST(req: Request) {
         ok: false,
         error: human[failReason ?? ""] ?? "Telegram verification failed",
         reason: failReason,
+        // Non-sensitive diagnostics (no token material / no user PII) so a
+        // "same token but signature fails" report can be pinpointed remotely.
+        debug: authDebug,
       },
       { status: 401 },
     );
