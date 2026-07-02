@@ -232,6 +232,16 @@
   object-fit: cover;
   border-radius: 50%;
 }
+/* Incoming message bubbles: the owner asked to drop the small white tail
+   (svg-appendix) that pokes out beside the avatar / profile photo. Hide it and
+   restore the rounded bottom-left corner the tail normally squares off. */
+.tg-app .Message:not(.own) .message-content.has-appendix .svg-appendix {
+  display: none !important;
+}
+.tg-app .Message:not(.own) .message-content.has-appendix {
+  --border-bottom-left-radius: var(--border-radius-messages-small);
+  border-bottom-left-radius: var(--border-radius-messages-small);
+}
 /* sender name colors inside bubbles */
 .tg-app .message-title-name.tg-peer-0 { color: var(--peer-red); }
 .tg-app .message-title-name.tg-peer-1 { color: var(--peer-orange); }

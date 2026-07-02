@@ -100,6 +100,11 @@ export default function MessageBubble({
   const isFirst = first ?? Boolean(sender) ?? true;
   const isLast = last ?? hasAppendix;
   const showAvatar = !own && Boolean(showAvatarGutter) && Boolean(avatar);
+  // Telegram animated profile photos are short MP4/WEBM clips; play them as
+  // muted looping video so member avatars animate like the real client.
+  // (GIF/APNG animate natively inside <img>, so they stay on the image path.)
+  const avatarIsVideo =
+    !!avatar?.photo && /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(avatar.photo);
 
   const rootCls = [
     "Message",
@@ -189,13 +194,25 @@ export default function MessageBubble({
         >
           <div className="inner">
             {avatar.photo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={avatar.photo}
-                className="avatar-media"
-                alt=""
-                loading="lazy"
-              />
+              avatarIsVideo ? (
+                <video
+                  src={avatar.photo}
+                  className="avatar-media"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatar.photo}
+                  className="avatar-media"
+                  alt=""
+                  loading="lazy"
+                />
+              )
             ) : (
               <span className="letters">{initials(avatar.name)}</span>
             )}
