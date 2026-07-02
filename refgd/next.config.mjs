@@ -121,6 +121,15 @@ const nextConfig = {
               { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
             ],
           },
+          {
+            // Self-hosted Telegram custom-emoji artwork (animated webp keyed
+            // by the immutable Telegram document id). Content-stable → cache
+            // for a year; public/ otherwise serves max-age=0.
+            source: "/tg-emoji/:path*",
+            headers: [
+              { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+            ],
+          },
         ];
       },
       async redirects() {

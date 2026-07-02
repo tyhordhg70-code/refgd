@@ -15,10 +15,19 @@ import { IconBell, IconChat } from "./TgIcons";
 import MiddleHeader from "./MiddleHeader";
 import MessageBubble from "./MessageBubble";
 import VouchHistory from "./VouchTopic";
-import { README_SEED_BODY, README_SEED_TIME, SEED_AUTHOR } from "./seed";
+import {
+  ANNOUNCEMENT_SEED_TIME,
+  CHAT_NOTICE_SEED_BODY,
+  README_SEED_BODY,
+  README_SEED_PHOTO,
+  README_SEED_REACTIONS,
+  README_SEED_TIME,
+  SEED_AUTHOR,
+  SEED_AVATAR,
+} from "./seed";
 import type { TopicDef, TopicKey, VouchView } from "./types";
 import {
-  emojiSrc,
+  CustomEmojiImg,
   renderBody,
   renderTextWithEmoji,
   shortDateLabel,
@@ -34,13 +43,62 @@ import {
  * READ ME shows the welcome post; Group Chat is the live chat.
  */
 
+/**
+ * Topics in the saved topic list's order, with each icon's real
+ * custom-emoji document id (Group Chat uses the # forum icon).
+ */
 const TOPICS: TopicDef[] = [
-  { key: "readme", title: "READ ME", emoji: "📌", peer: 0 },
-  { key: "announcements", title: "Announcements", emoji: "📣", peer: 1 },
-  { key: "buy4u", title: "BUY4U Vouches", emoji: "🛒", peer: 5 },
-  { key: "testimonials", title: "Client Testimonials", emoji: "⭐", peer: 3 },
   { key: "chat", title: "Group Chat", emoji: "💬", peer: 4 },
+  {
+    key: "readme",
+    title: "READ ME",
+    emoji: "‼️",
+    docId: "5440660757194744323",
+    peer: 0,
+  },
+  {
+    key: "announcements",
+    title: "Announcements",
+    emoji: "📣",
+    docId: "5424818078833715060",
+    peer: 1,
+  },
+  {
+    key: "buy4u",
+    title: "BUY4U Vouches",
+    emoji: "✈️",
+    docId: "5231361378748472914",
+    peer: 5,
+  },
+  {
+    key: "testimonials",
+    title: "Client Testimonials",
+    emoji: "⭐️",
+    docId: "5438496463044752972",
+    peer: 3,
+  },
 ];
+
+/** Web A topic icon: custom-emoji artwork, or the # icon for Group Chat. */
+function TopicIcon({ def }: { def: TopicDef }) {
+  if (!def.docId) {
+    return (
+      <i
+        className="icon icon-hashtag I0-98vJl P6JY5GgC general-forum-icon"
+        aria-hidden
+      />
+    );
+  }
+  return (
+    <div
+      className="zOQgNBAa P6JY5GgC custom-emoji emoji tg-topic-icon"
+      data-alt={def.emoji}
+      aria-hidden
+    >
+      <CustomEmojiImg id={def.docId} alt={def.emoji} />
+    </div>
+  );
+}
 
 const ROW_HEIGHT = 65;
 const MAIN_STYLE = { "--pattern-color": "#4A8E3A8C" } as CSSProperties;
@@ -88,7 +146,13 @@ export default function TelegramApp({
   const [active, setActive] = useState<TopicKey | null>(null);
   const [inTg, setInTg] = useState(false);
   const [listMenuOpen, setListMenuOpen] = useState(false);
+  // Topic-list search: null = closed, string = open with that query.
+  const [listSearch, setListSearch] = useState<string | null>(null);
   const [showNotif, setShowNotif] = useState(false);
+  const listQuery = (listSearch ?? "").trim().toLowerCase();
+  const visibleTopics = listQuery
+    ? TOPICS.filter((t) => t.title.toLowerCase().includes(listQuery))
+    : TOPICS;
   const htmlRef = useRef<HTMLDivElement>(null);
 
   // Web A sizes everything against --vh (set from window.innerHeight) so the
@@ -149,7 +213,19 @@ export default function TelegramApp({
       };
     }
     const last = latest(byTopic[key] ?? []);
-    if (!last) return { sender: null, summary: "No messages yet", time: "" };
+    if (!last) {
+      // Announcements' latest post in the real group is the seeded clearing
+      // notice, so mirror it in the row preview until the bot ingests more.
+      if (key === "announcements") {
+        return {
+          sender: SEED_AUTHOR,
+          summary:
+            "All group chat messages will be cleared, to assert attorney-client privilege 🧹",
+          time: ANNOUNCEMENT_SEED_TIME,
+        };
+      }
+      return { sender: null, summary: "No messages yet", time: "" };
+    }
     const text = last.body.replace(/\s+/g, " ").trim();
     return {
       sender: last.authorName,
@@ -255,21 +331,7 @@ export default function TelegramApp({
         <MiddleHeader
           title="READ ME"
           subtitle={welcome ? "2 messages" : "1 message"}
-          icon={
-            <div
-              className="zOQgNBAa P6JY5GgC custom-emoji emoji tg-topic-icon"
-              data-alt="📌"
-              aria-hidden
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={emojiSrc("📌")}
-                className="emoji"
-                alt="📌"
-                draggable={false}
-              />
-            </div>
-          }
+          icon={<TopicIcon def={TOPICS.find((t) => t.key === "readme")!} />}
           onBack={back}
         />
         <div className="Transition">
@@ -295,10 +357,12 @@ export default function TelegramApp({
                         avatar={
                           welcome
                             ? null
-                            : { name: SEED_AUTHOR, photo: null, peer: 0 }
+                            : { name: SEED_AUTHOR, photo: SEED_AVATAR, peer: 0 }
                         }
                         hasAppendix={!welcome}
                         pinned
+                        media={[README_SEED_PHOTO]}
+                        reactions={README_SEED_REACTIONS}
                         body={README_SEED_BODY}
                         time={README_SEED_TIME}
                       />
@@ -308,7 +372,11 @@ export default function TelegramApp({
                           last
                           showAvatarGutter
                           sender={null}
-                          avatar={{ name: SEED_AUTHOR, photo: null, peer: 0 }}
+                          avatar={{
+                            name: SEED_AUTHOR,
+                            photo: SEED_AVATAR,
+                            peer: 0,
+                          }}
                           hasAppendix
                           body={renderBody(welcome)}
                         />
@@ -320,10 +388,12 @@ export default function TelegramApp({
             </div>
           </div>
         </div>
-        <div className="middle-column-footer">
+        <div className="middle-column-footer tg-locked-footer">
           <div className="messaging-disabled shown">
             <div className="messaging-disabled-inner">
-              <span>Only admins can post in this topic.</span>
+              <span>
+                <i className="icon icon-lock" aria-hidden /> Topic locked
+              </span>
             </div>
           </div>
         </div>
@@ -335,29 +405,48 @@ export default function TelegramApp({
     active === "testimonials"
   ) {
     const def = TOPICS.find((t) => t.key === active);
-    const emoji = def?.emoji ?? "⭐";
+    const topicKey = active;
     middle = (
       <CommunityChat
         key={active}
         onBack={back}
         topic={active}
         title={def?.title ?? ""}
-        icon={
-          <div
-            className="zOQgNBAa P6JY5GgC custom-emoji emoji tg-topic-icon"
-            data-alt={emoji}
-            aria-hidden
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={emojiSrc(emoji)}
-              className="emoji"
-              alt={emoji}
-              draggable={false}
-            />
-          </div>
-        }
-        history={<VouchHistory vouches={byTopic[active] ?? []} />}
+        icon={def ? <TopicIcon def={def} /> : undefined}
+        history={(query) => {
+          const q = query.trim().toLowerCase();
+          const vouches = byTopic[topicKey] ?? [];
+          const shown = q
+            ? vouches.filter(
+                (v) =>
+                  v.body.toLowerCase().includes(q) ||
+                  v.authorName.toLowerCase().includes(q),
+              )
+            : vouches;
+          return (
+            <>
+              {topicKey === "announcements" && !q && (
+                <div className="message-date-group first-message-date-group">
+                  <div className="sender-group-container sKXqbu2I">
+                    <MessageBubble
+                      own={false}
+                      first
+                      last
+                      showAvatarGutter
+                      sender={{ name: SEED_AUTHOR, peer: 0, admin: true }}
+                      avatar={{ name: SEED_AUTHOR, photo: SEED_AVATAR, peer: 0 }}
+                      hasAppendix
+                      pinned
+                      body={CHAT_NOTICE_SEED_BODY}
+                      time={ANNOUNCEMENT_SEED_TIME}
+                    />
+                  </div>
+                </div>
+              )}
+              <VouchHistory vouches={shown} />
+            </>
+          );
+        }}
       />
     );
   } else {
@@ -380,47 +469,79 @@ export default function TelegramApp({
               />
               <div className="m2EjaIDq" style={{ transform: "none" }}>
                 <div id="TopicListHeader" className="left-header">
-                  <button
-                    type="button"
-                    className="Button smaller translucent round"
-                    aria-label="Close"
-                    title="Close"
-                    onClick={closeApp}
-                  >
-                    <i className="icon icon-close" aria-hidden />
-                  </button>
-                  <div className="ChatInfo RpNeGy4Y">
-                    <div className="info">
-                      <div className="title eZi5Ws-N">
-                        <h3 dir="auto" role="button" className="fullName _8IVW0azL">
-                          RefundGod
-                        </h3>
+                  {listSearch === null ? (
+                    <>
+                      <button
+                        type="button"
+                        className="Button smaller translucent round"
+                        aria-label="Close"
+                        title="Close"
+                        onClick={closeApp}
+                      >
+                        <i className="icon icon-close" aria-hidden />
+                      </button>
+                      <div className="ChatInfo RpNeGy4Y">
+                        <div className="info">
+                          <div className="title eZi5Ws-N">
+                            <h3
+                              dir="auto"
+                              role="button"
+                              className="fullName _8IVW0azL"
+                            >
+                              RefundGod
+                            </h3>
+                          </div>
+                          <span className="status">
+                            <span className="group-status">{memberLabel}</span>
+                          </span>
+                        </div>
                       </div>
-                      <span className="status">
-                        <span className="group-status">{memberLabel}</span>
-                      </span>
-                    </div>
-                  </div>
-                  <div className="HeaderActions">
-                    <button
-                      type="button"
-                      className="Button smaller translucent round"
-                      aria-label="Search this chat"
-                      title="Search this chat"
-                    >
-                      <i className="icon icon-search" aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      className="Button smaller translucent round"
-                      aria-label="More actions"
-                      title="More actions"
-                      aria-expanded={listMenuOpen}
-                      onClick={() => setListMenuOpen((v) => !v)}
-                    >
-                      <i className="icon icon-more" aria-hidden />
-                    </button>
-                  </div>
+                      <div className="HeaderActions">
+                        <button
+                          type="button"
+                          className="Button smaller translucent round"
+                          aria-label="Search topics"
+                          title="Search topics"
+                          onClick={() => setListSearch("")}
+                        >
+                          <i className="icon icon-search" aria-hidden />
+                        </button>
+                        <button
+                          type="button"
+                          className="Button smaller translucent round"
+                          aria-label="More actions"
+                          title="More actions"
+                          aria-expanded={listMenuOpen}
+                          onClick={() => setListMenuOpen((v) => !v)}
+                        >
+                          <i className="icon icon-more" aria-hidden />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="Button smaller translucent round"
+                        aria-label="Close search"
+                        title="Close search"
+                        onClick={() => setListSearch(null)}
+                      >
+                        <i className="icon icon-arrow-left" aria-hidden />
+                      </button>
+                      <div className="SearchInput tg-list-search" dir="ltr">
+                        <input
+                          type="text"
+                          dir="auto"
+                          placeholder="Search"
+                          className="form-control"
+                          value={listSearch}
+                          autoFocus
+                          onChange={(e) => setListSearch(e.target.value)}
+                        />
+                      </div>
+                    </>
+                  )}
                   {listMenuOpen && (
                     <>
                       <button
@@ -461,10 +582,10 @@ export default function TelegramApp({
                   <div
                     style={{
                       position: "relative",
-                      height: TOPICS.length * ROW_HEIGHT,
+                      height: visibleTopics.length * ROW_HEIGHT,
                     }}
                   >
-                    {TOPICS.map((t, i) => {
+                    {visibleTopics.map((t, i) => {
                       const meta = rowMeta(t.key);
                       return (
                         <div
@@ -486,26 +607,7 @@ export default function TelegramApp({
                             <div className="info">
                               <div className="info-row">
                                 <div className="title">
-                                  {t.key === "chat" ? (
-                                    <i
-                                      className="icon icon-hashtag I0-98vJl P6JY5GgC general-forum-icon"
-                                      aria-hidden
-                                    />
-                                  ) : (
-                                    <div
-                                      className="zOQgNBAa P6JY5GgC custom-emoji emoji tg-topic-icon"
-                                      data-alt={t.emoji}
-                                      aria-hidden
-                                    >
-                                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                                      <img
-                                        src={emojiSrc(t.emoji)}
-                                        className="emoji"
-                                        alt={t.emoji}
-                                        draggable={false}
-                                      />
-                                    </div>
-                                  )}
+                                  <TopicIcon def={t} />
                                   <h3 dir="auto" className="fullName">
                                     {t.title}
                                   </h3>

@@ -139,13 +139,14 @@ export function renderTextWithEmoji(text: string, keyPrefix = "t"): ReactNode[] 
 const URL_RE = /(https?:\/\/[^\s]+|t\.me\/[^\s]+)/g;
 
 /**
- * Custom (premium pack) emoji sticker rendered from the Telegram document id,
- * falling back to the plain Apple-emoji sprite when the sticker can't be
- * served (e.g. no bot token in dev, or an animated-only document).
+ * Custom (premium pack) emoji sticker rendered from the Telegram document id.
+ * Source cascade: self-hosted animated webp (/tg-emoji, committed to the
+ * repo) → /api/community/emoji static thumb (Bot API, prod only) → plain
+ * Apple-emoji sprite. Each tier moves on when the previous one 404s/fails.
  */
 export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) {
+  const [tier, setTier] = useState(0);
+  if (tier >= 2) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
@@ -160,12 +161,14 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`/api/community/emoji/${id}`}
+      src={
+        tier === 0 ? `/tg-emoji/${id}.webp` : `/api/community/emoji/${id}`
+      }
       className="emoji emoji-small tg-custom-emoji"
       alt={alt}
       draggable={false}
       loading="lazy"
-      onError={() => setFailed(true)}
+      onError={() => setTier((t) => t + 1)}
     />
   );
 }

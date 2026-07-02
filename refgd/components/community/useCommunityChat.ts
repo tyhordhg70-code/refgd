@@ -85,6 +85,7 @@ interface TelegramWebApp {
   setBackgroundColor?: (color: string) => void;
   requestFullscreen?: () => void;
   exitFullscreen?: () => void;
+  disableVerticalSwipes?: () => void;
   isVersionAtLeast?: (version: string) => boolean;
   onEvent?: (event: string, handler: () => void) => void;
   offEvent?: (event: string, handler: () => void) => void;
@@ -154,6 +155,12 @@ export async function ensureTelegramReady(): Promise<boolean> {
   } catch {
     /* older clients — non-fatal */
   }
+  // Scrolling the message list must never swipe-to-close the Mini App.
+  try {
+    wa?.disableVerticalSwipes?.();
+  } catch {
+    /* Bot API < 7.7 — non-fatal */
+  }
   hookSafeArea(wa);
   return true;
 }
@@ -178,6 +185,14 @@ function hookSafeArea(wa: TelegramWebApp | undefined): void {
     root.style.setProperty(
       "--tg-content-safe-area-inset-top",
       px(wa.contentSafeAreaInset?.top),
+    );
+    root.style.setProperty(
+      "--tg-safe-area-inset-bottom",
+      px(wa.safeAreaInset?.bottom),
+    );
+    root.style.setProperty(
+      "--tg-content-safe-area-inset-bottom",
+      px(wa.contentSafeAreaInset?.bottom),
     );
   };
   try {

@@ -1240,3 +1240,105 @@ button.tg-reply-embed {
   );
 }
 
+
+/* ── Round 4 fixes ──────────────────────────────────────────────────── */
+
+/* The saved client keeps the chat-list strip visible at left: 4.75rem
+   under the topic panel; our replica has nothing behind it, so that strip
+   rendered as a blank white column. Full-bleed the topic panel instead.
+   The panel is position:absolute (top:0), so #LeftColumn's fullscreen
+   safe-area padding doesn't push it down — offset its top directly and
+   pin the bottom so the height stays correct. */
+.tg-html .m2EjaIDq {
+  left: 0 !important;
+  border-left: none;
+  top: calc(
+    var(--tg-safe-area-inset-top, 0px) +
+      var(--tg-content-safe-area-inset-top, 0px)
+  );
+  bottom: 0;
+  height: auto;
+}
+
+/* "Topic locked" bar — Web A's compact read-only footer: lock icon +
+   label, smaller than the composer, and lifted above the phone's gesture
+   / nav bar inside the Mini App. */
+.tg-locked-footer {
+  padding-bottom: calc(
+    0.75rem + var(--tg-safe-area-inset-bottom, 0px) +
+      var(--tg-content-safe-area-inset-bottom, 0px)
+  );
+}
+.tg-locked-footer .messaging-disabled {
+  color: var(--color-text-secondary);
+  background: var(--color-background);
+  border-radius: var(--border-radius-messages);
+  box-shadow: 0 1px 2px var(--color-default-shadow);
+  max-width: var(--messages-container-width);
+  width: 100%;
+  margin: 0 auto;
+}
+.tg-locked-footer .messaging-disabled-inner {
+  padding: 0.625rem 0.875rem;
+  text-align: center;
+  font-size: 0.9375rem;
+  line-height: 1.25;
+}
+.tg-locked-footer .messaging-disabled-inner span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.tg-locked-footer .messaging-disabled-inner .icon {
+  font-size: 1.125rem;
+  color: var(--color-text-secondary);
+}
+
+/* Live composer also needs to clear the gesture bar in fullscreen. */
+.tg-html .middle-column-footer:not(.tg-locked-footer) {
+  padding-bottom: calc(
+    var(--tg-safe-area-inset-bottom, 0px) +
+      var(--tg-content-safe-area-inset-bottom, 0px)
+  );
+}
+
+/* Search inputs (topic list header + in-chat search bar). */
+.tg-html .SearchInput.tg-list-search {
+  flex: 1;
+  min-width: 0;
+  margin: 0 0.25rem;
+}
+.tg-html .SearchInput.tg-list-search input {
+  width: 100%;
+  color: var(--color-text);
+  font-size: 0.9375rem;
+  outline: none;
+}
+.tg-chat-search {
+  position: absolute;
+  top: var(--header-height, 3.5rem);
+  left: 0;
+  right: 0;
+  z-index: var(--z-middle-header, 10);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.5rem;
+  background: var(--color-background);
+  box-shadow: 0 2px 2px var(--color-light-shadow);
+}
+
+/* Topic icons in list rows / headers render the real custom-emoji artwork. */
+.tg-html .tg-topic-icon .tg-custom-emoji {
+  width: 100%;
+  height: 100%;
+  vertical-align: top;
+}
+
+/* The original READ ME photo only survives as Telegram's 72px blurred
+   placeholder — smooth the upscale so it reads as the real client's
+   blur-up preview rather than raw pixelation. */
+.tg-html .tg-media img[src$="readme-photo-thumb.png"] {
+  filter: blur(10px);
+  transform: scale(1.08);
+}

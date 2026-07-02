@@ -46,6 +46,7 @@ import {
   CHAT_NOTICE_SEED_BODY,
   CHAT_NOTICE_SEED_TIME,
   SEED_AUTHOR,
+  SEED_AVATAR,
 } from "./tg/seed";
 
 /**
@@ -106,12 +107,17 @@ export default function CommunityChat({
   title?: string;
   /** Header icon override (topic emoji); defaults to the # forum icon. */
   icon?: ReactNode;
-  /** Read-only migrated history rendered above the live messages. */
-  history?: ReactNode;
+  /**
+   * Read-only migrated history rendered above the live messages. A function
+   * receives the active in-chat search query so it can filter itself.
+   */
+  history?: ReactNode | ((query: string) => ReactNode);
 }) {
   const chat = useCommunityChat(topic);
   const isGroupChat = topic === "chat";
   const [menuOpen, setMenuOpen] = useState(false);
+  // In-chat search: null = closed, string = open with that query.
+  const [search, setSearch] = useState<string | null>(null);
   const [showNotif, setShowNotif] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [fsPrompt, setFsPrompt] = useState(false);
@@ -174,10 +180,18 @@ export default function CommunityChat({
   };
 
   const { state, me } = chat;
-  const groups = useMemo(
-    () => buildGroups(state?.messages ?? []),
-    [state?.messages],
-  );
+  const query = (search ?? "").trim().toLowerCase();
+  const groups = useMemo(() => {
+    const all = state?.messages ?? [];
+    const shown = query
+      ? all.filter(
+          (m) =>
+            m.body.toLowerCase().includes(query) ||
+            m.authorName.toLowerCase().includes(query),
+        )
+      : all;
+    return buildGroups(shown);
+  }, [state?.messages, query]);
 
   // Keep the contenteditable input in sync with chat.text when it changes
   // programmatically (e.g. cleared after send) without clobbering the caret
@@ -222,6 +236,7 @@ export default function CommunityChat({
           className="Button smaller translucent round"
           aria-label="Search this chat"
           title="Search this chat"
+          onClick={() => setSearch((s) => (s === null ? "" : null))}
         >
           <i className="icon icon-search" aria-hidden />
         </button>
@@ -236,6 +251,31 @@ export default function CommunityChat({
           <i className="icon icon-more" aria-hidden />
         </button>
       </MiddleHeader>
+
+      {search !== null && (
+        <div className="tg-chat-search">
+          <div className="SearchInput tg-list-search" dir="ltr">
+            <input
+              type="text"
+              dir="auto"
+              placeholder="Search messages"
+              className="form-control"
+              value={search}
+              autoFocus
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            className="Button smaller translucent round"
+            aria-label="Close search"
+            title="Close search"
+            onClick={() => setSearch(null)}
+          >
+            <i className="icon icon-close" aria-hidden />
+          </button>
+        </div>
+      )}
 
       {menuOpen && (
         <>
@@ -467,16 +507,16 @@ export default function CommunityChat({
                   <div className="tg-loading">Loading chat…</div>
                 ) : (
                   <>
-                    {isGroupChat && state.welcome && (
+                    {isGroupChat && state.welcome && !query && (
                       <div className="tg-service-card">
                         {renderBody(state.welcome)}
                       </div>
                     )}
                     {/* History seeded from the real group's saved pages. */}
-                    {isGroupChat && CHAT_MIGRATED_SEED}
+                    {isGroupChat && !query && CHAT_MIGRATED_SEED}
                     {/* Read-only migrated history (vouch topics). */}
-                    {history}
-                    {(isGroupChat || topic === "testimonials") && (
+                    {typeof history === "function" ? history(query) : history}
+                    {(isGroupChat || topic === "testimonials") && !query && (
                       <div className="sender-group-container sKXqbu2I">
                         <MessageBubble
                           own={false}
@@ -490,7 +530,7 @@ export default function CommunityChat({
                           }}
                           avatar={{
                             name: SEED_AUTHOR,
-                            photo: null,
+                            photo: SEED_AVATAR,
                             peer: peerIdx(SEED_AUTHOR),
                           }}
                           hasAppendix
