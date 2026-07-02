@@ -144,29 +144,16 @@ export const README_SEED_BODY: ReactNode = (
             className="text-entity-link"
             dir="auto"
             data-entity-type="MessageEntityMention"
-            href="https://t.me/refundgodbot"
+            href="https://t.me/refundlawfirmbot"
             target="_blank"
             rel="noopener noreferrer"
           >
-            <strong data-entity-type="MessageEntityBold">@refundgodbot</strong>
+            <strong data-entity-type="MessageEntityBold">@refundlawfirmbot</strong>
           </a>
         </div>
       </blockquote>
     </span>
   </>
-);
-
-/**
- * The "Migrated from law" service pill that opens the group chat history
- * (message 1 in the saved page — classes are real Web A action-message
- * classes shipped in tg-webapp.css).
- */
-export const CHAT_MIGRATED_SEED: ReactNode = (
-  <div className="ActionMessage message-list-item wKgfHKTW p9P0k2bA shown open">
-    <div className="aKAeSlxb">
-      <span className="lY8JkUwr">Migrated from law</span>
-    </div>
-  </div>
 );
 
 /**
@@ -194,7 +181,7 @@ export const ANNOUNCEMENT_SEED_PHOTO = "/tg-assets/announcement-bot-photo.png";
 /**
  * The pinned Announcements post — the owner's "ask the bot" notice,
  * transcribed from the saved screenshot: bold highlight line, custom ❓ and 💬
- * emoji (doc ids supplied by the owner from the saved HTML) and @refundgodbot
+ * emoji (doc ids supplied by the owner from the saved HTML) and @refundlawfirmbot
  * mention links, blank-line layout preserved. The closing 🐺 bullets are the
  * standard Apple emoji (no custom-pack id).
  */
@@ -218,11 +205,11 @@ export const ANNOUNCEMENT_SEED_BODY: ReactNode = (
       className="text-entity-link"
       dir="auto"
       data-entity-type="MessageEntityMention"
-      href="https://t.me/refundgodbot"
+      href="https://t.me/refundlawfirmbot"
       target="_blank"
       rel="noopener noreferrer"
     >
-      @refundgodbot
+      @refundlawfirmbot
     </a>{" "}
     and receive near instant detailed responses.
     <br />
@@ -239,11 +226,11 @@ export const ANNOUNCEMENT_SEED_BODY: ReactNode = (
       className="text-entity-link"
       dir="auto"
       data-entity-type="MessageEntityMention"
-      href="https://t.me/refundgodbot"
+      href="https://t.me/refundlawfirmbot"
       target="_blank"
       rel="noopener noreferrer"
     >
-      <strong data-entity-type="MessageEntityBold">@refundgodbot</strong>
+      <strong data-entity-type="MessageEntityBold">@refundlawfirmbot</strong>
     </a>
     <br />
     <Em ch="🐺" />{" "}
@@ -251,11 +238,11 @@ export const ANNOUNCEMENT_SEED_BODY: ReactNode = (
       className="text-entity-link"
       dir="auto"
       data-entity-type="MessageEntityMention"
-      href="https://t.me/refundgodbot"
+      href="https://t.me/refundlawfirmbot"
       target="_blank"
       rel="noopener noreferrer"
     >
-      <strong data-entity-type="MessageEntityBold">@refundgodbot</strong>
+      <strong data-entity-type="MessageEntityBold">@refundlawfirmbot</strong>
     </a>
   </>
 );

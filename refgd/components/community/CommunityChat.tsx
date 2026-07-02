@@ -21,7 +21,10 @@ import {
   IconClose,
   IconCopy,
   IconDelete,
+  IconDownload,
   IconExpand,
+  IconForward,
+  IconLink,
   IconPin,
   IconReply,
   IconSettings,
@@ -42,7 +45,6 @@ import {
 } from "./useCommunityChat";
 import type { ChatTopic } from "@/lib/community";
 import {
-  CHAT_MIGRATED_SEED,
   CHAT_NOTICE_SEED_BODY,
   CHAT_NOTICE_SEED_TIME,
   SEED_AUTHOR,
@@ -128,8 +130,80 @@ export default function CommunityChat({
     y: number;
   } | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  // Fullscreen photo viewer (click a message photo to expand it).
+  const [lightbox, setLightbox] = useState<string | null>(null);
   const inputRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Keep the message list clear of the composer: the footer is overlaid at the
+  // bottom, so the list needs bottom padding equal to its live height (which
+  // grows with the reply bar, attachment preview or admin TTL row).
+  const footerRef = useRef<HTMLDivElement>(null);
+  const [composerPad, setComposerPad] = useState(76);
+  useEffect(() => {
+    const el = footerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      setComposerPad(Math.max(76, el.offsetHeight + 12));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Absolute URL for a stored chat photo (same-origin API route).
+  const mediaUrl = (mediaId: string) =>
+    `/api/community/chat-media/${mediaId}`;
+
+  // Context-menu media helpers. Copy/Download/Forward all operate on the
+  // clicked message's photo (Forward opens Telegram's share sheet so the
+  // member can save it to Saved Messages, matching the real client).
+  const copyImage = async (mediaId: string) => {
+    try {
+      const res = await fetch(mediaUrl(mediaId));
+      const blob = await res.blob();
+      // Normalise to PNG (the only universally clipboard-writable image type).
+      const bmp = await createImageBitmap(blob);
+      const canvas = document.createElement("canvas");
+      canvas.width = bmp.width;
+      canvas.height = bmp.height;
+      canvas.getContext("2d")?.drawImage(bmp, 0, 0);
+      const png = await new Promise<Blob | null>((r) =>
+        canvas.toBlob(r, "image/png"),
+      );
+      if (png)
+        await navigator.clipboard.write([
+          new ClipboardItem({ "image/png": png }),
+        ]);
+    } catch {
+      /* clipboard/image API unavailable — ignore */
+    }
+  };
+  const downloadImage = (mediaId: string) => {
+    const a = document.createElement("a");
+    a.href = mediaUrl(mediaId);
+    a.download = `photo-${mediaId}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+  const copyMessageLink = (m: ChatMessage) => {
+    const base = window.location.href.split("#")[0];
+    void navigator.clipboard
+      ?.writeText(`${base}#msg-${m.id}`)
+      .catch(() => undefined);
+  };
+  const forwardMessage = (m: ChatMessage) => {
+    const base = window.location.href.split("#")[0];
+    const url = `https://t.me/share/url?url=${encodeURIComponent(
+      `${base}#msg-${m.id}`,
+    )}&text=${encodeURIComponent(m.body || "Photo")}`;
+    const tg = (
+      window as unknown as {
+        Telegram?: { WebApp?: { openTelegramLink?: (u: string) => void } };
+      }
+    ).Telegram?.WebApp;
+    if (tg?.openTelegramLink) tg.openTelegramLink(url);
+    else window.open(url, "_blank", "noopener");
+  };
 
   // Append an emoji character / custom-emoji token to the composer text and
   // keep the contenteditable + caret in sync.
@@ -192,6 +266,12 @@ export default function CommunityChat({
       : all;
     return buildGroups(shown);
   }, [state?.messages, query]);
+
+  // Latest pinned message, surfaced in a banner under the header (Web A parity).
+  const pinnedMsg = useMemo(() => {
+    const pins = (state?.messages ?? []).filter((m) => m.pinned);
+    return pins.length ? pins[pins.length - 1] : null;
+  }, [state?.messages]);
 
   // Keep the contenteditable input in sync with chat.text when it changes
   // programmatically (e.g. cleared after send) without clobbering the caret
@@ -275,6 +355,27 @@ export default function CommunityChat({
             <i className="icon icon-close" aria-hidden />
           </button>
         </div>
+      )}
+
+      {pinnedMsg && search === null && (
+        <button
+          type="button"
+          className="tg-pinned-banner"
+          onClick={() => {
+            document
+              .querySelector(`[data-mid="${pinnedMsg.id}"]`)
+              ?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }}
+        >
+          <span className="tg-pinned-bar" aria-hidden />
+          <span className="tg-pinned-body">
+            <span className="tg-pinned-label">Pinned message</span>
+            <span className="tg-pinned-text">
+              {pinnedMsg.body?.trim() || "Photo"}
+            </span>
+          </span>
+          <IconPin />
+        </button>
       )}
 
       {menuOpen && (
@@ -429,6 +530,20 @@ export default function CommunityChat({
               <IconReply />
               Reply
             </button>
+            {ctxMenu.m.mediaId && (
+              <button
+                type="button"
+                className="tg-menu-item"
+                onClick={() => {
+                  const id = ctxMenu.m.mediaId;
+                  if (id) void copyImage(id);
+                  setCtxMenu(null);
+                }}
+              >
+                <IconCopy />
+                Copy Image
+              </button>
+            )}
             {ctxMenu.m.body && (
               <button
                 type="button"
@@ -444,6 +559,17 @@ export default function CommunityChat({
                 Copy Text
               </button>
             )}
+            <button
+              type="button"
+              className="tg-menu-item"
+              onClick={() => {
+                copyMessageLink(ctxMenu.m);
+                setCtxMenu(null);
+              }}
+            >
+              <IconLink />
+              Copy Message Link
+            </button>
             {me?.admin && (
               <button
                 type="button"
@@ -460,6 +586,31 @@ export default function CommunityChat({
                 {ctxMenu.m.pinned ? "Unpin" : "Pin"}
               </button>
             )}
+            {me?.admin && ctxMenu.m.mediaId && (
+              <button
+                type="button"
+                className="tg-menu-item"
+                onClick={() => {
+                  const id = ctxMenu.m.mediaId;
+                  if (id) downloadImage(id);
+                  setCtxMenu(null);
+                }}
+              >
+                <IconDownload />
+                Download
+              </button>
+            )}
+            <button
+              type="button"
+              className="tg-menu-item"
+              onClick={() => {
+                forwardMessage(ctxMenu.m);
+                setCtxMenu(null);
+              }}
+            >
+              <IconForward />
+              Forward
+            </button>
             {me?.admin && (
               <button
                 type="button"
@@ -501,7 +652,13 @@ export default function CommunityChat({
             style={LIST_STYLE}
           >
             <div className="Transition_slide Transition_slide-active">
-              <div className="messages-container" style={{ paddingBottom: 76 }}>
+              <div
+                className="messages-container"
+                style={{
+                  paddingTop: pinnedMsg && search === null ? 44 : undefined,
+                  paddingBottom: composerPad,
+                }}
+              >
                 <div className="backwards-trigger" />
                 {state === null ? (
                   <div className="tg-loading">Loading chat…</div>
@@ -512,8 +669,6 @@ export default function CommunityChat({
                         {renderBody(state.welcome)}
                       </div>
                     )}
-                    {/* History seeded from the real group's saved pages. */}
-                    {isGroupChat && !query && CHAT_MIGRATED_SEED}
                     {/* Read-only migrated history (vouch topics). */}
                     {typeof history === "function" ? history(query) : history}
                     {(isGroupChat || topic === "testimonials") && !query && (
@@ -563,6 +718,7 @@ export default function CommunityChat({
                               return (
                                 <MessageBubble
                                   key={m.id}
+                                  mid={m.id}
                                   own={own}
                                   first={first}
                                   last={last}
@@ -604,48 +760,40 @@ export default function CommunityChat({
                                   onReact={(emoji) =>
                                     void chat.react(m.id, emoji)
                                   }
-                                  onOpenMenu={
-                                    me
-                                      ? (pos) =>
-                                          setCtxMenu({
-                                            m,
-                                            x: pos.x,
-                                            y: pos.y,
-                                          })
-                                      : undefined
+                                  onOpenMedia={(src) => setLightbox(src)}
+                                  onOpenMenu={(pos) =>
+                                    setCtxMenu({ m, x: pos.x, y: pos.y })
                                   }
                                   actionsOpen={chat.reactOpen === m.id}
                                   actions={
-                                    me ? (
-                                      <>
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            chat.setReplyTo({
-                                              id: m.id,
-                                              authorName: m.authorName,
-                                              body: m.body,
-                                            })
-                                          }
-                                          aria-label="Reply"
-                                        >
-                                          <IconReply />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            chat.setReactOpen(
-                                              chat.reactOpen === m.id
-                                                ? null
-                                                : m.id,
-                                            )
-                                          }
-                                          aria-label="Add reaction"
-                                        >
-                                          😊
-                                        </button>
-                                      </>
-                                    ) : undefined
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          chat.setReplyTo({
+                                            id: m.id,
+                                            authorName: m.authorName,
+                                            body: m.body,
+                                          })
+                                        }
+                                        aria-label="Reply"
+                                      >
+                                        <IconReply />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          chat.setReactOpen(
+                                            chat.reactOpen === m.id
+                                              ? null
+                                              : m.id,
+                                          )
+                                        }
+                                        aria-label="Add reaction"
+                                      >
+                                        😊
+                                      </button>
+                                    </>
                                   }
                                   picker={
                                     chat.reactOpen === m.id ? (
@@ -679,7 +827,7 @@ export default function CommunityChat({
         </div>
       </div>
 
-      <div className="middle-column-footer">
+      <div className="middle-column-footer" ref={footerRef}>
         {chat.error && (
           <div className="tg-composer-alert is-error">
             <span>{chat.error}</span>
@@ -919,6 +1067,30 @@ export default function CommunityChat({
           </div>
         )}
       </div>
+
+      {lightbox && (
+        <div
+          className="tg-lightbox"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            type="button"
+            className="tg-lightbox-close"
+            aria-label="Close photo"
+            onClick={() => setLightbox(null)}
+          >
+            <IconClose />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightbox}
+            alt="Photo"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </>
   );
 }

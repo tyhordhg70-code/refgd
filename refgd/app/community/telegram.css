@@ -1334,3 +1334,203 @@ button.tg-reply-embed {
   height: 100%;
   vertical-align: top;
 }
+
+/* ── Message bubble tail (svg-appendix) — position the 9×20 tail so it hugs
+      the bottom corner instead of rendering inline under the bubble. ─────── */
+.tg-app .message-content {
+  position: relative;
+}
+.tg-app .svg-appendix {
+  position: absolute;
+  bottom: -0.1875rem;
+  width: 0.5625rem;
+  height: 1.25rem;
+  z-index: 1;
+  pointer-events: none;
+}
+.tg-app .Message:not(.own) .svg-appendix {
+  left: -0.5625rem;
+}
+.tg-app .Message.own .svg-appendix {
+  right: -0.5625rem;
+  transform: scaleX(-1);
+}
+
+/* ── Admin badge — green label pushed to the right of the sender name. ───── */
+.tg-app .message-title {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.tg-app .admin-title-badge {
+  margin-inline-start: auto;
+  padding-inline-start: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  color: #3ba55d;
+  white-space: nowrap;
+}
+
+/* ── Composer send button — solid white circle with a primary-tinted icon
+      (was transparent). ──────────────────────────────────────────────────── */
+.tg-app .Composer > .Button.send.main-button {
+  flex: 0 0 auto;
+  width: 3.375rem;
+  height: 3.375rem;
+  margin-inline-start: 0.5rem;
+  border-radius: 50%;
+  background: var(--color-background, #fff);
+  color: var(--color-primary, #3390ec);
+  box-shadow: 0 1px 2px var(--color-default-shadow, rgba(16, 35, 47, 0.15));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.tg-app .Composer > .Button.send.main-button .icon {
+  font-size: 1.5rem;
+}
+.tg-app .Composer > .Button.send.main-button:hover:not(:disabled) {
+  color: var(--color-primary-shade, #2b7fd6);
+}
+.tg-app .Composer > .Button.send.main-button:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.tg-app .Composer > .Button.send.main-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ── Photo lightbox — click a message photo to view it full size. ───────── */
+.tg-media-clickable {
+  cursor: pointer;
+}
+.tg-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: rgba(0, 0, 0, 0.9);
+}
+.tg-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 0.5rem;
+}
+.tg-lightbox-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  cursor: pointer;
+}
+.tg-lightbox-close svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* ── Pinned-message banner under the header. ───────────────────────────── */
+.tg-pinned-banner {
+  position: absolute;
+  top: var(--header-height, 3.5rem);
+  left: 0;
+  right: 0;
+  z-index: var(--z-middle-header, 10);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.375rem 0.75rem;
+  border: none;
+  background: var(--color-background);
+  box-shadow: 0 2px 2px var(--color-light-shadow);
+  cursor: pointer;
+  text-align: left;
+}
+.tg-pinned-bar {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--color-primary, #3390ec);
+}
+.tg-pinned-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.tg-pinned-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-primary, #3390ec);
+}
+.tg-pinned-text {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary, #707579);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tg-pinned-banner svg {
+  flex: 0 0 auto;
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--color-text-secondary, #707579);
+}
+
+/* ── Emoji picker — category slider + per-pack sections (full emoji set). ─ */
+.tg-emoji-cats {
+  display: flex;
+  gap: 0.125rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0.25rem 0.375rem;
+  border-bottom: 1px solid var(--color-borders, rgba(0, 0, 0, 0.08));
+}
+.tg-emoji-cats::-webkit-scrollbar {
+  display: none;
+}
+.tg-emoji-cat {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.125rem;
+  opacity: 0.6;
+}
+.tg-emoji-cat img {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+.tg-emoji-cat.active {
+  background: var(--color-interactive-element-hover, rgba(0, 0, 0, 0.06));
+  opacity: 1;
+}
+.tg-emoji-section-title {
+  grid-column: 1 / -1;
+  padding: 0.375rem 0.25rem 0.125rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary, #707579);
+  text-transform: capitalize;
+}

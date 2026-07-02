@@ -48,6 +48,8 @@ export default function MessageBubble({
   picker,
   actionsOpen,
   onOpenMenu,
+  onOpenMedia,
+  mid,
 }: {
   own: boolean;
   /** First message of its author run (adds first-in-group). */
@@ -79,6 +81,9 @@ export default function MessageBubble({
    * Wired to right-click on desktop and a ~450ms long-press on touch.
    */
   onOpenMenu?: (pos: { x: number; y: number }) => void;
+  /** Opens the fullscreen media viewer for a clicked photo. */
+  onOpenMedia?: (src: string) => void;
+  mid?: string;
 }) {
   const pressTimer = useRef<number | null>(null);
   const clearPress = () => {
@@ -149,6 +154,7 @@ export default function MessageBubble({
   return (
     <div
       className={rootCls}
+      data-mid={mid}
       onContextMenu={
         onOpenMenu
           ? (e) => {
@@ -208,12 +214,12 @@ export default function MessageBubble({
                   >
                     {sender.name}
                   </span>
-                  {sender.admin && (
-                    <span className="admin-title" dir="auto">
-                      admin
-                    </span>
-                  )}
                 </span>
+                {sender.admin && (
+                  <span className="admin-title-badge" dir="auto">
+                    Admin
+                  </span>
+                )}
               </div>
             )}
 
@@ -230,7 +236,16 @@ export default function MessageBubble({
               <div className={`tg-media${mediaFlush ? "" : " is-inset"}`}>
                 {mediaList.map((src) => (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img key={src} src={src} alt="" loading="lazy" />
+                  <img
+                    key={src}
+                    src={src}
+                    alt=""
+                    loading="lazy"
+                    className={onOpenMedia ? "tg-media-clickable" : undefined}
+                    onClick={
+                      onOpenMedia ? () => onOpenMedia(src) : undefined
+                    }
+                  />
                 ))}
               </div>
             )}

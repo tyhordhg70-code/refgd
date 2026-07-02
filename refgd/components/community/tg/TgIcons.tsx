@@ -170,3 +170,36 @@ export function IconBan() {
     </svg>
   );
 }
+
+export function IconForward() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+export function IconDownload() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M13 3h-2v8H7l5 5 5-5h-4V3ZM5 19v2h14v-2H5Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+export function IconLink() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M3.9 12a3.1 3.1 0 0 1 3.1-3.1h4V7H7a5 5 0 0 0 0 10h4v-1.9H7A3.1 3.1 0 0 1 3.9 12ZM8 13h8v-2H8v2Zm9-6h-4v1.9h4a3.1 3.1 0 0 1 0 6.2h-4V17h4a5 5 0 0 0 0-10Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
