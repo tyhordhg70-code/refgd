@@ -20,7 +20,7 @@
  * trusted from the client — it is resolved server-side from
  * COMMUNITY_ADMIN_TG_IDS at both mint AND read time.
  */
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { isCommunityAdmin, communityBotToken } from "@/lib/community-bot";
@@ -180,40 +180,6 @@ export function verifyMiniAppInitDataDetailed(initData: string): {
  */
 export function verifyMiniAppInitData(initData: string): CommunityMember | null {
   return verifyMiniAppInitDataDetailed(initData).member;
-}
-
-/**
- * Verify a Telegram Login Widget payload (the object Telegram hands to the
- * widget callback / posts back). Returns the member on success, else null.
- */
-export function verifyLoginWidget(
-  data: Record<string, unknown>,
-): CommunityMember | null {
-  const token = communityBotToken();
-  if (!token || !data || typeof data !== "object") return null;
-
-  const hash = typeof data.hash === "string" ? data.hash : "";
-  if (!hash) return null;
-
-  const entries = new Map<string, string>();
-  for (const [k, v] of Object.entries(data)) {
-    if (v === undefined || v === null) continue;
-    entries.set(k, String(v));
-  }
-  const dcs = dataCheckString(entries, new Set(["hash"]));
-  const secret = createHash("sha256").update(token).digest();
-  const computed = createHmac("sha256", secret).update(dcs).digest("hex");
-  if (!timingEqualHex(computed, hash)) return null;
-
-  if (!authDateFresh(Number(entries.get("auth_date")))) return null;
-
-  return toMember({
-    id: typeof data.id === "number" || typeof data.id === "string" ? data.id : undefined,
-    first_name: typeof data.first_name === "string" ? data.first_name : undefined,
-    last_name: typeof data.last_name === "string" ? data.last_name : undefined,
-    username: typeof data.username === "string" ? data.username : undefined,
-    photo_url: typeof data.photo_url === "string" ? data.photo_url : undefined,
-  });
 }
 
 /** Audience claim that isolates member tokens from the admin (`rg_admin`) JWT. */

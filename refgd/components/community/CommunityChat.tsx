@@ -85,50 +85,6 @@ const MAX_LEN = 2000;
 
 const FS_PROMPT_KEY = "rg_fs_prompted";
 
-/**
- * Official Telegram Login Widget — lets web visitors (outside the Mini App)
- * sign in and post. Telegram calls the global callback with a signed user
- * payload which the server re-verifies. Requires the bot's domain to be set
- * via BotFather /setdomain.
- */
-function TelegramLoginButton({
-  bot,
-  onAuth,
-}: {
-  bot: string;
-  onAuth: (payload: Record<string, unknown>) => void | Promise<void>;
-}) {
-  const hostRef = useRef<HTMLSpanElement>(null);
-  const onAuthRef = useRef(onAuth);
-  onAuthRef.current = onAuth;
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    (
-      window as unknown as {
-        __rgTgWidgetAuth?: (u: Record<string, unknown>) => void;
-      }
-    ).__rgTgWidgetAuth = (user) => {
-      void onAuthRef.current(user);
-    };
-    const s = document.createElement("script");
-    s.async = true;
-    s.src = "https://telegram.org/js/telegram-widget.js?22";
-    s.setAttribute("data-telegram-login", bot);
-    s.setAttribute("data-size", "medium");
-    s.setAttribute("data-radius", "14");
-    s.setAttribute("data-onauth", "__rgTgWidgetAuth(user)");
-    s.setAttribute("data-request-access", "write");
-    host.appendChild(s);
-    return () => {
-      host.innerHTML = "";
-    };
-  }, [bot]);
-
-  return <span ref={hostRef} className="tg-login-widget" />;
-}
-
 export default function CommunityChat({ onBack }: { onBack?: () => void }) {
   const chat = useCommunityChat();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -181,9 +137,11 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
   const subtitle =
     state === null
       ? "connecting…"
-      : state.memberCount !== null
+      : state.memberCount !== null && state.memberCount > 0
         ? `${state.memberCount} member${state.memberCount === 1 ? "" : "s"}`
-        : "members hidden";
+        : state.memberCount === 0
+          ? "public group"
+          : "members hidden";
 
   return (
     <>
@@ -649,25 +607,19 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
               </span>
             ) : (
               <>
-                <span>Sign in with Telegram to join the conversation.</span>
-                {chat.authError && (
-                  <span className="tg-signin-error">{chat.authError}</span>
-                )}
+                <span>
+                  This chat is for Telegram members — open it in Telegram to
+                  join the conversation.
+                </span>
                 {state.botUsername ? (
-                  <span className="tg-signin-row">
-                    <TelegramLoginButton
-                      bot={state.botUsername}
-                      onAuth={chat.widgetSignIn}
-                    />
-                    <a
-                      className="tg-signin-btn"
-                      href={`https://t.me/${state.botUsername}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Open in Telegram
-                    </a>
-                  </span>
+                  <a
+                    className="tg-signin-btn"
+                    href={`https://t.me/${state.botUsername}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open in Telegram
+                  </a>
                 ) : (
                   <span>Chat access is being set up — check back shortly.</span>
                 )}

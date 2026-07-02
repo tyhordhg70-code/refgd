@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import {
   verifyMiniAppInitDataDetailed,
-  verifyLoginWidget,
   createMemberSession,
   readMemberSession,
   clearMemberSession,
@@ -22,30 +21,28 @@ export async function GET() {
 
 /**
  * POST /api/community/auth — sign in with a verified Telegram identity.
- * Body is either { initData: string } (Mini App) or { widget: {...} } (Login
- * Widget). On success sets the rg_member cookie and returns the member.
+ * Members-only by owner decision: ONLY Mini App initData is accepted (the
+ * chat is writable exclusively from inside Telegram; the web view is
+ * read-only). On success sets the rg_member cookie and returns the member.
  */
 export async function POST(req: Request) {
-  let body: { initData?: unknown; widget?: unknown };
+  let body: { initData?: unknown };
   try {
-    body = (await req.json()) as { initData?: unknown; widget?: unknown };
+    body = (await req.json()) as { initData?: unknown };
   } catch {
     return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
   }
 
   let member = null;
-  let failReason: MiniAppAuthFailReason | "widget_failed" | null = null;
+  let failReason: MiniAppAuthFailReason | null = null;
   if (typeof body.initData === "string" && body.initData) {
     const detailed = verifyMiniAppInitDataDetailed(body.initData);
     member = detailed.member;
     failReason = detailed.reason;
-  } else if (body.widget && typeof body.widget === "object") {
-    member = verifyLoginWidget(body.widget as Record<string, unknown>);
-    if (!member) failReason = "widget_failed";
   } else {
     return NextResponse.json(
-      { ok: false, error: "Provide initData or widget" },
-      { status: 400 },
+      { ok: false, error: "This chat is Telegram members only — open it inside Telegram." },
+      { status: 403 },
     );
   }
 
@@ -54,9 +51,7 @@ export async function POST(req: Request) {
     // a token↔bot mismatch is diagnosable from the phone instead of a
     // generic "verification failed".
     const serverBot =
-      failReason === "bad_signature" ||
-      failReason === "no_token" ||
-      failReason === "widget_failed"
+      failReason === "bad_signature" || failReason === "no_token"
         ? await getCommunityBotUsername().catch(() => null)
         : null;
     const human: Record<string, string> = {
@@ -69,9 +64,6 @@ export async function POST(req: Request) {
       stale_auth_date:
         "This Telegram session is stale — close and reopen the mini app.",
       no_user: "No Telegram user was included in the sign-in payload.",
-      widget_failed: serverBot
-        ? `Telegram login check failed — make sure the login widget belongs to @${serverBot} and the site domain is set via BotFather /setdomain.`
-        : "Telegram login check failed.",
     };
     return NextResponse.json(
       {

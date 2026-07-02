@@ -1120,24 +1120,19 @@ button.tg-reply-embed {
   color: var(--color-primary);
 }
 
-/* ── Web sign-in (Telegram Login Widget) ─────────────────────────── */
-.tg-signin-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  justify-content: center;
+/* ── Fullscreen safe area ────────────────────────────────────────────
+   In fullscreen mode the Mini App is drawn under the phone's status bar
+   and Telegram's native close/collapse controls. The bridge only exposes
+   the reserved heights as JS objects, so useCommunityChat mirrors them
+   into these CSS vars (0px when not fullscreen or on older clients).
+   The columns are position:fixed, so the offset must live on them —
+   padding keeps the wallpaper full-bleed while headers/content start
+   below the native chrome. */
+.tg-app #LeftColumn,
+.tg-app #MiddleColumn {
+  padding-top: calc(
+    var(--tg-safe-area-inset-top, 0px) +
+      var(--tg-content-safe-area-inset-top, 0px)
+  );
 }
-.tg-login-widget {
-  display: inline-flex;
-  align-items: center;
-  min-height: 1.5rem;
-}
-.tg-login-widget iframe {
-  display: block;
-}
-.tg-signin-error {
-  width: 100%;
-  color: var(--color-error, #e53935);
-  font-size: 0.8125rem;
-}
+

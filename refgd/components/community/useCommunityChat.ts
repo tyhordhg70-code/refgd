@@ -59,13 +59,24 @@ export interface ChatState {
   welcome: string;
 }
 
+interface TelegramSafeAreaInset {
+  top?: number;
+  bottom?: number;
+  left?: number;
+  right?: number;
+}
+
 interface TelegramWebApp {
   initData?: string;
   platform?: string;
   version?: string;
   isFullscreen?: boolean;
+  safeAreaInset?: TelegramSafeAreaInset;
+  contentSafeAreaInset?: TelegramSafeAreaInset;
   ready?: () => void;
   expand?: () => void;
+  setHeaderColor?: (color: string) => void;
+  setBackgroundColor?: (color: string) => void;
   requestFullscreen?: () => void;
   exitFullscreen?: () => void;
   isVersionAtLeast?: (version: string) => boolean;
@@ -128,7 +139,49 @@ export async function ensureTelegramReady(): Promise<boolean> {
   } catch {
     /* bridge quirk — non-fatal */
   }
+  // Match Telegram's NATIVE chrome (sheet header / status-bar area) to the
+  // replica's light theme. Without this a user on a dark Telegram theme gets
+  // a dark bar behind/above the app — the "weird bar behind the header".
+  try {
+    wa?.setHeaderColor?.("#ffffff");
+    wa?.setBackgroundColor?.("#ffffff");
+  } catch {
+    /* older clients — non-fatal */
+  }
+  hookSafeArea(wa);
   return true;
+}
+
+let safeAreaHooked = false;
+
+/**
+ * Mirror Telegram's safe-area insets into CSS vars. The official bridge
+ * exposes them ONLY as JS objects (`safeAreaInset`/`contentSafeAreaInset`),
+ * so telegram.css can't read them until we copy them onto :root. In
+ * fullscreen mode these reserve the status bar + Telegram's native
+ * close/collapse controls; when not fullscreen (or on old clients) they
+ * are 0 and layout is unchanged.
+ */
+function hookSafeArea(wa: TelegramWebApp | undefined): void {
+  if (!wa || safeAreaHooked) return;
+  safeAreaHooked = true;
+  const sync = () => {
+    const root = document.documentElement;
+    const px = (v: number | undefined) => `${Math.max(0, Math.round(v ?? 0))}px`;
+    root.style.setProperty("--tg-safe-area-inset-top", px(wa.safeAreaInset?.top));
+    root.style.setProperty(
+      "--tg-content-safe-area-inset-top",
+      px(wa.contentSafeAreaInset?.top),
+    );
+  };
+  try {
+    sync();
+    wa.onEvent?.("safeAreaChanged", sync);
+    wa.onEvent?.("contentSafeAreaChanged", sync);
+    wa.onEvent?.("fullscreenChanged", sync);
+  } catch {
+    /* older clients — non-fatal */
+  }
 }
 
 export function useCommunityChat() {
@@ -477,40 +530,6 @@ export function useCommunityChat() {
     }
   }, [me, state]);
 
-  /**
-   * Sign in from the Telegram Login Widget (web visitors outside the Mini
-   * App). Telegram hands the widget callback a signed user payload; the
-   * server re-verifies it before creating the session.
-   */
-  const widgetSignIn = useCallback(
-    async (payload: Record<string, unknown>) => {
-      try {
-        const res = await fetch("/api/community/auth", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ widget: payload }),
-        });
-        const data = (await res.json().catch(() => null)) as {
-          ok?: boolean;
-          error?: string;
-        } | null;
-        if (!res.ok || !data?.ok) {
-          setAuthError(
-            typeof data?.error === "string" && data.error
-              ? data.error
-              : "Telegram sign-in failed.",
-          );
-          return;
-        }
-        setAuthError(null);
-        await loadInitial();
-      } catch {
-        setAuthError("Network error during sign-in — try again.");
-      }
-    },
-    [loadInitial],
-  );
-
   return {
     state,
     me,
@@ -522,7 +541,6 @@ export function useCommunityChat() {
     systemNote,
     setSystemNote,
     authError,
-    widgetSignIn,
     reactOpen,
     setReactOpen,
     replyTo,
