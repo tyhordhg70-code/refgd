@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { markLoadingActive, markLoadingComplete } from "@/lib/loading-screen-gate";
 import {
   heavyAssetsForPath,
@@ -124,6 +124,11 @@ const PHASES = [
 
 export default function LoadingScreen() {
   const router = useRouter();
+  // Read the route the SSR-consistent way. usePathname() resolves to the same
+  // value on the server render and the first client render, so the splash
+  // opt-out below can drop the overlay from the server HTML itself instead of
+  // only in a post-mount effect.
+  const pathname = usePathname();
   // v6.13.37 — if this session has already shown the splash once,
   // skip it entirely on reloads / additional mounts. Initialise
   // BOTH `removed` and `visible` from the gate so the very first
@@ -639,6 +644,14 @@ export default function LoadingScreen() {
       document.body.style.touchAction = prevTouchAction;
     };
   }, []);
+
+  // /community (and subpages) opt out of the boot splash entirely. Bail BEFORE
+  // rendering the overlay so it never enters the server HTML — otherwise the
+  // browser paints the full-screen cosmic overlay for a frame on a cold desktop
+  // load before the mount effect can drop it (the "loading screen shows up for a
+  // brief moment"). Returns null on BOTH server and first client render, so
+  // hydration still matches; the mount effect above already opens the gate.
+  if (splashDisabledForPath(pathname ?? "")) return null;
 
   if (removed) return null;
 
