@@ -119,19 +119,42 @@ export async function getCommunityBotUsername(): Promise<string | null> {
   return null;
 }
 
+export type BotIdentity =
+  | { ok: true; id: number; username: string | null }
+  | { ok: false; error: string };
+
+declare global {
+  // eslint-disable-next-line no-var
+  var _communityBotIdentity: { value: BotIdentity; until: number } | undefined;
+}
+
 /**
  * Resolve the bot the CONFIGURED token actually belongs to by calling getMe —
  * deliberately IGNORING COMMUNITY_BOT_USERNAME (which is set independently and
  * can name a different bot than the token). Used only for diagnostics on an auth
  * failure so a token↔bot mismatch — the real cause of "signature check failed"
  * with a clean, correctly-lengthed token — is provable from the client.
+ *
+ * Cached at process scope: /api/community/auth is unauthenticated, so anyone can
+ * reach the bad_signature branch — without a cache each junk request would fire a
+ * server-side getMe and could be used to hammer Telegram's per-token rate limit
+ * (starving real bot traffic). The token's identity is static per process, so a
+ * success is cached indefinitely; a failure (invalid/revoked token) is cached for
+ * only 60s so a fixed token is re-checked soon.
  */
-export async function getBotIdentityFromToken(): Promise<
-  | { ok: true; id: number; username: string | null }
-  | { ok: false; error: string }
-> {
+export async function getBotIdentityFromToken(): Promise<BotIdentity> {
+  const cached = global._communityBotIdentity;
+  if (cached && Date.now() < cached.until) return cached.value;
   const token = communityBotToken();
   if (!token) return { ok: false, error: "COMMUNITY_BOT_TOKEN not set" };
+  const store = (value: BotIdentity): BotIdentity => {
+    global._communityBotIdentity = {
+      value,
+      // success: effectively permanent; failure: 60s so a re-paste is picked up.
+      until: value.ok ? Number.MAX_SAFE_INTEGER : Date.now() + 60_000,
+    };
+    return value;
+  };
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/getMe`, {
       cache: "no-store",
@@ -142,18 +165,18 @@ export async function getBotIdentityFromToken(): Promise<
       description?: string;
     };
     if (!res.ok || !j.ok || !j.result) {
-      return {
+      return store({
         ok: false,
         error: `getMe ${res.status}: ${j.description ?? "rejected the token"}`,
-      };
+      });
     }
-    return {
+    return store({
       ok: true,
       id: j.result.id ?? 0,
       username: j.result.username ?? null,
-    };
+    });
   } catch (e) {
-    return { ok: false, error: `getMe request failed: ${String(e)}` };
+    return store({ ok: false, error: `getMe request failed: ${String(e)}` });
   }
 }
 
