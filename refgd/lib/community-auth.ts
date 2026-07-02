@@ -20,7 +20,13 @@
  * trusted from the client — it is resolved server-side from
  * COMMUNITY_ADMIN_TG_IDS at both mint AND read time.
  */
-import { createHmac, createHash, timingSafeEqual } from "node:crypto";
+import {
+  createHmac,
+  createHash,
+  createPublicKey,
+  verify as cryptoVerify,
+  timingSafeEqual,
+} from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import {
@@ -283,6 +289,77 @@ export function diagnoseInitDataHmac(initData: string): {
     if (timingEqualHex(computed, hash)) return { match: name, hashLen: hash.length };
   }
   return { match: "none", hashLen: hash.length };
+}
+
+/**
+ * Telegram's PRODUCTION Ed25519 public key (hex) used for THIRD-PARTY
+ * validation of Mini App `signature`. This is public and constant. It lets us
+ * verify a launch WITHOUT the bot token — proving whether the initData was
+ * genuinely issued by Telegram FOR a specific bot id.
+ * https://core.telegram.org/bots/webapps#validating-data-for-third-party-use
+ */
+const TG_PROD_ED25519_PUBKEY_HEX =
+  "e7bf03a2fa4602af4580703d88dda5bb59f32ed8b02a56c187fe7d34caed242d";
+
+function telegramEd25519PublicKey() {
+  // Wrap the 32-byte raw key in a minimal SPKI DER header so node:crypto can
+  // load it as an Ed25519 public key.
+  const der = Buffer.concat([
+    Buffer.from("302a300506032b6570032100", "hex"),
+    Buffer.from(TG_PROD_ED25519_PUBKEY_HEX, "hex"),
+  ]);
+  return createPublicKey({ key: der, format: "der", type: "spki" });
+}
+
+/**
+ * TOKEN-INDEPENDENT authenticity check. Verifies the Ed25519 `signature` field
+ * against Telegram's public key for a GIVEN bot id. This answers the question
+ * the HMAC check cannot: was this initData genuinely issued by Telegram FOR
+ * this exact bot?  `valid === true`  ⇒ real Telegram data for `botId` (so if the
+ * HMAC still fails, the server's TOKEN differs from the signer's, for the same
+ * bot). `valid === false` ⇒ the data was issued for a DIFFERENT bot id (the
+ * Mini App opened belongs to another bot) or is not genuine. `present === false`
+ * ⇒ the client (older Telegram) didn't send a `signature`, so we can't tell.
+ */
+export function verifyInitDataEd25519(
+  initData: string,
+  botId: string | number,
+): { present: boolean; valid: boolean | null } {
+  if (typeof initData !== "string" || !initData || botId === "" || botId == null)
+    return { present: false, valid: null };
+
+  const pairs: { k: string; dec: string }[] = [];
+  let signature: string | undefined;
+  for (const part of initData.split("&")) {
+    if (!part) continue;
+    const i = part.indexOf("=");
+    if (i < 0) continue;
+    const k = part.slice(0, i);
+    const rawV = part.slice(i + 1);
+    let dec = rawV;
+    try {
+      dec = decodeURIComponent(rawV);
+    } catch {
+      dec = rawV;
+    }
+    if (k === "signature") signature = dec;
+    pairs.push({ k, dec });
+  }
+  if (!signature) return { present: false, valid: null };
+
+  try {
+    const dcs = pairs
+      .filter((p) => p.k !== "hash" && p.k !== "signature")
+      .sort((a, b) => (a.k < b.k ? -1 : a.k > b.k ? 1 : 0))
+      .map((p) => `${p.k}=${p.dec}`)
+      .join("\n");
+    const message = Buffer.from(`${botId}:WebAppData\n${dcs}`, "utf8");
+    const sig = Buffer.from(signature, "base64url");
+    const valid = cryptoVerify(null, message, telegramEd25519PublicKey(), sig);
+    return { present: true, valid };
+  } catch {
+    return { present: true, valid: null };
+  }
 }
 
 /** Audience claim that isolates member tokens from the admin (`rg_admin`) JWT. */

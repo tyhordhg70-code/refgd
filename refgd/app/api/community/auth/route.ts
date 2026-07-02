@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import {
   verifyMiniAppInitDataDetailed,
   diagnoseInitDataHmac,
+  verifyInitDataEd25519,
   createMemberSession,
   readMemberSession,
   clearMemberSession,
@@ -79,23 +80,52 @@ export async function POST(req: Request) {
       failReason === "bad_signature" && typeof body.initData === "string"
         ? diagnoseInitDataHmac(body.initData)
         : null;
+    // TOKEN-INDEPENDENT proof: verify the Ed25519 `signature` against Telegram's
+    // public key for the id the server's token REALLY is (getMe). This settles
+    // whether the initData was genuinely issued FOR this bot, with no reliance on
+    // the token value at all.
+    const edDiag =
+      failReason === "bad_signature" &&
+      typeof body.initData === "string" &&
+      actualBot &&
+      actualBot.ok
+        ? verifyInitDataEd25519(body.initData, actualBot.id)
+        : null;
     const actualBotStr = !actualBot
       ? ""
       : actualBot.ok
         ? ` The server's token is valid and belongs to @${actualBot.username ?? actualBot.id} (not revoked).`
         : ` The server could not confirm its token with Telegram (${actualBot.error}) — the token is invalid or revoked; re-copy it from BotFather.`;
-    // Turn the multi-variant recompute into an actionable verdict. `none` (with a
-    // confirmed-valid token) means the payload was signed by a DIFFERENT token
-    // than the server's — i.e. the token was regenerated in BotFather. Any other
-    // variant name means the payload IS this token's but our encoding differs (a
-    // code fix). The primary path already uses `miniapp_excl_both_dec`.
-    const hmacStr = !hmacDiag
+    // Build the actionable verdict. Prefer the Ed25519 proof when present because
+    // it is decisive and token-independent:
+    //  • ed valid  + HMAC fail ⇒ this IS genuine Telegram data for THIS bot, so
+    //    the server's TOKEN VALUE differs from the one that signed it (two tokens
+    //    for the same bot) → re-copy the current token from BotFather + redeploy.
+    //  • ed invalid            ⇒ the launch was issued for a DIFFERENT bot → the
+    //    Mini App button that opened this belongs to another bot.
+    // If Ed25519 is absent (older client sends no `signature`), fall back to the
+    // multi-variant HMAC recompute: an alternate variant = an encoding bug in our
+    // code; `none` = signed by a token the server doesn't have.
+    const botLabel = actualBot && actualBot.ok
+      ? `@${actualBot.username ?? actualBot.id} (id ${actualBot.id})`
+      : "this bot";
+    const edStr = !edDiag || !edDiag.present
       ? ""
-      : hmacDiag.match === "none"
-        ? " But this sign-in was signed by a DIFFERENT token than the one on the server — the bot's token was regenerated in BotFather at some point. Open the bot in BotFather, copy its CURRENT token, set it as COMMUNITY_BOT_TOKEN on the server, and redeploy."
-        : hmacDiag.match === "miniapp_excl_both_dec"
-          ? ""
-          : ` The data actually validates under an alternate encoding (${hmacDiag.match}) — this is a server-side code fix, not a token problem.`;
+      : edDiag.valid === true
+        ? ` VERIFIED: this sign-in is genuine Telegram data issued for ${botLabel}, but it does NOT match the server's copy of that bot's token — the server holds a DIFFERENT token value for the same bot. Open the bot in BotFather, copy its CURRENT token, set it as COMMUNITY_BOT_TOKEN on the server, and redeploy.`
+        : edDiag.valid === false
+          ? ` VERIFIED: this sign-in was issued for a DIFFERENT bot than ${botLabel} — the Mini App button you opened belongs to another bot. Open the community through ${botLabel}'s Mini App button, or set COMMUNITY_BOT_TOKEN to the token of the bot whose button you tap.`
+          : "";
+    // HMAC fallback only when Ed25519 gave no answer (no signature field).
+    const hmacStr = edStr
+      ? ""
+      : !hmacDiag
+        ? ""
+        : hmacDiag.match === "none"
+          ? " The sign-in could not be validated against the server's token under any known method — the token that signed it is not the one on the server."
+          : hmacDiag.match === "miniapp_excl_both_dec"
+            ? ""
+            : ` The data actually validates under an alternate encoding (${hmacDiag.match}) — this is a server-side code fix, not a token problem.`;
     const human: Record<string, string> = {
       no_token:
         "The server has no community bot token configured — set COMMUNITY_BOT_TOKEN.",
@@ -123,8 +153,8 @@ export async function POST(req: Request) {
         // `serverBotActual` is the bot the token REALLY is (getMe), vs the
         // `serverBot`/COMMUNITY_BOT_USERNAME label which is set independently.
         debug: authDebug
-          ? { ...authDebug, serverBot, serverBotActual: actualBot, hmac: hmacDiag }
-          : { serverBot, serverBotActual: actualBot, hmac: hmacDiag },
+          ? { ...authDebug, serverBot, serverBotActual: actualBot, hmac: hmacDiag, ed: edDiag }
+          : { serverBot, serverBotActual: actualBot, hmac: hmacDiag, ed: edDiag },
       },
       { status: 401 },
     );
