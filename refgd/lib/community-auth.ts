@@ -20,7 +20,7 @@
  * trusted from the client — it is resolved server-side from
  * COMMUNITY_ADMIN_TG_IDS at both mint AND read time.
  */
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, createHash, timingSafeEqual } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import {
@@ -216,6 +216,73 @@ export function verifyMiniAppInitDataDetailed(initData: string): {
  */
 export function verifyMiniAppInitData(initData: string): CommunityMember | null {
   return verifyMiniAppInitDataDetailed(initData).member;
+}
+
+/**
+ * Last-resort diagnostic for a `bad_signature` that persists even though the
+ * server's token is a valid, clean token for the SINGLE community bot. It
+ * recomputes the payload hash against the SAME token under several algorithm
+ * variants (decoded vs raw values, excluding `signature` or not, Mini-App
+ * HMAC-secret vs Login-Widget SHA256-secret) and reports which — if any —
+ * matches the real initData. This turns "signature failed" into a precise
+ * answer: a matching variant name means an encoding bug to fix in code; `none`
+ * means the payload was signed by a DIFFERENT token than the one on the server
+ * (regenerated token / different bot), which is a config fix. Reveals only the
+ * variant name + hash length — never token material or user PII.
+ */
+export function diagnoseInitDataHmac(initData: string): {
+  match: string;
+  hashLen: number;
+} {
+  const token = communityBotToken();
+  if (!token || typeof initData !== "string" || !initData)
+    return { match: "no_token_or_data", hashLen: 0 };
+
+  const pairs: { k: string; raw: string; dec: string }[] = [];
+  for (const part of initData.split("&")) {
+    if (!part) continue;
+    const i = part.indexOf("=");
+    if (i < 0) continue;
+    const k = part.slice(0, i);
+    const rawV = part.slice(i + 1);
+    let dec = rawV;
+    try {
+      dec = decodeURIComponent(rawV);
+    } catch {
+      dec = rawV;
+    }
+    pairs.push({ k, raw: rawV, dec });
+  }
+  const hashEntry = pairs.find((p) => p.k === "hash");
+  if (!hashEntry) return { match: "no_hash", hashLen: 0 };
+  const hash = hashEntry.dec;
+
+  const build = (skip: Set<string>, useRaw: boolean): string =>
+    pairs
+      .filter((p) => !skip.has(p.k))
+      .sort((a, b) => (a.k < b.k ? -1 : a.k > b.k ? 1 : 0))
+      .map((p) => `${p.k}=${useRaw ? p.raw : p.dec}`)
+      .join("\n");
+
+  const hmacSecret = createHmac("sha256", "WebAppData").update(token).digest();
+  const sha256Secret = createHash("sha256").update(token).digest();
+  const both = new Set(["hash", "signature"]);
+  const onlyHash = new Set(["hash"]);
+
+  const strategies: [string, Buffer, string][] = [
+    ["miniapp_excl_both_dec", hmacSecret, build(both, false)],
+    ["miniapp_excl_hash_dec", hmacSecret, build(onlyHash, false)],
+    ["miniapp_excl_both_raw", hmacSecret, build(both, true)],
+    ["miniapp_excl_hash_raw", hmacSecret, build(onlyHash, true)],
+    ["widget_sha256_excl_hash_dec", sha256Secret, build(onlyHash, false)],
+    ["widget_sha256_excl_both_dec", sha256Secret, build(both, false)],
+  ];
+
+  for (const [name, secret, dcs] of strategies) {
+    const computed = createHmac("sha256", secret).update(dcs).digest("hex");
+    if (timingEqualHex(computed, hash)) return { match: name, hashLen: hash.length };
+  }
+  return { match: "none", hashLen: hash.length };
 }
 
 /** Audience claim that isolates member tokens from the admin (`rg_admin`) JWT. */

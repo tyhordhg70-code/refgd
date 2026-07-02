@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import {
   verifyMiniAppInitDataDetailed,
+  diagnoseInitDataHmac,
   createMemberSession,
   readMemberSession,
   clearMemberSession,
@@ -71,6 +72,13 @@ export async function POST(req: Request) {
             error: String(e),
           }))
         : null;
+    // Recompute the hash under several algorithm variants against the SAME
+    // token. A matching variant = an encoding bug in code; `none` = the payload
+    // was signed by a different token than the one on the server.
+    const hmacDiag =
+      failReason === "bad_signature" && typeof body.initData === "string"
+        ? diagnoseInitDataHmac(body.initData)
+        : null;
     const actualBotStr = !actualBot
       ? ""
       : actualBot.ok
@@ -102,8 +110,8 @@ export async function POST(req: Request) {
         // `serverBotActual` is the bot the token REALLY is (getMe), vs the
         // `serverBot`/COMMUNITY_BOT_USERNAME label which is set independently.
         debug: authDebug
-          ? { ...authDebug, serverBot, serverBotActual: actualBot }
-          : { serverBot, serverBotActual: actualBot },
+          ? { ...authDebug, serverBot, serverBotActual: actualBot, hmac: hmacDiag }
+          : { serverBot, serverBotActual: actualBot, hmac: hmacDiag },
       },
       { status: 401 },
     );
