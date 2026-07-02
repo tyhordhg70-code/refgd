@@ -134,7 +134,7 @@ export const README_SEED_BODY: ReactNode = (
     <span>
       <blockquote className="EYuABWIQ" data-entity-type="MessageEntityBlockquote">
         <div className="tzfqwhbk">
-          <Ce id="5417915203100613993" alt="💬" />
+          <Ce id="5443038326535759644" alt="💬" />
           &nbsp;Something not clear, or still have questions?
           <br />
           <strong data-entity-type="MessageEntityBold">
@@ -193,18 +193,18 @@ export const ANNOUNCEMENT_SEED_PHOTO = "/tg-assets/announcement-bot-photo.png";
 
 /**
  * The pinned Announcements post — the owner's "ask the bot" notice,
- * transcribed from the saved screenshot: bold highlight line, custom 💬
- * emoji and @refundgodbot mention links, blank-line layout preserved. (The
- * red marker and blue mascot bullets have no recoverable custom-emoji doc
- * ids in a screenshot, so they fall back to the Apple sprite.)
+ * transcribed from the saved screenshot: bold highlight line, custom ❓ and 💬
+ * emoji (doc ids supplied by the owner from the saved HTML) and @refundgodbot
+ * mention links, blank-line layout preserved. The closing 🐺 bullets are the
+ * standard Apple emoji (no custom-pack id).
  */
 export const ANNOUNCEMENT_SEED_BODY: ReactNode = (
   <>
     Dear members,
     <br />
     <br />
-    <Em ch="🖊️" /> Do you have a question, and do not want to wait for a
-    response?
+    <Ce id="5436113877181941026" alt="❓" /> Do you have a question, and do not
+    want to wait for a response?
     <br />
     <br />
     <strong data-entity-type="MessageEntityBold">
@@ -212,7 +212,7 @@ export const ANNOUNCEMENT_SEED_BODY: ReactNode = (
     </strong>
     <br />
     <br />
-    <Ce id="5417915203100613993" alt="💬" /> Please from now on, ask all of your
+    <Ce id="5443038326535759644" alt="💬" /> Please from now on, ask all of your
     questions to{" "}
     <a
       className="text-entity-link"
