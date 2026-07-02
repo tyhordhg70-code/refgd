@@ -51,16 +51,19 @@ export default async function CommunityPage() {
     /* preview only — the live chat loads client-side regardless */
   }
 
+  /* NO <main> wrapper here — the root layout already renders <main>, and a
+     nested <main> gets caught by the mobile perf rule `main > * { contain:
+     layout style }` (globals.css), which turns it into the containing block
+     for the fixed-position .tg-app → the whole app collapses to 0 height on
+     ≤768px viewports (black screen in the Telegram mini app / phones). */
   return (
-    <main>
-      <TelegramApp
-        testimonials={testimonials}
-        buy4u={buy4u}
-        announcements={announcements}
-        welcome={welcome}
-        memberLabel={memberLabel}
-        chatPreview={chatPreview}
-      />
-    </main>
+    <TelegramApp
+      testimonials={testimonials}
+      buy4u={buy4u}
+      announcements={announcements}
+      welcome={welcome}
+      memberLabel={memberLabel}
+      chatPreview={chatPreview}
+    />
   );
 }

@@ -73,6 +73,11 @@
   z-index: 40;
   display: flex;
   overflow: hidden;
+  /* Shield against the mobile perf rule `main > * { contain: layout style }`
+     in globals.css — .tg-app is a direct child of the layout <main>, and any
+     `contain: layout` on it (or an ancestor) would re-scope this fixed
+     element's inset:0 to a zero-height box → black screen on ≤768px. */
+  contain: none;
   background: var(--color-background);
   color: var(--color-text);
   color-scheme: light;
