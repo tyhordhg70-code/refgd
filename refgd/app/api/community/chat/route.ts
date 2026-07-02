@@ -9,7 +9,10 @@ import {
   getChatMemberModState,
   secondsSinceLastMessage,
   getModConfig,
+  matchBlocklist,
+  recordAction,
 } from "@/lib/community";
+import { parseCommand, executeModCommand } from "@/lib/moderation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,12 +46,14 @@ export async function GET(req: Request) {
     }).catch(() => undefined);
   }
 
-  const [messages, memberCount, hideMembers, botUsername] = await Promise.all([
-    listChatMessages({ afterId: after, viewerTid: me?.tid ?? null }),
-    countChatMembers(),
-    getModConfig<boolean>("chat_hide_members", false),
-    getCommunityBotUsername(),
-  ]);
+  const [messages, memberCount, hideMembers, botUsername, welcome] =
+    await Promise.all([
+      listChatMessages({ afterId: after, viewerTid: me?.tid ?? null }),
+      countChatMembers(),
+      getModConfig<boolean>("chat_hide_members", false),
+      getCommunityBotUsername(),
+      getModConfig<string>("welcome", ""),
+    ]);
 
   const showCount = !hideMembers || Boolean(me?.admin);
 
@@ -58,6 +63,7 @@ export async function GET(req: Request) {
     memberCount: showCount ? memberCount : null,
     hideMembers,
     botUsername,
+    welcome,
   });
 }
 
@@ -71,9 +77,9 @@ export async function POST(req: Request) {
     );
   }
 
-  let payload: { text?: unknown };
+  let payload: { text?: unknown; replyTo?: unknown };
   try {
-    payload = (await req.json()) as { text?: unknown };
+    payload = (await req.json()) as { text?: unknown; replyTo?: unknown };
   } catch {
     return NextResponse.json(
       { ok: false, error: "Invalid JSON" },
@@ -95,6 +101,12 @@ export async function POST(req: Request) {
     );
   }
 
+  const replyTo =
+    (typeof payload.replyTo === "string" || typeof payload.replyTo === "number") &&
+    /^\d+$/.test(String(payload.replyTo))
+      ? String(payload.replyTo)
+      : null;
+
   const mod = await getChatMemberModState(me.tid);
   if (mod.isBanned) {
     return NextResponse.json(
@@ -102,11 +114,44 @@ export async function POST(req: Request) {
       { status: 403 },
     );
   }
+
+  // Slash-commands are intercepted BEFORE the mute/flood/blocklist gates so an
+  // admin can always moderate, and any member can read the rules. A command
+  // never becomes a chat message — it returns ephemeral `system` feedback.
+  const command = parseCommand(text);
+  if (command) {
+    const result = await executeModCommand({
+      me,
+      cmd: command.cmd,
+      rest: command.rest,
+      replyToId: replyTo,
+    });
+    return NextResponse.json({ ok: result.ok !== false, system: result.system ?? "" });
+  }
+
   if (mod.mutedUntil && new Date(mod.mutedUntil).getTime() > Date.now()) {
     return NextResponse.json(
       { ok: false, error: "You are muted" },
       { status: 403 },
     );
+  }
+
+  // Word blocklist applies to non-admins only.
+  if (!me.admin) {
+    const hit = await matchBlocklist(text);
+    if (hit) {
+      await recordAction({
+        actorTgId: me.tid,
+        actorName: me.name,
+        action: "blocked-message",
+        target: me.tid,
+        meta: { word: hit },
+      }).catch(() => undefined);
+      return NextResponse.json(
+        { ok: false, error: "Your message contains a blocked word." },
+        { status: 403 },
+      );
+    }
   }
 
   const since = await secondsSinceLastMessage(me.tid);
@@ -128,6 +173,7 @@ export async function POST(req: Request) {
     tgId: me.tid,
     authorName: me.name,
     body: text,
+    replyTo,
   });
 
   return NextResponse.json({ ok: true, message });

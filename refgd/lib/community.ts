@@ -269,6 +269,10 @@ export async function recordAction(input: RecordActionInput): Promise<void> {
       JSON.stringify(input.meta ?? {}),
     ],
   );
+  // Opportunistic 3-day retention sweep on the write path (no cron needed).
+  await getPool()
+    .query(`DELETE FROM recent_actions WHERE created_at < NOW() - INTERVAL '3 days'`)
+    .catch(() => undefined);
 }
 
 export interface RecentAction {
@@ -371,6 +375,12 @@ export interface ChatReaction {
   mine: boolean;
 }
 
+export interface ChatReplyRef {
+  id: string;
+  authorName: string;
+  body: string;
+}
+
 export interface ChatMessage {
   id: string;
   tgId: string;
@@ -381,6 +391,7 @@ export interface ChatMessage {
   pinned: boolean;
   createdAt: string;
   reactions: ChatReaction[];
+  reply: ChatReplyRef | null;
 }
 
 interface ChatMsgRow {
@@ -391,7 +402,12 @@ interface ChatMsgRow {
   pinned: boolean;
   created_at: string;
   photo_url: string | null;
+  reply_to: string | null;
+  reply_author: string | null;
+  reply_body: string | null;
 }
+
+const REPLY_SNIPPET_MAX = 140;
 
 /** Attach aggregated reactions (with a per-viewer `mine` flag) to messages. */
 async function attachReactions(
@@ -408,6 +424,13 @@ async function attachReactions(
     pinned: r.pinned,
     createdAt: r.created_at,
     reactions: [],
+    reply: r.reply_to
+      ? {
+          id: String(r.reply_to),
+          authorName: r.reply_author ?? "",
+          body: (r.reply_body ?? "").slice(0, REPLY_SNIPPET_MAX),
+        }
+      : null,
   }));
   if (base.length === 0) return base;
   const ids = base.map((m) => m.id);
@@ -452,9 +475,11 @@ export async function listChatMessages(
   if (opts.afterId && /^\d+$/.test(opts.afterId)) {
     const res = await getPool().query<ChatMsgRow>(
       `SELECT m.id, m.tg_id, m.author_name, m.body, m.pinned, m.created_at,
-              cm.photo_url
+              cm.photo_url,
+              m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body
          FROM chat_messages m
          LEFT JOIN chat_members cm ON cm.tg_id = m.tg_id
+         LEFT JOIN chat_messages rm ON rm.id = m.reply_to
         WHERE m.deleted = FALSE
           AND (m.expires_at IS NULL OR m.expires_at > NOW())
           AND m.id > $1
@@ -466,9 +491,11 @@ export async function listChatMessages(
   } else {
     const res = await getPool().query<ChatMsgRow>(
       `SELECT m.id, m.tg_id, m.author_name, m.body, m.pinned, m.created_at,
-              cm.photo_url
+              cm.photo_url,
+              m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body
          FROM chat_messages m
          LEFT JOIN chat_members cm ON cm.tg_id = m.tg_id
+         LEFT JOIN chat_messages rm ON rm.id = m.reply_to
         WHERE m.deleted = FALSE
           AND (m.expires_at IS NULL OR m.expires_at > NOW())
         ORDER BY m.id DESC
@@ -485,18 +512,23 @@ export interface CreateChatMessageInput {
   authorName: string;
   body: string;
   expiresAt?: Date | string | null;
+  replyTo?: string | null;
 }
 
 export async function createChatMessage(
   input: CreateChatMessageInput,
 ): Promise<ChatMessage | null> {
   await initDb();
+  const replyTo =
+    input.replyTo && /^\d+$/.test(input.replyTo) ? input.replyTo : null;
   const { rows } = await getPool().query<ChatMsgRow>(
-    `INSERT INTO chat_messages (tg_id, author_name, body, expires_at)
-     VALUES ($1, $2, $3, $4)
-     RETURNING id, tg_id, author_name, body, pinned, created_at,
-               (SELECT photo_url FROM chat_members WHERE tg_id = $1) AS photo_url`,
-    [input.tgId, input.authorName, input.body, input.expiresAt ?? null],
+    `INSERT INTO chat_messages (tg_id, author_name, body, expires_at, reply_to)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, tg_id, author_name, body, pinned, created_at, reply_to,
+               (SELECT photo_url FROM chat_members WHERE tg_id = $1) AS photo_url,
+               (SELECT author_name FROM chat_messages r WHERE r.id = $5) AS reply_author,
+               (SELECT body FROM chat_messages r WHERE r.id = $5) AS reply_body`,
+    [input.tgId, input.authorName, input.body, input.expiresAt ?? null, replyTo],
   );
   if (!rows[0]) return null;
   const [msg] = await attachReactions(rows, input.tgId);
@@ -577,4 +609,209 @@ export async function secondsSinceLastMessage(
   );
   if (!rows[0] || rows[0].secs === null) return null;
   return rows[0].secs;
+}
+
+// ── Moderation: bans, mutes, warns, blocklist, pins, purge ───────────
+// All state is DB-backed (no in-process state) so it holds across the
+// multiple Render instances. Every mutating action is audited separately
+// by the caller via recordAction.
+
+/**
+ * Ensure a member row exists so a ban / mute / warn on a not-yet-joined
+ * tg_id still sticks (getChatMemberModState reads from chat_members).
+ */
+export async function ensureMemberStub(
+  tgId: string,
+  name = "",
+): Promise<void> {
+  await initDb();
+  await getPool().query(
+    `INSERT INTO chat_members (tg_id, first_name) VALUES ($1, $2)
+     ON CONFLICT (tg_id) DO NOTHING`,
+    [tgId, name],
+  );
+}
+
+export async function setMemberBan(
+  tgId: string,
+  banned: boolean,
+): Promise<void> {
+  await initDb();
+  await ensureMemberStub(tgId);
+  await getPool().query(`UPDATE chat_members SET is_banned = $2 WHERE tg_id = $1`, [
+    tgId,
+    banned,
+  ]);
+}
+
+/** until = a future Date for a timed mute, or null to unmute. */
+export async function setMemberMute(
+  tgId: string,
+  until: Date | null,
+): Promise<void> {
+  await initDb();
+  await ensureMemberStub(tgId);
+  await getPool().query(
+    `UPDATE chat_members SET muted_until = $2 WHERE tg_id = $1`,
+    [tgId, until],
+  );
+}
+
+/** Atomic increment + a mod_warns audit row. Returns the new warn count. */
+export async function addWarn(
+  tgId: string,
+  byTgId: string | null,
+  reason: string,
+): Promise<number> {
+  await initDb();
+  await ensureMemberStub(tgId);
+  await getPool().query(
+    `INSERT INTO mod_warns (tg_id, by_tg_id, reason) VALUES ($1, $2, $3)`,
+    [tgId, byTgId, reason],
+  );
+  const { rows } = await getPool().query<{ warn_count: number }>(
+    `UPDATE chat_members SET warn_count = warn_count + 1
+      WHERE tg_id = $1 RETURNING warn_count`,
+    [tgId],
+  );
+  return rows[0]?.warn_count ?? 0;
+}
+
+/** Decrement one warn (floored at 0). Returns the new count. */
+export async function removeWarn(tgId: string): Promise<number> {
+  await initDb();
+  const { rows } = await getPool().query<{ warn_count: number }>(
+    `UPDATE chat_members SET warn_count = GREATEST(warn_count - 1, 0)
+      WHERE tg_id = $1 RETURNING warn_count`,
+    [tgId],
+  );
+  return rows[0]?.warn_count ?? 0;
+}
+
+export async function resetWarns(tgId: string): Promise<void> {
+  await initDb();
+  await getPool().query(
+    `UPDATE chat_members SET warn_count = 0 WHERE tg_id = $1`,
+    [tgId],
+  );
+}
+
+/** Remove the member row (a kick — they may rejoin, unlike a ban). */
+export async function kickMember(tgId: string): Promise<void> {
+  await initDb();
+  await getPool().query(`DELETE FROM chat_members WHERE tg_id = $1`, [tgId]);
+}
+
+// ── Blocklist (word filters that reject a member's message on post) ───
+export async function addBlocklist(
+  pattern: string,
+  action = "delete",
+): Promise<void> {
+  await initDb();
+  await getPool().query(
+    `INSERT INTO mod_blocklist (pattern, action) VALUES ($1, $2)
+     ON CONFLICT (pattern) DO UPDATE SET action = EXCLUDED.action`,
+    [pattern.toLowerCase(), action],
+  );
+}
+
+export async function removeBlocklist(pattern: string): Promise<boolean> {
+  await initDb();
+  const res = await getPool().query(
+    `DELETE FROM mod_blocklist WHERE pattern = $1`,
+    [pattern.toLowerCase()],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+export async function listBlocklist(): Promise<string[]> {
+  await initDb();
+  const { rows } = await getPool().query<{ pattern: string }>(
+    `SELECT pattern FROM mod_blocklist ORDER BY pattern`,
+  );
+  return rows.map((r) => r.pattern);
+}
+
+/** First blocklisted word contained in the text (case-insensitive), or null. */
+export async function matchBlocklist(text: string): Promise<string | null> {
+  const words = await listBlocklist();
+  if (words.length === 0) return null;
+  const hay = text.toLowerCase();
+  for (const w of words) {
+    if (w && hay.includes(w)) return w;
+  }
+  return null;
+}
+
+// ── Pins & purge ─────────────────────────────────────────────────────
+export async function setMessagePinned(
+  id: string,
+  pinned: boolean,
+): Promise<boolean> {
+  await initDb();
+  const res = await getPool().query(
+    `UPDATE chat_messages SET pinned = $2 WHERE id = $1 AND deleted = FALSE`,
+    [id, pinned],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+/** Unpin every currently-pinned message. Returns how many were unpinned. */
+export async function unpinAll(): Promise<number> {
+  await initDb();
+  const res = await getPool().query(
+    `UPDATE chat_messages SET pinned = FALSE WHERE pinned = TRUE`,
+  );
+  return res.rowCount ?? 0;
+}
+
+/** Soft-delete the most recent `count` live messages (hard cap 100). */
+export async function purgeRecentMessages(count: number): Promise<number> {
+  await initDb();
+  const n = Math.min(Math.max(Math.floor(count), 1), 100);
+  const res = await getPool().query(
+    `UPDATE chat_messages SET deleted = TRUE
+      WHERE id IN (
+        SELECT id FROM chat_messages
+         WHERE deleted = FALSE
+         ORDER BY id DESC
+         LIMIT $1
+      )`,
+    [n],
+  );
+  return res.rowCount ?? 0;
+}
+
+/** Soft-delete live messages from `fromId` forward (hard cap 100). */
+export async function purgeFromMessage(fromId: string): Promise<number> {
+  await initDb();
+  const res = await getPool().query(
+    `UPDATE chat_messages SET deleted = TRUE
+      WHERE id IN (
+        SELECT id FROM chat_messages
+         WHERE deleted = FALSE AND id >= $1
+         ORDER BY id ASC
+         LIMIT 100
+      )`,
+    [fromId],
+  );
+  return res.rowCount ?? 0;
+}
+
+export interface MessageAuthor {
+  tgId: string;
+  authorName: string;
+}
+
+/** Look up who authored a message (for reply-based command targeting). */
+export async function getMessageAuthor(
+  id: string,
+): Promise<MessageAuthor | null> {
+  await initDb();
+  const { rows } = await getPool().query<{
+    tg_id: string;
+    author_name: string;
+  }>(`SELECT tg_id, author_name FROM chat_messages WHERE id = $1`, [id]);
+  if (!rows[0]) return null;
+  return { tgId: String(rows[0].tg_id), authorName: rows[0].author_name };
 }

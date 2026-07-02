@@ -29,6 +29,12 @@ interface Reaction {
   mine: boolean;
 }
 
+interface ReplyRef {
+  id: string;
+  authorName: string;
+  body: string;
+}
+
 interface ChatMessage {
   id: string;
   tgId: string;
@@ -39,6 +45,7 @@ interface ChatMessage {
   pinned: boolean;
   createdAt: string;
   reactions: Reaction[];
+  reply: ReplyRef | null;
 }
 
 interface Member {
@@ -54,6 +61,7 @@ interface ChatState {
   memberCount: number | null;
   hideMembers: boolean;
   botUsername: string | null;
+  welcome: string;
 }
 
 interface TelegramAuthUser {
@@ -173,6 +181,8 @@ export default function CommunityChat() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reactOpen, setReactOpen] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
+  const [systemNote, setSystemNote] = useState<string | null>(null);
 
   const lastIdRef = useRef<string>("0");
   const pollingRef = useRef(false);
@@ -197,6 +207,38 @@ export default function CommunityChat() {
         lastIdRef.current,
       );
       lastIdRef.current = maxId;
+      return { ...prev, messages };
+    });
+  }, []);
+
+  // Full-snapshot reconcile for the 30s refresh: unlike the union-by-id merge,
+  // this PRUNES messages the server no longer returns (e.g. after /purge) so
+  // admin deletions actually disappear. Messages older than the returned window
+  // are kept as-is (we never paginate older history back in).
+  const reconcileFull = useCallback((incoming: ChatMessage[]) => {
+    setState((prev) => {
+      if (!prev) return prev;
+      if (incoming.length === 0) {
+        // No live messages in the latest window — nothing recent survives.
+        lastIdRef.current = "0";
+        return { ...prev, messages: [] };
+      }
+      // incoming is ASC. Keep local messages OUTSIDE the snapshot window —
+      // older than its first id, or newer than its last id (e.g. a just-sent
+      // message or a short-poll result that landed while this fetch was in
+      // flight) — and prune anything inside the window the server dropped.
+      const minId = Number(incoming[0].id);
+      const maxId = Number(incoming[incoming.length - 1].id);
+      const kept = prev.messages.filter(
+        (m) => Number(m.id) < minId || Number(m.id) > maxId,
+      );
+      const messages = [...kept, ...incoming].sort(
+        (a, b) => Number(a.id) - Number(b.id),
+      );
+      lastIdRef.current = messages.reduce(
+        (acc, m) => (Number(m.id) > Number(acc) ? m.id : acc),
+        lastIdRef.current,
+      );
       return { ...prev, messages };
     });
   }, []);
@@ -289,17 +331,18 @@ export default function CommunityChat() {
                   memberCount: data.memberCount,
                   hideMembers: data.hideMembers,
                   botUsername: data.botUsername ?? prev.botUsername,
+                  welcome: data.welcome ?? prev.welcome,
                 }
               : prev,
           );
-          mergeMessages(data.messages);
+          reconcileFull(data.messages);
         } catch {
           /* transient — next tick retries */
         }
       })();
     }, REFRESH_MS);
     return () => window.clearInterval(id);
-  }, [mergeMessages]);
+  }, [reconcileFull]);
 
   // Keep the view pinned to the latest message when the user is at the bottom.
   useEffect(() => {
@@ -353,22 +396,34 @@ export default function CommunityChat() {
     if (!body || sending) return;
     setSending(true);
     setError(null);
+    setSystemNote(null);
     try {
       const res = await fetch("/api/community/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: body }),
+        body: JSON.stringify({ text: body, replyTo: replyTo?.id ?? null }),
       });
       const data = (await res.json()) as {
         ok: boolean;
         error?: string;
         message?: ChatMessage;
+        system?: string;
       };
+      // A slash-command returns `system` feedback instead of a chat message.
+      if (typeof data.system === "string" && data.system) {
+        setSystemNote(data.system);
+        if (data.ok) {
+          setText("");
+          setReplyTo(null);
+        }
+        return;
+      }
       if (!res.ok || !data.ok) {
         setError(data.error ?? "Couldn't send your message");
         return;
       }
       setText("");
+      setReplyTo(null);
       atBottomRef.current = true;
       if (data.message) mergeMessages([data.message]);
     } catch {
@@ -376,7 +431,7 @@ export default function CommunityChat() {
     } finally {
       setSending(false);
     }
-  }, [text, sending, mergeMessages]);
+  }, [text, sending, replyTo, mergeMessages]);
 
   const react = useCallback(
     async (messageId: string, emoji: string) => {
@@ -475,6 +530,11 @@ export default function CommunityChat() {
         onScroll={onScroll}
         className="flex max-h-[60vh] min-h-[320px] flex-col gap-3 overflow-y-auto px-4 py-4"
       >
+        {state.welcome && (
+          <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-4 py-3 text-sm leading-relaxed text-amber-100/90">
+            {renderBody(state.welcome)}
+          </div>
+        )}
         {state.messages.length === 0 ? (
           <p className="py-10 text-center text-sm text-white/45">
             No messages yet — say hello!
@@ -498,6 +558,18 @@ export default function CommunityChat() {
                     {formatTime(m.createdAt)}
                   </span>
                 </div>
+                {m.reply && (
+                  <div className="mt-0.5 border-l-2 border-amber-400/40 bg-white/[0.03] px-2 py-1 text-xs text-white/50">
+                    <span className="font-semibold text-white/70">
+                      {m.reply.authorName || "message"}
+                    </span>
+                    {m.reply.body && (
+                      <span className="ml-1 line-clamp-1 inline">
+                        {m.reply.body}
+                      </span>
+                    )}
+                  </div>
+                )}
                 {m.body && (
                   <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-white/85">
                     {renderBody(m.body)}
@@ -505,6 +577,21 @@ export default function CommunityChat() {
                 )}
 
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {me && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setReplyTo({
+                          id: m.id,
+                          authorName: m.authorName,
+                          body: m.body,
+                        })
+                      }
+                      className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/50 opacity-0 transition hover:bg-white/10 hover:text-white/80 group-hover:opacity-100"
+                    >
+                      Reply
+                    </button>
+                  )}
                   {m.reactions.map((r) => (
                     <button
                       key={r.emoji}
@@ -555,6 +642,43 @@ export default function CommunityChat() {
       {/* Composer / sign-in */}
       <div className="border-t border-white/10 bg-ink-950/40 px-4 py-3">
         {error && <p className="mb-2 text-xs text-rose-300">{error}</p>}
+        {systemNote && (
+          <div className="mb-2 flex items-start justify-between gap-2 rounded-lg border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2 text-xs text-amber-100/90">
+            <span className="whitespace-pre-wrap">{systemNote}</span>
+            <button
+              type="button"
+              onClick={() => setSystemNote(null)}
+              className="shrink-0 text-amber-200/60 hover:text-amber-100"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        {me && replyTo && (
+          <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/60">
+            <span className="min-w-0 truncate">
+              Replying to{" "}
+              <span className="font-semibold text-white/80">
+                {replyTo.authorName || "message"}
+              </span>
+              {replyTo.body ? ` — ${replyTo.body}` : ""}
+            </span>
+            <button
+              type="button"
+              onClick={() => setReplyTo(null)}
+              className="shrink-0 text-white/40 hover:text-white/80"
+              aria-label="Cancel reply"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        {me?.admin && text.trim().startsWith("/") && (
+          <p className="mb-2 text-[11px] text-white/40">
+            Command mode — try <span className="text-amber-200/80">/help</span> for the full list.
+          </p>
+        )}
         {me ? (
           <div className="flex items-end gap-2">
             <textarea
