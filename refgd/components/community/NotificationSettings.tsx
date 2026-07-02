@@ -201,106 +201,83 @@ export default function NotificationSettings({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="tg-modal-backdrop"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
     >
-      <div
-        className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10 bg-ink-950 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-5 py-3.5">
-          <h2 className="text-sm font-semibold text-white">Notifications</h2>
+      <div className="tg-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="tg-modal-header">
+          <h3>Notifications</h3>
           <button
             type="button"
+            className="tg-icon-btn"
             onClick={onClose}
-            className="text-white/40 hover:text-white/80"
             aria-label="Close"
           >
             ✕
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          {error && (
-            <p className="mb-3 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs text-rose-200">
-              {error}
-            </p>
-          )}
-          {note && (
-            <p className="mb-3 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-200">
-              {note}
-            </p>
-          )}
+        <div className="tg-modal-body tg-scroll">
+          {error && <p className="tg-note is-error">{error}</p>}
+          {note && <p className="tg-note is-good">{note}</p>}
 
           {/* Browser push */}
-          <section className="mb-5">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-white/50">
-                Browser
-              </h3>
-              {pushSupported && endpoint && (
-                <button
-                  type="button"
-                  onClick={() => void disableWeb()}
-                  disabled={busy}
-                  className="text-[11px] text-rose-300/80 underline decoration-dotted hover:text-rose-200 disabled:opacity-50"
-                >
-                  turn off
-                </button>
-              )}
-            </div>
-            {pushSupported ? (
-              <div className="space-y-1.5">
-                {CATEGORIES.map((c) => (
-                  <label
-                    key={c.key}
-                    className="flex cursor-pointer items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white/80"
-                  >
-                    <span>{c.label}</span>
-                    <input
-                      type="checkbox"
-                      checked={web.includes(c.key)}
-                      disabled={busy}
-                      onChange={() => toggleWeb(c.key)}
-                      className="h-4 w-4 accent-amber-400"
-                    />
-                  </label>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-white/40">
-                Browser notifications aren&apos;t available here.
-              </p>
+          <div className="tg-section-head">
+            <h4 className="tg-section-title">Browser</h4>
+            {pushSupported && endpoint && (
+              <button
+                type="button"
+                className="tg-link-btn"
+                onClick={() => void disableWeb()}
+                disabled={busy}
+              >
+                Turn off
+              </button>
             )}
-          </section>
+          </div>
+          {pushSupported ? (
+            CATEGORIES.map((c) => (
+              <button
+                key={c.key}
+                type="button"
+                className="tg-row"
+                disabled={busy}
+                onClick={() => toggleWeb(c.key)}
+              >
+                <span className="tg-row-label">{c.label}</span>
+                <span
+                  className={`tg-toggle${web.includes(c.key) ? " is-on" : ""}`}
+                />
+              </button>
+            ))
+          ) : (
+            <p className="tg-note">
+              Browser notifications aren&apos;t available here.
+            </p>
+          )}
 
           {/* Telegram */}
-          <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/50">
-              Telegram DM
-            </h3>
-            <div className="space-y-1.5">
-              {CATEGORIES.map((c) => (
-                <label
-                  key={c.key}
-                  className="flex cursor-pointer items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white/80"
-                >
-                  <span>{c.label}</span>
-                  <input
-                    type="checkbox"
-                    checked={telegram.includes(c.key)}
-                    onChange={() => void toggleTelegram(c.key)}
-                    className="h-4 w-4 accent-amber-400"
-                  />
-                </label>
-              ))}
-            </div>
-            <p className="mt-2 text-[11px] text-white/40">
-              You must have started the community bot on Telegram to receive DMs.
-            </p>
-          </section>
+          <h4 className="tg-section-title">Telegram DM</h4>
+          {CATEGORIES.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              className="tg-row"
+              onClick={() => void toggleTelegram(c.key)}
+            >
+              <span className="tg-row-label">{c.label}</span>
+              <span
+                className={`tg-toggle${
+                  telegram.includes(c.key) ? " is-on" : ""
+                }`}
+              />
+            </button>
+          ))}
+          <p className="tg-note">
+            You must have started the community bot on Telegram to receive DMs.
+          </p>
         </div>
       </div>
     </div>

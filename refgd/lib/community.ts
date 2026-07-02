@@ -48,6 +48,15 @@ interface VouchRow {
   media_ids: string[];
 }
 
+/**
+ * node-postgres returns TIMESTAMPTZ columns as JS Date objects, but every
+ * consumer (client components, deterministic date grouping, RSC props)
+ * expects ISO strings — normalize at the mapper boundary.
+ */
+function isoTs(v: string | Date): string {
+  return v instanceof Date ? v.toISOString() : new Date(v).toISOString();
+}
+
 function mapVouch(r: VouchRow): Vouch {
   return {
     id: String(r.id),
@@ -56,8 +65,8 @@ function mapVouch(r: VouchRow): Vouch {
     body: r.body,
     mediaIds: (r.media_ids ?? []).map((x) => String(x)),
     pinned: r.pinned,
-    createdAt: r.created_at,
-    originDate: r.origin_date,
+    createdAt: isoTs(r.created_at),
+    originDate: r.origin_date === null ? null : isoTs(r.origin_date),
   };
 }
 
@@ -445,7 +454,7 @@ async function attachReactions(
     body: r.body,
     isAdmin: isCommunityAdmin(r.tg_id),
     pinned: r.pinned,
-    createdAt: r.created_at,
+    createdAt: isoTs(r.created_at),
     reactions: [],
     reply: r.reply_to
       ? {
