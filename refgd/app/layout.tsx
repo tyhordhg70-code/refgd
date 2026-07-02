@@ -55,6 +55,7 @@ import EditProvider from "@/lib/edit-context";
 import ReactDomGuard from "@/components/ReactDomGuard";
 import EditorToolbar from "@/components/EditorToolbar";
 import AutoEditWrapper from "@/components/AutoEditWrapper";
+import SiteChrome from "@/components/SiteChrome";
 import EditorErrorBoundary from "@/components/EditorErrorBoundary";
 import { getAllContentMap } from "@/lib/content";
 import { readSession } from "@/lib/auth";
@@ -148,51 +149,65 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             editor decoration runs, so AutoEditWrapper's manual DOM mutation
             can never crash React's commit and blank the page. */}
         <ReactDomGuard />
-        {/* Lenis-powered smooth scroll for the entire site (no-op for
-            users with prefers-reduced-motion). */}
-        <SmoothScroll />
+        {/* /community is a standalone Telegram-replica app — SiteChrome
+            unmounts all decorative/navigational chrome there (no Lenis, no
+            splash loaders, no galaxy/cosmic layers, no Nav/banner, no custom
+            cursor, no music). LoadingScreen stays mounted because it opts
+            itself out via splashDisabledForPath; ReactDomGuard + EditProvider
+            stay because they are invisible infrastructure. */}
         {/* v6.13.27 — restored. Self-dismisses once the galaxy
             worker reports ready and the cinematic scene warm
             event fires (with a hard timeout fallback inside
-            LoadingScreen so it can never strand the page). */}
+            LoadingScreen so it can never strand the page).
+            Stays OUTSIDE SiteChrome: it already opts itself out on
+            /community via splashDisabledForPath. */}
         <LoadingScreen />
-        {/* Cosmic splash on client-side navigation to a heavy page so the
-            destination's large scene is fully downloaded + painted before
-            the page is revealed (light routes stay instant). */}
-        <RouteTransitionLoader />
-        {/* Warms other routes' heavy hero videos into the immutable HTTP cache
-            during idle, so navigating to them is instant. Connection-aware
-            (skips Data Saver / 2g) and fire-and-forget. Renders nothing. */}
-        <BackgroundPrefetcher />
+        <SiteChrome>
+          {/* Lenis-powered smooth scroll for the entire site (no-op for
+              users with prefers-reduced-motion). */}
+          <SmoothScroll />
+          {/* Cosmic splash on client-side navigation to a heavy page so the
+              destination's large scene is fully downloaded + painted before
+              the page is revealed (light routes stay instant). */}
+          <RouteTransitionLoader />
+          {/* Warms other routes' heavy hero videos into the immutable HTTP cache
+              during idle, so navigating to them is instant. Connection-aware
+              (skips Data Saver / 2g) and fire-and-forget. Renders nothing. */}
+          <BackgroundPrefetcher />
+        </SiteChrome>
         <EditProvider initialAdmin={initialAdmin} initialContent={initialContent}>
         <EditorErrorBoundary>
-          {/* Site-wide continuous WebGL galaxy field — every page scrolls
-              over the same scene so transitions feel like one journey. */}
-          <GalaxyBackground />
-          {/* Subtle 3D wireframe shapes drifting behind every chapter —
-              pure CSS @keyframes, GPU-only, zero JS thread cost. */}
-          <Cosmic3DShapes />
-          <PulsatingOverlay />
-          <AnnouncementBanner
-            text={initialContent["banner.text"]}
-            cta={initialContent["banner.cta"]}
-            url={initialContent["banner.url"]}
-          />
-          <Nav />
+          <SiteChrome>
+            {/* Site-wide continuous WebGL galaxy field — every page scrolls
+                over the same scene so transitions feel like one journey. */}
+            <GalaxyBackground />
+            {/* Subtle 3D wireframe shapes drifting behind every chapter —
+                pure CSS @keyframes, GPU-only, zero JS thread cost. */}
+            <Cosmic3DShapes />
+            <PulsatingOverlay />
+            <AnnouncementBanner
+              text={initialContent["banner.text"]}
+              cta={initialContent["banner.cta"]}
+              url={initialContent["banner.url"]}
+            />
+            <Nav />
+          </SiteChrome>
           <AutoEditWrapper>
             <main className="relative z-[2]">{children}</main>
           </AutoEditWrapper>
           {/* v18 — Footer unmounted per user request */}
-          <CustomCursor />
-          {/* Pauses perpetual decorative glow animations while their
-              section is scrolled off-screen (invisible — frees compositor
-              budget so the cursor stays smooth). Skips fixed/sticky layers. */}
-          <OffscreenGlowPauser />
-          {/* Persistent background music — lives here so it survives
-              navigation between pages. Close button lets users hide it. */}
-          <MusicPlayer />
-          {/* Floating inline-editor toolbar (only renders for admins). */}
-          <EditorToolbar />
+          <SiteChrome>
+            <CustomCursor />
+            {/* Pauses perpetual decorative glow animations while their
+                section is scrolled off-screen (invisible — frees compositor
+                budget so the cursor stays smooth). Skips fixed/sticky layers. */}
+            <OffscreenGlowPauser />
+            {/* Persistent background music — lives here so it survives
+                navigation between pages. Close button lets users hide it. */}
+            <MusicPlayer />
+            {/* Floating inline-editor toolbar (only renders for admins). */}
+            <EditorToolbar />
+          </SiteChrome>
         </EditorErrorBoundary>
         </EditProvider>
       </body>

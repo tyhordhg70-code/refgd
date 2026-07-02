@@ -47,6 +47,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useEditContext } from "@/lib/edit-context";
+import { isChromelessPath } from "@/components/SiteChrome";
 
 type Props = {
   children: React.ReactNode;
@@ -126,6 +127,10 @@ function makeId(el: Element, pathname: string, counter: { n: number }): string {
 export default function AutoEditWrapper({ children }: Props) {
   const { isAdmin, editMode, getValue, setValue } = useEditContext();
   const pathname = usePathname() || "/";
+  /* /community is a standalone Telegram-replica app: its DOM re-renders on a
+     2.5s chat poll, which the runtime DOM-walker decoration would fight
+     (duplicate listeners, stale contenteditable nodes). Pass through raw. */
+  const chromeless = isChromelessPath(pathname);
   const rootRef = useRef<HTMLDivElement | null>(null);
   // refs to currently-tagged elements so we can clean up on exit
   // We track each decorated element along with its previously attached
@@ -148,6 +153,7 @@ export default function AutoEditWrapper({ children }: Props) {
 
   // ── Scan DOM and decorate when entering edit mode ────────────────
   useEffect(() => {
+    if (chromeless) return;
     if (!isAdmin || !editMode) {
       // Cleanup any existing decorations
       const tagged = taggedRef.current;
@@ -306,6 +312,7 @@ export default function AutoEditWrapper({ children }: Props) {
   // happens on mousedown, so preventing the click default never blocks
   // inline text editing.
   useEffect(() => {
+    if (chromeless) return;
     if (!isAdmin || !editMode) return;
     if (pathname.startsWith("/admin")) return;
     const onClickCapture = (e: MouseEvent) => {
@@ -319,6 +326,9 @@ export default function AutoEditWrapper({ children }: Props) {
   }, [isAdmin, editMode, pathname]);
 
   // ── Style: hover outline only inside the wrapper ──────────────────
+  /* All hooks above have run unconditionally — safe to branch here. On
+     /community render children untouched (no wrapper div, no edit scope). */
+  if (chromeless) return <>{children}</>;
   return (
     <div
       ref={rootRef}
