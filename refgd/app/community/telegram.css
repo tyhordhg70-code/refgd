@@ -1335,27 +1335,6 @@ button.tg-reply-embed {
   vertical-align: top;
 }
 
-/* ── Message bubble tail (svg-appendix) — position the 9×20 tail so it hugs
-      the bottom corner instead of rendering inline under the bubble. ─────── */
-.tg-app .message-content {
-  position: relative;
-}
-.tg-app .svg-appendix {
-  position: absolute;
-  bottom: -0.1875rem;
-  width: 0.5625rem;
-  height: 1.25rem;
-  z-index: 1;
-  pointer-events: none;
-}
-.tg-app .Message:not(.own) .svg-appendix {
-  left: -0.5625rem;
-}
-.tg-app .Message.own .svg-appendix {
-  right: -0.5625rem;
-  transform: scaleX(-1);
-}
-
 /* ── Admin badge — green label pushed to the right of the sender name. ───── */
 .tg-app .message-title {
   display: flex;

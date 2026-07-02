@@ -273,6 +273,24 @@ export default function CommunityChat({
     return pins.length ? pins[pins.length - 1] : null;
   }, [state?.messages]);
 
+  // Deep link: `#msg-<id>` (from Copy Message Link / Forward) scrolls to that
+  // message once the chat has loaded. Runs a single time per mount.
+  const hashScrolledRef = useRef(false);
+  useEffect(() => {
+    if (hashScrolledRef.current) return;
+    if (!state?.messages?.length) return;
+    const m = /^#msg-(.+)$/.exec(window.location.hash);
+    hashScrolledRef.current = true;
+    if (!m) return;
+    const id = m[1];
+    const t = window.setTimeout(() => {
+      document
+        .querySelector(`[data-mid="${CSS.escape(id)}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+    return () => window.clearTimeout(t);
+  }, [state?.messages?.length]);
+
   // Keep the contenteditable input in sync with chat.text when it changes
   // programmatically (e.g. cleared after send) without clobbering the caret
   // while the user is typing.
