@@ -169,15 +169,15 @@ export default function TelegramApp({
   }, []);
 
   // Inside the Telegram Mini App webview, the client shows an opaque loading
-  // placeholder (black screen) until WebApp.ready() fires — so signal ready
-  // at SHELL mount, not only when the chat topic mounts. The mini app has
-  // always opened straight into the live group chat, so jump there too.
+  // placeholder (black screen) until WebApp.ready() fires — ensureTelegramReady()
+  // signals that at SHELL mount (idempotent). Open on the TOPIC LIST
+  // (active = null), matching the real Telegram forum/folder view, instead of
+  // jumping straight into Group Chat.
   useEffect(() => {
     let cancelled = false;
     void ensureTelegramReady().then((inside) => {
       if (inside && !cancelled) {
         setInTg(true);
-        setActive((cur) => cur ?? "chat");
       }
     });
     return () => {

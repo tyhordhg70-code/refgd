@@ -8,7 +8,10 @@ import {
   type MiniAppAuthFailReason,
   type MiniAppAuthDebug,
 } from "@/lib/community-auth";
-import { getCommunityBotUsername } from "@/lib/community-bot";
+import {
+  getCommunityBotUsername,
+  getBotIdentityFromToken,
+} from "@/lib/community-bot";
 import { isValidInviteSlug, recordInviteJoin } from "@/lib/community";
 
 export const runtime = "nodejs";
@@ -57,16 +60,33 @@ export async function POST(req: Request) {
       failReason === "bad_signature" || failReason === "no_token"
         ? await getCommunityBotUsername().catch(() => null)
         : null;
+    // On a signature failure with a clean token the ONLY remaining cause is a
+    // token↔bot mismatch. COMMUNITY_BOT_USERNAME is set independently and can
+    // lie, so ask Telegram which bot the TOKEN actually is (getMe). If that bot
+    // differs from the one whose Mini App opened this app, HMAC can never match.
+    const actualBot =
+      failReason === "bad_signature"
+        ? await getBotIdentityFromToken().catch((e) => ({
+            ok: false as const,
+            error: String(e),
+          }))
+        : null;
+    const actualBotStr = !actualBot
+      ? ""
+      : actualBot.ok
+        ? ` The token on the server actually belongs to @${actualBot.username ?? actualBot.id} — open the community through THAT bot's Mini App button, or set COMMUNITY_BOT_TOKEN to the token of the bot you open it with.`
+        : ` The server could not confirm its token with Telegram (${actualBot.error}) — the token is invalid or revoked.`;
     const human: Record<string, string> = {
       no_token:
         "The server has no community bot token configured — set COMMUNITY_BOT_TOKEN.",
       no_hash: "Telegram didn't include a signature in the sign-in payload.",
       bad_signature:
         (serverBot
-          ? `Signature check failed — the server is configured for @${serverBot}. Confirm COMMUNITY_BOT_TOKEN is that exact bot's token and the latest build is deployed.`
-          : "Signature check failed — the server couldn't validate this session against COMMUNITY_BOT_TOKEN. Confirm it's the exact bot that opened this app and the latest build is deployed.") +
+          ? `Signature check failed — the server is configured for @${serverBot}.`
+          : "Signature check failed — the server couldn't validate this session against COMMUNITY_BOT_TOKEN.") +
+        actualBotStr +
         (authDebug?.tokenHadWhitespace
-          ? " (The configured token has surrounding whitespace — re-paste it with no spaces or newlines.)"
+          ? " (The configured token also has surrounding whitespace — re-paste it with no spaces or newlines.)"
           : ""),
       stale_auth_date:
         "This Telegram session is stale — close and reopen the mini app.",
@@ -79,7 +99,11 @@ export async function POST(req: Request) {
         reason: failReason,
         // Non-sensitive diagnostics (no token material / no user PII) so a
         // "same token but signature fails" report can be pinpointed remotely.
-        debug: authDebug,
+        // `serverBotActual` is the bot the token REALLY is (getMe), vs the
+        // `serverBot`/COMMUNITY_BOT_USERNAME label which is set independently.
+        debug: authDebug
+          ? { ...authDebug, serverBot, serverBotActual: actualBot }
+          : { serverBot, serverBotActual: actualBot },
       },
       { status: 401 },
     );

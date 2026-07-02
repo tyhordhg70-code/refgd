@@ -119,6 +119,44 @@ export async function getCommunityBotUsername(): Promise<string | null> {
   return null;
 }
 
+/**
+ * Resolve the bot the CONFIGURED token actually belongs to by calling getMe —
+ * deliberately IGNORING COMMUNITY_BOT_USERNAME (which is set independently and
+ * can name a different bot than the token). Used only for diagnostics on an auth
+ * failure so a token↔bot mismatch — the real cause of "signature check failed"
+ * with a clean, correctly-lengthed token — is provable from the client.
+ */
+export async function getBotIdentityFromToken(): Promise<
+  | { ok: true; id: number; username: string | null }
+  | { ok: false; error: string }
+> {
+  const token = communityBotToken();
+  if (!token) return { ok: false, error: "COMMUNITY_BOT_TOKEN not set" };
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getMe`, {
+      cache: "no-store",
+    });
+    const j = (await res.json()) as {
+      ok?: boolean;
+      result?: { id?: number; username?: string };
+      description?: string;
+    };
+    if (!res.ok || !j.ok || !j.result) {
+      return {
+        ok: false,
+        error: `getMe ${res.status}: ${j.description ?? "rejected the token"}`,
+      };
+    }
+    return {
+      ok: true,
+      id: j.result.id ?? 0,
+      username: j.result.username ?? null,
+    };
+  } catch (e) {
+    return { ok: false, error: `getMe request failed: ${String(e)}` };
+  }
+}
+
 /** Download a Telegram file (photo) by file_id → raw bytes + mime. */
 export async function downloadTelegramFile(
   fileId: string,
