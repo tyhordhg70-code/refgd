@@ -43,6 +43,21 @@ export async function GET(req: Request) {
     });
     const j = await res.json();
 
+    // Best-effort: give every private chat a persistent "Community" menu
+    // button that launches the Mini App (no BotFather step needed).
+    await fetch(`https://api.telegram.org/bot${token}/setChatMenuButton`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        menu_button: {
+          type: "web_app",
+          text: "Community",
+          web_app: { url: `${base}/community` },
+        },
+      }),
+      cache: "no-store",
+    }).catch(() => undefined);
+
     // Best-effort: register the ingestion command hints in the Telegram UI.
     await fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
       method: "POST",

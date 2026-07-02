@@ -66,27 +66,56 @@ interface ChatState {
   welcome: string;
 }
 
-interface TelegramAuthUser {
-  id: number;
-  first_name?: string;
-  last_name?: string;
-  username?: string;
-  photo_url?: string;
-  auth_date: number;
-  hash: string;
+interface TelegramWebApp {
+  initData?: string;
+  platform?: string;
+  version?: string;
+  isFullscreen?: boolean;
+  ready?: () => void;
+  expand?: () => void;
+  requestFullscreen?: () => void;
+  exitFullscreen?: () => void;
+  isVersionAtLeast?: (version: string) => boolean;
+  onEvent?: (event: string, handler: () => void) => void;
+  offEvent?: (event: string, handler: () => void) => void;
 }
 
 declare global {
   interface Window {
     Telegram?: {
-      WebApp?: {
-        initData?: string;
-        ready?: () => void;
-        expand?: () => void;
-      };
+      WebApp?: TelegramWebApp;
     };
-    onTelegramAuth?: (user: TelegramAuthUser) => void;
   }
+}
+
+const TG_BRIDGE_SRC = "https://telegram.org/js/telegram-web-app.js";
+let tgBridgePromise: Promise<void> | null = null;
+
+/**
+ * Load the official Telegram Mini App bridge once. Without this script
+ * `window.Telegram.WebApp` never exists, so silent sign-in and fullscreen
+ * would silently no-op inside the Mini App webview.
+ */
+function loadTelegramBridge(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if (window.Telegram?.WebApp) return Promise.resolve();
+  if (tgBridgePromise) return tgBridgePromise;
+  tgBridgePromise = new Promise<void>((resolve) => {
+    const s = document.createElement("script");
+    s.src = TG_BRIDGE_SRC;
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => resolve();
+    document.head.appendChild(s);
+  });
+  return tgBridgePromise;
+}
+
+/** True only when actually running inside a Telegram Mini App webview. */
+function insideTelegram(wa: TelegramWebApp | undefined): boolean {
+  if (!wa) return false;
+  if (wa.initData && wa.initData.length > 0) return true;
+  return Boolean(wa.platform && wa.platform !== "unknown");
 }
 
 const AVATAR_COLORS = [
@@ -189,13 +218,15 @@ export default function CommunityChat() {
   const [showAdmin, setShowAdmin] = useState(false);
   // Admin-only auto-delete TTL (seconds) applied to the next message; 0 = keep.
   const [ttlSeconds, setTtlSeconds] = useState(0);
+  const [inTelegram, setInTelegram] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fsDismissed, setFsDismissed] = useState(false);
 
   const lastIdRef = useRef<string>("0");
   const pollingRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const atBottomRef = useRef(true);
   const authTriedRef = useRef(false);
-  const widgetHostRef = useRef<HTMLDivElement | null>(null);
 
   const me = state?.me ?? null;
 
@@ -293,26 +324,70 @@ export default function CommunityChat() {
     }
   }, [mergeMessages]);
 
-  // Initial load + Telegram Mini App silent sign-in.
+  // Load the Mini App bridge, silent sign-in, then initial load.
   useEffect(() => {
     void (async () => {
-      const initData = window.Telegram?.WebApp?.initData;
+      await loadTelegramBridge();
+      const wa = window.Telegram?.WebApp;
+      if (insideTelegram(wa)) {
+        setInTelegram(true);
+        setIsFullscreen(Boolean(wa?.isFullscreen));
+        try {
+          wa?.ready?.();
+          wa?.expand?.();
+        } catch {
+          /* bridge quirk — non-fatal */
+        }
+      }
+      const initData = wa?.initData;
       if (initData && !authTriedRef.current) {
         authTriedRef.current = true;
         try {
-          window.Telegram?.WebApp?.ready?.();
           await fetch("/api/community/auth", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ initData }),
           });
         } catch {
-          /* fall back to the Login Widget below */
+          /* sign-in retries on next open */
         }
       }
       await loadInitial();
     })();
   }, [loadInitial]);
+
+  // Track fullscreen state changes from the Telegram client.
+  useEffect(() => {
+    if (!inTelegram) return;
+    const wa = window.Telegram?.WebApp;
+    if (!wa?.onEvent) return;
+    const sync = () => setIsFullscreen(Boolean(wa.isFullscreen));
+    const failed = () => setIsFullscreen(Boolean(wa.isFullscreen));
+    wa.onEvent("fullscreenChanged", sync);
+    wa.onEvent("fullscreenFailed", failed);
+    return () => {
+      wa.offEvent?.("fullscreenChanged", sync);
+      wa.offEvent?.("fullscreenFailed", failed);
+    };
+  }, [inTelegram]);
+
+  const canFullscreen =
+    inTelegram &&
+    typeof window !== "undefined" &&
+    typeof window.Telegram?.WebApp?.requestFullscreen === "function" &&
+    (window.Telegram?.WebApp?.isVersionAtLeast?.("8.0") ?? true);
+
+  const toggleFullscreen = useCallback(() => {
+    const wa = window.Telegram?.WebApp;
+    if (!wa) return;
+    try {
+      if (wa.isFullscreen) wa.exitFullscreen?.();
+      else if (wa.requestFullscreen) wa.requestFullscreen();
+      else wa.expand?.();
+    } catch {
+      wa.expand?.();
+    }
+  }, []);
 
   // Short-poll for new messages.
   useEffect(() => {
@@ -356,39 +431,6 @@ export default function CommunityChat() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [state?.messages]);
-
-  // Render the Telegram Login Widget when signed out (web / non-Mini-App).
-  useEffect(() => {
-    const host = widgetHostRef.current;
-    if (!host || me || !state?.botUsername) return;
-    host.innerHTML = "";
-    window.onTelegramAuth = (user: TelegramAuthUser) => {
-      void (async () => {
-        try {
-          await fetch("/api/community/auth", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ widget: user }),
-          });
-          await loadInitial();
-        } catch {
-          setError("Sign-in failed. Please try again.");
-        }
-      })();
-    };
-    const s = document.createElement("script");
-    s.src = "https://telegram.org/js/telegram-widget.js?22";
-    s.async = true;
-    s.setAttribute("data-telegram-login", state.botUsername);
-    s.setAttribute("data-size", "large");
-    s.setAttribute("data-userpic", "true");
-    s.setAttribute("data-request-access", "write");
-    s.setAttribute("data-onauth", "onTelegramAuth(user)");
-    host.appendChild(s);
-    return () => {
-      host.innerHTML = "";
-    };
-  }, [me, state?.botUsername, loadInitial]);
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -525,6 +567,17 @@ export default function CommunityChat() {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {canFullscreen && (
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/10"
+              aria-label={isFullscreen ? "Exit fullscreen" : "Go fullscreen"}
+              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            >
+              {isFullscreen ? "🗗" : "⛶"}
+            </button>
+          )}
           {me && (
             <button
               type="button"
@@ -561,6 +614,32 @@ export default function CommunityChat() {
       {showNotif && <NotificationSettings onClose={() => setShowNotif(false)} />}
       {showAdmin && me?.admin && (
         <AdminPanel onClose={() => setShowAdmin(false)} />
+      )}
+
+      {/* Fullscreen prompt — Mini App only, until entered or dismissed. */}
+      {canFullscreen && !isFullscreen && !fsDismissed && (
+        <div className="flex items-center justify-between gap-3 border-b border-amber-400/20 bg-amber-400/10 px-4 py-2">
+          <p className="text-xs text-amber-100/90">
+            Go fullscreen for the full experience.
+          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="rounded-full bg-amber-400 px-3 py-1 text-xs font-semibold text-black hover:bg-amber-300"
+            >
+              ⛶ Fullscreen
+            </button>
+            <button
+              type="button"
+              onClick={() => setFsDismissed(true)}
+              className="rounded-full px-1.5 py-1 text-xs text-amber-100/60 hover:text-amber-100"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Messages */}
@@ -760,14 +839,35 @@ export default function CommunityChat() {
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2 py-2 text-center">
-            <p className="text-sm text-white/60">
-              Sign in with Telegram to join the conversation.
-            </p>
-            <div ref={widgetHostRef} />
-            {!state.botUsername && (
-              <p className="text-xs text-white/40">
-                Sign-in is being set up — check back shortly.
-              </p>
+            {inTelegram ? (
+              <>
+                <p className="text-sm text-white/60">
+                  Sign-in didn&apos;t complete.
+                </p>
+                <p className="text-xs text-white/40">
+                  Close and reopen the mini app to try again.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-white/60">
+                  Join the conversation from the RefundGod mini app.
+                </p>
+                {state.botUsername ? (
+                  <a
+                    href={`https://t.me/${state.botUsername}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-full bg-amber-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-amber-300"
+                  >
+                    Open in Telegram
+                  </a>
+                ) : (
+                  <p className="text-xs text-white/40">
+                    Chat access is being set up — check back shortly.
+                  </p>
+                )}
+              </>
             )}
           </div>
         )}

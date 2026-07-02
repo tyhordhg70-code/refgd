@@ -22,6 +22,19 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
+ * Canonical public origin for Mini App launch URLs. Deliberately NOT
+ * publicBaseUrl(): that falls back to RENDER_EXTERNAL_URL (the onrender.com
+ * host), which would open the Mini App on a different domain than the menu
+ * button and split member sessions across domains.
+ */
+function communityBase(): string {
+  return (process.env.PUBLIC_BASE_URL || "https://refundgod.io").replace(
+    /\/$/,
+    "",
+  );
+}
+
+/**
  * POST /api/community/webhook
  *
  * The community ingestion bot. An admin (COMMUNITY_ADMIN_TG_IDS) DMs/forwards
@@ -119,9 +132,15 @@ export async function POST(req: Request) {
 
   const fromId = msg.from?.id;
   if (!isCommunityAdmin(fromId)) {
+    // Members hit this gate before the slash-command block, so their Mini App
+    // launcher MUST live here — without it Mini-App-only access locks them out.
     await sendCommunityTelegram(
       chatId,
-      "👋 This is the RefundGod community bot. Join the group at https://t.me/refundgod",
+      "👋 Welcome to the RefundGod community! Tap the button below to open the community — chat, vouches and announcements live there.",
+      {
+        text: "🚀 Open Community",
+        webAppUrl: `${communityBase()}/community`,
+      },
     );
     return NextResponse.json({ ok: true });
   }
@@ -132,7 +151,10 @@ export async function POST(req: Request) {
   if (text.startsWith("/")) {
     const cmd = text.split(/\s+/)[0].toLowerCase().replace(/@.*$/, "");
     if (cmd === "/start" || cmd === "/help") {
-      await sendCommunityTelegram(chatId, helpText());
+      await sendCommunityTelegram(chatId, helpText(), {
+        text: "🚀 Open Community",
+        webAppUrl: `${communityBase()}/community`,
+      });
       return NextResponse.json({ ok: true });
     }
     if (

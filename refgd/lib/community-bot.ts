@@ -38,7 +38,7 @@ export function isCommunityAdmin(
 export async function sendCommunityTelegram(
   chatId: string | number,
   text: string,
-  button?: { text: string; url: string },
+  button?: { text: string; url?: string; webAppUrl?: string },
 ): Promise<SendResult> {
   const token = communityBotToken();
   if (!token) return { ok: false, error: "COMMUNITY_BOT_TOKEN not set" };
@@ -49,7 +49,12 @@ export async function sendCommunityTelegram(
     disable_web_page_preview: true,
   };
   if (button) {
-    body.reply_markup = { inline_keyboard: [[{ text: button.text, url: button.url }]] };
+    // web_app buttons open the Mini App in-place (private chats only —
+    // fine here, this bot only ever DMs).
+    const btn = button.webAppUrl
+      ? { text: button.text, web_app: { url: button.webAppUrl } }
+      : { text: button.text, url: button.url ?? "" };
+    body.reply_markup = { inline_keyboard: [[btn]] };
   }
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
