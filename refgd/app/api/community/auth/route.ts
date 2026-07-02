@@ -82,8 +82,20 @@ export async function POST(req: Request) {
     const actualBotStr = !actualBot
       ? ""
       : actualBot.ok
-        ? ` The token on the server actually belongs to @${actualBot.username ?? actualBot.id} — open the community through THAT bot's Mini App button, or set COMMUNITY_BOT_TOKEN to the token of the bot you open it with.`
-        : ` The server could not confirm its token with Telegram (${actualBot.error}) — the token is invalid or revoked.`;
+        ? ` The server's token is valid and belongs to @${actualBot.username ?? actualBot.id} (not revoked).`
+        : ` The server could not confirm its token with Telegram (${actualBot.error}) — the token is invalid or revoked; re-copy it from BotFather.`;
+    // Turn the multi-variant recompute into an actionable verdict. `none` (with a
+    // confirmed-valid token) means the payload was signed by a DIFFERENT token
+    // than the server's — i.e. the token was regenerated in BotFather. Any other
+    // variant name means the payload IS this token's but our encoding differs (a
+    // code fix). The primary path already uses `miniapp_excl_both_dec`.
+    const hmacStr = !hmacDiag
+      ? ""
+      : hmacDiag.match === "none"
+        ? " But this sign-in was signed by a DIFFERENT token than the one on the server — the bot's token was regenerated in BotFather at some point. Open the bot in BotFather, copy its CURRENT token, set it as COMMUNITY_BOT_TOKEN on the server, and redeploy."
+        : hmacDiag.match === "miniapp_excl_both_dec"
+          ? ""
+          : ` The data actually validates under an alternate encoding (${hmacDiag.match}) — this is a server-side code fix, not a token problem.`;
     const human: Record<string, string> = {
       no_token:
         "The server has no community bot token configured — set COMMUNITY_BOT_TOKEN.",
@@ -93,6 +105,7 @@ export async function POST(req: Request) {
           ? `Signature check failed — the server is configured for @${serverBot}.`
           : "Signature check failed — the server couldn't validate this session against COMMUNITY_BOT_TOKEN.") +
         actualBotStr +
+        hmacStr +
         (authDebug?.tokenHadWhitespace
           ? " (The configured token also has surrounding whitespace — re-paste it with no spaces or newlines.)"
           : ""),
