@@ -4,6 +4,16 @@ import { useRef, type CSSProperties, type ReactNode } from "react";
 import Appendix from "./Appendix";
 import { initials } from "./format";
 
+/** Autoplay a member's animated (mp4/webm) avatar reliably. React does not emit
+ * the `muted` attribute during SSR, which can block autoplay until hydration; a
+ * stable callback ref forces muted + play() on mount. */
+function playAvatarVideo(el: HTMLVideoElement | null) {
+  if (!el) return;
+  el.muted = true;
+  const p = el.play();
+  if (p && typeof p.catch === "function") p.catch(() => {});
+}
+
 /**
  * A single Telegram Web A message row emitting the exact saved DOM:
  * .Message.message-list-item with grouping classes, the absolute-positioned
@@ -196,6 +206,7 @@ export default function MessageBubble({
             {avatar.photo ? (
               avatarIsVideo ? (
                 <video
+                  ref={playAvatarVideo}
                   src={avatar.photo}
                   className="avatar-media"
                   autoPlay

@@ -239,8 +239,8 @@
   display: none !important;
 }
 .tg-app .Message:not(.own) .message-content.has-appendix {
-  --border-bottom-left-radius: var(--border-radius-messages-small);
-  border-bottom-left-radius: var(--border-radius-messages-small);
+  --border-bottom-left-radius: var(--border-radius-messages);
+  border-bottom-left-radius: var(--border-radius-messages);
 }
 /* sender name colors inside bubbles */
 .tg-app .message-title-name.tg-peer-0 { color: var(--peer-red); }
