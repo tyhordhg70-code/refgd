@@ -1,0 +1,34 @@
+import { NextResponse } from "next/server";
+import { getChatMedia } from "@/lib/community";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/**
+ * GET /api/community/chat-media/[id]
+ *
+ * Serves a chat photo straight from Postgres (BYTEA) — Render has no
+ * persistent disk, so uploaded media lives in the DB. Ids are immutable so
+ * responses cache forever in the browser and for a week at the CDN.
+ */
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  if (!/^\d+$/.test(id)) return new NextResponse(null, { status: 400 });
+
+  const media = await getChatMedia(id);
+  if (!media) return new NextResponse(null, { status: 404 });
+
+  const headers = new Headers({
+    "Content-Type": media.mime || "image/jpeg",
+    "Content-Length": String(media.bytes.length),
+    "Cache-Control":
+      "public, max-age=31536000, immutable, s-maxage=604800, stale-while-revalidate=86400",
+  });
+  return new NextResponse(new Uint8Array(media.bytes), {
+    status: 200,
+    headers,
+  });
+}

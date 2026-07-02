@@ -6,17 +6,23 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import NotificationSettings from "./NotificationSettings";
 import AdminPanel from "./AdminPanel";
 import MiddleHeader from "./tg/MiddleHeader";
 import MessageBubble from "./tg/MessageBubble";
 import Appendix from "./tg/Appendix";
+import EmojiPanel from "./tg/EmojiPanel";
 import {
+  IconBan,
   IconBell,
   IconChat,
   IconClose,
+  IconCopy,
+  IconDelete,
   IconExpand,
+  IconPin,
   IconReply,
   IconSettings,
 } from "./tg/TgIcons";
@@ -30,9 +36,11 @@ import {
 import {
   ADMIN_TG,
   REACTIONS,
+  prepareChatImage,
   useCommunityChat,
   type ChatMessage,
 } from "./useCommunityChat";
+import type { ChatTopic } from "@/lib/community";
 import {
   CHAT_MIGRATED_SEED,
   CHAT_NOTICE_SEED_BODY,
@@ -85,13 +93,64 @@ const MAX_LEN = 2000;
 
 const FS_PROMPT_KEY = "rg_fs_prompted";
 
-export default function CommunityChat({ onBack }: { onBack?: () => void }) {
-  const chat = useCommunityChat();
+export default function CommunityChat({
+  onBack,
+  topic = "chat",
+  title = "Group Chat",
+  icon,
+  history,
+}: {
+  onBack?: () => void;
+  /** Which forum topic this feed reads/writes; defaults to the group chat. */
+  topic?: ChatTopic;
+  title?: string;
+  /** Header icon override (topic emoji); defaults to the # forum icon. */
+  icon?: ReactNode;
+  /** Read-only migrated history rendered above the live messages. */
+  history?: ReactNode;
+}) {
+  const chat = useCommunityChat(topic);
+  const isGroupChat = topic === "chat";
   const [menuOpen, setMenuOpen] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [fsPrompt, setFsPrompt] = useState(false);
+  // Web A message context menu (right-click / long-press on a bubble).
+  const [ctxMenu, setCtxMenu] = useState<{
+    m: ChatMessage;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const inputRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Append an emoji character / custom-emoji token to the composer text and
+  // keep the contenteditable + caret in sync.
+  const insertAtComposer = (snippet: string) => {
+    const next = (chat.text + snippet).slice(0, MAX_LEN);
+    chat.setText(next);
+    const el = inputRef.current;
+    if (el) {
+      el.innerText = next;
+      el.focus();
+      const sel = window.getSelection();
+      sel?.selectAllChildren(el);
+      sel?.collapseToEnd();
+    }
+  };
+
+  // Turn a picked/pasted image into the pending attachment (downscaled
+  // client-side so the server's 3 MB cap is practically never hit).
+  const attachImage = async (file: Blob) => {
+    const prepared = await prepareChatImage(file);
+    if (prepared) {
+      chat.setAttachment(prepared);
+      chat.setError(null);
+    } else {
+      chat.setError("That file doesn't look like an image");
+    }
+  };
 
   // Offer fullscreen as an entry prompt (once per session) instead of a
   // buried menu item.
@@ -146,13 +205,15 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
   return (
     <>
       <MiddleHeader
-        title="Group Chat"
+        title={title}
         subtitle={subtitle}
         icon={
-          <i
-            className="icon icon-hashtag I0-98vJl P6JY5GgC general-forum-icon"
-            aria-hidden
-          />
+          icon ?? (
+            <i
+              className="icon icon-hashtag I0-98vJl P6JY5GgC general-forum-icon"
+              aria-hidden
+            />
+          )
         }
         onBack={onBack}
       >
@@ -284,6 +345,113 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
         </div>
       )}
 
+      {/* Web A message context menu — Reply/Copy for members, moderation for
+          admins. Admin items ride the slash-command pipeline (/pin /del /ban)
+          so server-side auth + audit apply exactly as if typed. */}
+      {ctxMenu && (
+        <>
+          <button
+            type="button"
+            className="tg-menu-backdrop"
+            onClick={() => setCtxMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setCtxMenu(null);
+            }}
+            aria-label="Close menu"
+          />
+          <div
+            className="tg-menu tg-ctx-menu"
+            role="menu"
+            style={{
+              left: Math.max(
+                8,
+                Math.min(ctxMenu.x, window.innerWidth - 216),
+              ),
+              top: Math.max(
+                8,
+                Math.min(ctxMenu.y, window.innerHeight - 240),
+              ),
+            }}
+          >
+            <button
+              type="button"
+              className="tg-menu-item"
+              onClick={() => {
+                chat.setReplyTo({
+                  id: ctxMenu.m.id,
+                  authorName: ctxMenu.m.authorName,
+                  body: ctxMenu.m.body,
+                });
+                setCtxMenu(null);
+              }}
+            >
+              <IconReply />
+              Reply
+            </button>
+            {ctxMenu.m.body && (
+              <button
+                type="button"
+                className="tg-menu-item"
+                onClick={() => {
+                  void navigator.clipboard
+                    ?.writeText(ctxMenu.m.body)
+                    .catch(() => undefined);
+                  setCtxMenu(null);
+                }}
+              >
+                <IconCopy />
+                Copy Text
+              </button>
+            )}
+            {me?.admin && (
+              <button
+                type="button"
+                className="tg-menu-item"
+                onClick={() => {
+                  void chat.sendCommand(
+                    ctxMenu.m.pinned ? "/unpin" : "/pin",
+                    ctxMenu.m.id,
+                  );
+                  setCtxMenu(null);
+                }}
+              >
+                <IconPin />
+                {ctxMenu.m.pinned ? "Unpin" : "Pin"}
+              </button>
+            )}
+            {me?.admin && (
+              <button
+                type="button"
+                className="tg-menu-item tg-menu-item-danger"
+                onClick={() => {
+                  void chat.sendCommand("/del", ctxMenu.m.id);
+                  setCtxMenu(null);
+                }}
+              >
+                <IconDelete />
+                Delete
+              </button>
+            )}
+            {me?.admin &&
+              ctxMenu.m.tgId !== me.tid &&
+              !ctxMenu.m.isAdmin && (
+                <button
+                  type="button"
+                  className="tg-menu-item tg-menu-item-danger"
+                  onClick={() => {
+                    void chat.sendCommand("/ban", ctxMenu.m.id);
+                    setCtxMenu(null);
+                  }}
+                >
+                  <IconBan />
+                  Ban User
+                </button>
+              )}
+          </div>
+        </>
+      )}
+
       <div className="Transition">
         <div className="Transition_slide Transition_slide-active">
           <div
@@ -299,35 +467,39 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
                   <div className="tg-loading">Loading chat…</div>
                 ) : (
                   <>
-                    {state.welcome && (
+                    {isGroupChat && state.welcome && (
                       <div className="tg-service-card">
                         {renderBody(state.welcome)}
                       </div>
                     )}
                     {/* History seeded from the real group's saved pages. */}
-                    {CHAT_MIGRATED_SEED}
-                    <div className="sender-group-container sKXqbu2I">
-                      <MessageBubble
-                        own={false}
-                        first
-                        last
-                        showAvatarGutter
-                        sender={{
-                          name: SEED_AUTHOR,
-                          peer: peerIdx(SEED_AUTHOR),
-                          admin: true,
-                        }}
-                        avatar={{
-                          name: SEED_AUTHOR,
-                          photo: null,
-                          peer: peerIdx(SEED_AUTHOR),
-                        }}
-                        hasAppendix
-                        pinned
-                        body={CHAT_NOTICE_SEED_BODY}
-                        time={CHAT_NOTICE_SEED_TIME}
-                      />
-                    </div>
+                    {isGroupChat && CHAT_MIGRATED_SEED}
+                    {/* Read-only migrated history (vouch topics). */}
+                    {history}
+                    {(isGroupChat || topic === "testimonials") && (
+                      <div className="sender-group-container sKXqbu2I">
+                        <MessageBubble
+                          own={false}
+                          first
+                          last
+                          showAvatarGutter
+                          sender={{
+                            name: SEED_AUTHOR,
+                            peer: peerIdx(SEED_AUTHOR),
+                            admin: true,
+                          }}
+                          avatar={{
+                            name: SEED_AUTHOR,
+                            photo: null,
+                            peer: peerIdx(SEED_AUTHOR),
+                          }}
+                          hasAppendix
+                          pinned
+                          body={CHAT_NOTICE_SEED_BODY}
+                          time={CHAT_NOTICE_SEED_TIME}
+                        />
+                      </div>
+                    )}
                     {groups.map((g, gi) => (
                       <div
                         key={g.key}
@@ -379,11 +551,28 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
                                   body={
                                     m.body ? renderBody(m.body) : undefined
                                   }
+                                  media={
+                                    m.mediaId
+                                      ? [
+                                          `/api/community/chat-media/${m.mediaId}`,
+                                        ]
+                                      : undefined
+                                  }
                                   time={<LocalTime iso={m.createdAt} />}
                                   ticks={own}
                                   reactions={m.reactions}
                                   onReact={(emoji) =>
                                     void chat.react(m.id, emoji)
+                                  }
+                                  onOpenMenu={
+                                    me
+                                      ? (pos) =>
+                                          setCtxMenu({
+                                            m,
+                                            x: pos.x,
+                                            y: pos.y,
+                                          })
+                                      : undefined
                                   }
                                   actionsOpen={chat.reactOpen === m.id}
                                   actions={
@@ -478,6 +667,12 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
 
         {state !== null && me && (
           <div className="Composer shown mounted">
+            {emojiOpen && (
+              <EmojiPanel
+                onPick={insertAtComposer}
+                onClose={() => setEmojiOpen(false)}
+              />
+            )}
             <div className="composer-wrapper">
               <Appendix own={false} composer />
               {chat.replyTo && (
@@ -505,6 +700,26 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
                   Command mode — try /help for the full list.
                 </p>
               )}
+              {chat.attachment && (
+                <div className="tg-attach-preview">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={chat.attachment.previewUrl}
+                    alt="Attached image"
+                  />
+                  <span className="tg-attach-preview-label">
+                    Photo attached — add a caption or hit send
+                  </span>
+                  <button
+                    type="button"
+                    className="tg-icon-btn"
+                    onClick={() => chat.setAttachment(null)}
+                    aria-label="Remove attachment"
+                  >
+                    <IconClose />
+                  </button>
+                </div>
+              )}
               {me.admin && (
                 <div className="tg-ttl-row">
                   <span>Auto-delete:</span>
@@ -520,6 +735,15 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
                 </div>
               )}
               <div className="message-input-wrapper">
+                <button
+                  type="button"
+                  className="Button symbol-menu-button composer-action-button default translucent round"
+                  aria-label="Choose an emoji"
+                  title="Choose an emoji"
+                  onClick={() => setEmojiOpen((v) => !v)}
+                >
+                  <i className="icon icon-smile" aria-hidden />
+                </button>
                 <div id="message-input-text">
                   <div className="custom-scroll input-scroller">
                     <div className="input-scroller-content">
@@ -560,6 +784,19 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
                         }}
                         onPaste={(e) => {
                           e.preventDefault();
+                          // A pasted screenshot/photo becomes the pending
+                          // attachment (Web A parity), text pastes as plain.
+                          const items = Array.from(e.clipboardData.items);
+                          const img = items.find((it) =>
+                            it.type.startsWith("image/"),
+                          );
+                          if (img) {
+                            const file = img.getAsFile();
+                            if (file) {
+                              void attachImage(file);
+                              return;
+                            }
+                          }
                           const text = e.clipboardData.getData("text/plain");
                           document.execCommand("insertText", false, text);
                         }}
@@ -573,12 +810,24 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
                   </div>
                 </div>
                 <div className="AttachMenu">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void attachImage(file);
+                      e.target.value = "";
+                    }}
+                  />
                   <button
                     id="attach-menu-button"
                     type="button"
                     className="Button AttachMenu--button composer-action-button default translucent round"
                     aria-label="Add an attachment"
                     title="Add an attachment"
+                    onClick={() => fileInputRef.current?.click()}
                   >
                     <i className="icon icon-attach" aria-hidden />
                   </button>
@@ -591,7 +840,9 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
               aria-label="Send message"
               title="Send message"
               onClick={() => void chat.send()}
-              disabled={chat.sending || !chat.text.trim()}
+              disabled={
+                chat.sending || (!chat.text.trim() && !chat.attachment)
+              }
             >
               <i className="icon icon-send" aria-hidden />
             </button>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ChatTopic } from "@/lib/community";
 
 /**
  * All state + behaviour for the live community chat, extracted from the old
@@ -36,6 +37,8 @@ export interface ChatMessage {
   authorName: string;
   authorPhoto: string | null;
   body: string;
+  /** Attached photo (chat_media id) served via /api/community/chat-media/[id]. */
+  mediaId: string | null;
   isAdmin: boolean;
   pinned: boolean;
   createdAt: string;
@@ -75,6 +78,9 @@ interface TelegramWebApp {
   contentSafeAreaInset?: TelegramSafeAreaInset;
   ready?: () => void;
   expand?: () => void;
+  close?: () => void;
+  openLink?: (url: string, options?: { try_instant_view?: boolean }) => void;
+  openTelegramLink?: (url: string) => void;
   setHeaderColor?: (color: string) => void;
   setBackgroundColor?: (color: string) => void;
   requestFullscreen?: () => void;
@@ -184,7 +190,47 @@ function hookSafeArea(wa: TelegramWebApp | undefined): void {
   }
 }
 
-export function useCommunityChat() {
+/** Longest edge (px) an uploaded chat image is downscaled to client-side. */
+const MAX_IMAGE_EDGE = 1600;
+
+/**
+ * Downscale a picked/pasted image to a ≤1600px JPEG before upload so the
+ * 3 MB server cap is practically never hit. Small GIFs pass through as-is —
+ * a canvas re-encode would freeze the animation.
+ */
+export async function prepareChatImage(file: Blob): Promise<Blob | null> {
+  if (!file.type.startsWith("image/")) return null;
+  if (file.type === "image/gif" && file.size <= 3 * 1024 * 1024) return file;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("bad image"));
+      el.src = url;
+    });
+    const longest = Math.max(img.naturalWidth, img.naturalHeight);
+    if (!longest) return null;
+    const scale = Math.min(1, MAX_IMAGE_EDGE / longest);
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, w, h);
+    return await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.85),
+    );
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export function useCommunityChat(topic: ChatTopic = "chat") {
   const [state, setState] = useState<ChatState | null>(null);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -195,8 +241,21 @@ export function useCommunityChat() {
   const [authError, setAuthError] = useState<string | null>(null);
   // Admin-only auto-delete TTL (seconds) applied to the next message; 0 = keep.
   const [ttlSeconds, setTtlSeconds] = useState(0);
+  // Pending image attachment (paste or attach button) — sent with the next
+  // message so image + caption land in ONE bubble.
+  const [attachment, setAttachmentState] = useState<{
+    blob: Blob;
+    previewUrl: string;
+  } | null>(null);
   const [inTelegram, setInTelegram] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const setAttachment = useCallback((blob: Blob | null) => {
+    setAttachmentState((prev) => {
+      if (prev) URL.revokeObjectURL(prev.previewUrl);
+      return blob ? { blob, previewUrl: URL.createObjectURL(blob) } : null;
+    });
+  }, []);
 
   const lastIdRef = useRef<string>("0");
   const pollingRef = useRef(false);
@@ -258,7 +317,10 @@ export function useCommunityChat() {
 
   const loadInitial = useCallback(async () => {
     try {
-      const res = await fetch("/api/community/chat", { cache: "no-store" });
+      const res = await fetch(
+        `/api/community/chat?topic=${encodeURIComponent(topic)}`,
+        { cache: "no-store" },
+      );
       if (!res.ok) throw new Error("load failed");
       const data = (await res.json()) as ChatState;
       lastIdRef.current = data.messages.reduce(
@@ -269,14 +331,16 @@ export function useCommunityChat() {
     } catch {
       setError("Couldn't load the chat. Retrying…");
     }
-  }, []);
+  }, [topic]);
 
   const poll = useCallback(async () => {
     if (pollingRef.current) return;
     pollingRef.current = true;
     try {
       const res = await fetch(
-        `/api/community/chat?after=${encodeURIComponent(lastIdRef.current)}`,
+        `/api/community/chat?after=${encodeURIComponent(
+          lastIdRef.current,
+        )}&topic=${encodeURIComponent(topic)}`,
         { cache: "no-store" },
       );
       if (!res.ok) return;
@@ -298,7 +362,7 @@ export function useCommunityChat() {
     } finally {
       pollingRef.current = false;
     }
-  }, [mergeMessages]);
+  }, [mergeMessages, topic]);
 
   // Load the Mini App bridge, silent sign-in, then initial load.
   useEffect(() => {
@@ -392,7 +456,10 @@ export function useCommunityChat() {
     const id = window.setInterval(() => {
       void (async () => {
         try {
-          const res = await fetch("/api/community/chat", { cache: "no-store" });
+          const res = await fetch(
+            `/api/community/chat?topic=${encodeURIComponent(topic)}`,
+            { cache: "no-store" },
+          );
           if (!res.ok) return;
           const data = (await res.json()) as ChatState;
           setState((prev) =>
@@ -414,7 +481,7 @@ export function useCommunityChat() {
       })();
     }, REFRESH_MS);
     return () => window.clearInterval(id);
-  }, [reconcileFull]);
+  }, [reconcileFull, topic]);
 
   // Keep the view pinned to the latest message when the user is at the bottom.
   useEffect(() => {
@@ -432,20 +499,36 @@ export function useCommunityChat() {
 
   const send = useCallback(async () => {
     const body = text.trim();
-    if (!body || sending) return;
+    if ((!body && !attachment) || sending) return;
     setSending(true);
     setError(null);
     setSystemNote(null);
     try {
-      const res = await fetch("/api/community/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: body,
-          replyTo: replyTo?.id ?? null,
-          ttlSeconds: me?.admin ? ttlSeconds : 0,
-        }),
-      });
+      let res: Response;
+      if (attachment) {
+        // Photo (with optional caption) → multipart; ONE bubble server-side.
+        const form = new FormData();
+        form.append("photo", attachment.blob, "photo.jpg");
+        form.append("text", body);
+        if (replyTo?.id) form.append("replyTo", replyTo.id);
+        form.append("ttlSeconds", String(me?.admin ? ttlSeconds : 0));
+        form.append("topic", topic);
+        res = await fetch("/api/community/chat", {
+          method: "POST",
+          body: form,
+        });
+      } else {
+        res = await fetch("/api/community/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: body,
+            replyTo: replyTo?.id ?? null,
+            ttlSeconds: me?.admin ? ttlSeconds : 0,
+            topic,
+          }),
+        });
+      }
       const data = (await res.json()) as {
         ok: boolean;
         error?: string;
@@ -467,6 +550,7 @@ export function useCommunityChat() {
       }
       setText("");
       setReplyTo(null);
+      setAttachment(null);
       atBottomRef.current = true;
       if (data.message) mergeMessages([data.message]);
     } catch {
@@ -474,7 +558,17 @@ export function useCommunityChat() {
     } finally {
       setSending(false);
     }
-  }, [text, sending, replyTo, ttlSeconds, me, mergeMessages]);
+  }, [
+    text,
+    attachment,
+    setAttachment,
+    sending,
+    replyTo,
+    ttlSeconds,
+    me,
+    mergeMessages,
+    topic,
+  ]);
 
   const react = useCallback(
     async (messageId: string, emoji: string) => {
@@ -513,6 +607,42 @@ export function useCommunityChat() {
     [me],
   );
 
+  // Run a moderation slash-command against a specific message (context menu
+  // Pin / Delete / Ban) without touching the composer. Rides the exact same
+  // POST pipeline as a typed command, so server-side auth and auditing apply.
+  const sendCommand = useCallback(
+    async (cmd: string, replyToId?: string | null) => {
+      setSystemNote(null);
+      try {
+        const res = await fetch("/api/community/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: cmd,
+            replyTo: replyToId ?? null,
+            ttlSeconds: 0,
+            topic,
+          }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          error?: string;
+          system?: string;
+        };
+        if (typeof data.system === "string" && data.system) {
+          setSystemNote(data.system);
+          return;
+        }
+        if (!res.ok || !data.ok) {
+          setError(data.error ?? "Couldn't run that action");
+        }
+      } catch {
+        setError("Couldn't run that action");
+      }
+    },
+    [topic],
+  );
+
   const toggleHideMembers = useCallback(async () => {
     if (!me?.admin || !state) return;
     const next = !state.hideMembers;
@@ -547,6 +677,8 @@ export function useCommunityChat() {
     setReplyTo,
     ttlSeconds,
     setTtlSeconds,
+    attachment,
+    setAttachment,
     inTelegram,
     isFullscreen,
     canFullscreen,
@@ -555,6 +687,7 @@ export function useCommunityChat() {
     onScroll,
     send,
     react,
+    sendCommand,
     toggleHideMembers,
   };
 }

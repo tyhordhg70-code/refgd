@@ -9,10 +9,12 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import CommunityChat from "../CommunityChat";
-import { ensureTelegramReady } from "../useCommunityChat";
+import NotificationSettings from "../NotificationSettings";
+import { ADMIN_TG, ensureTelegramReady } from "../useCommunityChat";
+import { IconBell, IconChat } from "./TgIcons";
 import MiddleHeader from "./MiddleHeader";
 import MessageBubble from "./MessageBubble";
-import VouchTopic from "./VouchTopic";
+import VouchHistory from "./VouchTopic";
 import { README_SEED_BODY, README_SEED_TIME, SEED_AUTHOR } from "./seed";
 import type { TopicDef, TopicKey, VouchView } from "./types";
 import {
@@ -39,12 +41,6 @@ const TOPICS: TopicDef[] = [
   { key: "testimonials", title: "Client Testimonials", emoji: "⭐", peer: 3 },
   { key: "chat", title: "Group Chat", emoji: "💬", peer: 4 },
 ];
-
-const NOTICES: Record<string, string> = {
-  announcements: "Official updates from the RefundGod team.",
-  buy4u: "Proof from our BUY4U concierge orders.",
-  testimonials: "Real customers, real refunds — straight from the group.",
-};
 
 const ROW_HEIGHT = 65;
 const MAIN_STYLE = { "--pattern-color": "#4A8E3A8C" } as CSSProperties;
@@ -90,6 +86,9 @@ export default function TelegramApp({
 }) {
   const router = useRouter();
   const [active, setActive] = useState<TopicKey | null>(null);
+  const [inTg, setInTg] = useState(false);
+  const [listMenuOpen, setListMenuOpen] = useState(false);
+  const [showNotif, setShowNotif] = useState(false);
   const htmlRef = useRef<HTMLDivElement>(null);
 
   // Web A sizes everything against --vh (set from window.innerHeight) so the
@@ -112,6 +111,7 @@ export default function TelegramApp({
     let cancelled = false;
     void ensureTelegramReady().then((inside) => {
       if (inside && !cancelled) {
+        setInTg(true);
         setActive((cur) => cur ?? "chat");
       }
     });
@@ -158,7 +158,77 @@ export default function TelegramApp({
     };
   };
 
+  // Inside the Mini App, links out of the replica must NOT navigate the
+  // webview (that strands the user on the main site inside Telegram, with no
+  // way back to the mini app). Route t.me links through the Telegram client
+  // and everything else to the EXTERNAL browser via the bridge.
+  useEffect(() => {
+    if (!inTg) return;
+    const root = htmlRef.current;
+    if (!root) return;
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented) return;
+      const target = e.target as HTMLElement | null;
+      const anchor = target?.closest?.("a[href]");
+      if (!anchor || !root.contains(anchor)) return;
+      const href = anchor.getAttribute("href") ?? "";
+      // In-app topic rows use `#key` hashes — leave those alone.
+      if (!href || href.startsWith("#")) return;
+      let url: URL;
+      try {
+        url = new URL(href, window.location.href);
+      } catch {
+        return;
+      }
+      if (url.protocol !== "http:" && url.protocol !== "https:") return;
+      // Links within the replica itself stay in the webview.
+      if (
+        url.origin === window.location.origin &&
+        url.pathname.startsWith("/community")
+      ) {
+        return;
+      }
+      e.preventDefault();
+      const wa = window.Telegram?.WebApp;
+      const abs = url.toString();
+      const isTgLink =
+        url.hostname === "t.me" || url.hostname === "telegram.me";
+      try {
+        if (isTgLink && wa?.openTelegramLink) {
+          wa.openTelegramLink(abs);
+        } else if (wa?.openLink) {
+          wa.openLink(abs);
+        } else {
+          window.open(abs, "_blank", "noopener");
+        }
+      } catch {
+        window.open(abs, "_blank", "noopener");
+      }
+    };
+    root.addEventListener("click", onClick);
+    return () => root.removeEventListener("click", onClick);
+  }, [inTg]);
+
   const back = () => setActive(null);
+
+  // In the Mini App the ✕ must close the sheet (Web A parity); on the web it
+  // returns to the main site. router.push inside Telegram stranded users on
+  // the site within the webview.
+  const closeApp = () => {
+    if (inTg) {
+      const wa = window.Telegram?.WebApp;
+      if (wa?.close) {
+        try {
+          wa.close();
+          return;
+        } catch {
+          /* old client — fall through */
+        }
+      }
+      return; // never navigate the webview to the main site
+    }
+    router.push("/");
+  };
 
   const mainCls = [
     "Transition_slide",
@@ -265,17 +335,33 @@ export default function TelegramApp({
     active === "testimonials"
   ) {
     const def = TOPICS.find((t) => t.key === active);
+    const emoji = def?.emoji ?? "⭐";
     middle = (
-      <VouchTopic
-        title={def?.title ?? ""}
-        emoji={def?.emoji ?? "⭐"}
-        vouches={byTopic[active] ?? []}
-        notice={NOTICES[active] ?? ""}
+      <CommunityChat
+        key={active}
         onBack={back}
+        topic={active}
+        title={def?.title ?? ""}
+        icon={
+          <div
+            className="zOQgNBAa P6JY5GgC custom-emoji emoji tg-topic-icon"
+            data-alt={emoji}
+            aria-hidden
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={emojiSrc(emoji)}
+              className="emoji"
+              alt={emoji}
+              draggable={false}
+            />
+          </div>
+        }
+        history={<VouchHistory vouches={byTopic[active] ?? []} />}
       />
     );
   } else {
-    middle = <CommunityChat onBack={back} />;
+    middle = <CommunityChat key="chat" onBack={back} />;
   }
 
   return (
@@ -299,7 +385,7 @@ export default function TelegramApp({
                     className="Button smaller translucent round"
                     aria-label="Close"
                     title="Close"
-                    onClick={() => router.push("/")}
+                    onClick={closeApp}
                   >
                     <i className="icon icon-close" aria-hidden />
                   </button>
@@ -329,10 +415,45 @@ export default function TelegramApp({
                       className="Button smaller translucent round"
                       aria-label="More actions"
                       title="More actions"
+                      aria-expanded={listMenuOpen}
+                      onClick={() => setListMenuOpen((v) => !v)}
                     >
                       <i className="icon icon-more" aria-hidden />
                     </button>
                   </div>
+                  {listMenuOpen && (
+                    <>
+                      <button
+                        type="button"
+                        className="tg-menu-backdrop"
+                        onClick={() => setListMenuOpen(false)}
+                        aria-label="Close menu"
+                      />
+                      <div className="tg-menu" role="menu">
+                        <button
+                          type="button"
+                          className="tg-menu-item"
+                          onClick={() => {
+                            setListMenuOpen(false);
+                            setShowNotif(true);
+                          }}
+                        >
+                          <IconBell />
+                          Notifications
+                        </button>
+                        <a
+                          className="tg-menu-item"
+                          href={ADMIN_TG}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => setListMenuOpen(false)}
+                        >
+                          <IconChat />
+                          Message admin
+                        </a>
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="biKrMjRH" />
                 <div className="chat-list custom-scroll">
@@ -437,6 +558,9 @@ export default function TelegramApp({
             </div>
           </div>
         </div>
+        {showNotif && (
+          <NotificationSettings onClose={() => setShowNotif(false)} />
+        )}
       </div>
     </div>
   );

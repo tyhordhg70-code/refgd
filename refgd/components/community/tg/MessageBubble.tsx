@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import { useRef, type CSSProperties, type ReactNode } from "react";
 import Appendix from "./Appendix";
 import { initials } from "./format";
 
@@ -47,6 +47,7 @@ export default function MessageBubble({
   actions,
   picker,
   actionsOpen,
+  onOpenMenu,
 }: {
   own: boolean;
   /** First message of its author run (adds first-in-group). */
@@ -73,7 +74,19 @@ export default function MessageBubble({
   /** Reaction picker popover, rendered when open. */
   picker?: ReactNode;
   actionsOpen?: boolean;
+  /**
+   * Opens the Web A message context menu at the given viewport point.
+   * Wired to right-click on desktop and a ~450ms long-press on touch.
+   */
+  onOpenMenu?: (pos: { x: number; y: number }) => void;
 }) {
+  const pressTimer = useRef<number | null>(null);
+  const clearPress = () => {
+    if (pressTimer.current !== null) {
+      window.clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
   const mediaList = media ?? [];
   const hasBody = Boolean(body);
   const hasReactions = Boolean(reactions && reactions.length > 0);
@@ -134,7 +147,34 @@ export default function MessageBubble({
     ) : null;
 
   return (
-    <div className={rootCls}>
+    <div
+      className={rootCls}
+      onContextMenu={
+        onOpenMenu
+          ? (e) => {
+              e.preventDefault();
+              onOpenMenu({ x: e.clientX, y: e.clientY });
+            }
+          : undefined
+      }
+      onTouchStart={
+        onOpenMenu
+          ? (e) => {
+              const t = e.touches[0];
+              if (!t) return;
+              const pos = { x: t.clientX, y: t.clientY };
+              clearPress();
+              pressTimer.current = window.setTimeout(
+                () => onOpenMenu(pos),
+                450,
+              );
+            }
+          : undefined
+      }
+      onTouchMove={onOpenMenu ? clearPress : undefined}
+      onTouchEnd={onOpenMenu ? clearPress : undefined}
+      onTouchCancel={onOpenMenu ? clearPress : undefined}
+    >
       {showAvatar && avatar && (
         <div
           className={`Avatar size-small no-photo tg-bg-peer-${avatar.peer}`}

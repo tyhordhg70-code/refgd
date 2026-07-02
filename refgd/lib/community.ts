@@ -419,6 +419,8 @@ export interface ChatMessage {
   authorName: string;
   authorPhoto: string | null;
   body: string;
+  /** Attached photo (chat_media id), served via /api/community/chat-media/[id]. */
+  mediaId: string | null;
   isAdmin: boolean;
   pinned: boolean;
   createdAt: string;
@@ -431,6 +433,7 @@ interface ChatMsgRow {
   tg_id: string;
   author_name: string;
   body: string;
+  media_id: string | null;
   pinned: boolean;
   created_at: string;
   photo_url: string | null;
@@ -452,6 +455,7 @@ async function attachReactions(
     authorName: r.author_name,
     authorPhoto: r.photo_url,
     body: r.body,
+    mediaId: r.media_id ? String(r.media_id) : null,
     isAdmin: isCommunityAdmin(r.tg_id),
     pinned: r.pinned,
     createdAt: isoTs(r.created_at),
@@ -490,10 +494,29 @@ async function attachReactions(
   return base;
 }
 
+/**
+ * Forum topics members can post in (Web A parity — the real group lets
+ * members write in every topic). "readme" is intentionally absent: the
+ * pinned READ ME topic stays read-only.
+ */
+export const CHAT_TOPICS = [
+  "chat",
+  "testimonials",
+  "buy4u",
+  "announcements",
+] as const;
+export type ChatTopic = (typeof CHAT_TOPICS)[number];
+
+export function isChatTopic(v: unknown): v is ChatTopic {
+  return typeof v === "string" && (CHAT_TOPICS as readonly string[]).includes(v);
+}
+
 export interface ListChatOptions {
   afterId?: string | null;
   limit?: number;
   viewerTid?: string | null;
+  /** Topic feed to read; defaults to the live group chat. */
+  topic?: ChatTopic;
 }
 
 /** Chat messages in chronological (ASC) order. With afterId → only newer. */
@@ -503,10 +526,11 @@ export async function listChatMessages(
   await initDb();
   const limit = Math.min(Math.max(opts.limit ?? 60, 1), 200);
   const viewer = opts.viewerTid ?? null;
+  const topic: ChatTopic = opts.topic ?? "chat";
   let rows: ChatMsgRow[];
   if (opts.afterId && /^\d+$/.test(opts.afterId)) {
     const res = await getPool().query<ChatMsgRow>(
-      `SELECT m.id, m.tg_id, m.author_name, m.body, m.pinned, m.created_at,
+      `SELECT m.id, m.tg_id, m.author_name, m.body, m.media_id, m.pinned, m.created_at,
               cm.photo_url,
               m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body
          FROM chat_messages m
@@ -514,15 +538,16 @@ export async function listChatMessages(
          LEFT JOIN chat_messages rm ON rm.id = m.reply_to
         WHERE m.deleted = FALSE
           AND (m.expires_at IS NULL OR m.expires_at > NOW())
+          AND m.topic = $3
           AND m.id > $1
         ORDER BY m.id ASC
         LIMIT $2`,
-      [opts.afterId, limit],
+      [opts.afterId, limit, topic],
     );
     rows = res.rows;
   } else {
     const res = await getPool().query<ChatMsgRow>(
-      `SELECT m.id, m.tg_id, m.author_name, m.body, m.pinned, m.created_at,
+      `SELECT m.id, m.tg_id, m.author_name, m.body, m.media_id, m.pinned, m.created_at,
               cm.photo_url,
               m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body
          FROM chat_messages m
@@ -530,9 +555,10 @@ export async function listChatMessages(
          LEFT JOIN chat_messages rm ON rm.id = m.reply_to
         WHERE m.deleted = FALSE
           AND (m.expires_at IS NULL OR m.expires_at > NOW())
+          AND m.topic = $2
         ORDER BY m.id DESC
         LIMIT $1`,
-      [limit],
+      [limit, topic],
     );
     rows = res.rows.reverse();
   }
@@ -563,6 +589,10 @@ export interface CreateChatMessageInput {
   body: string;
   expiresAt?: Date | string | null;
   replyTo?: string | null;
+  /** Topic the message was posted in; defaults to the live group chat. */
+  topic?: ChatTopic;
+  /** Attached photo (chat_media id) — image + caption land in ONE bubble. */
+  mediaId?: string | null;
 }
 
 export async function createChatMessage(
@@ -571,18 +601,79 @@ export async function createChatMessage(
   await initDb();
   const replyTo =
     input.replyTo && /^\d+$/.test(input.replyTo) ? input.replyTo : null;
+  const mediaId =
+    input.mediaId && /^\d+$/.test(input.mediaId) ? input.mediaId : null;
   const { rows } = await getPool().query<ChatMsgRow>(
-    `INSERT INTO chat_messages (tg_id, author_name, body, expires_at, reply_to)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, tg_id, author_name, body, pinned, created_at, reply_to,
+    `INSERT INTO chat_messages (tg_id, author_name, body, expires_at, reply_to, topic, media_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING id, tg_id, author_name, body, media_id, pinned, created_at, reply_to,
                (SELECT photo_url FROM chat_members WHERE tg_id = $1) AS photo_url,
                (SELECT author_name FROM chat_messages r WHERE r.id = $5) AS reply_author,
                (SELECT body FROM chat_messages r WHERE r.id = $5) AS reply_body`,
-    [input.tgId, input.authorName, input.body, input.expiresAt ?? null, replyTo],
+    [
+      input.tgId,
+      input.authorName,
+      input.body,
+      input.expiresAt ?? null,
+      replyTo,
+      input.topic ?? "chat",
+      mediaId,
+    ],
   );
   if (!rows[0]) return null;
   const [msg] = await attachReactions(rows, input.tgId);
   return msg ?? null;
+}
+
+/** Store an uploaded chat photo (BYTEA — Render has no persistent disk). */
+export async function saveChatMedia(
+  bytes: Buffer,
+  mime: string,
+): Promise<string> {
+  await initDb();
+  const { rows } = await getPool().query<{ id: string }>(
+    `INSERT INTO chat_media (bytes, mime) VALUES ($1, $2) RETURNING id`,
+    [bytes, mime],
+  );
+  return String(rows[0].id);
+}
+
+/** Fetch a chat photo for serving via /api/community/chat-media/[id]. */
+export async function getChatMedia(
+  id: string,
+): Promise<{ bytes: Buffer; mime: string } | null> {
+  await initDb();
+  const { rows } = await getPool().query<{ bytes: Buffer; mime: string }>(
+    `SELECT bytes, mime FROM chat_media WHERE id = $1`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+/** Cached custom-emoji sticker (Telegram document id), if fetched before. */
+export async function getCustomEmoji(
+  id: string,
+): Promise<{ bytes: Buffer; mime: string } | null> {
+  await initDb();
+  const { rows } = await getPool().query<{ bytes: Buffer; mime: string }>(
+    `SELECT bytes, mime FROM custom_emoji WHERE id = $1`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+/** Cache a custom-emoji sticker downloaded from the Telegram Bot API. */
+export async function saveCustomEmoji(
+  id: string,
+  bytes: Buffer,
+  mime: string,
+): Promise<void> {
+  await initDb();
+  await getPool().query(
+    `INSERT INTO custom_emoji (id, bytes, mime) VALUES ($1, $2, $3)
+     ON CONFLICT (id) DO UPDATE SET bytes = $2, mime = $3, fetched_at = NOW()`,
+    [id, bytes, mime],
+  );
 }
 
 export const CHAT_REACTION_EMOJI = [
@@ -830,6 +921,17 @@ export async function purgeRecentMessages(count: number): Promise<number> {
     [n],
   );
   return res.rowCount ?? 0;
+}
+
+/** Soft-delete a single live message (context-menu "Delete" → /del). */
+export async function deleteSingleMessage(id: string): Promise<boolean> {
+  await initDb();
+  const res = await getPool().query(
+    `UPDATE chat_messages SET deleted = TRUE
+      WHERE id = $1 AND deleted = FALSE`,
+    [id],
+  );
+  return (res.rowCount ?? 0) > 0;
 }
 
 /** Soft-delete live messages from `fromId` forward (hard cap 100). */

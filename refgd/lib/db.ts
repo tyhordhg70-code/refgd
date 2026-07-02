@@ -199,6 +199,16 @@
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
 
+        -- Custom (premium pack) emoji stickers cached from the Telegram Bot
+        -- API by document id, so the composer's custom-emoji tab renders the
+        -- real artwork without hitting Telegram per view.
+        CREATE TABLE IF NOT EXISTS custom_emoji (
+          id         TEXT PRIMARY KEY,
+          bytes      BYTEA NOT NULL,
+          mime       TEXT NOT NULL DEFAULT 'image/webp',
+          fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
         CREATE TABLE IF NOT EXISTS chat_messages (
           id          BIGSERIAL PRIMARY KEY,
           tg_id       BIGINT NOT NULL,
@@ -215,6 +225,14 @@
           ON chat_messages (id DESC) WHERE deleted = FALSE;
         CREATE INDEX IF NOT EXISTS chat_messages_expiry_idx
           ON chat_messages (expires_at) WHERE expires_at IS NOT NULL;
+
+        -- Members can post in every forum topic (Web A parity), so live
+        -- messages carry the topic they were posted in. Existing rows are
+        -- group-chat posts, hence the 'chat' default (idempotent migration).
+        ALTER TABLE chat_messages
+          ADD COLUMN IF NOT EXISTS topic TEXT NOT NULL DEFAULT 'chat';
+        CREATE INDEX IF NOT EXISTS chat_messages_topic_idx
+          ON chat_messages (topic, id DESC) WHERE deleted = FALSE;
 
         CREATE TABLE IF NOT EXISTS message_reactions (
           message_id BIGINT NOT NULL,

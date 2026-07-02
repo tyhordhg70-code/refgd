@@ -138,9 +138,40 @@ export function renderTextWithEmoji(text: string, keyPrefix = "t"): ReactNode[] 
 
 const URL_RE = /(https?:\/\/[^\s]+|t\.me\/[^\s]+)/g;
 
-/** Body text with URLs linkified + Apple emoji (React escapes the rest). */
-export function renderBody(body: string): ReactNode {
-  if (!body) return null;
+/**
+ * Custom (premium pack) emoji sticker rendered from the Telegram document id,
+ * falling back to the plain Apple-emoji sprite when the sticker can't be
+ * served (e.g. no bot token in dev, or an animated-only document).
+ */
+export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={emojiSrc(alt)}
+        className="emoji emoji-small"
+        alt={alt}
+        draggable={false}
+        loading="lazy"
+      />
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/api/community/emoji/${id}`}
+      className="emoji emoji-small tg-custom-emoji"
+      alt={alt}
+      draggable={false}
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+/** Text segment with URLs linkified + Apple emoji (no custom-emoji tokens). */
+function renderLinkified(body: string, keyPrefix: string): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
@@ -148,12 +179,22 @@ export function renderBody(body: string): ReactNode {
   let k = 0;
   while ((match = URL_RE.exec(body)) !== null) {
     if (match.index > last) {
-      out.push(...renderTextWithEmoji(body.slice(last, match.index), `s${k}`));
+      out.push(
+        ...renderTextWithEmoji(
+          body.slice(last, match.index),
+          `${keyPrefix}s${k}`,
+        ),
+      );
     }
     const raw = match[0];
     const href = raw.startsWith("http") ? raw : `https://${raw}`;
     out.push(
-      <a key={`l${k}`} href={href} target="_blank" rel="noopener noreferrer">
+      <a
+        key={`${keyPrefix}l${k}`}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
         {raw}
       </a>,
     );
@@ -161,7 +202,35 @@ export function renderBody(body: string): ReactNode {
     k += 1;
   }
   if (last < body.length) {
-    out.push(...renderTextWithEmoji(body.slice(last), `s${k}`));
+    out.push(...renderTextWithEmoji(body.slice(last), `${keyPrefix}s${k}`));
+  }
+  return out;
+}
+
+/** `[ce:<documentId>:<alt>]` — custom emoji token written by the composer. */
+const CE_RE = /\[ce:(\d+):([^\]]+)\]/g;
+
+/**
+ * Body text with custom-emoji tokens, linkified URLs and Apple emoji
+ * (React escapes the rest).
+ */
+export function renderBody(body: string): ReactNode {
+  if (!body) return null;
+  const out: ReactNode[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+  CE_RE.lastIndex = 0;
+  let k = 0;
+  while ((match = CE_RE.exec(body)) !== null) {
+    if (match.index > last) {
+      out.push(...renderLinkified(body.slice(last, match.index), `c${k}`));
+    }
+    out.push(<CustomEmojiImg key={`ce${k}`} id={match[1]} alt={match[2]} />);
+    last = match.index + match[0].length;
+    k += 1;
+  }
+  if (last < body.length) {
+    out.push(...renderLinkified(body.slice(last), `c${k}`));
   }
   return out;
 }

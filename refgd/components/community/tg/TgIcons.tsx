@@ -126,3 +126,47 @@ export function IconReply() {
     </svg>
   );
 }
+
+export function IconCopy() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1Zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H8V7h11v14Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+export function IconPin() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M16 3v7l2 2v2h-5v7l-1 1-1-1v-7H6v-2l2-2V3H7V1h10v2h-1Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+export function IconDelete() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12ZM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+export function IconBan() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-8 10a8 8 0 0 1 8-8c1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.96 7.96 0 0 1 4 12Zm8 8a7.96 7.96 0 0 1-4.9-1.69L18.31 7.1A8 8 0 0 1 12 20Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}

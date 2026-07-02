@@ -1,25 +1,17 @@
 "use client";
 
-import { useMemo, type CSSProperties } from "react";
-import MiddleHeader from "./MiddleHeader";
+import { useMemo } from "react";
 import MessageBubble from "./MessageBubble";
 import type { VouchView } from "./types";
-import {
-  LocalTime,
-  dateKey,
-  dateLabel,
-  emojiSrc,
-  peerIdx,
-  renderBody,
-} from "./format";
+import { LocalTime, dateKey, dateLabel, peerIdx, renderBody } from "./format";
 
 /**
- * Read-only forum topic fed by vouches (Client Testimonials, BUY4U Vouches,
- * Announcements), emitting the exact Telegram Web A DOM: Transition-wrapped
- * .MessageList.custom-scroll.with-default-bg > .messages-container, sticky
- * date pills per .message-date-group, author runs in .sender-group-container
- * (sender name on the first bubble, avatar + appendix tail on the last), and
- * a .messaging-disabled footer instead of the composer.
+ * Read-only vouch history (Client Testimonials, BUY4U Vouches, Announcements)
+ * rendered as Telegram Web A date groups: sticky date pills per
+ * .message-date-group and author runs in .sender-group-container (sender name
+ * on the first bubble, avatar + appendix tail on the last). Rendered ABOVE the
+ * live message feed inside CommunityChat, so members can post beneath the
+ * migrated history exactly like the real group.
  */
 
 interface DateGroup {
@@ -54,133 +46,64 @@ function buildGroups(vouches: VouchView[]): DateGroup[] {
   return groups;
 }
 
-const LIST_STYLE = {
-  "--message-list-bottom-inset": "60px",
-  "--message-list-bottom-fade": "48px",
-} as CSSProperties;
-
-export default function VouchTopic({
-  title,
-  emoji,
-  vouches,
-  notice,
-  onBack,
-}: {
-  title: string;
-  emoji: string;
-  vouches: VouchView[];
-  notice: string;
-  onBack: () => void;
-}) {
+export default function VouchHistory({ vouches }: { vouches: VouchView[] }) {
   const groups = useMemo(() => buildGroups(vouches), [vouches]);
 
   return (
     <>
-      <MiddleHeader
-        title={title}
-        subtitle={`${vouches.length} message${vouches.length === 1 ? "" : "s"}`}
-        icon={
-          <div
-            className="zOQgNBAa P6JY5GgC custom-emoji emoji tg-topic-icon"
-            data-alt={emoji}
-            aria-hidden
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={emojiSrc(emoji)}
-              className="emoji"
-              alt={emoji}
-              draggable={false}
-            />
+      {groups.map((g, gi) => (
+        <div
+          key={g.key}
+          className={`message-date-group${
+            gi === 0 ? " first-message-date-group" : ""
+          }`}
+        >
+          <div className="sticky-date interactive">
+            <span dir="auto">{g.label}</span>
           </div>
-        }
-        onBack={onBack}
-      />
-
-      <div className="Transition">
-        <div className="Transition_slide Transition_slide-active">
-          <div
-            className="Transition MessageList custom-scroll with-default-bg"
-            style={LIST_STYLE}
-          >
-            <div className="Transition_slide Transition_slide-active">
-              <div
-                className="messages-container"
-                style={{ paddingBottom: 60 }}
-              >
-                <div className="backwards-trigger" />
-                {groups.length === 0 && (
-                  <div className="tg-action">No messages here yet.</div>
-                )}
-                {groups.map((g, gi) => (
-                  <div
-                    key={g.key}
-                    className={`message-date-group${
-                      gi === 0 ? " first-message-date-group" : ""
-                    }`}
-                  >
-                    <div className="sticky-date interactive">
-                      <span dir="auto">{g.label}</span>
-                    </div>
-                    {g.runs.map((run) => (
-                      <div
-                        key={run[0].id}
-                        className="sender-group-container sKXqbu2I"
-                      >
-                        {run.map((v, i) => {
-                          const first = i === 0;
-                          const last = i === run.length - 1;
-                          return (
-                            <MessageBubble
-                              key={v.id}
-                              own={false}
-                              first={first}
-                              last={last}
-                              showAvatarGutter
-                              sender={
-                                first
-                                  ? {
-                                      name: v.authorName,
-                                      peer: peerIdx(v.authorName),
-                                    }
-                                  : null
-                              }
-                              avatar={
-                                last
-                                  ? {
-                                      name: v.authorName,
-                                      photo: null,
-                                      peer: peerIdx(v.authorName),
-                                    }
-                                  : null
-                              }
-                              hasAppendix={last}
-                              pinned={v.pinned}
-                              media={v.mediaIds.map(
-                                (id) => `/api/community/media/${id}`,
-                              )}
-                              body={v.body ? renderBody(v.body) : undefined}
-                              time={<LocalTime iso={v.createdAt} />}
-                            />
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
+          {g.runs.map((run) => (
+            <div key={run[0].id} className="sender-group-container sKXqbu2I">
+              {run.map((v, i) => {
+                const first = i === 0;
+                const last = i === run.length - 1;
+                return (
+                  <MessageBubble
+                    key={v.id}
+                    own={false}
+                    first={first}
+                    last={last}
+                    showAvatarGutter
+                    sender={
+                      first
+                        ? {
+                            name: v.authorName,
+                            peer: peerIdx(v.authorName),
+                          }
+                        : null
+                    }
+                    avatar={
+                      last
+                        ? {
+                            name: v.authorName,
+                            photo: null,
+                            peer: peerIdx(v.authorName),
+                          }
+                        : null
+                    }
+                    hasAppendix={last}
+                    pinned={v.pinned}
+                    media={v.mediaIds.map(
+                      (id) => `/api/community/media/${id}`,
+                    )}
+                    body={v.body ? renderBody(v.body) : undefined}
+                    time={<LocalTime iso={v.createdAt} />}
+                  />
+                );
+              })}
             </div>
-          </div>
+          ))}
         </div>
-      </div>
-
-      <div className="middle-column-footer">
-        <div className="messaging-disabled shown">
-          <div className="messaging-disabled-inner">
-            <span>{notice}</span>
-          </div>
-        </div>
-      </div>
+      ))}
     </>
   );
 }

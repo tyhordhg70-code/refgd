@@ -25,6 +25,7 @@ import {
   listBlocklist,
   setMessagePinned,
   unpinAll,
+  deleteSingleMessage,
   purgeRecentMessages,
   purgeFromMessage,
   getMessageAuthor,
@@ -50,7 +51,7 @@ const COMMANDS = new Set([
   "ban", "unban", "mute", "unmute", "warn", "unwarn", "kick",
   "filter", "stop", "blocklist",
   "welcome", "setrules", "rules",
-  "pin", "unpin", "purge",
+  "pin", "unpin", "del", "purge",
   "help",
 ]);
 
@@ -101,6 +102,7 @@ const HELP_TEXT = [
   "/kick — remove (they may rejoin)",
   "/filter <word> /stop <word> /blocklist — banned words",
   "/pin /unpin — reply to pin; /unpin with no reply clears all",
+  "/del — reply to delete just that message",
   "/purge [n] — reply to purge from there, or delete the last n",
   "/welcome <text> /setrules <text> — set the banners",
   "/rules — anyone can view the rules",
@@ -313,6 +315,22 @@ export async function executeModCommand(opts: {
       const n = await unpinAll();
       await audit("unpin-all", null, { count: n });
       return { handled: true, ok: true, system: `Unpinned ${n} message${n === 1 ? "" : "s"}.` };
+    }
+    case "del": {
+      if (!replyToId) {
+        return {
+          handled: true,
+          ok: false,
+          system: "Reply to the message you want to delete.",
+        };
+      }
+      const ok = await deleteSingleMessage(replyToId);
+      await audit("del", replyToId);
+      return {
+        handled: true,
+        ok,
+        system: ok ? "Message deleted." : "Couldn't find that message.",
+      };
     }
     case "purge": {
       if (replyToId) {
