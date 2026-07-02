@@ -13,6 +13,7 @@ import { ensureTelegramReady } from "../useCommunityChat";
 import MiddleHeader from "./MiddleHeader";
 import MessageBubble from "./MessageBubble";
 import VouchTopic from "./VouchTopic";
+import { README_SEED_BODY, README_SEED_TIME, SEED_AUTHOR } from "./seed";
 import type { TopicDef, TopicKey, VouchView } from "./types";
 import {
   emojiSrc,
@@ -130,7 +131,9 @@ export default function TelegramApp({
       const text = welcome.replace(/\s+/g, " ").trim();
       return {
         sender: null,
-        summary: text || "Welcome to RefundGod",
+        summary:
+          text ||
+          "READ ME❗️ If you haven't already, we kindly ask you to please visit our website…",
         time: "",
       };
     }
@@ -181,7 +184,7 @@ export default function TelegramApp({
       <>
         <MiddleHeader
           title="READ ME"
-          subtitle="1 message"
+          subtitle={welcome ? "2 messages" : "1 message"}
           icon={
             <div
               className="zOQgNBAa P6JY5GgC custom-emoji emoji tg-topic-icon"
@@ -211,25 +214,37 @@ export default function TelegramApp({
                   style={{ paddingBottom: 60 }}
                 >
                   <div className="backwards-trigger" />
-                  {welcome ? (
-                    <div className="message-date-group first-message-date-group">
-                      <div className="sender-group-container sKXqbu2I">
+                  <div className="message-date-group first-message-date-group">
+                    <div className="sender-group-container sKXqbu2I">
+                      <MessageBubble
+                        own={false}
+                        first
+                        last={!welcome}
+                        showAvatarGutter
+                        sender={{ name: SEED_AUTHOR, peer: 0, admin: true }}
+                        avatar={
+                          welcome
+                            ? null
+                            : { name: SEED_AUTHOR, photo: null, peer: 0 }
+                        }
+                        hasAppendix={!welcome}
+                        pinned
+                        body={README_SEED_BODY}
+                        time={README_SEED_TIME}
+                      />
+                      {welcome && (
                         <MessageBubble
                           own={false}
-                          first
                           last
                           showAvatarGutter
-                          sender={{ name: "RefundGod", peer: 0, admin: true }}
-                          avatar={{ name: "RefundGod", photo: null, peer: 0 }}
+                          sender={null}
+                          avatar={{ name: SEED_AUTHOR, photo: null, peer: 0 }}
                           hasAppendix
-                          pinned
                           body={renderBody(welcome)}
                         />
-                      </div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="tg-action">Nothing here yet.</div>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>

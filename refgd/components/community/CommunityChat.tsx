@@ -16,7 +16,6 @@ import {
   IconBell,
   IconChat,
   IconClose,
-  IconCollapse,
   IconExpand,
   IconReply,
   IconSettings,
@@ -34,6 +33,12 @@ import {
   useCommunityChat,
   type ChatMessage,
 } from "./useCommunityChat";
+import {
+  CHAT_MIGRATED_SEED,
+  CHAT_NOTICE_SEED_BODY,
+  CHAT_NOTICE_SEED_TIME,
+  SEED_AUTHOR,
+} from "./tg/seed";
 
 /**
  * The "Group Chat" forum topic, rendered as an exact Telegram Web A light
@@ -78,13 +83,80 @@ const LIST_STYLE = {
 
 const MAX_LEN = 2000;
 
+const FS_PROMPT_KEY = "rg_fs_prompted";
+
+/**
+ * Official Telegram Login Widget — lets web visitors (outside the Mini App)
+ * sign in and post. Telegram calls the global callback with a signed user
+ * payload which the server re-verifies. Requires the bot's domain to be set
+ * via BotFather /setdomain.
+ */
+function TelegramLoginButton({
+  bot,
+  onAuth,
+}: {
+  bot: string;
+  onAuth: (payload: Record<string, unknown>) => void | Promise<void>;
+}) {
+  const hostRef = useRef<HTMLSpanElement>(null);
+  const onAuthRef = useRef(onAuth);
+  onAuthRef.current = onAuth;
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    (
+      window as unknown as {
+        __rgTgWidgetAuth?: (u: Record<string, unknown>) => void;
+      }
+    ).__rgTgWidgetAuth = (user) => {
+      void onAuthRef.current(user);
+    };
+    const s = document.createElement("script");
+    s.async = true;
+    s.src = "https://telegram.org/js/telegram-widget.js?22";
+    s.setAttribute("data-telegram-login", bot);
+    s.setAttribute("data-size", "medium");
+    s.setAttribute("data-radius", "14");
+    s.setAttribute("data-onauth", "__rgTgWidgetAuth(user)");
+    s.setAttribute("data-request-access", "write");
+    host.appendChild(s);
+    return () => {
+      host.innerHTML = "";
+    };
+  }, [bot]);
+
+  return <span ref={hostRef} className="tg-login-widget" />;
+}
+
 export default function CommunityChat({ onBack }: { onBack?: () => void }) {
   const chat = useCommunityChat();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
-  const [fsDismissed, setFsDismissed] = useState(false);
+  const [fsPrompt, setFsPrompt] = useState(false);
   const inputRef = useRef<HTMLDivElement>(null);
+
+  // Offer fullscreen as an entry prompt (once per session) instead of a
+  // buried menu item.
+  useEffect(() => {
+    if (!chat.canFullscreen || chat.isFullscreen) return;
+    try {
+      if (sessionStorage.getItem(FS_PROMPT_KEY)) return;
+    } catch {
+      /* storage unavailable — still prompt */
+    }
+    setFsPrompt(true);
+  }, [chat.canFullscreen, chat.isFullscreen]);
+
+  const dismissFsPrompt = () => {
+    setFsPrompt(false);
+    try {
+      sessionStorage.setItem(FS_PROMPT_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  };
 
   const { state, me } = chat;
   const groups = useMemo(
@@ -194,19 +266,6 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
                 {state.hideMembers ? "Show member count" : "Hide member count"}
               </button>
             )}
-            {chat.canFullscreen && (
-              <button
-                type="button"
-                className="tg-menu-item"
-                onClick={() => {
-                  setMenuOpen(false);
-                  chat.toggleFullscreen();
-                }}
-              >
-                {chat.isFullscreen ? <IconCollapse /> : <IconExpand />}
-                {chat.isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-              </button>
-            )}
             <a
               className="tg-menu-item"
               href={ADMIN_TG}
@@ -224,25 +283,46 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
       {showNotif && <NotificationSettings onClose={() => setShowNotif(false)} />}
       {showAdmin && me?.admin && <AdminPanel onClose={() => setShowAdmin(false)} />}
 
-      {/* Fullscreen prompt — Mini App only, until entered or dismissed. */}
-      {chat.canFullscreen && !chat.isFullscreen && !fsDismissed && (
-        <div className="tg-banner">
-          <span>Go fullscreen for the full experience.</span>
-          <button
-            type="button"
-            className="tg-banner-cta"
-            onClick={chat.toggleFullscreen}
+      {/* Fullscreen entry prompt — asked once per session on open. */}
+      {fsPrompt && (
+        <div
+          className="tg-modal-backdrop tg-fs-backdrop"
+          onClick={dismissFsPrompt}
+        >
+          <div
+            className="tg-modal tg-fs-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Fullscreen"
+            onClick={(e) => e.stopPropagation()}
           >
-            Fullscreen
-          </button>
-          <button
-            type="button"
-            className="tg-banner-x"
-            onClick={() => setFsDismissed(true)}
-            aria-label="Dismiss"
-          >
-            <IconClose />
-          </button>
+            <div className="tg-fs-title">
+              <IconExpand />
+              <h3>Fullscreen</h3>
+            </div>
+            <p className="tg-fs-text">
+              Open the community in fullscreen for the full experience?
+            </p>
+            <div className="tg-fs-actions">
+              <button
+                type="button"
+                className="tg-fs-btn"
+                onClick={dismissFsPrompt}
+              >
+                Not now
+              </button>
+              <button
+                type="button"
+                className="tg-fs-btn is-primary"
+                onClick={() => {
+                  dismissFsPrompt();
+                  chat.toggleFullscreen();
+                }}
+              >
+                Fullscreen
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -266,11 +346,30 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
                         {renderBody(state.welcome)}
                       </div>
                     )}
-                    {state.messages.length === 0 && (
-                      <div className="tg-action">
-                        No messages yet — say hello!
-                      </div>
-                    )}
+                    {/* History seeded from the real group's saved pages. */}
+                    {CHAT_MIGRATED_SEED}
+                    <div className="sender-group-container sKXqbu2I">
+                      <MessageBubble
+                        own={false}
+                        first
+                        last
+                        showAvatarGutter
+                        sender={{
+                          name: SEED_AUTHOR,
+                          peer: peerIdx(SEED_AUTHOR),
+                          admin: true,
+                        }}
+                        avatar={{
+                          name: SEED_AUTHOR,
+                          photo: null,
+                          peer: peerIdx(SEED_AUTHOR),
+                        }}
+                        hasAppendix
+                        pinned
+                        body={CHAT_NOTICE_SEED_BODY}
+                        time={CHAT_NOTICE_SEED_TIME}
+                      />
+                    </div>
                     {groups.map((g, gi) => (
                       <div
                         key={g.key}
@@ -545,21 +644,30 @@ export default function CommunityChat({ onBack }: { onBack?: () => void }) {
           <div className="tg-composer-notice">
             {chat.inTelegram ? (
               <span>
-                Sign-in didn&apos;t complete — close and reopen the mini app to
-                try again.
+                {chat.authError ??
+                  "Sign-in didn't complete — close and reopen the mini app to try again."}
               </span>
             ) : (
               <>
-                <span>Join the conversation from the RefundGod mini app.</span>
+                <span>Sign in with Telegram to join the conversation.</span>
+                {chat.authError && (
+                  <span className="tg-signin-error">{chat.authError}</span>
+                )}
                 {state.botUsername ? (
-                  <a
-                    className="tg-signin-btn"
-                    href={`https://t.me/${state.botUsername}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Open in Telegram
-                  </a>
+                  <span className="tg-signin-row">
+                    <TelegramLoginButton
+                      bot={state.botUsername}
+                      onAuth={chat.widgetSignIn}
+                    />
+                    <a
+                      className="tg-signin-btn"
+                      href={`https://t.me/${state.botUsername}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Open in Telegram
+                    </a>
+                  </span>
                 ) : (
                   <span>Chat access is being set up — check back shortly.</span>
                 )}

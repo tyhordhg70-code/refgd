@@ -139,6 +139,7 @@ export function useCommunityChat() {
   const [reactOpen, setReactOpen] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
   const [systemNote, setSystemNote] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   // Admin-only auto-delete TTL (seconds) applied to the next message; 0 = keep.
   const [ttlSeconds, setTtlSeconds] = useState(0);
   const [inTelegram, setInTelegram] = useState(false);
@@ -256,14 +257,35 @@ export function useCommunityChat() {
         setIsFullscreen(Boolean(wa?.isFullscreen));
       }
       const initData = wa?.initData;
+      if (inside && !initData) {
+        // In the Telegram webview but Telegram handed us no initData — this
+        // happens when the page is opened as a plain in-app link instead of
+        // through the bot's Mini App button.
+        setAuthError(
+          "Telegram didn't provide sign-in data — open the community through the bot's app button, not a plain link.",
+        );
+      }
       if (initData && !authTriedRef.current) {
         authTriedRef.current = true;
         try {
-          await fetch("/api/community/auth", {
+          const res = await fetch("/api/community/auth", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ initData }),
           });
+          const data = (await res.json().catch(() => null)) as {
+            ok?: boolean;
+            error?: string;
+          } | null;
+          if (!res.ok || !data?.ok) {
+            setAuthError(
+              typeof data?.error === "string" && data.error
+                ? data.error
+                : "Telegram verification failed.",
+            );
+          } else {
+            setAuthError(null);
+          }
         } catch {
           /* sign-in retries on next open */
         }
@@ -455,6 +477,40 @@ export function useCommunityChat() {
     }
   }, [me, state]);
 
+  /**
+   * Sign in from the Telegram Login Widget (web visitors outside the Mini
+   * App). Telegram hands the widget callback a signed user payload; the
+   * server re-verifies it before creating the session.
+   */
+  const widgetSignIn = useCallback(
+    async (payload: Record<string, unknown>) => {
+      try {
+        const res = await fetch("/api/community/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ widget: payload }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          error?: string;
+        } | null;
+        if (!res.ok || !data?.ok) {
+          setAuthError(
+            typeof data?.error === "string" && data.error
+              ? data.error
+              : "Telegram sign-in failed.",
+          );
+          return;
+        }
+        setAuthError(null);
+        await loadInitial();
+      } catch {
+        setAuthError("Network error during sign-in — try again.");
+      }
+    },
+    [loadInitial],
+  );
+
   return {
     state,
     me,
@@ -465,6 +521,8 @@ export function useCommunityChat() {
     setError,
     systemNote,
     setSystemNote,
+    authError,
+    widgetSignIn,
     reactOpen,
     setReactOpen,
     replyTo,

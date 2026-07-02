@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import {
-  verifyMiniAppInitData,
+  verifyMiniAppInitDataDetailed,
   verifyLoginWidget,
   createMemberSession,
   readMemberSession,
   clearMemberSession,
+  type MiniAppAuthFailReason,
 } from "@/lib/community-auth";
+import { getCommunityBotUsername } from "@/lib/community-bot";
 import { isValidInviteSlug, recordInviteJoin } from "@/lib/community";
 
 export const runtime = "nodejs";
@@ -32,10 +34,14 @@ export async function POST(req: Request) {
   }
 
   let member = null;
+  let failReason: MiniAppAuthFailReason | "widget_failed" | null = null;
   if (typeof body.initData === "string" && body.initData) {
-    member = verifyMiniAppInitData(body.initData);
+    const detailed = verifyMiniAppInitDataDetailed(body.initData);
+    member = detailed.member;
+    failReason = detailed.reason;
   } else if (body.widget && typeof body.widget === "object") {
     member = verifyLoginWidget(body.widget as Record<string, unknown>);
+    if (!member) failReason = "widget_failed";
   } else {
     return NextResponse.json(
       { ok: false, error: "Provide initData or widget" },
@@ -44,8 +50,35 @@ export async function POST(req: Request) {
   }
 
   if (!member) {
+    // Surface WHY (and which bot the server's token actually belongs to) so
+    // a token↔bot mismatch is diagnosable from the phone instead of a
+    // generic "verification failed".
+    const serverBot =
+      failReason === "bad_signature" ||
+      failReason === "no_token" ||
+      failReason === "widget_failed"
+        ? await getCommunityBotUsername().catch(() => null)
+        : null;
+    const human: Record<string, string> = {
+      no_token:
+        "The server has no community bot token configured — set COMMUNITY_BOT_TOKEN.",
+      no_hash: "Telegram didn't include a signature in the sign-in payload.",
+      bad_signature: serverBot
+        ? `Signature check failed — this app was opened from a different bot than the server is configured for (@${serverBot}). Open it via @${serverBot}.`
+        : "Signature check failed — the server's COMMUNITY_BOT_TOKEN doesn't match the bot that opened this app.",
+      stale_auth_date:
+        "This Telegram session is stale — close and reopen the mini app.",
+      no_user: "No Telegram user was included in the sign-in payload.",
+      widget_failed: serverBot
+        ? `Telegram login check failed — make sure the login widget belongs to @${serverBot} and the site domain is set via BotFather /setdomain.`
+        : "Telegram login check failed.",
+    };
     return NextResponse.json(
-      { ok: false, error: "Telegram verification failed" },
+      {
+        ok: false,
+        error: human[failReason ?? ""] ?? "Telegram verification failed",
+        reason: failReason,
+      },
       { status: 401 },
     );
   }

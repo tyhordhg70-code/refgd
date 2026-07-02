@@ -28,7 +28,7 @@ import { isCommunityAdmin, communityBotToken } from "@/lib/community-bot";
 const COOKIE_NAME = "rg_member";
 const SESSION_TTL_SEC = 60 * 60 * 24 * 7; // 7 days
 /** How fresh a Telegram auth payload must be to be accepted (replay guard). */
-const AUTH_MAX_AGE_SEC = 600; // 10 minutes
+const AUTH_MAX_AGE_SEC = 3600; // 1 hour
 const CLOCK_SKEW_SEC = 60;
 
 export interface CommunityMember {
@@ -125,35 +125,61 @@ function dataCheckString(entries: Map<string, string>, skip: Set<string>): strin
     .join("\n");
 }
 
+/** Why a Mini App initData verification failed (for diagnostics). */
+export type MiniAppAuthFailReason =
+  | "no_token"
+  | "no_hash"
+  | "bad_signature"
+  | "stale_auth_date"
+  | "no_user";
+
 /**
- * Verify Telegram Mini App `initData`. Returns the member on success, else
- * null (bad signature, stale auth_date, or missing user).
+ * Verify Telegram Mini App `initData`, reporting WHY it failed so the auth
+ * route can surface an actionable message instead of a silent 401.
  */
-export function verifyMiniAppInitData(initData: string): CommunityMember | null {
+export function verifyMiniAppInitDataDetailed(initData: string): {
+  member: CommunityMember | null;
+  reason: MiniAppAuthFailReason | null;
+} {
   const token = communityBotToken();
-  if (!token || typeof initData !== "string" || !initData) return null;
+  if (!token) return { member: null, reason: "no_token" };
+  if (typeof initData !== "string" || !initData)
+    return { member: null, reason: "no_hash" };
 
   const entries = parseRaw(initData);
   const hash = entries.get("hash");
-  if (!hash) return null;
+  if (!hash) return { member: null, reason: "no_hash" };
 
   // `signature` (Ed25519 third-party validation) is not part of the HMAC hash.
   const dcs = dataCheckString(entries, new Set(["hash", "signature"]));
   const secret = createHmac("sha256", "WebAppData").update(token).digest();
   const computed = createHmac("sha256", secret).update(dcs).digest("hex");
-  if (!timingEqualHex(computed, hash)) return null;
+  if (!timingEqualHex(computed, hash))
+    return { member: null, reason: "bad_signature" };
 
-  if (!authDateFresh(Number(entries.get("auth_date")))) return null;
+  if (!authDateFresh(Number(entries.get("auth_date"))))
+    return { member: null, reason: "stale_auth_date" };
 
   const userRaw = entries.get("user");
-  if (!userRaw) return null;
+  if (!userRaw) return { member: null, reason: "no_user" };
   let u: TgUser;
   try {
     u = JSON.parse(userRaw) as TgUser;
   } catch {
-    return null;
+    return { member: null, reason: "no_user" };
   }
-  return toMember(u);
+  const member = toMember(u);
+  return member
+    ? { member, reason: null }
+    : { member: null, reason: "no_user" };
+}
+
+/**
+ * Verify Telegram Mini App `initData`. Returns the member on success, else
+ * null (bad signature, stale auth_date, or missing user).
+ */
+export function verifyMiniAppInitData(initData: string): CommunityMember | null {
+  return verifyMiniAppInitDataDetailed(initData).member;
 }
 
 /**

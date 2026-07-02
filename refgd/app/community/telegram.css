@@ -1064,3 +1064,80 @@ button.tg-reply-embed {
   position: relative;
   z-index: 1;
 }
+
+/* ── Fullscreen entry prompt ─────────────────────────────────────── */
+.tg-fs-backdrop {
+  z-index: 70;
+}
+.tg-fs-modal {
+  max-width: 20rem;
+  padding: 1rem 1.25rem 0.75rem;
+}
+.tg-fs-title {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  color: var(--color-text);
+}
+.tg-fs-title svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--color-primary);
+}
+.tg-fs-title h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 500;
+}
+.tg-fs-text {
+  margin: 0.625rem 0 0.375rem;
+  color: var(--color-text);
+  font-size: 0.9375rem;
+  line-height: 1.35;
+}
+.tg-fs-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+.tg-fs-btn {
+  border: 0;
+  background: transparent;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  color: var(--color-primary);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.tg-fs-btn:hover {
+  background: var(--color-chat-hover);
+}
+.tg-fs-btn.is-primary {
+  color: var(--color-primary);
+}
+
+/* ── Web sign-in (Telegram Login Widget) ─────────────────────────── */
+.tg-signin-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.tg-login-widget {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+}
+.tg-login-widget iframe {
+  display: block;
+}
+.tg-signin-error {
+  width: 100%;
+  color: var(--color-error, #e53935);
+  font-size: 0.8125rem;
+}
