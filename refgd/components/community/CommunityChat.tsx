@@ -1722,8 +1722,10 @@ export default function CommunityChat({
         )}
       </div>
 
-      {lightbox && (
-        <div
+      {lightbox &&
+        overlayEl &&
+        createPortal(
+          <div
           className="tg-lightbox"
           role="dialog"
           aria-modal="true"
@@ -1743,8 +1745,9 @@ export default function CommunityChat({
             alt="Photo"
             onClick={(e) => e.stopPropagation()}
           />
-        </div>
-      )}
+        </div>,
+          overlayEl,
+        )}
 
       {toast &&
         overlayEl &&
