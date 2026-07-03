@@ -277,8 +277,11 @@ export async function POST(req: Request) {
     }
   }
 
+  // Flood gap is admin-configurable via /antiflood (0 = off); MIN_POST_GAP_S
+  // is only the default when nothing has been set.
+  const floodGap = await getModConfig<number>("flood_gap_s", MIN_POST_GAP_S);
   const since = await secondsSinceLastMessage(me.tid);
-  if (since !== null && since < MIN_POST_GAP_S) {
+  if (floodGap > 0 && since !== null && since < floodGap) {
     return NextResponse.json(
       { ok: false, error: "You're sending messages too fast — slow down." },
       { status: 429 },

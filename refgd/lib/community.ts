@@ -906,6 +906,66 @@ export async function kickMember(tgId: string): Promise<void> {
   await getPool().query(`DELETE FROM chat_members WHERE tg_id = $1`, [tgId]);
 }
 
+/** First name for a known member id, or "" if we've never seen them. */
+export async function getMemberName(tgId: string): Promise<string> {
+  await initDb();
+  const { rows } = await getPool().query<{ first_name: string | null }>(
+    `SELECT first_name FROM chat_members WHERE tg_id = $1`,
+    [tgId],
+  );
+  return rows[0]?.first_name ?? "";
+}
+
+export interface RosterMember {
+  tgId: string;
+  name: string;
+  photo: string | null;
+  isAdmin: boolean;
+  isBanned: boolean;
+  mutedUntil: string | null;
+  warnCount: number;
+  lastSeen: string | null;
+}
+
+/**
+ * The full member roster (name + numeric tg_id + mod state), admins first then
+ * most-recently-seen. Powers the admin-only roster panel, whose whole point is
+ * to surface the numeric ids the chat otherwise hides so an admin can copy one
+ * and run e.g. `/ban 923182`. Hard-capped so a large group can't blow up the
+ * response.
+ */
+export async function listMembers(limit = 1000): Promise<RosterMember[]> {
+  await initDb();
+  const { rows } = await getPool().query<{
+    tg_id: string;
+    first_name: string | null;
+    photo_url: string | null;
+    is_admin: boolean;
+    is_banned: boolean;
+    muted_until: string | null;
+    warn_count: number;
+    last_seen: string | null;
+  }>(
+    `SELECT tg_id, first_name, photo_url, is_admin, is_banned,
+            muted_until, warn_count, last_seen
+       FROM chat_members
+      WHERE tg_id IS NOT NULL
+      ORDER BY is_admin DESC, last_seen DESC NULLS LAST
+      LIMIT $1`,
+    [Math.min(Math.max(Math.floor(limit), 1), 5000)],
+  );
+  return rows.map((r) => ({
+    tgId: String(r.tg_id),
+    name: r.first_name ?? "",
+    photo: r.photo_url,
+    isAdmin: r.is_admin,
+    isBanned: r.is_banned,
+    mutedUntil: r.muted_until,
+    warnCount: r.warn_count ?? 0,
+    lastSeen: r.last_seen,
+  }));
+}
+
 // ── Blocklist (word filters that reject a member's message on post) ───
 export async function addBlocklist(
   pattern: string,

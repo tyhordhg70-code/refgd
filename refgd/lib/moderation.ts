@@ -29,12 +29,14 @@ import {
   purgeRecentMessages,
   purgeFromMessage,
   getMessageAuthor,
+  getMemberName,
   getMessageForPin,
   recordAction,
   getModConfig,
   setModConfig,
 } from "./community";
 import { notifyAll } from "./community-notify";
+import { COMMAND_SPECS, COMMAND_NAMES } from "./community-commands";
 
 export interface ModResult {
   /** true → this was a command and should NOT be posted as a chat message. */
@@ -48,14 +50,12 @@ const DEFAULT_WARN_LIMIT = 3;
 const DEFAULT_WARN_ACTION = { type: "mute" as "mute" | "ban", duration: "1h" };
 const DEFAULT_MUTE = "1h";
 
-/** Known commands. Anything else starting with "/" is a normal message. */
-const COMMANDS = new Set([
-  "ban", "unban", "mute", "unmute", "warn", "unwarn", "kick",
-  "filter", "stop", "blocklist",
-  "welcome", "setrules", "rules",
-  "pin", "unpin", "del", "purge",
-  "help",
-]);
+/**
+ * Known commands, derived from the shared registry (lib/community-commands) so
+ * the parser, the /help text and the composer autocomplete never drift apart.
+ * Anything else starting with "/" is a normal message.
+ */
+const COMMANDS = new Set(COMMAND_NAMES);
 
 export function parseCommand(
   text: string,
@@ -92,21 +92,20 @@ async function resolveTarget(
     return null;
   }
   const m = rest.match(/^(\d{4,})\b\s*([\s\S]*)$/);
-  if (m) return { tgId: m[1], name: "", args: (m[2] ?? "").trim() };
+  if (m) {
+    // Backfill the display name if we've ever seen this id (e.g. the admin
+    // copied it from the member roster); unseen ids fall back to the number.
+    const name = await getMemberName(m[1]);
+    return { tgId: m[1], name, args: (m[2] ?? "").trim() };
+  }
   return null;
 }
 
 const HELP_TEXT = [
   "Admin commands (reply to a message to target its author, or pass a numeric Telegram ID):",
-  "/ban /unban — remove or restore a member",
-  "/mute [10m|2h|1d] /unmute — timed silence",
-  "/warn [reason] /unwarn — warnings escalate at the limit",
-  "/kick — remove (they may rejoin)",
-  "/filter <word> /stop <word> /blocklist — banned words",
-  "/pin /unpin — reply to pin; /unpin with no reply clears all",
-  "/del — reply to delete just that message",
-  "/purge [n] — reply to purge from there, or delete the last n",
-  "/welcome <text> /setrules <text> — set the banners",
+  ...COMMAND_SPECS.filter((c) => c.admin).map(
+    (c) => `/${c.cmd}${c.args ? ` ${c.args}` : ""} — ${c.desc}`,
+  ),
   "/rules — anyone can view the rules",
 ].join("\n");
 
@@ -278,6 +277,46 @@ export async function executeModCommand(opts: {
         handled: true,
         ok: true,
         system: words.length ? `Blocklisted words: ${words.join(", ")}` : "The blocklist is empty.",
+      };
+    }
+
+    case "antiflood":
+    case "setflood": {
+      const arg = rest.trim().toLowerCase();
+      if (!arg) {
+        const cur = await getModConfig<number>("flood_gap_s", 2);
+        return {
+          handled: true,
+          ok: true,
+          system:
+            cur > 0
+              ? `Antiflood is on — members wait ${cur}s between messages. Use /antiflood <seconds> or /antiflood off.`
+              : "Antiflood is off. Use /antiflood <seconds> to enable it.",
+        };
+      }
+      let secs: number;
+      if (arg === "off" || arg === "0") {
+        secs = 0;
+      } else {
+        const m = arg.match(/^(\d+)\s*s?$/);
+        if (!m) {
+          return {
+            handled: true,
+            ok: false,
+            system: "Usage: /antiflood <seconds> (or /antiflood off).",
+          };
+        }
+        secs = Math.min(parseInt(m[1], 10), 60);
+      }
+      await setModConfig("flood_gap_s", secs);
+      await audit("set-antiflood", null, { seconds: secs });
+      return {
+        handled: true,
+        ok: true,
+        system:
+          secs > 0
+            ? `Antiflood set to ${secs}s between messages.`
+            : "Antiflood disabled.",
       };
     }
 
