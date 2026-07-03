@@ -1264,6 +1264,27 @@ button.tg-reply-embed:focus-visible {
   white-space: nowrap;
 }
 
+/* admin member-roster badges */
+.tg-member-badge {
+  display: inline-block;
+  margin-left: 0.375rem;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 0.625rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  vertical-align: middle;
+  background: var(--color-chat-hover, rgba(0, 0, 0, 0.06));
+  color: var(--color-text-secondary);
+}
+.tg-member-badge.is-admin {
+  background: rgba(51, 144, 236, 0.15);
+  color: var(--color-primary, #3390ec);
+}
+.tg-member-badge.is-danger {
+  background: rgba(223, 63, 63, 0.15);
+  color: #df3f3f;
+}
+
 /* loading skeleton dots */
 .tg-loading {
   align-self: center;

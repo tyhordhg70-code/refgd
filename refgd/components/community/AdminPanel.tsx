@@ -27,6 +27,17 @@ interface ActionRow {
   createdAt: string;
 }
 
+interface RosterMember {
+  tgId: string;
+  name: string;
+  photo: string | null;
+  isAdmin: boolean;
+  isBanned: boolean;
+  mutedUntil: string | null;
+  warnCount: number;
+  lastSeen: string | null;
+}
+
 function formatTime(ts: string): string {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return "";
@@ -39,14 +50,17 @@ function formatTime(ts: string): string {
 }
 
 export default function AdminPanel({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<"invites" | "log">("invites");
+  const [tab, setTab] = useState<"invites" | "members" | "log">("invites");
   const [invites, setInvites] = useState<InviteLink[]>([]);
   const [actions, setActions] = useState<ActionRow[]>([]);
+  const [members, setMembers] = useState<RosterMember[]>([]);
+  const [membersLoaded, setMembersLoaded] = useState(false);
   const [slug, setSlug] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -124,6 +138,35 @@ export default function AdminPanel({ onClose }: { onClose: () => void }) {
     }
   }, []);
 
+  const loadMembers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/community/members", { cache: "no-store" });
+      if (!res.ok) {
+        setError("Couldn't load the member list.");
+        return;
+      }
+      const d = (await res.json()) as { ok: boolean; members: RosterMember[] };
+      setMembers(d.members ?? []);
+      setMembersLoaded(true);
+    } catch {
+      setError("Couldn't load the member list.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "members" && !membersLoaded) void loadMembers();
+  }, [tab, membersLoaded, loadMembers]);
+
+  const copyId = useCallback(async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(id);
+      setCopiedId(id);
+      window.setTimeout(() => setCopiedId(null), 1500);
+    } catch {
+      /* clipboard blocked — ignore */
+    }
+  }, []);
+
   return (
     <div
       className="tg-modal-backdrop"
@@ -143,6 +186,13 @@ export default function AdminPanel({ onClose }: { onClose: () => void }) {
               onClick={() => setTab("invites")}
             >
               Invite links
+            </button>
+            <button
+              type="button"
+              className={`tg-tab${tab === "members" ? " is-active" : ""}`}
+              onClick={() => setTab("members")}
+            >
+              Members
             </button>
             <button
               type="button"
@@ -226,6 +276,57 @@ export default function AdminPanel({ onClose }: { onClose: () => void }) {
                 </ul>
               )}
             </>
+          ) : tab === "members" ? (
+            members.length === 0 ? (
+              <p className="tg-note">
+                {membersLoaded ? "No members yet." : "Loading members…"}
+              </p>
+            ) : (
+              <ul className="tg-invite-list">
+                {members.map((m) => (
+                  <li key={m.tgId} className="tg-invite-row">
+                    <div className="tg-invite-top">
+                      <div className="tg-invite-name">
+                        <p>
+                          {m.name || "Unknown"}
+                          {m.isAdmin && (
+                            <span className="tg-member-badge is-admin">
+                              admin
+                            </span>
+                          )}
+                          {m.isBanned && (
+                            <span className="tg-member-badge is-danger">
+                              banned
+                            </span>
+                          )}
+                          {m.mutedUntil && (
+                            <span className="tg-member-badge">muted</span>
+                          )}
+                          {m.warnCount > 0 && (
+                            <span className="tg-member-badge">
+                              {m.warnCount} warn
+                            </span>
+                          )}
+                        </p>
+                        <p className="tg-row-sub">ID {m.tgId}</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="tg-chip-btn"
+                        onClick={() => void copyId(m.tgId)}
+                      >
+                        {copiedId === m.tgId ? "Copied!" : "Copy ID"}
+                      </button>
+                    </div>
+                    <p className="tg-row-sub">
+                      {m.lastSeen
+                        ? `Last seen ${formatTime(m.lastSeen)}`
+                        : "Never seen"}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )
           ) : actions.length === 0 ? (
             <p className="tg-note">No actions in the last 3 days.</p>
           ) : (
