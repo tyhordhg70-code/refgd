@@ -2,7 +2,6 @@
 
 import { useRef, type CSSProperties, type ReactNode } from "react";
 import Appendix from "./Appendix";
-import { IconForward } from "./TgIcons";
 import { emojiSrc, initials, peerIdx } from "./format";
 
 /** Autoplay a member's animated (mp4/webm) avatar reliably. React does not emit
@@ -260,22 +259,27 @@ export default function MessageBubble({
           <div className="content-inner" dir="auto">
             {forward && (
               <div className="message-title tg-forward-title" dir="ltr">
-                <span className="message-title-name-container interactive">
+                <span
+                  className="message-title-name-container interactive"
+                  dir="ltr"
+                >
                   <span className="forward-title-container">
-                    <span className="tg-forward-icon" aria-hidden>
-                      <IconForward />
-                    </span>
+                    <i className="icon icon-share-filled" aria-hidden="true" />
                     <span className="forward-title">Forwarded from</span>
                   </span>
                   <span className="message-title-name">
-                    <span
+                    <div
                       className={`Avatar forward-avatar size-micro no-photo tg-bg-peer-${peerIdx(
                         forward.name,
                       )}`}
                       aria-hidden
                     >
-                      <span className="letters">{initials(forward.name)}</span>
-                    </span>
+                      <div className="inner">
+                        <span className="letters">
+                          {initials(forward.name)}
+                        </span>
+                      </div>
+                    </div>
                     <span
                       className={`sender-title tg-peer-${peerIdx(forward.name)}`}
                     >
@@ -283,6 +287,8 @@ export default function MessageBubble({
                     </span>
                   </span>
                 </span>
+                <div className="title-spacer" />
+                <span className="message-title-meta" />
               </div>
             )}
             {sender && !own && !forward && (

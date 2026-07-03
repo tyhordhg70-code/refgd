@@ -94,12 +94,20 @@ export function LocalTime({ iso }: { iso: string }) {
 const EMOJI_RE =
   /\p{Regional_Indicator}\p{Regional_Indicator}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:[\u{1F3FB}-\u{1F3FF}]|\uFE0F)?(?:\u200D\p{Extended_Pictographic}(?:[\u{1F3FB}-\u{1F3FF}]|\uFE0F)?)*/gu;
 
-/** img-apple-64 sprite URL for an emoji sequence (FE0F stripped, hex-joined). */
+/**
+ * img-apple-64 sprite URL for an emoji sequence (FE0F stripped, hex-joined).
+ * Served from jsdelivr's copy of the *same* iamcal img-apple-64 set that
+ * Telegram Web A vendors, NOT web.telegram.org: the Telegram CDN sends no
+ * Cross-Origin-Resource-Policy / Access-Control-Allow-Origin, so inside the
+ * Telegram Mini App (a cross-origin webview) those <img>s were blocked and
+ * rendered blank. jsdelivr sends `Cross-Origin-Resource-Policy: cross-origin`
+ * + `Access-Control-Allow-Origin: *`, and the pinned tag is immutably cached.
+ */
 export function emojiSrc(seq: string): string {
   const codes = Array.from(seq)
     .map((c) => (c.codePointAt(0) ?? 0).toString(16))
     .filter((h) => h !== "fe0f");
-  return `https://web.telegram.org/a/img-apple-64/${codes.join("-")}.png`;
+  return `https://cdn.jsdelivr.net/gh/iamcal/emoji-data@v15.1.2/img-apple-64/${codes.join("-")}.png`;
 }
 
 /**

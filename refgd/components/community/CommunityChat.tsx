@@ -1346,9 +1346,12 @@ export default function CommunityChat({
               <div
                 className="messages-container"
                 style={{
+                  // Base header clearance comes from CSS (.messages-container);
+                  // when the pinned banner floats below the header, push the
+                  // first message below the banner too so it isn't clipped.
                   paddingTop:
                     pinnedBannerMsg && search === null && !pinnedOnly
-                      ? 44
+                      ? "calc(var(--middle-header-height, 3rem) + var(--middle-panel-inline-padding, 1rem) + 2.75rem)"
                       : undefined,
                   paddingBottom: composerPad,
                 }}

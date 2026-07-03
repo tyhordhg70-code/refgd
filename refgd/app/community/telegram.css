@@ -413,13 +413,16 @@
   font-size: 0.8125rem;
   font-weight: 500;
 }
-.tg-forward-title .tg-forward-icon,
-.tg-forward-title .tg-forward-icon svg {
-  width: 0.875rem;
-  height: 0.875rem;
+.tg-forward-title .forward-title-container .icon {
+  font-size: 0.875rem;
+  line-height: 1;
 }
-.tg-forward-title .tg-forward-icon {
-  display: inline-flex;
+.tg-forward-title .forward-avatar .inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 .tg-forward-title .message-title-name {
   display: inline-flex;
@@ -1497,6 +1500,24 @@ button.tg-reply-embed:focus-visible {
     var(--tg-safe-area-inset-top, 0px) +
       var(--tg-content-safe-area-inset-top, 0px)
   );
+}
+
+/* Top-of-list header clearance. The MiddleHeader is position:absolute and
+   opaque; Web A clears it by giving the .first-message-date-group a top inset,
+   but our chat renders a pinned notice / migrated vouch history / welcome card
+   ABOVE that group, so those top items (and the first imported posts) were
+   hidden under the header — the list couldn't be scrolled fully to the top and
+   the topmost imported bubbles couldn't be tapped. Put the clearance on the
+   scroll container's content instead, and drop the per-group inset so nothing
+   double-pads. */
+.tg-app .MessageList .messages-container {
+  padding-top: calc(
+    var(--middle-header-height, 3rem) +
+      var(--middle-panel-inline-padding, 1rem) + 0.5rem
+  );
+}
+.tg-app .MessageList .first-message-date-group {
+  padding-top: 0;
 }
 
 
