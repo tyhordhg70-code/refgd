@@ -31,9 +31,12 @@ interface PackGroup {
 export default function EmojiPanel({
   onPick,
   onClose,
+  isAdmin = false,
 }: {
   onPick: (snippet: string) => void;
   onClose: () => void;
+  /** Shows the admin pack-management toolbar in the Custom tab. */
+  isAdmin?: boolean;
 }) {
   const [tab, setTab] = useState<"standard" | "custom">("standard");
   const [activeCat, setActiveCat] = useState(EMOJI_CATEGORIES[0].key);
@@ -85,6 +88,72 @@ export default function EmojiPanel({
   }, [tab, packsLoaded]);
 
   const packKey = (g: PackGroup, i: number) => g.setName || g.title || `pack-${i}`;
+
+  // ── Admin pack management (Custom tab only). ────────────────────────────
+  const [adminId, setAdminId] = useState("");
+  const [adminAlt, setAdminAlt] = useState("");
+  const [adminBusy, setAdminBusy] = useState(false);
+  const [adminMsg, setAdminMsg] = useState<string | null>(null);
+
+  const reloadPacks = () => {
+    setPacks(null);
+    setPacksLoaded(false);
+  };
+
+  const runDiscover = async () => {
+    setAdminBusy(true);
+    setAdminMsg(null);
+    try {
+      const res = await fetch("/api/community/emoji/discover", {
+        method: "POST",
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        discovered?: number;
+        error?: string;
+      };
+      if (data?.ok) {
+        setAdminMsg(`Loaded ${data.discovered ?? 0} emoji`);
+        reloadPacks();
+      } else {
+        setAdminMsg(data?.error || "Discovery failed");
+      }
+    } catch {
+      setAdminMsg("Discovery failed");
+    } finally {
+      setAdminBusy(false);
+    }
+  };
+
+  const addById = async () => {
+    const id = adminId.trim();
+    if (!/^\d{1,32}$/.test(id)) {
+      setAdminMsg("Enter a numeric emoji id");
+      return;
+    }
+    setAdminBusy(true);
+    setAdminMsg(null);
+    try {
+      const res = await fetch("/api/community/emoji/list", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, alt: adminAlt.trim() }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (data?.ok) {
+        setAdminMsg("Added");
+        setAdminId("");
+        setAdminAlt("");
+        reloadPacks();
+      } else {
+        setAdminMsg(data?.error || "Add failed");
+      }
+    } catch {
+      setAdminMsg("Add failed");
+    } finally {
+      setAdminBusy(false);
+    }
+  };
 
   return (
     <>
@@ -174,8 +243,48 @@ export default function EmojiPanel({
               ))}
             </div>
           </>
-        ) : packs && packs.length > 0 ? (
+        ) : (
           <>
+            {isAdmin && (
+              <div className="tg-emoji-admin">
+                <button
+                  type="button"
+                  className="tg-emoji-admin-btn"
+                  onClick={() => void runDiscover()}
+                  disabled={adminBusy}
+                >
+                  Load packs
+                </button>
+                <div className="tg-emoji-admin-add">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Emoji id"
+                    value={adminId}
+                    onChange={(e) => setAdminId(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="alt"
+                    value={adminAlt}
+                    onChange={(e) => setAdminAlt(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="tg-emoji-admin-btn"
+                    onClick={() => void addById()}
+                    disabled={adminBusy}
+                  >
+                    Add
+                  </button>
+                </div>
+                {adminMsg && (
+                  <span className="tg-emoji-admin-msg">{adminMsg}</span>
+                )}
+              </div>
+            )}
+            {packs && packs.length > 0 ? (
+              <>
             {packs.length > 1 && (
               <div className="tg-emoji-cats" role="tablist">
                 {packs.map((g, i) => {
@@ -245,6 +354,8 @@ export default function EmojiPanel({
               </button>
             ))}
           </div>
+            )}
+          </>
         )}
       </div>
     </>

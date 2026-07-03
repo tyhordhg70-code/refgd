@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import CommunityChat from "../CommunityChat";
 import NotificationSettings from "../NotificationSettings";
 import { ADMIN_TG, ensureTelegramReady } from "../useCommunityChat";
-import { IconBell, IconChat } from "./TgIcons";
+import { IconBell, IconChat, IconClose } from "./TgIcons";
 import MiddleHeader from "./MiddleHeader";
 import MessageBubble from "./MessageBubble";
 import VouchHistory from "./VouchTopic";
@@ -150,6 +150,9 @@ export default function TelegramApp({
   // Topic-list search: null = closed, string = open with that query.
   const [listSearch, setListSearch] = useState<string | null>(null);
   const [showNotif, setShowNotif] = useState(false);
+  // Fullscreen photo viewer for the locked READ ME topic (rendered standalone,
+  // without a CommunityChat, so it needs its own lightbox).
+  const [readmeLightbox, setReadmeLightbox] = useState<string | null>(null);
   const listQuery = (listSearch ?? "").trim().toLowerCase();
   const visibleTopics = listQuery
     ? TOPICS.filter((t) => t.title.toLowerCase().includes(listQuery))
@@ -366,6 +369,7 @@ export default function TelegramApp({
                         reactions={README_SEED_REACTIONS}
                         body={README_SEED_BODY}
                         time={README_SEED_TIME}
+                        onOpenMedia={(src) => setReadmeLightbox(src)}
                       />
                       {welcome && (
                         <MessageBubble
@@ -414,7 +418,7 @@ export default function TelegramApp({
         topic={active}
         title={def?.title ?? ""}
         icon={def ? <TopicIcon def={def} /> : undefined}
-        history={(query, onReadonlyMenu) => {
+        history={(query, onReadonlyMenu, onOpenMedia) => {
           const q = query.trim().toLowerCase();
           const vouches = byTopic[topicKey] ?? [];
           const shown = q
@@ -441,11 +445,16 @@ export default function TelegramApp({
                       media={[ANNOUNCEMENT_SEED_PHOTO]}
                       body={ANNOUNCEMENT_SEED_BODY}
                       time={ANNOUNCEMENT_SEED_TIME}
+                      onOpenMedia={onOpenMedia}
                     />
                   </div>
                 </div>
               )}
-              <VouchHistory vouches={shown} onOpenMenu={onReadonlyMenu} />
+              <VouchHistory
+                vouches={shown}
+                onOpenMenu={onReadonlyMenu}
+                onOpenMedia={onOpenMedia}
+              />
             </>
           );
         }}
@@ -664,6 +673,29 @@ export default function TelegramApp({
         </div>
         {showNotif && (
           <NotificationSettings onClose={() => setShowNotif(false)} />
+        )}
+        {readmeLightbox && (
+          <div
+            className="tg-lightbox"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setReadmeLightbox(null)}
+          >
+            <button
+              type="button"
+              className="tg-lightbox-close"
+              aria-label="Close photo"
+              onClick={() => setReadmeLightbox(null)}
+            >
+              <IconClose />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={readmeLightbox}
+              alt="Photo"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
         )}
       </div>
     </div>

@@ -247,6 +247,12 @@
         CREATE INDEX IF NOT EXISTS chat_messages_topic_idx
           ON chat_messages (topic, id DESC) WHERE deleted = FALSE;
 
+        -- Members can edit their own messages (admins any); edited_at records
+        -- the last in-place edit so the bubble can show Web A's "edited" mark.
+        -- NULL on every existing row (never edited); idempotent migration.
+        ALTER TABLE chat_messages
+          ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;
+
         CREATE TABLE IF NOT EXISTS message_reactions (
           message_id BIGINT NOT NULL,
           tg_id      BIGINT NOT NULL,

@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import MessageBubble from "./MessageBubble";
 import type { VouchView } from "./types";
 import { LocalTime, dateKey, dateLabel, peerIdx, renderBody } from "./format";
+import { SEED_AUTHOR, SEED_AVATAR } from "./seed";
 
 /**
  * Read-only vouch history (Client Testimonials, BUY4U Vouches, Announcements)
@@ -49,10 +50,13 @@ function buildGroups(vouches: VouchView[]): DateGroup[] {
 export default function VouchHistory({
   vouches,
   onOpenMenu,
+  onOpenMedia,
 }: {
   vouches: VouchView[];
   /** Opens the reduced (Copy Text / Forward) context menu for a vouch. */
   onOpenMenu?: (pos: { x: number; y: number }, text: string) => void;
+  /** Opens the fullscreen media viewer for a clicked photo. */
+  onOpenMedia?: (src: string) => void;
 }) {
   const groups = useMemo(() => buildGroups(vouches), [vouches]);
 
@@ -83,17 +87,18 @@ export default function VouchHistory({
                     sender={
                       first
                         ? {
-                            name: v.authorName,
-                            peer: peerIdx(v.authorName),
+                            name: SEED_AUTHOR,
+                            peer: peerIdx(SEED_AUTHOR),
+                            admin: true,
                           }
                         : null
                     }
                     avatar={
                       last
                         ? {
-                            name: v.authorName,
-                            photo: null,
-                            peer: peerIdx(v.authorName),
+                            name: SEED_AUTHOR,
+                            photo: SEED_AVATAR,
+                            peer: peerIdx(SEED_AUTHOR),
                           }
                         : null
                     }
@@ -109,6 +114,7 @@ export default function VouchHistory({
                         ? (pos) => onOpenMenu(pos, v.body ?? "")
                         : undefined
                     }
+                    onOpenMedia={onOpenMedia}
                   />
                 );
               })}

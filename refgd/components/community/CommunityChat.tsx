@@ -23,6 +23,7 @@ import {
   IconCopy,
   IconDelete,
   IconDownload,
+  IconEdit,
   IconExpand,
   IconForward,
   IconLink,
@@ -34,6 +35,7 @@ import {
   LocalTime,
   dateKey,
   dateLabel,
+  emojiSrc,
   peerIdx,
   renderBody,
 } from "./tg/format";
@@ -121,6 +123,7 @@ export default function CommunityChat({
     | ((
         query: string,
         onReadonlyMenu: (pos: { x: number; y: number }, text: string) => void,
+        onOpenMedia: (src: string) => void,
       ) => ReactNode);
 }) {
   const chat = useCommunityChat(topic);
@@ -177,6 +180,20 @@ export default function CommunityChat({
   const [emojiOpen, setEmojiOpen] = useState(false);
   // Fullscreen photo viewer (click a message photo to expand it).
   const [lightbox, setLightbox] = useState<string | null>(null);
+  // Centered transient toast (e.g. "Message deleted"), auto-fades after 2.5s.
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+  const showToast = (msg: string) => {
+    setToast(msg);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 2500);
+  };
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    },
+    [],
+  );
   const inputRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Keep the message list clear of the composer: the footer is overlaid at the
@@ -427,6 +444,24 @@ export default function CommunityChat({
     }
   }, [chat.text]);
 
+  // Entering composer edit mode: seed the input with the message body and drop
+  // the caret at the end. We set innerText explicitly (not relying on the
+  // chat.text sync effect, which skips seeding while the composer is focused —
+  // Safari/Firefox don't move focus to the ctx-menu button on click) so the
+  // body always appears even if the user was mid-draft.
+  const editingId = chat.editing?.id ?? null;
+  const editingBody = chat.editing?.body ?? "";
+  useEffect(() => {
+    if (!editingId) return;
+    const el = inputRef.current;
+    if (!el) return;
+    el.innerText = editingBody;
+    el.focus();
+    const sel = window.getSelection();
+    sel?.selectAllChildren(el);
+    sel?.collapseToEnd();
+  }, [editingId, editingBody]);
+
   const subtitle =
     state === null
       ? "connecting…"
@@ -674,7 +709,13 @@ export default function CommunityChat({
                         setCtxMenu(null);
                       }}
                     >
-                      {e}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={emojiSrc(e)}
+                        alt={e}
+                        className="emoji"
+                        draggable={false}
+                      />
                     </button>
                   ))}
                 </div>
@@ -720,6 +761,19 @@ export default function CommunityChat({
                   >
                     <IconCopy />
                     Copy Text
+                  </button>
+                )}
+                {(ctxMenu.m.tgId === me?.tid || me?.admin) && (
+                  <button
+                    type="button"
+                    className="tg-menu-item"
+                    onClick={() => {
+                      chat.beginEdit(ctxMenu.m);
+                      setCtxMenu(null);
+                    }}
+                  >
+                    <IconEdit />
+                    Edit
                   </button>
                 )}
                 <button
@@ -779,8 +833,11 @@ export default function CommunityChat({
                     type="button"
                     className="tg-menu-item tg-menu-item-danger"
                     onClick={() => {
-                      void chat.sendCommand("/del", ctxMenu.m.id);
+                      const id = ctxMenu.m.id;
                       setCtxMenu(null);
+                      void chat.deleteMessage(id).then((ok) => {
+                        if (ok) showToast("Message deleted");
+                      });
                     }}
                   >
                     <IconDelete />
@@ -863,7 +920,9 @@ export default function CommunityChat({
                     )}
                     {/* Read-only migrated history (vouch topics). */}
                     {typeof history === "function"
-                      ? history(query, openReadonlyMenu)
+                      ? history(query, openReadonlyMenu, (src) =>
+                          setLightbox(src),
+                        )
                       : history}
                     {(isGroupChat || topic === "testimonials") && !query && (
                       <div className="sender-group-container sKXqbu2I">
@@ -949,6 +1008,7 @@ export default function CommunityChat({
                                       : undefined
                                   }
                                   time={<LocalTime iso={m.createdAt} />}
+                                  edited={!!m.editedAt}
                                   ticks={own}
                                   reactions={m.reactions}
                                   onReact={(emoji) =>
@@ -1011,10 +1071,29 @@ export default function CommunityChat({
               <EmojiPanel
                 onPick={insertAtComposer}
                 onClose={() => setEmojiOpen(false)}
+                isAdmin={!!me?.admin}
               />
             )}
             <div className="composer-wrapper">
               <Appendix own={false} composer />
+              {chat.editing && (
+                <div className="tg-reply-bar tg-edit-bar">
+                  <span className="tg-reply-embed">
+                    <span className="tg-reply-sender">Editing message</span>
+                    <span className="tg-reply-text">
+                      {chat.editing.body || "message"}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="tg-icon-btn"
+                    onClick={() => chat.cancelEdit()}
+                    aria-label="Cancel edit"
+                  >
+                    <IconClose />
+                  </button>
+                </div>
+              )}
               {chat.replyTo && (
                 <div className="tg-reply-bar">
                   <span className="tg-reply-embed">
@@ -1067,7 +1146,7 @@ export default function CommunityChat({
                     value={chat.ttlSeconds}
                     onChange={(e) => chat.setTtlSeconds(Number(e.target.value))}
                   >
-                    <option value={0}>Keep</option>
+                    <option value={0}>Never</option>
                     <option value={3600}>1 hour</option>
                     <option value={86400}>1 day</option>
                     <option value={604800}>1 week</option>
@@ -1241,6 +1320,12 @@ export default function CommunityChat({
             alt="Photo"
             onClick={(e) => e.stopPropagation()}
           />
+        </div>
+      )}
+
+      {toast && (
+        <div className="tg-toast" role="status" aria-live="polite">
+          {toast}
         </div>
       )}
     </>

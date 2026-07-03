@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { listPackEmoji } from "@/lib/community";
+import { readMemberSession } from "@/lib/community-auth";
+import { listPackEmoji, upsertPackEmoji, type PackEmoji } from "@/lib/community";
 import { CUSTOM_EMOJI } from "@/lib/custom-emoji";
 
 export const runtime = "nodejs";
@@ -45,4 +46,48 @@ export async function GET() {
     groups,
     fallback: CUSTOM_EMOJI.map((c) => ({ id: c.id, alt: c.alt })),
   });
+}
+
+/**
+ * POST /api/community/emoji/list — admin-only single custom-emoji add.
+ *
+ * Adds ONE premium custom emoji to the pack library by its Telegram document
+ * id, so the composer's Custom tab and the [id] serving route's allowlist
+ * offer it immediately — without running full pack discovery. Idempotent.
+ */
+export async function POST(req: Request) {
+  const me = await readMemberSession();
+  if (!me?.admin) {
+    return NextResponse.json(
+      { ok: false, error: "Admins only" },
+      { status: 403 },
+    );
+  }
+
+  let payload: { id?: unknown; alt?: unknown };
+  try {
+    payload = (await req.json()) as { id?: unknown; alt?: unknown };
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "Invalid JSON" },
+      { status: 400 },
+    );
+  }
+
+  const id =
+    (typeof payload.id === "string" || typeof payload.id === "number") &&
+    /^\d{1,32}$/.test(String(payload.id))
+      ? String(payload.id)
+      : null;
+  if (!id) {
+    return NextResponse.json(
+      { ok: false, error: "A numeric custom-emoji id is required" },
+      { status: 400 },
+    );
+  }
+
+  const alt = typeof payload.alt === "string" ? payload.alt.slice(0, 16) : "";
+  const rows: PackEmoji[] = [{ id, alt, setName: "Custom", title: "Custom" }];
+  const upserted = await upsertPackEmoji(rows);
+  return NextResponse.json({ ok: true, id, upserted });
 }

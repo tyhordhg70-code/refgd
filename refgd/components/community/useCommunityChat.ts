@@ -42,6 +42,8 @@ export interface ChatMessage {
   isAdmin: boolean;
   pinned: boolean;
   createdAt: string;
+  /** ISO timestamp of the last in-place edit, or null if never edited. */
+  editedAt: string | null;
   reactions: Reaction[];
   reply: ReplyRef | null;
 }
@@ -254,8 +256,15 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
   const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
   const [systemNote, setSystemNote] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
-  // Admin-only auto-delete TTL (seconds) applied to the next message; 0 = keep.
-  const [ttlSeconds, setTtlSeconds] = useState(0);
+  // Auto-delete TTL (seconds) applied to the next message. Every message now
+  // expires after 7 days by default (owner request); admins can override to a
+  // custom lifetime or "Never" (0) via the composer. Non-admins always get the
+  // server-side 7-day default regardless of this value.
+  const [ttlSeconds, setTtlSeconds] = useState(604800);
+  // The message currently being edited in place (composer edit mode), or null.
+  const [editing, setEditing] = useState<{ id: string; body: string } | null>(
+    null,
+  );
   // Pending image attachment (paste or attach button) — sent with the next
   // message so image + caption land in ONE bubble.
   const [attachment, setAttachmentState] = useState<{
@@ -512,8 +521,114 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
       el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   }, []);
 
+  // Delete a message with instant optimistic removal. The /del moderation
+  // command soft-deletes server-side (admin/own-message gated there); on
+  // failure we resync from the server so the message reappears. Returns
+  // whether the delete succeeded so the caller can surface a toast.
+  const deleteMessage = useCallback(
+    async (id: string): Promise<boolean> => {
+      setSystemNote(null);
+      setState((prev) =>
+        prev
+          ? { ...prev, messages: prev.messages.filter((m) => m.id !== id) }
+          : prev,
+      );
+      try {
+        const res = await fetch("/api/community/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: "/del",
+            replyTo: id,
+            ttlSeconds: 0,
+            topic,
+          }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          error?: string;
+        } | null;
+        const ok = Boolean(res.ok && data?.ok !== false);
+        if (!ok) {
+          setError(data?.error ?? "Couldn't delete that message");
+          void loadInitial();
+        }
+        return ok;
+      } catch {
+        setError("Couldn't delete that message");
+        void loadInitial();
+        return false;
+      }
+    },
+    [topic, loadInitial],
+  );
+
+  // Edit a message body in place. Returns whether the edit succeeded; the
+  // refreshed (edited_at-stamped) message is merged back on success.
+  const editMessage = useCallback(
+    async (id: string, body: string): Promise<boolean> => {
+      const trimmed = body.trim();
+      if (!trimmed) return false;
+      setError(null);
+      setSystemNote(null);
+      try {
+        const res = await fetch("/api/community/chat/edit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, body: trimmed }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          error?: string;
+          message?: ChatMessage;
+        } | null;
+        if (!res.ok || !data?.ok || !data.message) {
+          setError(data?.error ?? "Couldn't edit your message");
+          return false;
+        }
+        mergeMessages([data.message]);
+        return true;
+      } catch {
+        setError("Couldn't edit your message");
+        return false;
+      }
+    },
+    [mergeMessages],
+  );
+
+  // Enter composer edit mode for a message: seed the composer with its body
+  // and clear any reply/attachment (an edit replaces text only).
+  const beginEdit = useCallback(
+    (m: ChatMessage) => {
+      setEditing({ id: m.id, body: m.body });
+      setText(m.body);
+      setReplyTo(null);
+      setAttachment(null);
+      setError(null);
+    },
+    [setAttachment],
+  );
+
+  const cancelEdit = useCallback(() => {
+    setEditing(null);
+    setText("");
+  }, []);
+
   const send = useCallback(async () => {
     const body = text.trim();
+    // Composer edit mode: the submit routes to the edit endpoint instead of a
+    // new post (no attachment/reply while editing).
+    if (editing) {
+      if (!body || sending) return;
+      setSending(true);
+      const ok = await editMessage(editing.id, body);
+      setSending(false);
+      if (ok) {
+        setEditing(null);
+        setText("");
+      }
+      return;
+    }
     if ((!body && !attachment) || sending) return;
     setSending(true);
     setError(null);
@@ -583,6 +698,8 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     me,
     mergeMessages,
     topic,
+    editing,
+    editMessage,
   ]);
 
   const react = useCallback(
@@ -703,6 +820,11 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     send,
     react,
     sendCommand,
+    deleteMessage,
+    editMessage,
+    editing,
+    beginEdit,
+    cancelEdit,
     toggleHideMembers,
   };
 }

@@ -424,6 +424,8 @@ export interface ChatMessage {
   isAdmin: boolean;
   pinned: boolean;
   createdAt: string;
+  /** ISO timestamp of the last in-place edit, or null if never edited. */
+  editedAt: string | null;
   reactions: ChatReaction[];
   reply: ChatReplyRef | null;
 }
@@ -436,6 +438,7 @@ interface ChatMsgRow {
   media_id: string | null;
   pinned: boolean;
   created_at: string;
+  edited_at: string | null;
   photo_url: string | null;
   reply_to: string | null;
   reply_author: string | null;
@@ -459,6 +462,7 @@ async function attachReactions(
     isAdmin: isCommunityAdmin(r.tg_id),
     pinned: r.pinned,
     createdAt: isoTs(r.created_at),
+    editedAt: r.edited_at ? isoTs(r.edited_at) : null,
     reactions: [],
     reply: r.reply_to
       ? {
@@ -531,7 +535,7 @@ export async function listChatMessages(
   if (opts.afterId && /^\d+$/.test(opts.afterId)) {
     const res = await getPool().query<ChatMsgRow>(
       `SELECT m.id, m.tg_id, m.author_name, m.body, m.media_id, m.pinned, m.created_at,
-              cm.photo_url,
+              m.edited_at, cm.photo_url,
               m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body
          FROM chat_messages m
          LEFT JOIN chat_members cm ON cm.tg_id = m.tg_id
@@ -548,7 +552,7 @@ export async function listChatMessages(
   } else {
     const res = await getPool().query<ChatMsgRow>(
       `SELECT m.id, m.tg_id, m.author_name, m.body, m.media_id, m.pinned, m.created_at,
-              cm.photo_url,
+              m.edited_at, cm.photo_url,
               m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body
          FROM chat_messages m
          LEFT JOIN chat_members cm ON cm.tg_id = m.tg_id
@@ -606,7 +610,7 @@ export async function createChatMessage(
   const { rows } = await getPool().query<ChatMsgRow>(
     `INSERT INTO chat_messages (tg_id, author_name, body, expires_at, reply_to, topic, media_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, tg_id, author_name, body, media_id, pinned, created_at, reply_to,
+     RETURNING id, tg_id, author_name, body, media_id, pinned, created_at, edited_at, reply_to,
                (SELECT photo_url FROM chat_members WHERE tg_id = $1) AS photo_url,
                (SELECT author_name FROM chat_messages r WHERE r.id = $5) AS reply_author,
                (SELECT body FROM chat_messages r WHERE r.id = $5) AS reply_body`,
@@ -949,8 +953,13 @@ export async function setMessagePinned(
   pinned: boolean,
 ): Promise<boolean> {
   await initDb();
+  // Pinning also clears any auto-delete TTL: a pinned announcement must not
+  // vanish out from under the pin. Unpinning leaves expires_at untouched.
   const res = await getPool().query(
-    `UPDATE chat_messages SET pinned = $2 WHERE id = $1 AND deleted = FALSE`,
+    `UPDATE chat_messages
+        SET pinned = $2,
+            expires_at = CASE WHEN $2 THEN NULL ELSE expires_at END
+      WHERE id = $1 AND deleted = FALSE`,
     [id, pinned],
   );
   return (res.rowCount ?? 0) > 0;
@@ -1038,6 +1047,53 @@ export async function getMessageForPin(
   }>(`SELECT author_name, body FROM chat_messages WHERE id = $1`, [id]);
   if (!rows[0]) return null;
   return { authorName: rows[0].author_name, body: rows[0].body ?? "" };
+}
+
+/** Owner + deleted flag for a message, used to authorize an in-place edit. */
+export interface MessageEditInfo {
+  tgId: string;
+  deleted: boolean;
+}
+
+export async function getMessageEditInfo(
+  id: string,
+): Promise<MessageEditInfo | null> {
+  await initDb();
+  const { rows } = await getPool().query<{ tg_id: string; deleted: boolean }>(
+    `SELECT tg_id, deleted FROM chat_messages WHERE id = $1`,
+    [id],
+  );
+  if (!rows[0]) return null;
+  return { tgId: String(rows[0].tg_id), deleted: Boolean(rows[0].deleted) };
+}
+
+/**
+ * Edit a live message's body in place, stamping edited_at = NOW(). The caller
+ * owns authorization (own message or admin) and content validation; this only
+ * touches live, non-deleted rows and returns the refreshed message (with its
+ * reply preview + reactions re-attached) exactly like listChatMessages.
+ */
+export async function editChatMessage(
+  id: string,
+  body: string,
+  viewerTid: string | null,
+): Promise<ChatMessage | null> {
+  await initDb();
+  const { rows } = await getPool().query<ChatMsgRow>(
+    `UPDATE chat_messages m
+        SET body = $2, edited_at = NOW()
+      WHERE m.id = $1 AND m.deleted = FALSE
+      RETURNING m.id, m.tg_id, m.author_name, m.body, m.media_id, m.pinned,
+                m.created_at, m.edited_at,
+                (SELECT photo_url FROM chat_members WHERE tg_id = m.tg_id) AS photo_url,
+                m.reply_to,
+                (SELECT author_name FROM chat_messages r WHERE r.id = m.reply_to) AS reply_author,
+                (SELECT body FROM chat_messages r WHERE r.id = m.reply_to) AS reply_body`,
+    [id, body],
+  );
+  if (!rows[0]) return null;
+  const [msg] = await attachReactions(rows, viewerTid);
+  return msg ?? null;
 }
 
 // ── Invite links ─────────────────────────────────────────────────────

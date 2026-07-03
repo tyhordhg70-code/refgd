@@ -2,7 +2,7 @@
 
 import { useRef, type CSSProperties, type ReactNode } from "react";
 import Appendix from "./Appendix";
-import { initials } from "./format";
+import { emojiSrc, initials } from "./format";
 
 /** Autoplay a member's animated (mp4/webm) avatar reliably. React does not emit
  * the `muted` attribute during SSR, which can block autoplay until hydration; a
@@ -58,6 +58,7 @@ export default function MessageBubble({
   onOpenMenu,
   onOpenMedia,
   mid,
+  edited,
 }: {
   own: boolean;
   /** First message of its author run (adds first-in-group). */
@@ -89,6 +90,8 @@ export default function MessageBubble({
   /** Opens the fullscreen media viewer for a clicked photo. */
   onOpenMedia?: (src: string) => void;
   mid?: string;
+  /** Shows the Web A "edited" marker before the timestamp. */
+  edited?: boolean;
 }) {
   const pressTimer = useRef<number | null>(null);
   const clearPress = () => {
@@ -147,7 +150,10 @@ export default function MessageBubble({
             aria-label="Pinned"
           />
         )}
-        <span className="message-time">{time}</span>
+        <span className="message-time">
+          {edited && <span className="tg-edited">edited</span>}
+          {time}
+        </span>
         {own && ticks && (
           <div className="MessageOutgoingStatus">
             <div className="Transition">
@@ -315,7 +321,14 @@ export default function MessageBubble({
                     className={`tg-reaction${r.mine ? " is-chosen" : ""}`}
                     onClick={onReact ? () => onReact(r.emoji) : undefined}
                   >
-                    <span>{r.emoji}</span>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={emojiSrc(r.emoji)}
+                      className="emoji emoji-small tg-reaction-emoji"
+                      alt={r.emoji}
+                      draggable={false}
+                      loading="lazy"
+                    />
                     <span>{r.count}</span>
                   </button>
                 ))}

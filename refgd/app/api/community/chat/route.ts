@@ -210,19 +210,24 @@ export async function POST(req: Request) {
       ? String(payload.replyTo)
       : null;
 
-  // Auto-delete TTL is an admin-only affordance (ephemeral announcements /
-  // temporary notices). Non-admin values are ignored. Capped at 30 days.
-  let expiresAt: Date | null = null;
+  // Auto-delete TTL. Every message now expires after 7 days by default so the
+  // feed stays fresh (owner request). Admins override per message via the
+  // composer: 0 = "Never" (keep forever → NULL); any positive value sets a
+  // custom lifetime (capped at 30 days). Non-admins always get the 7-day
+  // default. Pinning later clears the TTL (see setMessagePinned).
+  const DEFAULT_TTL_S = 604_800; // 7 days
+  let ttlSeconds = DEFAULT_TTL_S;
   if (me.admin) {
     const raw =
       typeof payload.ttlSeconds === "number"
         ? payload.ttlSeconds
         : typeof payload.ttlSeconds === "string" && /^\d+$/.test(payload.ttlSeconds)
           ? Number(payload.ttlSeconds)
-          : 0;
-    const ttl = Math.min(Math.max(Math.floor(raw), 0), 2_592_000);
-    if (ttl > 0) expiresAt = new Date(Date.now() + ttl * 1000);
+          : DEFAULT_TTL_S;
+    ttlSeconds = Math.min(Math.max(Math.floor(raw), 0), 2_592_000);
   }
+  const expiresAt: Date | null =
+    ttlSeconds > 0 ? new Date(Date.now() + ttlSeconds * 1000) : null;
 
   const mod = await getChatMemberModState(me.tid);
   if (mod.isBanned) {
