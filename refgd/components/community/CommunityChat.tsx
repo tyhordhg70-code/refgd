@@ -47,6 +47,7 @@ import {
   useCommunityChat,
   type ChatMessage,
 } from "./useCommunityChat";
+import { buildMiniAppLink, buildStartParam } from "./tg/deeplink";
 import type { ChatTopic } from "@/lib/community";
 import { COMMAND_SPECS } from "@/lib/community-commands";
 import {
@@ -257,16 +258,25 @@ export default function CommunityChat({
     a.click();
     a.remove();
   };
+  // Copy Link / Forward target the Telegram Mini App (this replica is only ever
+  // opened inside Telegram, never on the web): a `t.me/<bot>?startapp=…` deep
+  // link re-opens the app on this topic and scrolls to the message. The
+  // website-hash fallback only fires when the bot username is unknown (i.e.
+  // outside a Mini App), so nothing breaks in a plain browser.
   const copyMessageLink = (m: ChatMessage) => {
-    const base = window.location.href.split("#")[0];
-    void navigator.clipboard
-      ?.writeText(`${base}#msg-${m.id}`)
-      .catch(() => undefined);
+    const bot = state?.botUsername;
+    const link = bot
+      ? buildMiniAppLink(bot, buildStartParam(topic, m.id))
+      : `${window.location.href.split("#")[0]}#msg-${m.id}`;
+    void navigator.clipboard?.writeText(link).catch(() => undefined);
   };
   const forwardMessage = (m: ChatMessage) => {
-    const base = window.location.href.split("#")[0];
+    const bot = state?.botUsername;
+    const target = bot
+      ? buildMiniAppLink(bot, buildStartParam(topic, m.id))
+      : `${window.location.href.split("#")[0]}#msg-${m.id}`;
     const url = `https://t.me/share/url?url=${encodeURIComponent(
-      `${base}#msg-${m.id}`,
+      target,
     )}&text=${encodeURIComponent(m.body || "Photo")}`;
     const tg = (
       window as unknown as {
@@ -276,11 +286,16 @@ export default function CommunityChat({
     if (tg?.openTelegramLink) tg.openTelegramLink(url);
     else window.open(url, "_blank", "noopener");
   };
-  // Forward a read-only history bubble (a vouch) by its plain text — there is
-  // no live message link to share, so the text alone is shared.
+  // Forward a read-only history bubble (a vouch): there is no live message id,
+  // so the deep link targets this section (re-opens the Mini App on this topic)
+  // and the bubble's text rides along as the share caption.
   const forwardText = (text: string) => {
+    const bot = state?.botUsername;
+    const target = bot
+      ? buildMiniAppLink(bot, buildStartParam(topic))
+      : window.location.href.split("#")[0];
     const url = `https://t.me/share/url?url=${encodeURIComponent(
-      window.location.href.split("#")[0],
+      target,
     )}&text=${encodeURIComponent(text || "")}`;
     const tg = (
       window as unknown as {

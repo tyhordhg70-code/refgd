@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import CommunityChat from "../CommunityChat";
 import NotificationSettings from "../NotificationSettings";
 import { ADMIN_TG, ensureTelegramReady } from "../useCommunityChat";
+import { parseStartParam, readStartParam } from "./deeplink";
 import { IconBell, IconChat, IconClose } from "./TgIcons";
 import MiddleHeader from "./MiddleHeader";
 import SearchHeader from "./SearchHeader";
@@ -183,8 +184,17 @@ export default function TelegramApp({
   useEffect(() => {
     let cancelled = false;
     void ensureTelegramReady().then((inside) => {
-      if (inside && !cancelled) {
-        setInTg(true);
+      if (cancelled) return;
+      if (inside) setInTg(true);
+      // Launch deep link: a `?startapp=m_<topic>_<id>` (from Copy Link /
+      // Forward) opens the Mini App straight into that topic; the message id is
+      // handed to CommunityChat via the `#msg-<id>` hash it already scrolls to.
+      const target = parseStartParam(readStartParam());
+      if (target) {
+        setActive(target.topic);
+        if (target.messageId) {
+          window.history.replaceState(null, "", `#msg-${target.messageId}`);
+        }
       }
     });
     return () => {
