@@ -9,6 +9,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import NotificationSettings from "./NotificationSettings";
 import AdminPanel from "./AdminPanel";
 import MiddleHeader from "./tg/MiddleHeader";
@@ -233,6 +234,26 @@ export default function CommunityChat({
       ),
     });
   }, [ctxMenu]);
+  // #MiddleColumn carries Telegram's slide-transition `transform`, which makes
+  // it the containing block for every position:fixed descendant. On desktop
+  // that pane is translated ~33.5rem to the right, so a "centered" toast lands
+  // off to the side and the pointer-positioned context menu opens off-screen
+  // (its Pin/Reply items then unreachable → pin/right-click "do nothing").
+  // Portal these overlays to a node under .tg-html — it inherits the theme CSS
+  // vars but sits OUTSIDE the transformed column, so `position: fixed` resolves
+  // against the real viewport again.
+  const [overlayEl, setOverlayEl] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const host =
+      document.querySelector<HTMLElement>(".tg-html") ?? document.body;
+    const el = document.createElement("div");
+    el.className = "tg-overlay-root";
+    host.appendChild(el);
+    setOverlayEl(el);
+    return () => {
+      el.remove();
+    };
+  }, []);
   const [emojiOpen, setEmojiOpen] = useState(false);
   // Message id whose reaction picker (full emoji set) is open, opened from the
   // context-menu reaction row's "show more" chevron. null = closed.
@@ -880,8 +901,10 @@ export default function CommunityChat({
         </div>
       )}
 
-      {editPost && (
-        <div
+      {editPost &&
+        overlayEl &&
+        createPortal(
+          <div
           className="tg-modal-backdrop"
           onClick={() => (editSaving ? undefined : setEditPost(null))}
         >
@@ -934,14 +957,17 @@ export default function CommunityChat({
               </div>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+          overlayEl,
+        )}
 
       {/* Web A message context menu — Reply/Copy for members, moderation for
           admins. Admin items ride the slash-command pipeline (/pin /del /ban)
           so server-side auth + audit apply exactly as if typed. */}
-      {ctxMenu && (
-        <>
+      {ctxMenu &&
+        overlayEl &&
+        createPortal(
+          <>
           <button
             type="button"
             className="tg-menu-backdrop"
@@ -1204,11 +1230,14 @@ export default function CommunityChat({
               </>
             )}
           </div>
-        </>
-      )}
+        </>,
+          overlayEl,
+        )}
 
-      {forwardTarget && (
-        <>
+      {forwardTarget &&
+        overlayEl &&
+        createPortal(
+          <>
           <button
             type="button"
             className="tg-menu-backdrop"
@@ -1233,8 +1262,9 @@ export default function CommunityChat({
               </button>
             ))}
           </div>
-        </>
-      )}
+        </>,
+          overlayEl,
+        )}
 
       <div className="Transition">
         <div className="Transition_slide Transition_slide-active">
@@ -1716,16 +1746,19 @@ export default function CommunityChat({
         </div>
       )}
 
-      {toast && (
-        <div
+      {toast &&
+        overlayEl &&
+        createPortal(
+          <div
           key={toast.n}
           className="tg-toast"
           role="status"
           aria-live="polite"
         >
           {toast.msg}
-        </div>
-      )}
+        </div>,
+          overlayEl,
+        )}
     </>
   );
 }
