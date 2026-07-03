@@ -96,10 +96,24 @@ declare global {
   var _communityBotUsername: string | undefined;
 }
 
+/**
+ * A Telegram bot @username is letters/digits/underscore and MUST end in "bot"
+ * (case-insensitive). We only need this as a sanity gate: a mistyped or
+ * placeholder COMMUNITY_BOT_USERNAME mints a `t.me/<bad>?startapp=…` link that
+ * Telegram rejects as BOT_INVALID, so on a bad value we ignore it and let getMe
+ * resolve the token's real bot instead. A slightly-too-strict regex is safe —
+ * the worst case is falling through to the authoritative getMe.
+ */
+const BOT_USERNAME_RE = /^[A-Za-z0-9_]{4,31}bot$/i;
+
 /** Resolve the community bot's @username (for t.me deep links). Cached. */
 export async function getCommunityBotUsername(): Promise<string | null> {
-  if (process.env.COMMUNITY_BOT_USERNAME) {
-    return process.env.COMMUNITY_BOT_USERNAME.replace(/^@/, "");
+  // A configured username still wins (precedence unchanged) — but ONLY when it
+  // is actually a valid bot handle. An invalid value falls through to getMe so
+  // a broken deep link never ships.
+  const configured = process.env.COMMUNITY_BOT_USERNAME?.replace(/^@/, "").trim();
+  if (configured && BOT_USERNAME_RE.test(configured)) {
+    return configured;
   }
   if (global._communityBotUsername) return global._communityBotUsername;
   const token = communityBotToken();
