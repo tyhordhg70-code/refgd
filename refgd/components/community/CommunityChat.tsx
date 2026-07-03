@@ -100,6 +100,32 @@ const LIST_STYLE = {
 
 const MAX_LEN = 2000;
 
+// Forwarded messages carry their origin inline as a leading [fwd:NAME] token so
+// no schema/DB change is needed: the origin name is parsed back out at render
+// time and shown as a Telegram-style "Forwarded from" banner (see MessageBubble).
+const FWD_RE = /^\[fwd:([^\]\n]{1,64})\]\n?/;
+function parseForward(body: string): { name: string | null; rest: string } {
+  const m = FWD_RE.exec(body);
+  if (!m) return { name: null, rest: body };
+  return { name: m[1].trim(), rest: body.slice(m[0].length) };
+}
+function buildForwardBody(origin: string, body: string): string {
+  const clean = origin.replace(/[\]\n]/g, "").trim().slice(0, 64) || "a member";
+  const token = `[fwd:${clean}]\n`;
+  return (
+    token + (body ?? "").trim().slice(0, Math.max(0, MAX_LEN - token.length))
+  );
+}
+
+// Admin-only "forward to section" destinations (the postable forum topics). A
+// regular member never sees the Forward action at all.
+const FORWARD_TARGETS: { topic: ChatTopic; title: string }[] = [
+  { topic: "chat", title: "Group Chat" },
+  { topic: "announcements", title: "Announcements" },
+  { topic: "buy4u", title: "BUY4U Vouches" },
+  { topic: "testimonials", title: "Client Testimonials" },
+];
+
 const FS_PROMPT_KEY = "rg_fs_prompted";
 const FS_PREF_KEY = "rg_fs_pref";
 const NOTIF_PROMPT_KEY = "rg_notif_prompted";
@@ -164,6 +190,13 @@ export default function CommunityChat({
   const [ctxMenu, setCtxMenu] = useState<
     | { kind: "chat"; m: ChatMessage; x: number; y: number }
     | { kind: "readonly"; id: string; text: string; x: number; y: number }
+    | null
+  >(null);
+  // Admin forward flow: when set, a destination-section picker is shown. The
+  // payload is a live message or a read-only history post (text + its origin).
+  const [forwardTarget, setForwardTarget] = useState<
+    | { kind: "msg"; m: ChatMessage }
+    | { kind: "text"; origin: string; text: string }
     | null
   >(null);
   // Measured + clamped position of the open context menu. It renders hidden for
@@ -289,24 +322,27 @@ export default function CommunityChat({
       : `${window.location.href.split("#")[0]}#msg-${m.id}`;
     void navigator.clipboard?.writeText(link).catch(() => undefined);
   };
-  // Forward = REPOST into the group chat (Telegram "forward to this chat"), not
-  // an external share sheet. We post a fresh message to the `chat` topic with a
-  // "Forwarded from …" header; a photo is re-uploaded so the image forwards
-  // too, and the completion toast reports success/failure. It always lands in
-  // the group so it works from every section's menu.
+  // Forward = REPOST into a chosen section (Telegram "forward to this chat"),
+  // ADMIN ONLY. The picker chooses the destination topic; we post a fresh
+  // message there carrying a [fwd:origin] token so it renders with a
+  // "Forwarded from …" banner. A photo is re-uploaded so the image forwards
+  // too, and the completion toast reports the destination + success/failure.
   const postForward = (
-    caption: string,
+    body: string,
+    dest: { topic: ChatTopic; title: string },
     photo?: { blob: Blob; name: string },
   ) => {
     const finish = (data: { ok?: boolean; error?: string } | null) =>
       showToast(
-        data?.ok ? "Forwarded to group" : data?.error || "Couldn't forward",
+        data?.ok
+          ? `Forwarded to ${dest.title}`
+          : data?.error || "Couldn't forward",
       );
     if (photo) {
       const form = new FormData();
       form.append("photo", photo.blob, photo.name);
-      form.append("text", caption);
-      form.append("topic", "chat");
+      form.append("text", body);
+      form.append("topic", dest.topic);
       void fetch("/api/community/chat", { method: "POST", body: form })
         .then((r) => r.json().catch(() => null))
         .then(finish)
@@ -316,45 +352,43 @@ export default function CommunityChat({
     void fetch("/api/community/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: caption, topic: "chat" }),
+      body: JSON.stringify({ text: body, topic: dest.topic }),
     })
       .then((r) => r.json().catch(() => null))
       .then(finish)
       .catch(() => finish(null));
   };
-  const forwardMessage = (m: ChatMessage) => {
-    const caption = [
-      `Forwarded from ${m.authorName || "a member"}`,
-      m.body?.trim(),
-    ]
-      .filter(Boolean)
-      .join("\n")
-      .slice(0, MAX_LEN);
+  // Run the forward once the admin has picked a destination section. A
+  // re-forward preserves the ORIGINAL author (keeps any existing [fwd:] token)
+  // and re-uploads any attached photo.
+  const runForward = (
+    target: NonNullable<typeof forwardTarget>,
+    dest: { topic: ChatTopic; title: string },
+  ) => {
+    setForwardTarget(null);
+    if (target.kind === "text") {
+      postForward(buildForwardBody(target.origin, target.text), dest);
+      return;
+    }
+    const m = target.m;
+    const src = parseForward(m.body ?? "");
+    const origin = src.name || m.authorName || "a member";
+    const body = buildForwardBody(origin, src.rest);
     if (m.mediaId) {
       const id = m.mediaId;
       void (async () => {
         try {
           const res = await fetch(mediaUrl(id));
           const blob = await res.blob();
-          postForward(caption, { blob, name: `photo-${id}.jpg` });
+          postForward(body, dest, { blob, name: `photo-${id}.jpg` });
         } catch {
           // Fall back to a text-only repost if the photo can't be fetched.
-          postForward(caption || "📷 Photo");
+          postForward(body || buildForwardBody(origin, "📷 Photo"), dest);
         }
       })();
       return;
     }
-    postForward(caption);
-  };
-  // Forward a read-only history bubble (a vouch / announcement / readme post):
-  // there is no live message id, so we repost its text into the group chat
-  // attributed to the section it came from.
-  const forwardText = (text: string) => {
-    const caption = [`Forwarded from ${title}`, text?.trim()]
-      .filter(Boolean)
-      .join("\n")
-      .slice(0, MAX_LEN);
-    postForward(caption);
+    postForward(body, dest);
   };
   // Open the reduced context menu for a read-only history bubble.
   const openReadonlyMenu = (
@@ -716,7 +750,8 @@ export default function CommunityChat({
                   : "Pinned message"}
               </span>
               <span className="tg-pinned-text">
-                {pinnedBannerMsg.body?.trim() || "Photo"}
+                {parseForward(pinnedBannerMsg.body ?? "").rest.trim() ||
+                  "Photo"}
               </span>
             </span>
           </button>
@@ -999,7 +1034,9 @@ export default function CommunityChat({
                     className="tg-menu-item"
                     onClick={() => {
                       void navigator.clipboard
-                        ?.writeText(ctxMenu.m.body)
+                        ?.writeText(
+                          parseForward(ctxMenu.m.body).rest || ctxMenu.m.body,
+                        )
                         .catch(() => undefined);
                       showToast("Text copied");
                       setCtxMenu(null);
@@ -1072,17 +1109,20 @@ export default function CommunityChat({
                     Download
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="tg-menu-item"
-                  onClick={() => {
-                    forwardMessage(ctxMenu.m);
-                    setCtxMenu(null);
-                  }}
-                >
-                  <IconForward />
-                  Forward
-                </button>
+                {me?.admin && (
+                  <button
+                    type="button"
+                    className="tg-menu-item"
+                    onClick={() => {
+                      const m = ctxMenu.m;
+                      setCtxMenu(null);
+                      setForwardTarget({ kind: "msg", m });
+                    }}
+                  >
+                    <IconForward />
+                    Forward
+                  </button>
+                )}
                 {me?.admin && (
                   <button
                     type="button"
@@ -1147,19 +1187,51 @@ export default function CommunityChat({
                   <IconCopy />
                   Copy Text
                 </button>
-                <button
-                  type="button"
-                  className="tg-menu-item"
-                  onClick={() => {
-                    forwardText(ctxMenu.text);
-                    setCtxMenu(null);
-                  }}
-                >
-                  <IconForward />
-                  Forward
-                </button>
+                {me?.admin && (
+                  <button
+                    type="button"
+                    className="tg-menu-item"
+                    onClick={() => {
+                      const text = ctxMenu.text;
+                      setCtxMenu(null);
+                      setForwardTarget({ kind: "text", origin: title, text });
+                    }}
+                  >
+                    <IconForward />
+                    Forward
+                  </button>
+                )}
               </>
             )}
+          </div>
+        </>
+      )}
+
+      {forwardTarget && (
+        <>
+          <button
+            type="button"
+            className="tg-menu-backdrop"
+            onClick={() => setForwardTarget(null)}
+            aria-label="Close forward menu"
+          />
+          <div
+            className="tg-menu tg-forward-picker"
+            role="menu"
+            aria-label="Forward to section"
+          >
+            <div className="tg-forward-picker-title">Forward to…</div>
+            {FORWARD_TARGETS.map((dest) => (
+              <button
+                key={dest.topic}
+                type="button"
+                className="tg-menu-item"
+                onClick={() => runForward(forwardTarget, dest)}
+              >
+                <IconForward />
+                {dest.title}
+              </button>
+            ))}
           </div>
         </>
       )}
@@ -1243,6 +1315,7 @@ export default function CommunityChat({
                               const first = i === 0;
                               const last = i === run.length - 1;
                               const peer = peerIdx(m.authorName);
+                              const fwd = parseForward(m.body ?? "");
                               return (
                                 <MessageBubble
                                   key={m.id}
@@ -1273,7 +1346,7 @@ export default function CommunityChat({
                                   pinned={m.pinned}
                                   reply={m.reply}
                                   body={
-                                    m.body ? renderBody(m.body) : undefined
+                                    fwd.rest ? renderBody(fwd.rest) : undefined
                                   }
                                   media={
                                     m.mediaId
@@ -1299,6 +1372,7 @@ export default function CommunityChat({
                                     })
                                   }
                                   onReplyClick={scrollToMessage}
+                                  forward={fwd.name ? { name: fwd.name } : null}
                                 />
                               );
                             })}

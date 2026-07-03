@@ -190,7 +190,14 @@ export async function POST(req: Request) {
 
   const topic: ChatTopic = isChatTopic(payload.topic) ? payload.topic : "chat";
 
-  const text = typeof payload.text === "string" ? payload.text.trim() : "";
+  let text = typeof payload.text === "string" ? payload.text.trim() : "";
+  // Only admins may create "Forwarded from …" banners. A regular member could
+  // otherwise type a literal [fwd:NAME] token in the composer and spoof an
+  // authentic forward header (impersonating admins/members), so strip any
+  // leading forward token(s) from non-admin posts before storing.
+  if (!me.admin) {
+    text = text.replace(/^(?:\[fwd:[^\]\n]{1,64}\]\n?)+/, "").trim();
+  }
   // A photo may go out caption-less; a plain message still needs text.
   if (!text && !photo) {
     return NextResponse.json(

@@ -2,7 +2,8 @@
 
 import { useRef, type CSSProperties, type ReactNode } from "react";
 import Appendix from "./Appendix";
-import { emojiSrc, initials } from "./format";
+import { IconForward } from "./TgIcons";
+import { emojiSrc, initials, peerIdx } from "./format";
 
 /** Autoplay a member's animated (mp4/webm) avatar reliably. React does not emit
  * the `muted` attribute during SSR, which can block autoplay until hydration; a
@@ -59,6 +60,7 @@ export default function MessageBubble({
   onOpenMedia,
   mid,
   edited,
+  forward,
 }: {
   own: boolean;
   /** First message of its author run (adds first-in-group). */
@@ -92,6 +94,11 @@ export default function MessageBubble({
   mid?: string;
   /** Shows the Web A "edited" marker before the timestamp. */
   edited?: boolean;
+  /**
+   * When set, renders a Telegram Web A "Forwarded from <name>" title banner
+   * (share icon + label + colored micro-avatar + origin name) above the body.
+   */
+  forward?: { name: string } | null;
 }) {
   const pressTimer = useRef<number | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
@@ -107,7 +114,7 @@ export default function MessageBubble({
   const mediaList = media ?? [];
   const hasBody = Boolean(body);
   const hasReactions = Boolean(reactions && reactions.length > 0);
-  const mediaFlush = mediaList.length > 0 && !sender && !reply;
+  const mediaFlush = mediaList.length > 0 && !sender && !reply && !forward;
   const mediaOnly = mediaList.length > 0 && !hasBody && !hasReactions;
   const isFirst = first ?? Boolean(sender) ?? true;
   const isLast = last ?? hasAppendix;
@@ -251,7 +258,34 @@ export default function MessageBubble({
       <div className="message-content-wrapper can-select-text">
         <div className={contentCls} dir="auto">
           <div className="content-inner" dir="auto">
-            {sender && !own && (
+            {forward && (
+              <div className="message-title tg-forward-title" dir="ltr">
+                <span className="message-title-name-container interactive">
+                  <span className="forward-title-container">
+                    <span className="tg-forward-icon" aria-hidden>
+                      <IconForward />
+                    </span>
+                    <span className="forward-title">Forwarded from</span>
+                  </span>
+                  <span className="message-title-name">
+                    <span
+                      className={`Avatar forward-avatar size-micro no-photo tg-bg-peer-${peerIdx(
+                        forward.name,
+                      )}`}
+                      aria-hidden
+                    >
+                      <span className="letters">{initials(forward.name)}</span>
+                    </span>
+                    <span
+                      className={`sender-title tg-peer-${peerIdx(forward.name)}`}
+                    >
+                      {forward.name}
+                    </span>
+                  </span>
+                </span>
+              </div>
+            )}
+            {sender && !own && !forward && (
               <div className="message-title" dir="ltr">
                 <span className="message-title-name-container">
                   <span
