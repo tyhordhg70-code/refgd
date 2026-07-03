@@ -47,6 +47,7 @@ import {
   type ChatMessage,
 } from "./useCommunityChat";
 import type { ChatTopic } from "@/lib/community";
+import { COMMAND_SPECS } from "@/lib/community-commands";
 import {
   CHAT_NOTICE_SEED_BODY,
   CHAT_NOTICE_SEED_TIME,
@@ -303,6 +304,21 @@ export default function CommunityChat({
   // keep the contenteditable + caret in sync.
   const insertAtComposer = (snippet: string) => {
     const next = (chat.text + snippet).slice(0, MAX_LEN);
+    chat.setText(next);
+    const el = inputRef.current;
+    if (el) {
+      el.innerText = next;
+      el.focus();
+      const sel = window.getSelection();
+      sel?.selectAllChildren(el);
+      sel?.collapseToEnd();
+    }
+  };
+
+  // Replace the composer text with a chosen slash command (+ trailing space)
+  // and drop the caret at the end so the admin can type its argument.
+  const applyCommand = (cmd: string) => {
+    const next = `/${cmd} `;
     chat.setText(next);
     const el = inputRef.current;
     if (el) {
@@ -1114,11 +1130,6 @@ export default function CommunityChat({
                   </button>
                 </div>
               )}
-              {me.admin && chat.text.trim().startsWith("/") && (
-                <p className="tg-composer-hint">
-                  Command mode — try /help for the full list.
-                </p>
-              )}
               {chat.attachment && (
                 <div className="tg-attach-preview">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1153,6 +1164,41 @@ export default function CommunityChat({
                   </select>
                 </div>
               )}
+              {(() => {
+                const t = chat.text.trim();
+                const m = t.match(/^\/(\w*)$/);
+                if (!m) return null;
+                const partial = m[1].toLowerCase();
+                const matches = COMMAND_SPECS.filter(
+                  (c) => (me.admin || !c.admin) && c.cmd.startsWith(partial),
+                );
+                if (matches.length === 0) return null;
+                return (
+                  <div
+                    className="tg-command-list"
+                    role="listbox"
+                    aria-label="Commands"
+                  >
+                    {matches.map((c) => (
+                      <button
+                        key={c.cmd}
+                        type="button"
+                        role="option"
+                        className="tg-command-item"
+                        onClick={() => applyCommand(c.cmd)}
+                      >
+                        <span className="tg-command-main">
+                          <span className="tg-command-name">/{c.cmd}</span>
+                          {c.args ? (
+                            <span className="tg-command-args">{c.args}</span>
+                          ) : null}
+                        </span>
+                        <span className="tg-command-desc">{c.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
               <div className="message-input-wrapper">
                 <button
                   type="button"
