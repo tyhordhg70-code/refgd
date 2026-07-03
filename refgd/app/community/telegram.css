@@ -1572,32 +1572,54 @@ button.tg-reply-embed:focus-visible {
   color: var(--color-accent-own, var(--color-primary));
 }
 
-/* Centered transient toast (e.g. "Message deleted"). */
+/* Center-screen transient toast shown on every message action; it fades in,
+   holds, then fades away on its own (the 2.5s animation matches the JS dismiss
+   timer, and a changing React key restarts it on each action). */
 .tg-toast {
   position: fixed;
   left: 50%;
-  bottom: 5rem;
-  transform: translateX(-50%);
+  top: 50%;
+  transform: translate(-50%, -50%);
   z-index: 1100;
   max-width: 80%;
   padding: 0.5rem 1rem;
   border-radius: 1rem;
-  background: rgb(0 0 0 / 0.8);
+  background: rgb(0 0 0 / 0.85);
   color: #fff;
   font-size: 0.875rem;
   line-height: 1.25rem;
   text-align: center;
   pointer-events: none;
-  animation: tg-toast-in 0.18s ease-out;
+  animation: tg-toast 2.5s ease both;
 }
-@keyframes tg-toast-in {
-  from {
+@keyframes tg-toast {
+  0% {
     opacity: 0;
-    transform: translate(-50%, 0.5rem);
+    transform: translate(-50%, calc(-50% + 0.5rem));
   }
-  to {
+  12% {
     opacity: 1;
-    transform: translate(-50%, 0);
+    transform: translate(-50%, -50%);
+  }
+  82% {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% - 0.25rem));
+  }
+}
+
+/* Touch long-press must open the message context menu instead of triggering the
+   native text-selection callout. Scoped to coarse pointers so desktop text
+   selection (which the owner also tests) is untouched. Applies to every section
+   because all feeds render .Message bubbles. */
+@media (pointer: coarse) {
+  .Message.message-list-item {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
 }
 .tg-lightbox {

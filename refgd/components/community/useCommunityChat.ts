@@ -743,7 +743,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
   // Pin / Delete / Ban) without touching the composer. Rides the exact same
   // POST pipeline as a typed command, so server-side auth and auditing apply.
   const sendCommand = useCallback(
-    async (cmd: string, replyToId?: string | null) => {
+    async (cmd: string, replyToId?: string | null): Promise<boolean> => {
       setSystemNote(null);
       try {
         const res = await fetch("/api/community/chat", {
@@ -763,13 +763,33 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
         };
         if (typeof data.system === "string" && data.system) {
           setSystemNote(data.system);
-          return;
+          return false;
         }
         if (!res.ok || !data.ok) {
           setError(data.error ?? "Couldn't run that action");
+          return false;
         }
+        // Optimistically reflect a pin/unpin: the pinned flag (and the pinned
+        // banner + pinned-only panel that derive from it) otherwise only
+        // update on the slow full refresh, so the action looked like it did
+        // nothing.
+        if (replyToId && (cmd === "/pin" || cmd === "/unpin")) {
+          const pinned = cmd === "/pin";
+          setState((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  messages: prev.messages.map((m) =>
+                    m.id === replyToId ? { ...m, pinned } : m,
+                  ),
+                }
+              : prev,
+          );
+        }
+        return true;
       } catch {
         setError("Couldn't run that action");
+        return false;
       }
     },
     [topic],

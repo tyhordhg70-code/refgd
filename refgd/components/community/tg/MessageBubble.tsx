@@ -94,6 +94,10 @@ export default function MessageBubble({
   edited?: boolean;
 }) {
   const pressTimer = useRef<number | null>(null);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+  // Set true when a long-press has opened the context menu, so the synthetic
+  // click that follows touchend does not ALSO fire (e.g. open the photo).
+  const menuFired = useRef(false);
   const clearPress = () => {
     if (pressTimer.current !== null) {
       window.clearTimeout(pressTimer.current);
@@ -184,15 +188,28 @@ export default function MessageBubble({
               const t = e.touches[0];
               if (!t) return;
               const pos = { x: t.clientX, y: t.clientY };
+              pressStart.current = pos;
+              menuFired.current = false;
               clearPress();
-              pressTimer.current = window.setTimeout(
-                () => onOpenMenu(pos),
-                450,
-              );
+              pressTimer.current = window.setTimeout(() => {
+                menuFired.current = true;
+                onOpenMenu(pos);
+              }, 450);
             }
           : undefined
       }
-      onTouchMove={onOpenMenu ? clearPress : undefined}
+      onTouchMove={
+        onOpenMenu
+          ? (e) => {
+              const t = e.touches[0];
+              const s = pressStart.current;
+              // Only cancel the long-press on a real drag (>10px) so a tiny
+              // finger wobble no longer eats the menu on others' messages.
+              if (t && s && Math.hypot(t.clientX - s.x, t.clientY - s.y) > 10)
+                clearPress();
+            }
+          : undefined
+      }
       onTouchEnd={onOpenMenu ? clearPress : undefined}
       onTouchCancel={onOpenMenu ? clearPress : undefined}
     >
@@ -287,7 +304,18 @@ export default function MessageBubble({
                     loading="lazy"
                     className={onOpenMedia ? "tg-media-clickable" : undefined}
                     onClick={
-                      onOpenMedia ? () => onOpenMedia(src) : undefined
+                      onOpenMedia
+                        ? () => {
+                            // Long-press opened the menu → swallow the
+                            // follow-up synthetic click so the lightbox does
+                            // not also open on top of it.
+                            if (menuFired.current) {
+                              menuFired.current = false;
+                              return;
+                            }
+                            onOpenMedia(src);
+                          }
+                        : undefined
                     }
                   />
                 ))}

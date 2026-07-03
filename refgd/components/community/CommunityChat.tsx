@@ -191,11 +191,15 @@ export default function CommunityChat({
   const [reactTarget, setReactTarget] = useState<string | null>(null);
   // Fullscreen photo viewer (click a message photo to expand it).
   const [lightbox, setLightbox] = useState<string | null>(null);
-  // Centered transient toast (e.g. "Message deleted"), auto-fades after 2.5s.
-  const [toast, setToast] = useState<string | null>(null);
+  // Center-screen transient toast shown after every message action; the nonce
+  // is used as the element key so the fade animation restarts on each action
+  // (even when the same text is shown twice in a row).
+  const [toast, setToast] = useState<{ msg: string; n: number } | null>(null);
+  const toastNonce = useRef(0);
   const toastTimerRef = useRef<number | null>(null);
   const showToast = (msg: string) => {
-    setToast(msg);
+    toastNonce.current += 1;
+    setToast({ msg, n: toastNonce.current });
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     toastTimerRef.current = window.setTimeout(() => setToast(null), 2500);
   };
@@ -258,7 +262,7 @@ export default function CommunityChat({
     a.click();
     a.remove();
   };
-  // Copy Link / Forward target the Telegram Mini App (this replica is only ever
+  // Copy Message Link targets the Telegram Mini App (this replica is only ever
   // opened inside Telegram, never on the web): a `t.me/<bot>?startapp=…` deep
   // link re-opens the app on this topic and scrolls to the message. The
   // website-hash fallback only fires when the bot username is unknown (i.e.
@@ -270,40 +274,72 @@ export default function CommunityChat({
       : `${window.location.href.split("#")[0]}#msg-${m.id}`;
     void navigator.clipboard?.writeText(link).catch(() => undefined);
   };
-  const forwardMessage = (m: ChatMessage) => {
-    const bot = state?.botUsername;
-    const target = bot
-      ? buildMiniAppLink(bot, buildStartParam(topic, m.id))
-      : `${window.location.href.split("#")[0]}#msg-${m.id}`;
-    const url = `https://t.me/share/url?url=${encodeURIComponent(
-      target,
-    )}&text=${encodeURIComponent(m.body || "Photo")}`;
-    const tg = (
-      window as unknown as {
-        Telegram?: { WebApp?: { openTelegramLink?: (u: string) => void } };
-      }
-    ).Telegram?.WebApp;
-    if (tg?.openTelegramLink) tg.openTelegramLink(url);
-    else window.open(url, "_blank", "noopener");
+  // Forward = REPOST into the group chat (Telegram "forward to this chat"), not
+  // an external share sheet. We post a fresh message to the `chat` topic with a
+  // "Forwarded from …" header; a photo is re-uploaded so the image forwards
+  // too, and the completion toast reports success/failure. It always lands in
+  // the group so it works from every section's menu.
+  const postForward = (
+    caption: string,
+    photo?: { blob: Blob; name: string },
+  ) => {
+    const finish = (data: { ok?: boolean; error?: string } | null) =>
+      showToast(
+        data?.ok ? "Forwarded to group" : data?.error || "Couldn't forward",
+      );
+    if (photo) {
+      const form = new FormData();
+      form.append("photo", photo.blob, photo.name);
+      form.append("text", caption);
+      form.append("topic", "chat");
+      void fetch("/api/community/chat", { method: "POST", body: form })
+        .then((r) => r.json().catch(() => null))
+        .then(finish)
+        .catch(() => finish(null));
+      return;
+    }
+    void fetch("/api/community/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: caption, topic: "chat" }),
+    })
+      .then((r) => r.json().catch(() => null))
+      .then(finish)
+      .catch(() => finish(null));
   };
-  // Forward a read-only history bubble (a vouch): there is no live message id,
-  // so the deep link targets this section (re-opens the Mini App on this topic)
-  // and the bubble's text rides along as the share caption.
+  const forwardMessage = (m: ChatMessage) => {
+    const caption = [
+      `Forwarded from ${m.authorName || "a member"}`,
+      m.body?.trim(),
+    ]
+      .filter(Boolean)
+      .join("\n")
+      .slice(0, MAX_LEN);
+    if (m.mediaId) {
+      const id = m.mediaId;
+      void (async () => {
+        try {
+          const res = await fetch(mediaUrl(id));
+          const blob = await res.blob();
+          postForward(caption, { blob, name: `photo-${id}.jpg` });
+        } catch {
+          // Fall back to a text-only repost if the photo can't be fetched.
+          postForward(caption || "📷 Photo");
+        }
+      })();
+      return;
+    }
+    postForward(caption);
+  };
+  // Forward a read-only history bubble (a vouch / announcement / readme post):
+  // there is no live message id, so we repost its text into the group chat
+  // attributed to the section it came from.
   const forwardText = (text: string) => {
-    const bot = state?.botUsername;
-    const target = bot
-      ? buildMiniAppLink(bot, buildStartParam(topic))
-      : window.location.href.split("#")[0];
-    const url = `https://t.me/share/url?url=${encodeURIComponent(
-      target,
-    )}&text=${encodeURIComponent(text || "")}`;
-    const tg = (
-      window as unknown as {
-        Telegram?: { WebApp?: { openTelegramLink?: (u: string) => void } };
-      }
-    ).Telegram?.WebApp;
-    if (tg?.openTelegramLink) tg.openTelegramLink(url);
-    else window.open(url, "_blank", "noopener");
+    const caption = [`Forwarded from ${title}`, text?.trim()]
+      .filter(Boolean)
+      .join("\n")
+      .slice(0, MAX_LEN);
+    postForward(caption);
   };
   // Open the reduced context menu for a read-only history bubble.
   const openReadonlyMenu = (pos: { x: number; y: number }, text: string) =>
@@ -791,6 +827,7 @@ export default function CommunityChat({
                       className="tg-ctx-reaction"
                       onClick={() => {
                         void chat.react(ctxMenu.m.id, e);
+                        showToast("Reaction added");
                         setCtxMenu(null);
                       }}
                     >
@@ -824,6 +861,7 @@ export default function CommunityChat({
                       authorName: ctxMenu.m.authorName,
                       body: ctxMenu.m.body,
                     });
+                    showToast("Replying to message");
                     setCtxMenu(null);
                   }}
                 >
@@ -837,6 +875,7 @@ export default function CommunityChat({
                     onClick={() => {
                       const id = ctxMenu.m.mediaId;
                       if (id) void copyImage(id);
+                      showToast("Image copied");
                       setCtxMenu(null);
                     }}
                   >
@@ -852,6 +891,7 @@ export default function CommunityChat({
                       void navigator.clipboard
                         ?.writeText(ctxMenu.m.body)
                         .catch(() => undefined);
+                      showToast("Text copied");
                       setCtxMenu(null);
                     }}
                   >
@@ -865,6 +905,7 @@ export default function CommunityChat({
                     className="tg-menu-item"
                     onClick={() => {
                       chat.beginEdit(ctxMenu.m);
+                      showToast("Editing message");
                       setCtxMenu(null);
                     }}
                   >
@@ -877,6 +918,7 @@ export default function CommunityChat({
                   className="tg-menu-item"
                   onClick={() => {
                     copyMessageLink(ctxMenu.m);
+                    showToast("Link copied");
                     setCtxMenu(null);
                   }}
                 >
@@ -888,11 +930,17 @@ export default function CommunityChat({
                     type="button"
                     className="tg-menu-item"
                     onClick={() => {
-                      void chat.sendCommand(
-                        ctxMenu.m.pinned ? "/unpin" : "/pin",
-                        ctxMenu.m.id,
-                      );
+                      const willPin = !ctxMenu.m.pinned;
+                      const id = ctxMenu.m.id;
                       setCtxMenu(null);
+                      void chat
+                        .sendCommand(willPin ? "/pin" : "/unpin", id)
+                        .then((ok) => {
+                          if (ok)
+                            showToast(
+                              willPin ? "Message pinned" : "Message unpinned",
+                            );
+                        });
                     }}
                   >
                     <IconPin />
@@ -906,6 +954,7 @@ export default function CommunityChat({
                     onClick={() => {
                       const id = ctxMenu.m.mediaId;
                       if (id) downloadImage(id);
+                      showToast("Downloading photo");
                       setCtxMenu(null);
                     }}
                   >
@@ -947,8 +996,11 @@ export default function CommunityChat({
                       type="button"
                       className="tg-menu-item tg-menu-item-danger"
                       onClick={() => {
-                        void chat.sendCommand("/ban", ctxMenu.m.id);
+                        const id = ctxMenu.m.id;
                         setCtxMenu(null);
+                        void chat.sendCommand("/ban", id).then((ok) => {
+                          if (ok) showToast("User banned");
+                        });
                       }}
                     >
                       <IconBan />
@@ -965,6 +1017,7 @@ export default function CommunityChat({
                     void navigator.clipboard
                       ?.writeText(ctxMenu.text)
                       .catch(() => undefined);
+                    showToast("Text copied");
                     setCtxMenu(null);
                   }}
                 >
@@ -1467,8 +1520,13 @@ export default function CommunityChat({
       )}
 
       {toast && (
-        <div className="tg-toast" role="status" aria-live="polite">
-          {toast}
+        <div
+          key={toast.n}
+          className="tg-toast"
+          role="status"
+          aria-live="polite"
+        >
+          {toast.msg}
         </div>
       )}
     </>
