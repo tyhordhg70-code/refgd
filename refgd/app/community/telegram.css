@@ -835,6 +835,28 @@ button.tg-reply-embed:focus-visible {
 .tg-modal.is-wide {
   max-width: 30rem;
 }
+.tg-edit-textarea {
+  width: 100%;
+  min-height: 8rem;
+  resize: vertical;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-borders-input, rgb(0 0 0 / 0.13));
+  background: var(--color-background);
+  color: var(--color-text);
+  font: inherit;
+  line-height: 1.35;
+}
+.tg-edit-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary, #3390ec);
+}
+.tg-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
 .tg-tabs {
   display: flex;
   flex: 1;

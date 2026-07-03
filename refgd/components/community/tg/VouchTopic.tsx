@@ -53,8 +53,11 @@ export default function VouchHistory({
   onOpenMedia,
 }: {
   vouches: VouchView[];
-  /** Opens the reduced (Copy Text / Forward) context menu for a vouch. */
-  onOpenMenu?: (pos: { x: number; y: number }, text: string) => void;
+  /** Opens the reduced (Edit / Copy Text / Forward) context menu for a vouch. */
+  onOpenMenu?: (
+    pos: { x: number; y: number },
+    payload: { id: string; text: string },
+  ) => void;
   /** Opens the fullscreen media viewer for a clicked photo. */
   onOpenMedia?: (src: string) => void;
 }) {
@@ -111,7 +114,8 @@ export default function VouchHistory({
                     time={<LocalTime iso={v.createdAt} />}
                     onOpenMenu={
                       onOpenMenu
-                        ? (pos) => onOpenMenu(pos, v.body ?? "")
+                        ? (pos) =>
+                            onOpenMenu(pos, { id: v.id, text: v.body ?? "" })
                         : undefined
                     }
                     onOpenMedia={onOpenMedia}

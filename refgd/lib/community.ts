@@ -265,6 +265,24 @@ export async function updateVouchBodyIfEmpty(
 }
 
 /**
+ * Admin edit of a read-only history post body (Client Testimonials, BUY4U
+ * Vouches, Announcements). Unlike updateVouchBodyIfEmpty (an ingest-time
+ * backfill) this overwrites any existing body unconditionally. Returns true
+ * when a row was actually updated.
+ */
+export async function updateVouchBody(
+  vouchId: string,
+  body: string,
+): Promise<boolean> {
+  await initDb();
+  const { rowCount } = await getPool().query(
+    `UPDATE vouches SET body = $2 WHERE id = $1`,
+    [vouchId, body],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
+/**
  * Active ingestion section — a single global toggle the admin flips from the
  * bot (/testimonials, /buy4u, /announcements). Kept in mod_config so it
  * survives restarts and is shared across Render instances.

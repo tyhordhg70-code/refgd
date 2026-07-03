@@ -202,10 +202,18 @@ export default function TelegramApp({
     };
   }, []);
 
+  // Admin edits to read-only posts are applied client-side over the
+  // server-fetched vouches so the bubble updates instantly without a refetch
+  // (which would flicker the whole topic). Keyed by vouch id.
+  const [vouchEdits, setVouchEdits] = useState<Record<string, string>>({});
+  const applyEdits = (list: VouchView[]): VouchView[] =>
+    list.map((v) =>
+      vouchEdits[v.id] !== undefined ? { ...v, body: vouchEdits[v.id] } : v,
+    );
   const byTopic: Record<string, VouchView[]> = {
-    testimonials,
-    buy4u,
-    announcements,
+    testimonials: applyEdits(testimonials),
+    buy4u: applyEdits(buy4u),
+    announcements: applyEdits(announcements),
   };
 
   const rowMeta = (key: TopicKey): RowMeta => {
@@ -445,6 +453,9 @@ export default function TelegramApp({
         topic={active}
         title={def?.title ?? ""}
         icon={def ? <TopicIcon def={def} /> : undefined}
+        onVouchEdited={(id, body) =>
+          setVouchEdits((prev) => ({ ...prev, [id]: body }))
+        }
         history={(query, onReadonlyMenu, onOpenMedia) => {
           const q = query.trim().toLowerCase();
           const vouches = byTopic[topicKey] ?? [];

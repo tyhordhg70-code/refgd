@@ -110,6 +110,7 @@ export default function CommunityChat({
   title = "Group Chat",
   icon,
   history,
+  onVouchEdited,
 }: {
   onBack?: () => void;
   /** Which forum topic this feed reads/writes; defaults to the group chat. */
@@ -125,9 +126,17 @@ export default function CommunityChat({
     | ReactNode
     | ((
         query: string,
-        onReadonlyMenu: (pos: { x: number; y: number }, text: string) => void,
+        onReadonlyMenu: (
+          pos: { x: number; y: number },
+          payload: { id: string; text: string },
+        ) => void,
         onOpenMedia: (src: string) => void,
       ) => ReactNode);
+  /**
+   * Called after an admin edits a read-only history post so the parent can
+   * patch its cached vouch body in place (no refetch → no flicker).
+   */
+  onVouchEdited?: (id: string, body: string) => void;
 }) {
   const chat = useCommunityChat(topic);
   const isGroupChat = topic === "chat";
@@ -143,12 +152,18 @@ export default function CommunityChat({
   const [showAdmin, setShowAdmin] = useState(false);
   const [fsPrompt, setFsPrompt] = useState(false);
   const [fsRemember, setFsRemember] = useState(false);
+  // Admin edit modal for a read-only history post (vouch / announcement /
+  // testimonial): holds the target id + working text; null = closed.
+  const [editPost, setEditPost] = useState<{ id: string; body: string } | null>(
+    null,
+  );
+  const [editSaving, setEditSaving] = useState(false);
   // Web A message context menu (right-click / long-press on a bubble). The
   // "readonly" variant is used for migrated history bubbles (vouches), which
   // have no live message id and so get a reduced Copy Text / Forward menu.
   const [ctxMenu, setCtxMenu] = useState<
     | { kind: "chat"; m: ChatMessage; x: number; y: number }
-    | { kind: "readonly"; text: string; x: number; y: number }
+    | { kind: "readonly"; id: string; text: string; x: number; y: number }
     | null
   >(null);
   // Measured + clamped position of the open context menu. It renders hidden for
@@ -342,8 +357,46 @@ export default function CommunityChat({
     postForward(caption);
   };
   // Open the reduced context menu for a read-only history bubble.
-  const openReadonlyMenu = (pos: { x: number; y: number }, text: string) =>
-    setCtxMenu({ kind: "readonly", text, x: pos.x, y: pos.y });
+  const openReadonlyMenu = (
+    pos: { x: number; y: number },
+    payload: { id: string; text: string },
+  ) =>
+    setCtxMenu({
+      kind: "readonly",
+      id: payload.id,
+      text: payload.text,
+      x: pos.x,
+      y: pos.y,
+    });
+  // Persist an admin edit of a read-only history post, then patch the parent's
+  // cached body (no refetch → no flicker) and toast the result.
+  const saveEditPost = () => {
+    if (!editPost) return;
+    const id = editPost.id;
+    const body = editPost.body.trim();
+    if (!body) {
+      showToast("Post is empty");
+      return;
+    }
+    setEditSaving(true);
+    void fetch("/api/community/vouch/edit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, body }),
+    })
+      .then((r) => r.json().catch(() => null))
+      .then((data: { ok?: boolean; body?: string; error?: string } | null) => {
+        if (data?.ok) {
+          onVouchEdited?.(id, data.body ?? body);
+          setEditPost(null);
+          showToast("Post updated");
+        } else {
+          showToast(data?.error || "Couldn't update");
+        }
+      })
+      .catch(() => showToast("Couldn't update"))
+      .finally(() => setEditSaving(false));
+  };
   // Jump to a quoted message when its reply preview is tapped, briefly
   // highlighting the target the way the real client does.
   const scrollToMessage = (id: string) => {
@@ -792,6 +845,63 @@ export default function CommunityChat({
         </div>
       )}
 
+      {editPost && (
+        <div
+          className="tg-modal-backdrop"
+          onClick={() => (editSaving ? undefined : setEditPost(null))}
+        >
+          <div
+            className="tg-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Edit post"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="tg-modal-header">
+              <h3>Edit post</h3>
+              <button
+                type="button"
+                className="Button smaller translucent round"
+                aria-label="Close"
+                onClick={() => setEditPost(null)}
+                disabled={editSaving}
+              >
+                <i className="icon icon-close" aria-hidden />
+              </button>
+            </div>
+            <div className="tg-modal-body">
+              <textarea
+                className="tg-edit-textarea"
+                value={editPost.body}
+                autoFocus
+                maxLength={MAX_LEN}
+                onChange={(e) =>
+                  setEditPost((p) => (p ? { ...p, body: e.target.value } : p))
+                }
+              />
+              <div className="tg-edit-actions">
+                <button
+                  type="button"
+                  className="tg-fs-btn"
+                  onClick={() => setEditPost(null)}
+                  disabled={editSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="tg-fs-btn is-primary"
+                  onClick={saveEditPost}
+                  disabled={editSaving}
+                >
+                  {editSaving ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Web A message context menu — Reply/Copy for members, moderation for
           admins. Admin items ride the slash-command pipeline (/pin /del /ban)
           so server-side auth + audit apply exactly as if typed. */}
@@ -1010,6 +1120,19 @@ export default function CommunityChat({
               </>
             ) : (
               <>
+                {me?.admin && (
+                  <button
+                    type="button"
+                    className="tg-menu-item"
+                    onClick={() => {
+                      setEditPost({ id: ctxMenu.id, body: ctxMenu.text });
+                      setCtxMenu(null);
+                    }}
+                  >
+                    <IconEdit />
+                    Edit
+                  </button>
+                )}
                 <button
                   type="button"
                   className="tg-menu-item"
