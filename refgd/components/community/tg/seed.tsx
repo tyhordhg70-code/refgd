@@ -92,7 +92,7 @@ export const README_SEED_BODY: ReactNode = (
     everything works.
     <br />
     <br />
-    <Ce id="5416117059207572332" alt="➡️" />{" "}
+    <Em ch="🐺" />{" "}
     <a
       href="http://refundgod.io/"
       title="http://refundgod.io/"
@@ -221,7 +221,7 @@ export const ANNOUNCEMENT_SEED_BODY: ReactNode = (
     then reach out to us.
     <br />
     <br />
-    <Em ch="🐺" />{" "}
+    <Ce id="5416117059207572332" alt="➡️" />{" "}
     <a
       className="text-entity-link"
       dir="auto"
@@ -233,7 +233,7 @@ export const ANNOUNCEMENT_SEED_BODY: ReactNode = (
       <strong data-entity-type="MessageEntityBold">@refundlawfirmbot</strong>
     </a>
     <br />
-    <Em ch="🐺" />{" "}
+    <Ce id="5416117059207572332" alt="➡️" />{" "}
     <a
       className="text-entity-link"
       dir="auto"

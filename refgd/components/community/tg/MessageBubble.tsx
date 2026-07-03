@@ -20,8 +20,8 @@ function playAvatarVideo(el: HTMLVideoElement | null) {
  * .Avatar in the gutter (incoming, last-in-group), .message-content-wrapper >
  * .message-content with .content-inner (title / reply / media / .text-content
  * with the floated .MessageMeta) and the verbatim .svg-appendix tail on
- * group-closing bubbles. Reactions, hover actions and the picker keep the
- * replica's tg-* chrome inside the real structure.
+ * group-closing bubbles. Reaction pills keep the replica's tg-* chrome inside
+ * the real structure; all message actions live in the context menu.
  */
 
 export interface BubbleReaction {
@@ -54,9 +54,7 @@ export default function MessageBubble({
   ticks,
   reactions,
   onReact,
-  actions,
-  picker,
-  actionsOpen,
+  onReplyClick,
   onOpenMenu,
   onOpenMedia,
   mid,
@@ -74,18 +72,15 @@ export default function MessageBubble({
   showAvatarGutter?: boolean;
   hasAppendix: boolean;
   pinned?: boolean;
-  reply?: { authorName: string; body: string } | null;
+  reply?: { id?: string; authorName: string; body: string } | null;
   media?: string[];
   body?: ReactNode;
   time?: ReactNode;
   ticks?: boolean;
   reactions?: BubbleReaction[];
   onReact?: (emoji: string) => void;
-  /** Hover action buttons (reply / add reaction / moderation). */
-  actions?: ReactNode;
-  /** Reaction picker popover, rendered when open. */
-  picker?: ReactNode;
-  actionsOpen?: boolean;
+  /** Jump to the quoted message when its reply preview is tapped. */
+  onReplyClick?: (id: string) => void;
   /**
    * Opens the Web A message context menu at the given viewport point.
    * Wired to right-click on desktop and a ~450ms long-press on touch.
@@ -126,7 +121,6 @@ export default function MessageBubble({
     showAvatar ? "has-avatar" : "",
     "shown",
     "open",
-    actionsOpen ? "is-actions-open" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -251,14 +245,30 @@ export default function MessageBubble({
               </div>
             )}
 
-            {reply && (
-              <span className="tg-reply-embed">
-                <span className="tg-reply-sender">
-                  {reply.authorName || "message"}
+            {reply &&
+              (reply.id && onReplyClick ? (
+                <button
+                  type="button"
+                  className="tg-reply-embed"
+                  onClick={() => onReplyClick(reply.id!)}
+                >
+                  <span className="tg-reply-sender">
+                    {reply.authorName || "message"}
+                  </span>
+                  <span className="tg-reply-text">
+                    {reply.body || "message"}
+                  </span>
+                </button>
+              ) : (
+                <span className="tg-reply-embed">
+                  <span className="tg-reply-sender">
+                    {reply.authorName || "message"}
+                  </span>
+                  <span className="tg-reply-text">
+                    {reply.body || "message"}
+                  </span>
                 </span>
-                <span className="tg-reply-text">{reply.body || "message"}</span>
-              </span>
-            )}
+              ))}
 
             {mediaList.length > 0 && (
               <div className={`tg-media${mediaFlush ? "" : " is-inset"}`}>
@@ -316,9 +326,6 @@ export default function MessageBubble({
           {hasAppendix && <Appendix own={own} />}
         </div>
       </div>
-
-      {actions && <div className="tg-msg-actions">{actions}</div>}
-      {picker}
     </div>
   );
 }

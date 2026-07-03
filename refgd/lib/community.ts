@@ -676,6 +676,65 @@ export async function saveCustomEmoji(
   );
 }
 
+export interface PackEmoji {
+  id: string;
+  alt: string;
+  setName: string;
+  title: string;
+}
+
+/** Upsert a batch of discovered pack emoji (id → alt/set metadata). */
+export async function upsertPackEmoji(rows: PackEmoji[]): Promise<number> {
+  if (rows.length === 0) return 0;
+  await initDb();
+  const pool = getPool();
+  let n = 0;
+  for (const r of rows) {
+    if (!/^\d{1,32}$/.test(r.id)) continue;
+    await pool.query(
+      `INSERT INTO community_emoji_pack (id, alt, set_name, title)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET alt = EXCLUDED.alt,
+             set_name = EXCLUDED.set_name,
+             title = EXCLUDED.title`,
+      [r.id, r.alt.slice(0, 32), r.setName.slice(0, 128), r.title.slice(0, 128)],
+    );
+    n++;
+  }
+  return n;
+}
+
+/** Is this document id part of a discovered pack? (serving allowlist). */
+export async function isPackEmoji(id: string): Promise<boolean> {
+  await initDb();
+  const { rows } = await getPool().query<{ one: number }>(
+    `SELECT 1 AS one FROM community_emoji_pack WHERE id = $1`,
+    [id],
+  );
+  return rows.length > 0;
+}
+
+/** Every discovered pack emoji, ordered by pack then insert order. */
+export async function listPackEmoji(): Promise<PackEmoji[]> {
+  await initDb();
+  const { rows } = await getPool().query<{
+    id: string;
+    alt: string;
+    set_name: string;
+    title: string;
+  }>(
+    `SELECT id, alt, set_name, title FROM community_emoji_pack
+      ORDER BY title, set_name, created_at, id`,
+  );
+  return rows.map((r) => ({
+    id: String(r.id),
+    alt: r.alt,
+    setName: r.set_name,
+    title: r.title,
+  }));
+}
+
 export const CHAT_REACTION_EMOJI = [
   "👍",
   "❤️",
@@ -968,6 +1027,19 @@ export async function getMessageAuthor(
   return { tgId: String(rows[0].tg_id), authorName: rows[0].author_name };
 }
 
+/** Author name + body for a message, for building a pin announcement. */
+export async function getMessageForPin(
+  id: string,
+): Promise<{ authorName: string; body: string } | null> {
+  await initDb();
+  const { rows } = await getPool().query<{
+    author_name: string;
+    body: string | null;
+  }>(`SELECT author_name, body FROM chat_messages WHERE id = $1`, [id]);
+  if (!rows[0]) return null;
+  return { authorName: rows[0].author_name, body: rows[0].body ?? "" };
+}
+
 // ── Invite links ─────────────────────────────────────────────────────
 // Custom-named shareable links (/i/<slug>) that redirect into /community
 // and track clicks + join attribution. Slugs are admin-created.
@@ -1169,6 +1241,40 @@ export async function getTelegramSubsForCategory(
     `SELECT tg_id FROM notif_subs
       WHERE endpoint LIKE 'telegram:%' AND categories ? $1 AND tg_id IS NOT NULL`,
     [category],
+  );
+  return rows.map((r) => String(r.tg_id));
+}
+
+/**
+ * Every web-push (non-telegram) subscription, regardless of category. Used
+ * for a pin broadcast, which reaches everyone with notifications enabled.
+ */
+export async function getAllWebSubs(): Promise<NotifSub[]> {
+  await initDb();
+  const { rows } = await getPool().query<{
+    endpoint: string;
+    keys: PushKeys;
+    categories: NotifCategory[];
+  }>(
+    `SELECT endpoint, keys, categories FROM notif_subs
+      WHERE endpoint NOT LIKE 'telegram:%'`,
+  );
+  return rows.map((r) => ({
+    endpoint: r.endpoint,
+    keys: r.keys,
+    categories: r.categories ?? [],
+  }));
+}
+
+/**
+ * Every non-banned member's Telegram id (distinct). Used for a pin broadcast
+ * so the whole group is reached, not just notif opt-ins.
+ */
+export async function getAllMemberTgIds(): Promise<string[]> {
+  await initDb();
+  const { rows } = await getPool().query<{ tg_id: string }>(
+    `SELECT DISTINCT tg_id FROM chat_members
+      WHERE is_banned = FALSE AND tg_id IS NOT NULL`,
   );
   return rows.map((r) => String(r.tg_id));
 }

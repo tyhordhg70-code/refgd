@@ -14,6 +14,8 @@ import {
   deletePushSub,
   getWebSubsForCategory,
   getTelegramSubsForCategory,
+  getAllWebSubs,
+  getAllMemberTgIds,
   type NotifCategory,
   type NotifSub,
 } from "./community";
@@ -106,6 +108,37 @@ export async function notifyCategory(
   // Telegram
   try {
     const ids = await getTelegramSubsForCategory(category);
+    const text = `<b>${escapeHtml(payload.title)}</b>\n${escapeHtml(payload.body)}`;
+    await runPool(
+      ids,
+      async (id) => {
+        await sendCommunityTelegram(id, text).catch(() => undefined);
+      },
+      10,
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Broadcast a notification to the whole community — every web-push subscriber
+ * plus every non-banned member on Telegram, ignoring category opt-ins. Used
+ * for pins, which are meant to reach everyone. Best-effort; never throws.
+ */
+export async function notifyAll(payload: NotifPayload): Promise<void> {
+  // Web push
+  if (ensureVapid()) {
+    try {
+      const subs = await getAllWebSubs();
+      await runPool(subs, (s) => pushOne(s, payload));
+    } catch {
+      /* ignore */
+    }
+  }
+  // Telegram
+  try {
+    const ids = await getAllMemberTgIds();
     const text = `<b>${escapeHtml(payload.title)}</b>\n${escapeHtml(payload.body)}`;
     await runPool(
       ids,

@@ -216,6 +216,79 @@ export async function downloadTelegramFile(
   }
 }
 
+export interface TgSticker {
+  custom_emoji_id?: string;
+  emoji?: string;
+  set_name?: string;
+  is_animated?: boolean;
+  is_video?: boolean;
+}
+
+/**
+ * Resolve custom-emoji document ids → their sticker objects (which carry the
+ * owning `set_name` and the plain-emoji `emoji` alt). Used by discovery to
+ * learn which packs the seed ids belong to. Returns [] on any failure.
+ */
+export async function getCustomEmojiStickers(
+  ids: string[],
+): Promise<TgSticker[]> {
+  const token = communityBotToken();
+  if (!token || ids.length === 0) return [];
+  try {
+    const res = await fetch(
+      `https://api.telegram.org/bot${token}/getCustomEmojiStickers`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ custom_emoji_ids: ids.slice(0, 200) }),
+        cache: "no-store",
+      },
+    );
+    const json = (await res.json()) as {
+      ok?: boolean;
+      result?: TgSticker[];
+    };
+    return json.ok && Array.isArray(json.result) ? json.result : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fetch a whole sticker set by name — for custom-emoji packs this yields every
+ * emoji in the pack (each with its own `custom_emoji_id`). Returns null on any
+ * failure so callers can fail soft.
+ */
+export async function getStickerSet(
+  name: string,
+): Promise<{ name: string; title: string; stickers: TgSticker[] } | null> {
+  const token = communityBotToken();
+  if (!token || !name) return null;
+  try {
+    const res = await fetch(
+      `https://api.telegram.org/bot${token}/getStickerSet`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+        cache: "no-store",
+      },
+    );
+    const json = (await res.json()) as {
+      ok?: boolean;
+      result?: { name?: string; title?: string; stickers?: TgSticker[] };
+    };
+    if (!json.ok || !json.result) return null;
+    return {
+      name: json.result.name ?? name,
+      title: json.result.title ?? "",
+      stickers: Array.isArray(json.result.stickers) ? json.result.stickers : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function sha256Hex(input: string | Buffer): string {
   return createHash("sha256").update(input).digest("hex");
 }

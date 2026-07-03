@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCustomEmoji, saveCustomEmoji } from "@/lib/community";
+import { getCustomEmoji, saveCustomEmoji, isPackEmoji } from "@/lib/community";
 import { communityBotToken } from "@/lib/community-bot";
 import { CUSTOM_EMOJI_IDS } from "@/lib/custom-emoji";
 
@@ -45,10 +45,13 @@ export async function GET(
 ) {
   const { id } = await params;
   if (!/^\d{1,32}$/.test(id)) return new NextResponse(null, { status: 400 });
-  // Unauthenticated route: serve ONLY the known community pack — anything
-  // else is rejected before touching the cache or the Telegram API (no
-  // unbounded DB growth, no fetch amplification via hand-typed tokens).
-  if (!CUSTOM_EMOJI_IDS.has(id)) return new NextResponse(null, { status: 404 });
+  // Unauthenticated route: serve ONLY allowlisted ids — the static seed pack
+  // (lib/custom-emoji.ts) ∪ ids discovered into community_emoji_pack by an
+  // admin. Anything else is rejected before touching the cache or the Telegram
+  // API (no unbounded DB growth, no fetch amplification via hand-typed tokens).
+  if (!CUSTOM_EMOJI_IDS.has(id) && !(await isPackEmoji(id))) {
+    return new NextResponse(null, { status: 404 });
+  }
 
   const cached = await getCustomEmoji(id);
   if (cached) return imageResponse(cached.bytes, cached.mime);

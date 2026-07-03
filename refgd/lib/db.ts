@@ -209,6 +209,19 @@
           fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
 
+        -- The full custom-emoji sets discovered by expanding the seed pack
+        -- ids (lib/custom-emoji.ts) via getStickerSet. An admin triggers
+        -- discovery once; the composer's Custom tab then offers every emoji in
+        -- each pack, not just the handful captured from chat. Bytes are still
+        -- served/cached through custom_emoji; this table is the id allowlist.
+        CREATE TABLE IF NOT EXISTS community_emoji_pack (
+          id         TEXT PRIMARY KEY,
+          alt        TEXT NOT NULL DEFAULT '',
+          set_name   TEXT NOT NULL DEFAULT '',
+          title      TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
         CREATE TABLE IF NOT EXISTS chat_messages (
           id          BIGSERIAL PRIMARY KEY,
           tg_id       BIGINT NOT NULL,

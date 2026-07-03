@@ -46,7 +46,14 @@ function buildGroups(vouches: VouchView[]): DateGroup[] {
   return groups;
 }
 
-export default function VouchHistory({ vouches }: { vouches: VouchView[] }) {
+export default function VouchHistory({
+  vouches,
+  onOpenMenu,
+}: {
+  vouches: VouchView[];
+  /** Opens the reduced (Copy Text / Forward) context menu for a vouch. */
+  onOpenMenu?: (pos: { x: number; y: number }, text: string) => void;
+}) {
   const groups = useMemo(() => buildGroups(vouches), [vouches]);
 
   return (
@@ -97,6 +104,11 @@ export default function VouchHistory({ vouches }: { vouches: VouchView[] }) {
                     )}
                     body={v.body ? renderBody(v.body) : undefined}
                     time={<LocalTime iso={v.createdAt} />}
+                    onOpenMenu={
+                      onOpenMenu
+                        ? (pos) => onOpenMenu(pos, v.body ?? "")
+                        : undefined
+                    }
                   />
                 );
               })}

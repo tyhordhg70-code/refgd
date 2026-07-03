@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -95,6 +96,8 @@ const LIST_STYLE = {
 const MAX_LEN = 2000;
 
 const FS_PROMPT_KEY = "rg_fs_prompted";
+const FS_PREF_KEY = "rg_fs_pref";
+const NOTIF_PROMPT_KEY = "rg_notif_prompted";
 
 export default function CommunityChat({
   onBack,
@@ -113,7 +116,12 @@ export default function CommunityChat({
    * Read-only migrated history rendered above the live messages. A function
    * receives the active in-chat search query so it can filter itself.
    */
-  history?: ReactNode | ((query: string) => ReactNode);
+  history?:
+    | ReactNode
+    | ((
+        query: string,
+        onReadonlyMenu: (pos: { x: number; y: number }, text: string) => void,
+      ) => ReactNode);
 }) {
   const chat = useCommunityChat(topic);
   const isGroupChat = topic === "chat";
@@ -123,12 +131,49 @@ export default function CommunityChat({
   const [showNotif, setShowNotif] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [fsPrompt, setFsPrompt] = useState(false);
-  // Web A message context menu (right-click / long-press on a bubble).
-  const [ctxMenu, setCtxMenu] = useState<{
-    m: ChatMessage;
-    x: number;
-    y: number;
-  } | null>(null);
+  const [fsRemember, setFsRemember] = useState(false);
+  // Web A message context menu (right-click / long-press on a bubble). The
+  // "readonly" variant is used for migrated history bubbles (vouches), which
+  // have no live message id and so get a reduced Copy Text / Forward menu.
+  const [ctxMenu, setCtxMenu] = useState<
+    | { kind: "chat"; m: ChatMessage; x: number; y: number }
+    | { kind: "readonly"; text: string; x: number; y: number }
+    | null
+  >(null);
+  // Measured + clamped position of the open context menu. It renders hidden for
+  // one frame so its real size can be measured, then is clamped into the
+  // viewport minus the Mini App safe-area insets (exposed as CSS variables).
+  const ctxMenuRef = useRef<HTMLDivElement>(null);
+  const [ctxPos, setCtxPos] = useState<{ left: number; top: number } | null>(
+    null,
+  );
+  useLayoutEffect(() => {
+    if (!ctxMenu) {
+      setCtxPos(null);
+      return;
+    }
+    const el = ctxMenuRef.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    const cs = getComputedStyle(document.documentElement);
+    const px = (name: string) => parseFloat(cs.getPropertyValue(name)) || 0;
+    const insetBottom =
+      px("--tg-safe-area-inset-bottom") +
+      px("--tg-content-safe-area-inset-bottom");
+    const insetTop =
+      px("--tg-safe-area-inset-top") + px("--tg-content-safe-area-inset-top");
+    const margin = 8;
+    setCtxPos({
+      left: Math.max(
+        margin,
+        Math.min(ctxMenu.x, window.innerWidth - width - margin),
+      ),
+      top: Math.max(
+        margin + insetTop,
+        Math.min(ctxMenu.y, window.innerHeight - height - margin - insetBottom),
+      ),
+    });
+  }, [ctxMenu]);
   const [emojiOpen, setEmojiOpen] = useState(false);
   // Fullscreen photo viewer (click a message photo to expand it).
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -204,6 +249,38 @@ export default function CommunityChat({
     if (tg?.openTelegramLink) tg.openTelegramLink(url);
     else window.open(url, "_blank", "noopener");
   };
+  // Forward a read-only history bubble (a vouch) by its plain text — there is
+  // no live message link to share, so the text alone is shared.
+  const forwardText = (text: string) => {
+    const url = `https://t.me/share/url?url=${encodeURIComponent(
+      window.location.href.split("#")[0],
+    )}&text=${encodeURIComponent(text || "")}`;
+    const tg = (
+      window as unknown as {
+        Telegram?: { WebApp?: { openTelegramLink?: (u: string) => void } };
+      }
+    ).Telegram?.WebApp;
+    if (tg?.openTelegramLink) tg.openTelegramLink(url);
+    else window.open(url, "_blank", "noopener");
+  };
+  // Open the reduced context menu for a read-only history bubble.
+  const openReadonlyMenu = (pos: { x: number; y: number }, text: string) =>
+    setCtxMenu({ kind: "readonly", text, x: pos.x, y: pos.y });
+  // Jump to a quoted message when its reply preview is tapped, briefly
+  // highlighting the target the way the real client does.
+  const scrollToMessage = (id: string) => {
+    const root = chat.scrollRef.current;
+    if (!root) return;
+    const el = root.querySelector<HTMLElement>(
+      `[data-mid="${CSS.escape(id)}"]`,
+    );
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.remove("tg-flash");
+    void el.offsetWidth;
+    el.classList.add("tg-flash");
+    window.setTimeout(() => el.classList.remove("tg-flash"), 1200);
+  };
 
   // Append an emoji character / custom-emoji token to the composer text and
   // keep the contenteditable + caret in sync.
@@ -232,25 +309,70 @@ export default function CommunityChat({
     }
   };
 
-  // Offer fullscreen as an entry prompt (once per session) instead of a
-  // buried menu item.
+  // Offer fullscreen as an entry prompt instead of a buried menu item. A
+  // remembered choice (localStorage) is honoured across sessions: "fs" enters
+  // fullscreen automatically (requestFullscreen needs no user gesture), "skip"
+  // stays windowed. With no stored choice it is asked once per session
+  // (sessionStorage).
   useEffect(() => {
     if (!chat.canFullscreen || chat.isFullscreen) return;
     try {
+      const pref = localStorage.getItem(FS_PREF_KEY);
+      if (pref) {
+        if (pref === "fs") chat.toggleFullscreen();
+        return;
+      }
       if (sessionStorage.getItem(FS_PROMPT_KEY)) return;
     } catch {
       /* storage unavailable — still prompt */
     }
     setFsPrompt(true);
+    // chat.toggleFullscreen is stable; excluded to avoid re-prompting churn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat.canFullscreen, chat.isFullscreen]);
 
-  const dismissFsPrompt = () => {
+  // Chain a notifications prompt once per user (persisted), gated on being
+  // signed in. Opens the NotificationSettings sheet.
+  const maybePromptNotif = () => {
+    if (!chat.me) return;
+    try {
+      if (localStorage.getItem(NOTIF_PROMPT_KEY)) return;
+      localStorage.setItem(NOTIF_PROMPT_KEY, "1");
+    } catch {
+      /* storage unavailable — prompt once anyway */
+    }
+    setShowNotif(true);
+  };
+
+  // Surface the notif prompt once the signed-in user is known and fullscreen
+  // is settled — i.e. FS isn't offered, is already active, or a choice was
+  // already persisted so no FS prompt will appear. Never fires while the FS
+  // modal is open (resolveFsPrompt chains the notif prompt in that case).
+  // maybePromptNotif is idempotent (NOTIF_PROMPT_KEY), so this can't double-up.
+  useEffect(() => {
+    if (!chat.me || fsPrompt) return;
+    let fsSettled = !chat.canFullscreen || chat.isFullscreen;
+    try {
+      if (!fsSettled && localStorage.getItem(FS_PREF_KEY)) fsSettled = true;
+    } catch {
+      /* storage unavailable — treat as unsettled, prompt via FS path */
+    }
+    if (!fsSettled) return;
+    maybePromptNotif();
+    // maybePromptNotif is a stable inline helper; excluded to avoid churn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat.canFullscreen, chat.isFullscreen, chat.me, fsPrompt]);
+
+  const resolveFsPrompt = (choice: "skip" | "fs") => {
     setFsPrompt(false);
     try {
-      sessionStorage.setItem(FS_PROMPT_KEY, "1");
+      if (fsRemember) localStorage.setItem(FS_PREF_KEY, choice);
+      else sessionStorage.setItem(FS_PROMPT_KEY, "1");
     } catch {
       /* ignore */
     }
+    if (choice === "fs") chat.toggleFullscreen();
+    maybePromptNotif();
   };
 
   const { state, me } = chat;
@@ -316,63 +438,68 @@ export default function CommunityChat({
 
   return (
     <>
-      <MiddleHeader
-        title={title}
-        subtitle={subtitle}
-        icon={
-          icon ?? (
-            <i
-              className="icon icon-hashtag I0-98vJl P6JY5GgC general-forum-icon"
-              aria-hidden
-            />
-          )
-        }
-        onBack={onBack}
-      >
-        <button
-          type="button"
-          className="Button smaller translucent round"
-          aria-label="Search this chat"
-          title="Search this chat"
-          onClick={() => setSearch((s) => (s === null ? "" : null))}
-        >
-          <i className="icon icon-search" aria-hidden />
-        </button>
-        <button
-          type="button"
-          className="Button smaller translucent round"
-          aria-label="More actions"
-          title="More actions"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((v) => !v)}
-        >
-          <i className="icon icon-more" aria-hidden />
-        </button>
-      </MiddleHeader>
-
-      {search !== null && (
-        <div className="tg-chat-search">
-          <div className="SearchInput tg-list-search" dir="ltr">
-            <input
-              type="text"
-              dir="auto"
-              placeholder="Search messages"
-              className="form-control"
-              value={search}
-              autoFocus
-              onChange={(e) => setSearch(e.target.value)}
-            />
+      {search !== null ? (
+        <>
+          <div className="MiddleHeaderPanes M5bA2n6Z opacity-transition fast shown open" />
+          <div className="MiddleHeader tg-chat-search-header">
+            <div className="back-button">
+              <button
+                type="button"
+                className="Button smaller translucent round"
+                aria-label="Close search"
+                title="Close search"
+                onClick={() => setSearch(null)}
+              >
+                <i className="icon icon-arrow-left" aria-hidden />
+              </button>
+            </div>
+            <div className="SearchInput tg-list-search" dir="ltr">
+              <input
+                type="text"
+                dir="auto"
+                placeholder="Search messages"
+                className="form-control"
+                value={search}
+                autoFocus
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
           </div>
+        </>
+      ) : (
+        <MiddleHeader
+          title={title}
+          subtitle={subtitle}
+          icon={
+            icon ?? (
+              <i
+                className="icon icon-hashtag I0-98vJl P6JY5GgC general-forum-icon"
+                aria-hidden
+              />
+            )
+          }
+          onBack={onBack}
+        >
           <button
             type="button"
             className="Button smaller translucent round"
-            aria-label="Close search"
-            title="Close search"
-            onClick={() => setSearch(null)}
+            aria-label="Search this chat"
+            title="Search this chat"
+            onClick={() => setSearch("")}
           >
-            <i className="icon icon-close" aria-hidden />
+            <i className="icon icon-search" aria-hidden />
           </button>
-        </div>
+          <button
+            type="button"
+            className="Button smaller translucent round"
+            aria-label="More actions"
+            title="More actions"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            <i className="icon icon-more" aria-hidden />
+          </button>
+        </MiddleHeader>
       )}
 
       {pinnedMsg && search === null && (
@@ -461,11 +588,11 @@ export default function CommunityChat({
       {showNotif && <NotificationSettings onClose={() => setShowNotif(false)} />}
       {showAdmin && me?.admin && <AdminPanel onClose={() => setShowAdmin(false)} />}
 
-      {/* Fullscreen entry prompt — asked once per session on open. */}
+      {/* Fullscreen entry prompt — asked once per session, or remembered. */}
       {fsPrompt && (
         <div
           className="tg-modal-backdrop tg-fs-backdrop"
-          onClick={dismissFsPrompt}
+          onClick={() => resolveFsPrompt("skip")}
         >
           <div
             className="tg-modal tg-fs-modal"
@@ -481,21 +608,26 @@ export default function CommunityChat({
             <p className="tg-fs-text">
               Open the community in fullscreen for the full experience?
             </p>
+            <label className="tg-fs-remember">
+              <input
+                type="checkbox"
+                checked={fsRemember}
+                onChange={(e) => setFsRemember(e.target.checked)}
+              />
+              <span>Remember my choice</span>
+            </label>
             <div className="tg-fs-actions">
               <button
                 type="button"
                 className="tg-fs-btn"
-                onClick={dismissFsPrompt}
+                onClick={() => resolveFsPrompt("skip")}
               >
                 Not now
               </button>
               <button
                 type="button"
                 className="tg-fs-btn is-primary"
-                onClick={() => {
-                  dismissFsPrompt();
-                  chat.toggleFullscreen();
-                }}
+                onClick={() => resolveFsPrompt("fs")}
               >
                 Fullscreen
               </button>
@@ -520,143 +652,185 @@ export default function CommunityChat({
             aria-label="Close menu"
           />
           <div
+            ref={ctxMenuRef}
             className="tg-menu tg-ctx-menu"
             role="menu"
             style={{
-              left: Math.max(
-                8,
-                Math.min(ctxMenu.x, window.innerWidth - 216),
-              ),
-              top: Math.max(
-                8,
-                Math.min(ctxMenu.y, window.innerHeight - 240),
-              ),
+              left: ctxPos ? ctxPos.left : ctxMenu.x,
+              top: ctxPos ? ctxPos.top : ctxMenu.y,
+              visibility: ctxPos ? "visible" : "hidden",
             }}
           >
-            <button
-              type="button"
-              className="tg-menu-item"
-              onClick={() => {
-                chat.setReplyTo({
-                  id: ctxMenu.m.id,
-                  authorName: ctxMenu.m.authorName,
-                  body: ctxMenu.m.body,
-                });
-                setCtxMenu(null);
-              }}
-            >
-              <IconReply />
-              Reply
-            </button>
-            {ctxMenu.m.mediaId && (
-              <button
-                type="button"
-                className="tg-menu-item"
-                onClick={() => {
-                  const id = ctxMenu.m.mediaId;
-                  if (id) void copyImage(id);
-                  setCtxMenu(null);
-                }}
-              >
-                <IconCopy />
-                Copy Image
-              </button>
-            )}
-            {ctxMenu.m.body && (
-              <button
-                type="button"
-                className="tg-menu-item"
-                onClick={() => {
-                  void navigator.clipboard
-                    ?.writeText(ctxMenu.m.body)
-                    .catch(() => undefined);
-                  setCtxMenu(null);
-                }}
-              >
-                <IconCopy />
-                Copy Text
-              </button>
-            )}
-            <button
-              type="button"
-              className="tg-menu-item"
-              onClick={() => {
-                copyMessageLink(ctxMenu.m);
-                setCtxMenu(null);
-              }}
-            >
-              <IconLink />
-              Copy Message Link
-            </button>
-            {me?.admin && (
-              <button
-                type="button"
-                className="tg-menu-item"
-                onClick={() => {
-                  void chat.sendCommand(
-                    ctxMenu.m.pinned ? "/unpin" : "/pin",
-                    ctxMenu.m.id,
-                  );
-                  setCtxMenu(null);
-                }}
-              >
-                <IconPin />
-                {ctxMenu.m.pinned ? "Unpin" : "Pin"}
-              </button>
-            )}
-            {me?.admin && ctxMenu.m.mediaId && (
-              <button
-                type="button"
-                className="tg-menu-item"
-                onClick={() => {
-                  const id = ctxMenu.m.mediaId;
-                  if (id) downloadImage(id);
-                  setCtxMenu(null);
-                }}
-              >
-                <IconDownload />
-                Download
-              </button>
-            )}
-            <button
-              type="button"
-              className="tg-menu-item"
-              onClick={() => {
-                forwardMessage(ctxMenu.m);
-                setCtxMenu(null);
-              }}
-            >
-              <IconForward />
-              Forward
-            </button>
-            {me?.admin && (
-              <button
-                type="button"
-                className="tg-menu-item tg-menu-item-danger"
-                onClick={() => {
-                  void chat.sendCommand("/del", ctxMenu.m.id);
-                  setCtxMenu(null);
-                }}
-              >
-                <IconDelete />
-                Delete
-              </button>
-            )}
-            {me?.admin &&
-              ctxMenu.m.tgId !== me.tid &&
-              !ctxMenu.m.isAdmin && (
+            {ctxMenu.kind === "chat" ? (
+              <>
+                <div className="tg-ctx-reactions">
+                  {REACTIONS.map((e) => (
+                    <button
+                      key={e}
+                      type="button"
+                      className="tg-ctx-reaction"
+                      onClick={() => {
+                        void chat.react(ctxMenu.m.id, e);
+                        setCtxMenu(null);
+                      }}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
                 <button
                   type="button"
-                  className="tg-menu-item tg-menu-item-danger"
+                  className="tg-menu-item"
                   onClick={() => {
-                    void chat.sendCommand("/ban", ctxMenu.m.id);
+                    chat.setReplyTo({
+                      id: ctxMenu.m.id,
+                      authorName: ctxMenu.m.authorName,
+                      body: ctxMenu.m.body,
+                    });
                     setCtxMenu(null);
                   }}
                 >
-                  <IconBan />
-                  Ban User
+                  <IconReply />
+                  Reply
                 </button>
-              )}
+                {ctxMenu.m.mediaId && (
+                  <button
+                    type="button"
+                    className="tg-menu-item"
+                    onClick={() => {
+                      const id = ctxMenu.m.mediaId;
+                      if (id) void copyImage(id);
+                      setCtxMenu(null);
+                    }}
+                  >
+                    <IconCopy />
+                    Copy Image
+                  </button>
+                )}
+                {ctxMenu.m.body && (
+                  <button
+                    type="button"
+                    className="tg-menu-item"
+                    onClick={() => {
+                      void navigator.clipboard
+                        ?.writeText(ctxMenu.m.body)
+                        .catch(() => undefined);
+                      setCtxMenu(null);
+                    }}
+                  >
+                    <IconCopy />
+                    Copy Text
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="tg-menu-item"
+                  onClick={() => {
+                    copyMessageLink(ctxMenu.m);
+                    setCtxMenu(null);
+                  }}
+                >
+                  <IconLink />
+                  Copy Message Link
+                </button>
+                {me?.admin && (
+                  <button
+                    type="button"
+                    className="tg-menu-item"
+                    onClick={() => {
+                      void chat.sendCommand(
+                        ctxMenu.m.pinned ? "/unpin" : "/pin",
+                        ctxMenu.m.id,
+                      );
+                      setCtxMenu(null);
+                    }}
+                  >
+                    <IconPin />
+                    {ctxMenu.m.pinned ? "Unpin" : "Pin"}
+                  </button>
+                )}
+                {me?.admin && ctxMenu.m.mediaId && (
+                  <button
+                    type="button"
+                    className="tg-menu-item"
+                    onClick={() => {
+                      const id = ctxMenu.m.mediaId;
+                      if (id) downloadImage(id);
+                      setCtxMenu(null);
+                    }}
+                  >
+                    <IconDownload />
+                    Download
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="tg-menu-item"
+                  onClick={() => {
+                    forwardMessage(ctxMenu.m);
+                    setCtxMenu(null);
+                  }}
+                >
+                  <IconForward />
+                  Forward
+                </button>
+                {me?.admin && (
+                  <button
+                    type="button"
+                    className="tg-menu-item tg-menu-item-danger"
+                    onClick={() => {
+                      void chat.sendCommand("/del", ctxMenu.m.id);
+                      setCtxMenu(null);
+                    }}
+                  >
+                    <IconDelete />
+                    Delete
+                  </button>
+                )}
+                {me?.admin &&
+                  ctxMenu.m.tgId !== me.tid &&
+                  !ctxMenu.m.isAdmin && (
+                    <button
+                      type="button"
+                      className="tg-menu-item tg-menu-item-danger"
+                      onClick={() => {
+                        void chat.sendCommand("/ban", ctxMenu.m.id);
+                        setCtxMenu(null);
+                      }}
+                    >
+                      <IconBan />
+                      Ban User
+                    </button>
+                  )}
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="tg-menu-item"
+                  onClick={() => {
+                    void navigator.clipboard
+                      ?.writeText(ctxMenu.text)
+                      .catch(() => undefined);
+                    setCtxMenu(null);
+                  }}
+                >
+                  <IconCopy />
+                  Copy Text
+                </button>
+                <button
+                  type="button"
+                  className="tg-menu-item"
+                  onClick={() => {
+                    forwardText(ctxMenu.text);
+                    setCtxMenu(null);
+                  }}
+                >
+                  <IconForward />
+                  Forward
+                </button>
+              </>
+            )}
           </div>
         </>
       )}
@@ -688,7 +862,9 @@ export default function CommunityChat({
                       </div>
                     )}
                     {/* Read-only migrated history (vouch topics). */}
-                    {typeof history === "function" ? history(query) : history}
+                    {typeof history === "function"
+                      ? history(query, openReadonlyMenu)
+                      : history}
                     {(isGroupChat || topic === "testimonials") && !query && (
                       <div className="sender-group-container sKXqbu2I">
                         <MessageBubble
@@ -780,56 +956,14 @@ export default function CommunityChat({
                                   }
                                   onOpenMedia={(src) => setLightbox(src)}
                                   onOpenMenu={(pos) =>
-                                    setCtxMenu({ m, x: pos.x, y: pos.y })
+                                    setCtxMenu({
+                                      kind: "chat",
+                                      m,
+                                      x: pos.x,
+                                      y: pos.y,
+                                    })
                                   }
-                                  actionsOpen={chat.reactOpen === m.id}
-                                  actions={
-                                    <>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          chat.setReplyTo({
-                                            id: m.id,
-                                            authorName: m.authorName,
-                                            body: m.body,
-                                          })
-                                        }
-                                        aria-label="Reply"
-                                      >
-                                        <IconReply />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          chat.setReactOpen(
-                                            chat.reactOpen === m.id
-                                              ? null
-                                              : m.id,
-                                          )
-                                        }
-                                        aria-label="Add reaction"
-                                      >
-                                        😊
-                                      </button>
-                                    </>
-                                  }
-                                  picker={
-                                    chat.reactOpen === m.id ? (
-                                      <div className="tg-reaction-picker">
-                                        {REACTIONS.map((e) => (
-                                          <button
-                                            key={e}
-                                            type="button"
-                                            onClick={() =>
-                                              void chat.react(m.id, e)
-                                            }
-                                          >
-                                            {e}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    ) : undefined
-                                  }
+                                  onReplyClick={scrollToMessage}
                                 />
                               );
                             })}

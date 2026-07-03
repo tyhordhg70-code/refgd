@@ -29,10 +29,12 @@ import {
   purgeRecentMessages,
   purgeFromMessage,
   getMessageAuthor,
+  getMessageForPin,
   recordAction,
   getModConfig,
   setModConfig,
 } from "./community";
+import { notifyAll } from "./community-notify";
 
 export interface ModResult {
   /** true → this was a command and should NOT be posted as a chat message. */
@@ -304,6 +306,24 @@ export async function executeModCommand(opts: {
       }
       const ok = await setMessagePinned(replyToId, true);
       await audit("pin", replyToId);
+      if (ok) {
+        // Broadcast the pin to the whole community. Fire-and-forget: fan-out
+        // must never block or fail the command.
+        void (async () => {
+          const msg = await getMessageForPin(replyToId).catch(() => null);
+          const snippet = (msg?.body ?? "").replace(/\s+/g, " ").trim();
+          const body = snippet
+            ? snippet.length > 160
+              ? `${snippet.slice(0, 157)}…`
+              : snippet
+            : "A message was pinned in the community.";
+          await notifyAll({
+            title: "📌 Pinned message",
+            body,
+            url: "/community",
+          }).catch(() => undefined);
+        })();
+      }
       return { handled: true, ok, system: ok ? "Message pinned." : "Couldn't find that message." };
     }
     case "unpin": {

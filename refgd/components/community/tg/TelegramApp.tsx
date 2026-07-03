@@ -414,7 +414,7 @@ export default function TelegramApp({
         topic={active}
         title={def?.title ?? ""}
         icon={def ? <TopicIcon def={def} /> : undefined}
-        history={(query) => {
+        history={(query, onReadonlyMenu) => {
           const q = query.trim().toLowerCase();
           const vouches = byTopic[topicKey] ?? [];
           const shown = q
@@ -445,7 +445,7 @@ export default function TelegramApp({
                   </div>
                 </div>
               )}
-              <VouchHistory vouches={shown} />
+              <VouchHistory vouches={shown} onOpenMenu={onReadonlyMenu} />
             </>
           );
         }}
