@@ -4,7 +4,7 @@ import {
   toggleReaction,
   chatMessageExists,
   getChatMemberModState,
-  CHAT_REACTION_EMOJI,
+  isReactionEmoji,
 } from "@/lib/community";
 
 export const runtime = "nodejs";
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  if (!CHAT_REACTION_EMOJI.includes(emoji)) {
+  if (!isReactionEmoji(emoji)) {
     return NextResponse.json(
       { ok: false, error: "Unsupported reaction" },
       { status: 400 },

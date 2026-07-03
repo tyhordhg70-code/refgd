@@ -15,6 +15,7 @@ import MiddleHeader from "./tg/MiddleHeader";
 import MessageBubble from "./tg/MessageBubble";
 import Appendix from "./tg/Appendix";
 import EmojiPanel from "./tg/EmojiPanel";
+import TextFormatter from "./tg/TextFormatter";
 import {
   IconBan,
   IconBell,
@@ -1170,6 +1171,7 @@ export default function CommunityChat({
                 isAdmin={!!me?.admin}
               />
             )}
+            <TextFormatter inputRef={inputRef} />
             <div className="composer-wrapper">
               <Appendix own={false} composer />
               {chat.editing && (

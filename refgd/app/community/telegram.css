@@ -689,6 +689,28 @@ button.tg-reply-embed:focus-visible {
   color: var(--color-text-secondary, #707579);
 }
 
+/* inline markdown-lite spans emitted by renderBody (TextFormatter output) */
+.tg-mono {
+  font-family: var(--font-monospace, ui-monospace, "SF Mono", Menlo, Consolas,
+      monospace);
+  font-size: 0.9375em;
+  background: rgb(0 0 0 / 0.06);
+  padding: 0.05em 0.32em;
+  border-radius: 0.25rem;
+}
+.tg-spoiler {
+  border-radius: 0.25rem;
+  background: rgb(127 127 127 / 0.22);
+  filter: blur(0.25em);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.tg-spoiler:hover,
+.tg-spoiler:focus {
+  filter: blur(0);
+  outline: none;
+}
+
 /* brief highlight when jumping to a quoted (replied-to) message */
 @keyframes tg-flash {
   0% {

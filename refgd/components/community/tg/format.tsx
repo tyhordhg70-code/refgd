@@ -210,6 +210,94 @@ function renderLinkified(body: string, keyPrefix: string): ReactNode[] {
   return out;
 }
 
+/* ── Inline markdown-lite (Web A TextFormatter output) ──────────────
+ * The composer stays plain text; the floating TextFormatter wraps the
+ * selection in these lightweight markers, and this parser turns them back
+ * into styled spans on render. Deliberately small (not full markdown):
+ * bold, strike, italic, spoiler, monospace and [text](url).
+ */
+interface InlineRule {
+  re: RegExp;
+  /** recurse = allow nested formatting; emoji = plain text + emoji;
+   *  raw = verbatim (monospace). */
+  mode: "recurse" | "emoji" | "raw";
+  wrap: (key: string, kids: ReactNode, m: RegExpExecArray) => ReactNode;
+}
+
+const INLINE_RULES: InlineRule[] = [
+  {
+    re: /\|\|([\s\S]+?)\|\|/,
+    mode: "recurse",
+    wrap: (key, kids) => (
+      <span key={key} className="tg-spoiler" tabIndex={0}>
+        {kids}
+      </span>
+    ),
+  },
+  {
+    re: /\*\*([\s\S]+?)\*\*/,
+    mode: "recurse",
+    wrap: (key, kids) => <strong key={key}>{kids}</strong>,
+  },
+  {
+    re: /~~([\s\S]+?)~~/,
+    mode: "recurse",
+    wrap: (key, kids) => <s key={key}>{kids}</s>,
+  },
+  {
+    re: /__([\s\S]+?)__/,
+    mode: "recurse",
+    wrap: (key, kids) => <em key={key}>{kids}</em>,
+  },
+  {
+    re: /`([^`]+?)`/,
+    mode: "raw",
+    wrap: (key, kids) => (
+      <code key={key} className="tg-mono">
+        {kids}
+      </code>
+    ),
+  },
+  {
+    re: /\[([^\]]+?)\]\((https?:\/\/[^\s)]+)\)/,
+    mode: "emoji",
+    wrap: (key, kids, m) => (
+      <a key={key} href={m[2]} target="_blank" rel="noopener noreferrer">
+        {kids}
+      </a>
+    ),
+  },
+];
+
+/**
+ * Parse a text segment for inline markdown-lite tokens, falling back to
+ * URL-linkified + emoji text for the runs between tokens.
+ */
+function renderInline(text: string, keyPrefix: string): ReactNode[] {
+  let best: { rule: InlineRule; m: RegExpExecArray } | null = null;
+  for (const rule of INLINE_RULES) {
+    const m = new RegExp(rule.re.source).exec(text);
+    if (m && (best === null || m.index < best.m.index)) best = { rule, m };
+  }
+  if (best === null) return renderLinkified(text, keyPrefix);
+  const { rule, m } = best;
+  const out: ReactNode[] = [];
+  if (m.index > 0) {
+    out.push(...renderLinkified(text.slice(0, m.index), `${keyPrefix}p`));
+  }
+  const inner = m[1];
+  const kids: ReactNode =
+    rule.mode === "recurse"
+      ? renderInline(inner, `${keyPrefix}i`)
+      : rule.mode === "emoji"
+        ? renderTextWithEmoji(inner, `${keyPrefix}i`)
+        : inner;
+  out.push(rule.wrap(`${keyPrefix}t`, kids, m));
+  const rest = text.slice(m.index + m[0].length);
+  if (rest) out.push(...renderInline(rest, `${keyPrefix}r`));
+  return out;
+}
+
 /** `[ce:<documentId>:<alt>]` — custom emoji token written by the composer. */
 const CE_RE = /\[ce:(\d+):([^\]]+)\]/g;
 
@@ -226,14 +314,14 @@ export function renderBody(body: string): ReactNode {
   let k = 0;
   while ((match = CE_RE.exec(body)) !== null) {
     if (match.index > last) {
-      out.push(...renderLinkified(body.slice(last, match.index), `c${k}`));
+      out.push(...renderInline(body.slice(last, match.index), `c${k}`));
     }
     out.push(<CustomEmojiImg key={`ce${k}`} id={match[1]} alt={match[2]} />);
     last = match.index + match[0].length;
     k += 1;
   }
   if (last < body.length) {
-    out.push(...renderLinkified(body.slice(last), `c${k}`));
+    out.push(...renderInline(body.slice(last), `c${k}`));
   }
   return out;
 }

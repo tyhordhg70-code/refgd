@@ -750,6 +750,20 @@ export const CHAT_REACTION_EMOJI = [
   "🎉",
 ];
 
+/**
+ * A single emoji grapheme: a regional-indicator pair, a keycap, or an
+ * Extended_Pictographic base with optional skin-tone / ZWJ continuations.
+ * Reactions accept any one emoji (the full picker), so CHAT_REACTION_EMOJI is
+ * now just the quick-reaction row rather than an allow-list.
+ */
+const SINGLE_EMOJI_RE =
+  /^(?:\p{Regional_Indicator}\p{Regional_Indicator}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:[\u{1F3FB}-\u{1F3FF}]|\uFE0F)?(?:\u200D\p{Extended_Pictographic}(?:[\u{1F3FB}-\u{1F3FF}]|\uFE0F)?)*)$/u;
+
+/** True when `s` is exactly one emoji (server-side reaction gate). */
+export function isReactionEmoji(s: string): boolean {
+  return s.length > 0 && s.length <= 40 && SINGLE_EMOJI_RE.test(s);
+}
+
 /** Toggle a reaction; returns the updated reaction summary for the message. */
 export async function toggleReaction(
   messageId: string,
