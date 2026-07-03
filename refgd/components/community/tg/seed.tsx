@@ -92,7 +92,7 @@ export const README_SEED_BODY: ReactNode = (
     everything works.
     <br />
     <br />
-    <Em ch="🐺" />{" "}
+    <Ce id="5416117059207572332" alt="➡️" />{" "}
     <a
       href="http://refundgod.io/"
       title="http://refundgod.io/"
