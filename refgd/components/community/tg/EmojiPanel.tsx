@@ -107,7 +107,10 @@ export default function EmojiPanel({
         } catch {
           setAdminMsg("Discovery failed");
         } finally {
-          if (!cancelled) setAdminBusy(false);
+          // Unconditional: a tab switch mid-discovery cancels the effect but the
+          // panel stays mounted, so a guarded reset would leave the admin
+          // toolbar buttons permanently disabled. Post-unmount sets are no-ops.
+          setAdminBusy(false);
         }
       }
       if (!cancelled) {
