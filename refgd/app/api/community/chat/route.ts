@@ -84,8 +84,9 @@ export async function GET(req: Request) {
     }).catch(() => undefined);
   }
   // Opportunistic auto-delete sweep on the full load only (idempotent, no
-  // cron needed on Render). Expired messages are already hidden by
-  // listChatMessages; this just soft-deletes them so they don't accumulate.
+  // cron needed on Render). Expired group-chat messages (and anything already
+  // soft-deleted by moderation) are hard-deleted from the database here so
+  // nothing lingers; listChatMessages already hides them from the live feed.
   if (!after) {
     await sweepExpiredMessages().catch(() => undefined);
   }
@@ -210,24 +211,29 @@ export async function POST(req: Request) {
       ? String(payload.replyTo)
       : null;
 
-  // Auto-delete TTL. Every message now expires after 7 days by default so the
-  // feed stays fresh (owner request). Admins override per message via the
-  // composer: 0 = "Never" (keep forever → NULL); any positive value sets a
-  // custom lifetime (capped at 30 days). Non-admins always get the 7-day
-  // default. Pinning later clears the TTL (see setMessagePinned).
+  // Auto-delete TTL — GROUP CHAT ONLY. Only the live group chat rolls off; every
+  // other section (announcements, testimonials, buy4u) keeps its posts forever
+  // (owner request). Inside the group chat, messages expire after 7 days by
+  // default; admins override per message via the composer: 0 = "Never" (keep
+  // forever → NULL); any positive value sets a custom lifetime (capped at 30
+  // days). Non-admins always get the 7-day default. Pinning later clears the TTL
+  // (see setMessagePinned). When a message does expire it is hard-deleted from
+  // the database by sweepExpiredMessages, not just hidden.
   const DEFAULT_TTL_S = 604_800; // 7 days
-  let ttlSeconds = DEFAULT_TTL_S;
-  if (me.admin) {
-    const raw =
-      typeof payload.ttlSeconds === "number"
-        ? payload.ttlSeconds
-        : typeof payload.ttlSeconds === "string" && /^\d+$/.test(payload.ttlSeconds)
-          ? Number(payload.ttlSeconds)
-          : DEFAULT_TTL_S;
-    ttlSeconds = Math.min(Math.max(Math.floor(raw), 0), 2_592_000);
+  let expiresAt: Date | null = null;
+  if (topic === "chat") {
+    let ttlSeconds = DEFAULT_TTL_S;
+    if (me.admin) {
+      const raw =
+        typeof payload.ttlSeconds === "number"
+          ? payload.ttlSeconds
+          : typeof payload.ttlSeconds === "string" && /^\d+$/.test(payload.ttlSeconds)
+            ? Number(payload.ttlSeconds)
+            : DEFAULT_TTL_S;
+      ttlSeconds = Math.min(Math.max(Math.floor(raw), 0), 2_592_000);
+    }
+    expiresAt = ttlSeconds > 0 ? new Date(Date.now() + ttlSeconds * 1000) : null;
   }
-  const expiresAt: Date | null =
-    ttlSeconds > 0 ? new Date(Date.now() + ttlSeconds * 1000) : null;
 
   const mod = await getChatMemberModState(me.tid);
   if (mod.isBanned) {

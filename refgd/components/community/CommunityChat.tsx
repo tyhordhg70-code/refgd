@@ -1247,7 +1247,7 @@ export default function CommunityChat({
                   </button>
                 </div>
               )}
-              {me.admin && (
+              {me.admin && isGroupChat && (
                 <div className="tg-ttl-row">
                   <span>Auto-delete:</span>
                   <select

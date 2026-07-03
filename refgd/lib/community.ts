@@ -570,21 +570,50 @@ export async function listChatMessages(
 }
 
 /**
- * Opportunistic hard-sweep of expired messages. Soft-deletes any message
- * whose expires_at has passed so the table doesn't accumulate ghosts. Runs on
- * the chat full-load path (never the short-poll); idempotent across instances
- * so no cross-worker lock is needed. listChatMessages already hides expired
- * rows, so this is cleanup, not correctness.
+ * Opportunistic hard-sweep on the chat full-load path (never the short-poll);
+ * idempotent across instances so no cross-worker lock is needed. Physically
+ * DELETEs — not soft-flags — expired GROUP-CHAT messages plus anything already
+ * soft-deleted by moderation, and clears any stray TTL left on other sections
+ * (which never auto-delete). Reactions and attached media are removed in the
+ * same statement so no orphans remain (there are no FK cascades between these
+ * tables). listChatMessages also hides not-yet-swept rows, so the feed is
+ * always correct regardless of sweep timing.
  */
 export async function sweepExpiredMessages(): Promise<number> {
   await initDb();
-  const { rowCount } = await getPool().query(
-    `UPDATE chat_messages SET deleted = TRUE
-      WHERE deleted = FALSE
-        AND expires_at IS NOT NULL
-        AND expires_at <= NOW()`,
+  const pool = getPool();
+
+  // Group chat is the ONLY section that auto-deletes. Clear any stray TTL still
+  // lingering on other sections (from before auto-delete became group-chat-only)
+  // so those posts never expire or get hidden.
+  await pool
+    .query(
+      `UPDATE chat_messages SET expires_at = NULL
+        WHERE topic <> 'chat' AND expires_at IS NOT NULL`,
+    )
+    .catch(() => undefined);
+
+  // Expired group-chat messages + anything already soft-deleted, removed from
+  // the database for good. Their reactions and media go with them in one atomic
+  // statement (data-modifying CTEs share the snapshot).
+  const { rows } = await pool.query<{ n: number }>(
+    `WITH del AS (
+       DELETE FROM chat_messages
+        WHERE deleted = TRUE
+           OR (topic = 'chat' AND expires_at IS NOT NULL AND expires_at <= NOW())
+       RETURNING id, media_id
+     ),
+     _r AS (
+       DELETE FROM message_reactions
+        WHERE message_id IN (SELECT id FROM del)
+     ),
+     _m AS (
+       DELETE FROM chat_media
+        WHERE id IN (SELECT media_id FROM del WHERE media_id IS NOT NULL)
+     )
+     SELECT COUNT(*)::int AS n FROM del`,
   );
-  return rowCount ?? 0;
+  return rows[0]?.n ?? 0;
 }
 
 export interface CreateChatMessageInput {
