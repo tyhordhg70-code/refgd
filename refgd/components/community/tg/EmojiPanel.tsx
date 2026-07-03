@@ -48,6 +48,15 @@ export default function EmojiPanel({
   const [activePack, setActivePack] = useState<string>("");
   const packRefs = useRef(new Map<string, HTMLDivElement>());
 
+  // Admin pack-management state (Custom tab). Declared here so the loader
+  // effect below can drive the auto-discovery status message.
+  const [adminId, setAdminId] = useState("");
+  const [adminAlt, setAdminAlt] = useState("");
+  const [adminBusy, setAdminBusy] = useState(false);
+  const [adminMsg, setAdminMsg] = useState<string | null>(null);
+  // Guards the one-shot admin auto-discovery so it can never loop.
+  const autoTriedRef = useRef(false);
+
   const scrollToCat = (key: string) => {
     setActiveCat(key);
     sectionRefs.current.get(key)?.scrollIntoView({ block: "start" });
@@ -60,41 +69,63 @@ export default function EmojiPanel({
   useEffect(() => {
     if (tab !== "custom" || packsLoaded) return;
     let cancelled = false;
-    (async () => {
+    const load = async (): Promise<PackGroup[]> => {
       try {
         const res = await fetch("/api/community/emoji/list");
-        const data = (await res.json()) as {
-          ok?: boolean;
-          groups?: PackGroup[];
-        };
-        if (
-          !cancelled &&
-          data?.ok &&
-          Array.isArray(data.groups) &&
-          data.groups.length > 0
-        ) {
-          setPacks(data.groups);
-          setActivePack(data.groups[0].setName || data.groups[0].title || "0");
-        }
+        const data = (await res.json()) as { ok?: boolean; groups?: PackGroup[] };
+        return data?.ok && Array.isArray(data.groups) ? data.groups : [];
       } catch {
-        /* ignore — the static seed set below is the fallback */
-      } finally {
-        if (!cancelled) setPacksLoaded(true);
+        return [];
+      }
+    };
+    (async () => {
+      let groups = await load();
+      // Admin auto-discovery: when the pack DB is empty, expand the seed ids
+      // into their FULL Telegram packs on first open — so the owner sees every
+      // emoji in each pack without having to find/press "Load packs". One-shot
+      // per mount; on failure the error surfaces in the admin toolbar and the
+      // static seed set stays as the fallback.
+      if (!cancelled && groups.length === 0 && isAdmin && !autoTriedRef.current) {
+        autoTriedRef.current = true;
+        setAdminBusy(true);
+        setAdminMsg("Loading full packs…");
+        try {
+          const res = await fetch("/api/community/emoji/discover", {
+            method: "POST",
+          });
+          const data = (await res.json()) as {
+            ok?: boolean;
+            discovered?: number;
+            error?: string;
+          };
+          if (data?.ok) {
+            setAdminMsg(`Loaded ${data.discovered ?? 0} emoji`);
+            groups = await load();
+          } else {
+            setAdminMsg(data?.error || "Discovery failed");
+          }
+        } catch {
+          setAdminMsg("Discovery failed");
+        } finally {
+          if (!cancelled) setAdminBusy(false);
+        }
+      }
+      if (!cancelled) {
+        if (groups.length > 0) {
+          setPacks(groups);
+          setActivePack(groups[0].setName || groups[0].title || "0");
+        }
+        setPacksLoaded(true);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [tab, packsLoaded]);
+  }, [tab, packsLoaded, isAdmin]);
 
   const packKey = (g: PackGroup, i: number) => g.setName || g.title || `pack-${i}`;
 
   // ── Admin pack management (Custom tab only). ────────────────────────────
-  const [adminId, setAdminId] = useState("");
-  const [adminAlt, setAdminAlt] = useState("");
-  const [adminBusy, setAdminBusy] = useState(false);
-  const [adminMsg, setAdminMsg] = useState<string | null>(null);
-
   const reloadPacks = () => {
     setPacks(null);
     setPacksLoaded(false);
