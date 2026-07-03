@@ -53,10 +53,10 @@ export default function VouchHistory({
   onOpenMedia,
 }: {
   vouches: VouchView[];
-  /** Opens the reduced (Edit / Copy Text / Forward) context menu for a vouch. */
+  /** Opens the reduced (Edit / Pin / Copy Text / Forward) context menu for a vouch. */
   onOpenMenu?: (
     pos: { x: number; y: number },
-    payload: { id: string; text: string },
+    payload: { id: string; text: string; pinned: boolean },
   ) => void;
   /** Opens the fullscreen media viewer for a clicked photo. */
   onOpenMedia?: (src: string) => void;
@@ -106,6 +106,7 @@ export default function VouchHistory({
                         : null
                     }
                     hasAppendix={last}
+                    mid={`v${v.id}`}
                     pinned={v.pinned}
                     media={v.mediaIds.map(
                       (id) => `/api/community/media/${id}`,
@@ -115,7 +116,11 @@ export default function VouchHistory({
                     onOpenMenu={
                       onOpenMenu
                         ? (pos) =>
-                            onOpenMenu(pos, { id: v.id, text: v.body ?? "" })
+                            onOpenMenu(pos, {
+                              id: v.id,
+                              text: v.body ?? "",
+                              pinned: v.pinned,
+                            })
                         : undefined
                     }
                     onOpenMedia={onOpenMedia}

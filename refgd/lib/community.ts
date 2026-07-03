@@ -283,6 +283,24 @@ export async function updateVouchBody(
 }
 
 /**
+ * Admin pin/unpin of a read-only history post (Client Testimonials, BUY4U
+ * Vouches, Announcements). Mirrors setMessagePinned for live chat messages so
+ * migrated bubbles can be pinned the same way; listVouches already floats
+ * pinned rows to the top. Returns true when a row was actually updated.
+ */
+export async function setVouchPinned(
+  vouchId: string,
+  pinned: boolean,
+): Promise<boolean> {
+  await initDb();
+  const { rowCount } = await getPool().query(
+    `UPDATE vouches SET pinned = $2 WHERE id = $1`,
+    [vouchId, pinned],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
+/**
  * Active ingestion section — a single global toggle the admin flips from the
  * bot (/testimonials, /buy4u, /announcements). Kept in mod_config so it
  * survives restarts and is shared across Render instances.

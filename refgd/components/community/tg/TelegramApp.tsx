@@ -202,14 +202,20 @@ export default function TelegramApp({
     };
   }, []);
 
-  // Admin edits to read-only posts are applied client-side over the
+  // Admin edits + pins to read-only posts are applied client-side over the
   // server-fetched vouches so the bubble updates instantly without a refetch
   // (which would flicker the whole topic). Keyed by vouch id.
   const [vouchEdits, setVouchEdits] = useState<Record<string, string>>({});
+  const [vouchPins, setVouchPins] = useState<Record<string, boolean>>({});
   const applyEdits = (list: VouchView[]): VouchView[] =>
-    list.map((v) =>
-      vouchEdits[v.id] !== undefined ? { ...v, body: vouchEdits[v.id] } : v,
-    );
+    list.map((v) => {
+      const body = vouchEdits[v.id] !== undefined ? vouchEdits[v.id] : v.body;
+      const pinned =
+        vouchPins[v.id] !== undefined ? vouchPins[v.id] : v.pinned;
+      return body === v.body && pinned === v.pinned
+        ? v
+        : { ...v, body, pinned };
+    });
   const byTopic: Record<string, VouchView[]> = {
     testimonials: applyEdits(testimonials),
     buy4u: applyEdits(buy4u),
@@ -456,19 +462,33 @@ export default function TelegramApp({
         onVouchEdited={(id, body) =>
           setVouchEdits((prev) => ({ ...prev, [id]: body }))
         }
-        history={(query, onReadonlyMenu, onOpenMedia) => {
+        onVouchPinned={(id, pinned) =>
+          setVouchPins((prev) => ({ ...prev, [id]: pinned }))
+        }
+        pinnedExtras={(byTopic[topicKey] ?? [])
+          .filter((v) => v.pinned)
+          .sort((a, b) => {
+            const ta = a.originDate ?? a.createdAt;
+            const tb = b.originDate ?? b.createdAt;
+            if (ta !== tb) return ta < tb ? -1 : 1;
+            return Number(a.id) - Number(b.id);
+          })
+          .map((v) => ({ id: `v${v.id}`, body: v.body ?? "" }))}
+        history={(query, onReadonlyMenu, onOpenMedia, pinnedOnly) => {
           const q = query.trim().toLowerCase();
           const vouches = byTopic[topicKey] ?? [];
-          const shown = q
-            ? vouches.filter(
-                (v) =>
-                  v.body.toLowerCase().includes(q) ||
-                  v.authorName.toLowerCase().includes(q),
-              )
-            : vouches;
+          const shown = (
+            q
+              ? vouches.filter(
+                  (v) =>
+                    v.body.toLowerCase().includes(q) ||
+                    v.authorName.toLowerCase().includes(q),
+                )
+              : vouches
+          ).filter((v) => !pinnedOnly || v.pinned);
           return (
             <>
-              {topicKey === "announcements" && !q && (
+              {topicKey === "announcements" && !q && !pinnedOnly && (
                 <div className="message-date-group first-message-date-group">
                   <div className="sender-group-container sKXqbu2I">
                     <MessageBubble

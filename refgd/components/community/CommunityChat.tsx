@@ -138,6 +138,8 @@ export default function CommunityChat({
   icon,
   history,
   onVouchEdited,
+  onVouchPinned,
+  pinnedExtras,
 }: {
   onBack?: () => void;
   /** Which forum topic this feed reads/writes; defaults to the group chat. */
@@ -147,7 +149,9 @@ export default function CommunityChat({
   icon?: ReactNode;
   /**
    * Read-only migrated history rendered above the live messages. A function
-   * receives the active in-chat search query so it can filter itself.
+   * receives the active in-chat search query so it can filter itself, plus a
+   * `pinnedOnly` flag so it renders only pinned bubbles when the pinned-messages
+   * panel is open (Web A parity).
    */
   history?:
     | ReactNode
@@ -155,15 +159,27 @@ export default function CommunityChat({
         query: string,
         onReadonlyMenu: (
           pos: { x: number; y: number },
-          payload: { id: string; text: string },
+          payload: { id: string; text: string; pinned: boolean },
         ) => void,
         onOpenMedia: (src: string) => void,
+        pinnedOnly: boolean,
       ) => ReactNode);
   /**
    * Called after an admin edits a read-only history post so the parent can
    * patch its cached vouch body in place (no refetch → no flicker).
    */
   onVouchEdited?: (id: string, body: string) => void;
+  /**
+   * Called after an admin pins/unpins a read-only history post so the parent
+   * can patch its cached pin state in place (no refetch → no flicker).
+   */
+  onVouchPinned?: (id: string, pinned: boolean) => void;
+  /**
+   * Pinned read-only history posts (id prefixed `v<id>` to match their bubble
+   * `data-mid`, plus body for the banner preview), merged into the pinned
+   * banner + pinned-only panel so migrated pins behave like live pins.
+   */
+  pinnedExtras?: { id: string; body: string }[];
 }) {
   const chat = useCommunityChat(topic);
   const isGroupChat = topic === "chat";
@@ -190,7 +206,14 @@ export default function CommunityChat({
   // have no live message id and so get a reduced Copy Text / Forward menu.
   const [ctxMenu, setCtxMenu] = useState<
     | { kind: "chat"; m: ChatMessage; x: number; y: number }
-    | { kind: "readonly"; id: string; text: string; x: number; y: number }
+    | {
+        kind: "readonly";
+        id: string;
+        text: string;
+        pinned: boolean;
+        x: number;
+        y: number;
+      }
     | null
   >(null);
   // Admin forward flow: when set, a destination-section picker is shown. The
@@ -414,12 +437,13 @@ export default function CommunityChat({
   // Open the reduced context menu for a read-only history bubble.
   const openReadonlyMenu = (
     pos: { x: number; y: number },
-    payload: { id: string; text: string },
+    payload: { id: string; text: string; pinned: boolean },
   ) =>
     setCtxMenu({
       kind: "readonly",
       id: payload.id,
       text: payload.text,
+      pinned: payload.pinned,
       x: pos.x,
       y: pos.y,
     });
@@ -451,6 +475,27 @@ export default function CommunityChat({
       })
       .catch(() => showToast("Couldn't update"))
       .finally(() => setEditSaving(false));
+  };
+  // Pin/unpin a read-only history post, then patch the parent's cached pin
+  // state (no refetch → no flicker) so the 📌 badge + banner update instantly.
+  const pinReadonlyPost = (id: string, pinned: boolean) => {
+    void fetch("/api/community/vouch/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, pinned }),
+    })
+      .then((r) => r.json().catch(() => null))
+      .then(
+        (data: { ok?: boolean; pinned?: boolean; error?: string } | null) => {
+          if (data?.ok) {
+            onVouchPinned?.(id, data.pinned ?? pinned);
+            showToast(pinned ? "Post pinned" : "Post unpinned");
+          } else {
+            showToast(data?.error || "Couldn't update pin");
+          }
+        },
+      )
+      .catch(() => showToast("Couldn't update pin"));
   };
   // Jump to a quoted message when its reply preview is tapped, briefly
   // highlighting the target the way the real client does.
@@ -592,20 +637,28 @@ export default function CommunityChat({
     return buildGroups(shown);
   }, [state?.messages, query, pinnedOnly]);
 
-  // All pinned messages (chronological), surfaced in a banner under the header
-  // and in the pinned-only panel (Web A parity).
-  const pinnedMsgs = useMemo(
-    () => (state?.messages ?? []).filter((m) => m.pinned),
-    [state?.messages],
+  // All pinned messages surfaced in the banner under the header and in the
+  // pinned-only panel (Web A parity). Migrated history pins (pinnedExtras, id
+  // prefixed `v<id>` to match their bubble data-mid) come first in DOM/visual
+  // order, then live chat pins chronologically, so the default banner index
+  // (last = newest) still previews the newest live pin.
+  const pinnedItems = useMemo(
+    () => [
+      ...(pinnedExtras ?? []),
+      ...(state?.messages ?? [])
+        .filter((m) => m.pinned)
+        .map((m) => ({ id: m.id, body: m.body ?? "" })),
+    ],
+    [state?.messages, pinnedExtras],
   );
-  const pinnedCount = pinnedMsgs.length;
+  const pinnedCount = pinnedItems.length;
   const pinnedBannerIdx =
     pinnedCount === 0
       ? 0
       : pinnedIdx == null
         ? pinnedCount - 1
         : ((pinnedIdx % pinnedCount) + pinnedCount) % pinnedCount;
-  const pinnedBannerMsg = pinnedCount ? pinnedMsgs[pinnedBannerIdx] : null;
+  const pinnedBannerMsg = pinnedCount ? pinnedItems[pinnedBannerIdx] : null;
 
   // Deep link: `#msg-<id>` (from Copy Message Link / Forward) scrolls to that
   // message once the chat has loaded. Runs a single time per mount.
@@ -1199,6 +1252,21 @@ export default function CommunityChat({
                     Edit
                   </button>
                 )}
+                {me?.admin && (
+                  <button
+                    type="button"
+                    className="tg-menu-item"
+                    onClick={() => {
+                      const willPin = !ctxMenu.pinned;
+                      const id = ctxMenu.id;
+                      setCtxMenu(null);
+                      pinReadonlyPost(id, willPin);
+                    }}
+                  >
+                    <IconPin />
+                    {ctxMenu.pinned ? "Unpin" : "Pin"}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="tg-menu-item"
@@ -1297,11 +1365,16 @@ export default function CommunityChat({
                     )}
                     {/* Read-only migrated history (vouch topics). */}
                     {typeof history === "function"
-                      ? history(query, openReadonlyMenu, (src) =>
-                          setLightbox(src),
+                      ? history(
+                          query,
+                          openReadonlyMenu,
+                          (src) => setLightbox(src),
+                          pinnedOnly,
                         )
                       : history}
-                    {(isGroupChat || topic === "testimonials") && !query && (
+                    {(isGroupChat || topic === "testimonials") &&
+                      !query &&
+                      !pinnedOnly && (
                       <div className="sender-group-container sKXqbu2I">
                         <MessageBubble
                           own={false}
