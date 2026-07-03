@@ -12,14 +12,14 @@ import CommunityChat from "../CommunityChat";
 import NotificationSettings from "../NotificationSettings";
 import { ADMIN_TG, ensureTelegramReady } from "../useCommunityChat";
 import { parseStartParam, readStartParam } from "./deeplink";
-import { IconBell, IconChat, IconClose } from "./TgIcons";
+import { IconBell, IconChat } from "./TgIcons";
 import MiddleHeader from "./MiddleHeader";
-import SearchHeader from "./SearchHeader";
 import MessageBubble from "./MessageBubble";
 import VouchHistory from "./VouchTopic";
 import {
   ANNOUNCEMENT_SEED_BODY,
   ANNOUNCEMENT_SEED_PHOTO,
+  ANNOUNCEMENT_SEED_TEXT,
   ANNOUNCEMENT_SEED_TIME,
   README_SEED_BODY,
   README_SEED_PHOTO,
@@ -106,10 +106,6 @@ function TopicIcon({ def }: { def: TopicDef }) {
 
 const ROW_HEIGHT = 65;
 const MAIN_STYLE = { "--pattern-color": "#4A8E3A8C" } as CSSProperties;
-const README_LIST_STYLE = {
-  "--message-list-bottom-inset": "60px",
-  "--message-list-bottom-fade": "48px",
-} as CSSProperties;
 
 export interface ChatPreview {
   authorName: string;
@@ -153,11 +149,6 @@ export default function TelegramApp({
   // Topic-list search: null = closed, string = open with that query.
   const [listSearch, setListSearch] = useState<string | null>(null);
   const [showNotif, setShowNotif] = useState(false);
-  // Fullscreen photo viewer for the locked READ ME topic (rendered standalone,
-  // without a CommunityChat, so it needs its own lightbox).
-  const [readmeLightbox, setReadmeLightbox] = useState<string | null>(null);
-  // In-topic search for the locked READ ME post: null = closed, string = query.
-  const [readmeSearch, setReadmeSearch] = useState<string | null>(null);
   const listQuery = (listSearch ?? "").trim().toLowerCase();
   const visibleTopics = listQuery
     ? TOPICS.filter((t) => t.title.toLowerCase().includes(listQuery))
@@ -358,92 +349,83 @@ export default function TelegramApp({
       </div>
     );
   } else if (active === "readme") {
-    const rq = (readmeSearch ?? "").trim().toLowerCase();
-    const showSeed = !rq || README_SEED_TEXT.toLowerCase().includes(rq);
-    const showWelcome =
-      !!welcome && (!rq || welcome.toLowerCase().includes(rq));
+    // READ ME is now an admin-postable feed: CommunityChat supplies the header,
+    // the live message list and (for admins) the composer, while the original
+    // welcome post + welcome banner are injected as its read-only seed. Members
+    // see the "Topic locked" footer instead of an input (gated in CommunityChat
+    // and enforced server-side in the chat POST route).
+    const def = TOPICS.find((t) => t.key === "readme");
     middle = (
-      <>
-        <SearchHeader
-          title="READ ME"
-          subtitle={welcome ? "2 messages" : "1 message"}
-          icon={<TopicIcon def={TOPICS.find((t) => t.key === "readme")!} />}
-          onBack={back}
-          search={readmeSearch}
-          setSearch={setReadmeSearch}
-        />
-        <div className="Transition">
-          <div className="Transition_slide Transition_slide-active">
-            <div
-              className="Transition MessageList custom-scroll with-default-bg"
-              style={README_LIST_STYLE}
-            >
-              <div className="Transition_slide Transition_slide-active">
-                <div
-                  className="messages-container"
-                  style={{ paddingBottom: 60 }}
-                >
-                  <div className="backwards-trigger" />
-                  <div className="message-date-group first-message-date-group">
-                    <div className="sender-group-container sKXqbu2I">
-                      {showSeed && (
-                        <MessageBubble
-                          own={false}
-                          first
-                          last={!showWelcome}
-                          showAvatarGutter
-                          sender={{ name: SEED_AUTHOR, peer: 0, admin: true }}
-                          avatar={
-                            showWelcome
-                              ? null
-                              : {
-                                  name: SEED_AUTHOR,
-                                  photo: SEED_AVATAR,
-                                  peer: 0,
-                                }
-                          }
-                          hasAppendix={!showWelcome}
-                          pinned
-                          media={[README_SEED_PHOTO]}
-                          reactions={README_SEED_REACTIONS}
-                          body={README_SEED_BODY}
-                          time={README_SEED_TIME}
-                          onOpenMedia={(src) => setReadmeLightbox(src)}
-                        />
-                      )}
-                      {showWelcome && (
-                        <MessageBubble
-                          own={false}
-                          first={!showSeed}
-                          last
-                          showAvatarGutter
-                          sender={null}
-                          avatar={{
-                            name: SEED_AUTHOR,
-                            photo: SEED_AVATAR,
-                            peer: 0,
-                          }}
-                          hasAppendix
-                          body={renderBody(welcome)}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </div>
+      <CommunityChat
+        key="readme"
+        onBack={back}
+        topic="readme"
+        title={def?.title ?? "READ ME"}
+        icon={def ? <TopicIcon def={def} /> : undefined}
+        history={(query, onReadonlyMenu, onOpenMedia, pinnedOnly) => {
+          if (pinnedOnly) return null;
+          const rq = query.trim().toLowerCase();
+          const showSeed = !rq || README_SEED_TEXT.toLowerCase().includes(rq);
+          const showWelcome =
+            !!welcome && (!rq || welcome.toLowerCase().includes(rq));
+          if (!showSeed && !showWelcome) return null;
+          return (
+            <div className="message-date-group first-message-date-group">
+              <div className="sender-group-container sKXqbu2I">
+                {showSeed && (
+                  <MessageBubble
+                    own={false}
+                    first
+                    last={!showWelcome}
+                    showAvatarGutter
+                    sender={{ name: SEED_AUTHOR, peer: 0, admin: true }}
+                    avatar={
+                      showWelcome
+                        ? null
+                        : { name: SEED_AUTHOR, photo: SEED_AVATAR, peer: 0 }
+                    }
+                    hasAppendix={!showWelcome}
+                    pinned
+                    media={[README_SEED_PHOTO]}
+                    reactions={README_SEED_REACTIONS}
+                    body={README_SEED_BODY}
+                    time={README_SEED_TIME}
+                    onOpenMenu={(pos) =>
+                      onReadonlyMenu(pos, {
+                        id: "seed:readme",
+                        text: README_SEED_TEXT,
+                        pinned: true,
+                        canModify: false,
+                      })
+                    }
+                    onOpenMedia={onOpenMedia}
+                  />
+                )}
+                {showWelcome && (
+                  <MessageBubble
+                    own={false}
+                    first={!showSeed}
+                    last
+                    showAvatarGutter
+                    sender={null}
+                    avatar={{ name: SEED_AUTHOR, photo: SEED_AVATAR, peer: 0 }}
+                    hasAppendix
+                    body={renderBody(welcome)}
+                    onOpenMenu={(pos) =>
+                      onReadonlyMenu(pos, {
+                        id: "seed:welcome",
+                        text: welcome,
+                        pinned: false,
+                        canModify: false,
+                      })
+                    }
+                  />
+                )}
               </div>
             </div>
-          </div>
-        </div>
-        <div className="middle-column-footer tg-locked-footer">
-          <div className="messaging-disabled shown">
-            <div className="messaging-disabled-inner">
-              <span>
-                <i className="icon icon-lock" aria-hidden /> Topic locked
-              </span>
-            </div>
-          </div>
-        </div>
-      </>
+          );
+        }}
+      />
     );
   } else if (
     active === "announcements" ||
@@ -503,6 +485,14 @@ export default function TelegramApp({
                       media={[ANNOUNCEMENT_SEED_PHOTO]}
                       body={ANNOUNCEMENT_SEED_BODY}
                       time={ANNOUNCEMENT_SEED_TIME}
+                      onOpenMenu={(pos) =>
+                        onReadonlyMenu(pos, {
+                          id: "seed:announcement",
+                          text: ANNOUNCEMENT_SEED_TEXT,
+                          pinned: true,
+                          canModify: false,
+                        })
+                      }
                       onOpenMedia={onOpenMedia}
                     />
                   </div>
@@ -731,29 +721,6 @@ export default function TelegramApp({
         </div>
         {showNotif && (
           <NotificationSettings onClose={() => setShowNotif(false)} />
-        )}
-        {readmeLightbox && (
-          <div
-            className="tg-lightbox"
-            role="dialog"
-            aria-modal="true"
-            onClick={() => setReadmeLightbox(null)}
-          >
-            <button
-              type="button"
-              className="tg-lightbox-close"
-              aria-label="Close photo"
-              onClick={() => setReadmeLightbox(null)}
-            >
-              <IconClose />
-            </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={readmeLightbox}
-              alt="Photo"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
         )}
       </div>
     </div>

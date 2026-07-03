@@ -465,6 +465,22 @@
   box-shadow: 0 0.25rem 0.5rem 0.125rem var(--color-default-shadow);
   z-index: 21;
 }
+/* Reaction picker: the same panel floated as a fixed popover near the
+   long-pressed / right-clicked bubble (portaled outside the shifted
+   #MiddleColumn) instead of anchored to the composer. */
+.tg-reaction-pop {
+  position: fixed;
+  z-index: 40;
+  width: 22rem;
+  max-width: calc(100vw - 1rem);
+}
+.tg-reaction-pop .tg-emoji-panel {
+  position: static;
+  bottom: auto;
+  left: auto;
+  width: 100%;
+  max-width: 100%;
+}
 .tg-emoji-tabs {
   display: flex;
   gap: 0.25rem;
@@ -1025,6 +1041,21 @@ button.tg-reply-embed:focus-visible {
   flex: 1;
   min-width: 8rem;
 }
+.tg-admin-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e6ecf0;
+  border-radius: 0.75rem;
+  background: #fff;
+  color: #000;
+  font-size: 0.9375rem;
+  outline: none;
+}
+.tg-admin-search:focus {
+  border-color: #3390ec;
+}
 .tg-invite-list {
   list-style: none;
   margin: 0;
@@ -1263,7 +1294,9 @@ button.tg-reply-embed:focus-visible {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
+  width: 100%;
   max-width: 45.5rem;
+  box-sizing: border-box;
   margin: 0 auto 0.5rem;
   padding: 0.5rem 0.75rem;
   border-radius: 0.75rem;

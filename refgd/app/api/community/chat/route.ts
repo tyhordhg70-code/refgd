@@ -15,6 +15,7 @@ import {
   sweepExpiredMessages,
   claimNotifySlot,
   isChatTopic,
+  isNotifCategory,
   type ChatTopic,
 } from "@/lib/community";
 import { notifyCategory } from "@/lib/community-notify";
@@ -190,6 +191,17 @@ export async function POST(req: Request) {
 
   const topic: ChatTopic = isChatTopic(payload.topic) ? payload.topic : "chat";
 
+  // READ ME is a locked, admin-authored topic: everyone can read it (GET), but
+  // only admins may post. isChatTopic() alone would let any member write here,
+  // and the client hiding the composer is not an access control — gate it on
+  // the server.
+  if (topic === "readme" && !me.admin) {
+    return NextResponse.json(
+      { ok: false, error: "This topic is read-only." },
+      { status: 403 },
+    );
+  }
+
   let text = typeof payload.text === "string" ? payload.text.trim() : "";
   // Only admins may create "Forwarded from …" banners. A regular member could
   // otherwise type a literal [fwd:NAME] token in the composer and spoof an
@@ -336,7 +348,7 @@ export async function POST(req: Request) {
   // workers (atomic claim on mod_config), fail-soft so it can never break the
   // send. Subscribers opted into "chat" get "there's activity", not a ping
   // per message.
-  if (message) {
+  if (message && isNotifCategory(topic)) {
     void claimNotifySlot(`chat_notify_last_${topic}`, 900)
       .then((claimed) =>
         claimed

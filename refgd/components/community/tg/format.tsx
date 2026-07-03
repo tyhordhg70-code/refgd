@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { EMOJI_FE0F_KEEP } from "./emoji-fe0f";
 
 /**
  * Shared deterministic formatting helpers for the Telegram replica.
@@ -104,9 +105,14 @@ const EMOJI_RE =
  * + `Access-Control-Allow-Origin: *`, and the pinned tag is immutably cached.
  */
 export function emojiSrc(seq: string): string {
-  const codes = Array.from(seq)
+  const stripped = Array.from(seq)
     .map((c) => (c.codePointAt(0) ?? 0).toString(16))
     .filter((h) => h !== "fe0f");
+  // iamcal img-apple-64 KEEPS the -fe0f suffix for a fixed set of "text-default"
+  // emoji (e.g. ❤ → 2764-fe0f.png). Blindly stripping fe0f 404'd the heart (and
+  // every other text-default glyph), so re-append it for those keys only.
+  const key = stripped.join("-");
+  const codes = EMOJI_FE0F_KEEP.has(key) ? [...stripped, "fe0f"] : stripped;
   return `https://cdn.jsdelivr.net/gh/iamcal/emoji-data@v15.1.2/img-apple-64/${codes.join("-")}.png`;
 }
 

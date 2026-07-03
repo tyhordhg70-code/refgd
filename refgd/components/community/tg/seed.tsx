@@ -188,6 +188,21 @@ export const CHAT_NOTICE_SEED_BODY: ReactNode = (
   </>
 );
 
+/** Plain-text distillation of {@link CHAT_NOTICE_SEED_BODY} for Copy Text / search. */
+export const CHAT_NOTICE_SEED_TEXT =
+  "All group chat messages will be cleared, to assert attorney-client " +
+  "privilege 🧹 Clearing occurs once every three days.";
+
+/** Plain-text distillation of {@link ANNOUNCEMENT_SEED_BODY} for Copy Text / Forward. */
+export const ANNOUNCEMENT_SEED_TEXT =
+  "Dear members, ❓ Do you have a question, and do not want to wait for a " +
+  "response? Wait no longer, because now you can receive instant responses. " +
+  "💬 Please from now on, ask all of your questions to @refundlawfirmbot and " +
+  "receive near instant detailed responses. The bot is equipped to handle " +
+  "everything other than giving status updates on live orders. If for some " +
+  "reason the bot is unable to answer your question, please only then reach " +
+  "out to us. ➡️ @refundlawfirmbot ➡️ @refundlawfirmbot";
+
 /**
  * The email / paper-plane illustration attached to the Announcements post
  * (supplied by the owner).

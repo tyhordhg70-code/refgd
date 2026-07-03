@@ -761,12 +761,12 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
           error?: string;
           system?: string;
         };
-        if (typeof data.system === "string" && data.system) {
-          setSystemNote(data.system);
-          return false;
-        }
         if (!res.ok || !data.ok) {
-          setError(data.error ?? "Couldn't run that action");
+          // A rejected command comes back HTTP 200 with ok:false and its reason
+          // in `system` (e.g. "Reply to a message to pin it."); surface that,
+          // falling back to `error` for a hard failure. On success we stay quiet
+          // here — the caller shows its own toast.
+          setSystemNote(data.system || data.error || "Couldn't run that action");
           return false;
         }
         // Optimistically reflect a pin/unpin: the pinned flag (and the pinned

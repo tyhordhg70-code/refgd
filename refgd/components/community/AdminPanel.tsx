@@ -55,6 +55,7 @@ export default function AdminPanel({ onClose }: { onClose: () => void }) {
   const [actions, setActions] = useState<ActionRow[]>([]);
   const [members, setMembers] = useState<RosterMember[]>([]);
   const [membersLoaded, setMembersLoaded] = useState(false);
+  const [memberQuery, setMemberQuery] = useState("");
   const [slug, setSlug] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -282,8 +283,26 @@ export default function AdminPanel({ onClose }: { onClose: () => void }) {
                 {membersLoaded ? "No members yet." : "Loading members…"}
               </p>
             ) : (
-              <ul className="tg-invite-list">
-                {members.map((m) => (
+              <>
+                <input
+                  type="search"
+                  className="tg-admin-search"
+                  placeholder="Search members by name or ID…"
+                  value={memberQuery}
+                  onChange={(e) => setMemberQuery(e.target.value)}
+                  aria-label="Search members"
+                />
+                <ul className="tg-invite-list">
+                {members
+                  .filter((m) => {
+                    const q = memberQuery.trim().toLowerCase();
+                    if (!q) return true;
+                    return (
+                      (m.name || "").toLowerCase().includes(q) ||
+                      m.tgId.toLowerCase().includes(q)
+                    );
+                  })
+                  .map((m) => (
                   <li key={m.tgId} className="tg-invite-row">
                     <div className="tg-invite-top">
                       <div className="tg-invite-name">
@@ -325,7 +344,8 @@ export default function AdminPanel({ onClose }: { onClose: () => void }) {
                     </p>
                   </li>
                 ))}
-              </ul>
+                </ul>
+              </>
             )
           ) : actions.length === 0 ? (
             <p className="tg-note">No actions in the last 3 days.</p>

@@ -53,6 +53,7 @@ import type { ChatTopic } from "@/lib/community";
 import { COMMAND_SPECS } from "@/lib/community-commands";
 import {
   CHAT_NOTICE_SEED_BODY,
+  CHAT_NOTICE_SEED_TEXT,
   CHAT_NOTICE_SEED_TIME,
   SEED_AUTHOR,
   SEED_AVATAR,
@@ -159,7 +160,12 @@ export default function CommunityChat({
         query: string,
         onReadonlyMenu: (
           pos: { x: number; y: number },
-          payload: { id: string; text: string; pinned: boolean },
+          payload: {
+            id: string;
+            text: string;
+            pinned: boolean;
+            canModify?: boolean;
+          },
         ) => void,
         onOpenMedia: (src: string) => void,
         pinnedOnly: boolean,
@@ -183,6 +189,9 @@ export default function CommunityChat({
 }) {
   const chat = useCommunityChat(topic);
   const isGroupChat = topic === "chat";
+  // READ ME is a locked, admin-authored topic: admins get a normal composer,
+  // everyone else sees the "Topic locked" footer instead of the input.
+  const lockedForMembers = topic === "readme";
   const [menuOpen, setMenuOpen] = useState(false);
   // In-chat search: null = closed, string = open with that query.
   const [search, setSearch] = useState<string | null>(null);
@@ -211,6 +220,9 @@ export default function CommunityChat({
         id: string;
         text: string;
         pinned: boolean;
+        // Seed/hardcoded bubbles set this false → only Copy Text / Forward show
+        // (Edit/Pin persist to the vouch API and can't apply to a constant).
+        canModify: boolean;
         x: number;
         y: number;
       }
@@ -280,7 +292,12 @@ export default function CommunityChat({
   const [emojiOpen, setEmojiOpen] = useState(false);
   // Message id whose reaction picker (full emoji set) is open, opened from the
   // context-menu reaction row's "show more" chevron. null = closed.
-  const [reactTarget, setReactTarget] = useState<string | null>(null);
+  // The message being reacted to via the "more reactions" picker, plus the
+  // pointer position so the picker floats as a popover near the bubble (portaled
+  // outside the shifted #MiddleColumn) rather than being pinned to the composer.
+  const [reactTarget, setReactTarget] = useState<
+    { id: string; x: number; y: number } | null
+  >(null);
   // Fullscreen photo viewer (click a message photo to expand it).
   const [lightbox, setLightbox] = useState<string | null>(null);
   // Center-screen transient toast shown after every message action; the nonce
@@ -437,13 +454,19 @@ export default function CommunityChat({
   // Open the reduced context menu for a read-only history bubble.
   const openReadonlyMenu = (
     pos: { x: number; y: number },
-    payload: { id: string; text: string; pinned: boolean },
+    payload: {
+      id: string;
+      text: string;
+      pinned: boolean;
+      canModify?: boolean;
+    },
   ) =>
     setCtxMenu({
       kind: "readonly",
       id: payload.id,
       text: payload.text,
       pinned: payload.pinned,
+      canModify: payload.canModify ?? true,
       x: pos.x,
       y: pos.y,
     });
@@ -1069,7 +1092,11 @@ export default function CommunityChat({
                     className="tg-ctx-reaction tg-ctx-reaction-more"
                     aria-label="Show more reactions"
                     onClick={() => {
-                      setReactTarget(ctxMenu.m.id);
+                      setReactTarget({
+                        id: ctxMenu.m.id,
+                        x: ctxMenu.x,
+                        y: ctxMenu.y,
+                      });
                       setCtxMenu(null);
                     }}
                   >
@@ -1239,7 +1266,7 @@ export default function CommunityChat({
               </>
             ) : (
               <>
-                {me?.admin && (
+                {me?.admin && ctxMenu.canModify && (
                   <button
                     type="button"
                     className="tg-menu-item"
@@ -1252,7 +1279,7 @@ export default function CommunityChat({
                     Edit
                   </button>
                 )}
-                {me?.admin && (
+                {me?.admin && ctxMenu.canModify && (
                   <button
                     type="button"
                     className="tg-menu-item"
@@ -1299,6 +1326,39 @@ export default function CommunityChat({
             )}
           </div>
         </>,
+          overlayEl,
+        )}
+
+      {reactTarget &&
+        overlayEl &&
+        createPortal(
+          (() => {
+            const rt = reactTarget;
+            const W = 352;
+            const H = 420;
+            const m = 8;
+            const vw =
+              typeof window !== "undefined" ? window.innerWidth : W + 2 * m;
+            const vh =
+              typeof window !== "undefined" ? window.innerHeight : H + 2 * m;
+            const left = Math.max(m, Math.min(rt.x, vw - W - m));
+            const top = Math.max(m, Math.min(rt.y, vh - H - m));
+            return (
+              <div className="tg-reaction-pop" style={{ left, top }}>
+                <EmojiPanel
+                  onPick={(snippet) => {
+                    // Only plain-unicode emoji are valid reactions; skip custom
+                    // pack tokens ([ce:…]) the reaction chips can't render.
+                    if (!snippet.startsWith("[ce:"))
+                      void chat.react(rt.id, snippet);
+                    setReactTarget(null);
+                  }}
+                  onClose={() => setReactTarget(null)}
+                  isAdmin={!!me?.admin}
+                />
+              </div>
+            );
+          })(),
           overlayEl,
         )}
 
@@ -1398,6 +1458,14 @@ export default function CommunityChat({
                           pinned
                           body={CHAT_NOTICE_SEED_BODY}
                           time={CHAT_NOTICE_SEED_TIME}
+                          onOpenMenu={(pos) =>
+                            openReadonlyMenu(pos, {
+                              id: "seed:chat-notice",
+                              text: CHAT_NOTICE_SEED_TEXT,
+                              pinned: true,
+                              canModify: false,
+                            })
+                          }
                         />
                       </div>
                     )}
@@ -1494,7 +1562,12 @@ export default function CommunityChat({
         </div>
       </div>
 
-      <div className="middle-column-footer" ref={footerRef}>
+      <div
+        className={`middle-column-footer${
+          lockedForMembers && !me?.admin ? " tg-locked-footer" : ""
+        }`}
+        ref={footerRef}
+      >
         {chat.error && (
           <div className="tg-composer-alert is-error">
             <span>{chat.error}</span>
@@ -1520,25 +1593,12 @@ export default function CommunityChat({
           </div>
         )}
 
-        {state !== null && me && (
+        {state !== null && me && (!lockedForMembers || me.admin) && (
           <div className="Composer shown mounted">
             {emojiOpen && (
               <EmojiPanel
                 onPick={insertAtComposer}
                 onClose={() => setEmojiOpen(false)}
-                isAdmin={!!me?.admin}
-              />
-            )}
-            {reactTarget && (
-              <EmojiPanel
-                onPick={(snippet) => {
-                  // Only plain-unicode emoji are valid reactions; skip custom
-                  // pack tokens ([ce:…]) which the reaction chips can't render.
-                  if (!snippet.startsWith("[ce:"))
-                    void chat.react(reactTarget, snippet);
-                  setReactTarget(null);
-                }}
-                onClose={() => setReactTarget(null)}
                 isAdmin={!!me?.admin}
               />
             )}
@@ -1767,7 +1827,16 @@ export default function CommunityChat({
           </div>
         )}
 
-        {state !== null && !me && (
+        {state !== null && lockedForMembers && !me?.admin && (
+          <div className="messaging-disabled shown">
+            <div className="messaging-disabled-inner">
+              <span>
+                <i className="icon icon-lock" aria-hidden /> Topic locked
+              </span>
+            </div>
+          </div>
+        )}
+        {state !== null && !me && !lockedForMembers && (
           <div className="tg-composer-notice">
             {chat.inTelegram ? (
               <span>
@@ -1826,7 +1895,7 @@ export default function CommunityChat({
         )}
 
       {toast &&
-        overlayEl &&
+        typeof document !== "undefined" &&
         createPortal(
           <div
           key={toast.n}
@@ -1836,7 +1905,7 @@ export default function CommunityChat({
         >
           {toast.msg}
         </div>,
-          overlayEl,
+          document.body,
         )}
     </>
   );

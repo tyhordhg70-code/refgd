@@ -535,15 +535,16 @@ async function attachReactions(
 }
 
 /**
- * Forum topics members can post in (Web A parity — the real group lets
- * members write in every topic). "readme" is intentionally absent: the
- * pinned READ ME topic stays read-only.
+ * Forum topics served by the chat GET/POST route. Members can post in every
+ * topic EXCEPT "readme", which is admin-authored: everyone can read it, but
+ * only admins may post (the per-topic write gate lives in the chat POST route).
  */
 export const CHAT_TOPICS = [
   "chat",
   "testimonials",
   "buy4u",
   "announcements",
+  "readme",
 ] as const;
 export type ChatTopic = (typeof CHAT_TOPICS)[number];
 
