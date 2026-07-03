@@ -132,6 +132,11 @@ export default function CommunityChat({
   const [menuOpen, setMenuOpen] = useState(false);
   // In-chat search: null = closed, string = open with that query.
   const [search, setSearch] = useState<string | null>(null);
+  // Pinned-messages panel: when true the list shows ONLY pinned messages.
+  const [pinnedOnly, setPinnedOnly] = useState(false);
+  // Which pinned message the top banner previews (null = latest); tapping the
+  // banner cycles to older pins, Web A style.
+  const [pinnedIdx, setPinnedIdx] = useState<number | null>(null);
   const [showNotif, setShowNotif] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [fsPrompt, setFsPrompt] = useState(false);
@@ -412,21 +417,32 @@ export default function CommunityChat({
   const query = (search ?? "").trim().toLowerCase();
   const groups = useMemo(() => {
     const all = state?.messages ?? [];
-    const shown = query
-      ? all.filter(
-          (m) =>
-            m.body.toLowerCase().includes(query) ||
-            m.authorName.toLowerCase().includes(query),
-        )
-      : all;
+    const shown = pinnedOnly
+      ? all.filter((m) => m.pinned)
+      : query
+        ? all.filter(
+            (m) =>
+              m.body.toLowerCase().includes(query) ||
+              m.authorName.toLowerCase().includes(query),
+          )
+        : all;
     return buildGroups(shown);
-  }, [state?.messages, query]);
+  }, [state?.messages, query, pinnedOnly]);
 
-  // Latest pinned message, surfaced in a banner under the header (Web A parity).
-  const pinnedMsg = useMemo(() => {
-    const pins = (state?.messages ?? []).filter((m) => m.pinned);
-    return pins.length ? pins[pins.length - 1] : null;
-  }, [state?.messages]);
+  // All pinned messages (chronological), surfaced in a banner under the header
+  // and in the pinned-only panel (Web A parity).
+  const pinnedMsgs = useMemo(
+    () => (state?.messages ?? []).filter((m) => m.pinned),
+    [state?.messages],
+  );
+  const pinnedCount = pinnedMsgs.length;
+  const pinnedBannerIdx =
+    pinnedCount === 0
+      ? 0
+      : pinnedIdx == null
+        ? pinnedCount - 1
+        : ((pinnedIdx % pinnedCount) + pinnedCount) % pinnedCount;
+  const pinnedBannerMsg = pinnedCount ? pinnedMsgs[pinnedBannerIdx] : null;
 
   // Deep link: `#msg-<id>` (from Copy Message Link / Forward) scrolls to that
   // message once the chat has loaded. Runs a single time per mount.
@@ -489,7 +505,19 @@ export default function CommunityChat({
 
   return (
     <>
-      {search !== null ? (
+      {pinnedOnly ? (
+        <MiddleHeader
+          title={
+            pinnedCount === 1
+              ? "1 Pinned Message"
+              : `${pinnedCount} Pinned Messages`
+          }
+          subtitle={undefined}
+          onBack={() => setPinnedOnly(false)}
+        >
+          <span aria-hidden />
+        </MiddleHeader>
+      ) : search !== null ? (
         <>
           <div className="MiddleHeaderPanes M5bA2n6Z opacity-transition fast shown open" />
           <div className="MiddleHeader tg-chat-search-header">
@@ -553,25 +581,47 @@ export default function CommunityChat({
         </MiddleHeader>
       )}
 
-      {pinnedMsg && search === null && (
-        <button
-          type="button"
-          className="tg-pinned-banner"
-          onClick={() => {
-            document
-              .querySelector(`[data-mid="${pinnedMsg.id}"]`)
-              ?.scrollIntoView({ behavior: "smooth", block: "center" });
-          }}
+      {pinnedBannerMsg && search === null && !pinnedOnly && (
+        <div
+          className="HeaderPinnedMessageWrapper o9pW489x uLXlV2YQ tg-pinned-banner"
+          data-is-panel-open="true"
         >
-          <span className="tg-pinned-bar" aria-hidden />
-          <span className="tg-pinned-body">
-            <span className="tg-pinned-label">Pinned message</span>
-            <span className="tg-pinned-text">
-              {pinnedMsg.body?.trim() || "Photo"}
+          <button
+            type="button"
+            className="tg-pinned-body-btn"
+            onClick={() => {
+              document
+                .querySelector(`[data-mid="${pinnedBannerMsg.id}"]`)
+                ?.scrollIntoView({ behavior: "smooth", block: "center" });
+              if (pinnedCount > 1)
+                setPinnedIdx(
+                  ((pinnedBannerIdx - 1) % pinnedCount + pinnedCount) %
+                    pinnedCount,
+                );
+            }}
+          >
+            <span className="tg-pinned-bar" aria-hidden />
+            <span className="tg-pinned-body">
+              <span className="tg-pinned-label">
+                {pinnedCount > 1
+                  ? `Pinned message #${pinnedBannerIdx + 1}`
+                  : "Pinned message"}
+              </span>
+              <span className="tg-pinned-text">
+                {pinnedBannerMsg.body?.trim() || "Photo"}
+              </span>
             </span>
-          </span>
-          <IconPin />
-        </button>
+          </button>
+          <button
+            type="button"
+            className="Button smaller translucent round tg-pinned-list-btn"
+            aria-label="Pinned messages"
+            title="Pinned messages"
+            onClick={() => setPinnedOnly(true)}
+          >
+            <i className="icon icon-pin-list zqsoZNdU" aria-hidden />
+          </button>
+        </div>
       )}
 
       {menuOpen && (
@@ -920,7 +970,10 @@ export default function CommunityChat({
               <div
                 className="messages-container"
                 style={{
-                  paddingTop: pinnedMsg && search === null ? 44 : undefined,
+                  paddingTop:
+                    pinnedBannerMsg && search === null && !pinnedOnly
+                      ? 44
+                      : undefined,
                   paddingBottom: composerPad,
                 }}
               >

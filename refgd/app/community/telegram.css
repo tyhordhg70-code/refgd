@@ -1657,6 +1657,31 @@ button.tg-reply-embed:focus-visible {
   height: 1.125rem;
   color: var(--color-text-secondary, #707579);
 }
+/* Web A HeaderPinnedMessageWrapper: clickable preview (cycles pins) + a
+   round pin-list button that opens the pinned-only panel. */
+.tg-pinned-body-btn {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.tg-pinned-list-btn {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary, #707579);
+}
+.tg-pinned-list-btn .icon {
+  font-size: 1.25rem;
+}
 
 /* ── Emoji picker — category slider + per-pack sections (full emoji set). ─ */
 .tg-emoji-cats {
