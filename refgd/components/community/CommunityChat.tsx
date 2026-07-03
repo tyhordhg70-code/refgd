@@ -184,6 +184,9 @@ export default function CommunityChat({
     });
   }, [ctxMenu]);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  // Message id whose reaction picker (full emoji set) is open, opened from the
+  // context-menu reaction row's "show more" chevron. null = closed.
+  const [reactTarget, setReactTarget] = useState<string | null>(null);
   // Fullscreen photo viewer (click a message photo to expand it).
   const [lightbox, setLightbox] = useState<string | null>(null);
   // Centered transient toast (e.g. "Message deleted"), auto-fades after 2.5s.
@@ -784,6 +787,17 @@ export default function CommunityChat({
                       />
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    className="tg-ctx-reaction tg-ctx-reaction-more"
+                    aria-label="Show more reactions"
+                    onClick={() => {
+                      setReactTarget(ctxMenu.m.id);
+                      setCtxMenu(null);
+                    }}
+                  >
+                    <i className="icon icon-down" aria-hidden />
+                  </button>
                 </div>
                 <button
                   type="button"
@@ -1140,6 +1154,19 @@ export default function CommunityChat({
               <EmojiPanel
                 onPick={insertAtComposer}
                 onClose={() => setEmojiOpen(false)}
+                isAdmin={!!me?.admin}
+              />
+            )}
+            {reactTarget && (
+              <EmojiPanel
+                onPick={(snippet) => {
+                  // Only plain-unicode emoji are valid reactions; skip custom
+                  // pack tokens ([ce:…]) which the reaction chips can't render.
+                  if (!snippet.startsWith("[ce:"))
+                    void chat.react(reactTarget, snippet);
+                  setReactTarget(null);
+                }}
+                onClose={() => setReactTarget(null)}
                 isAdmin={!!me?.admin}
               />
             )}
