@@ -157,6 +157,22 @@ export const README_SEED_BODY: ReactNode = (
 );
 
 /**
+ * Plain-text distillation of {@link README_SEED_BODY}, used only to make the
+ * READ ME post searchable (the JSX body above can't be substring-matched).
+ * Keep the copy roughly in sync with the message above.
+ */
+export const README_SEED_TEXT =
+  "WELCOME If you haven't already, we kindly ask you to please visit our " +
+  "website, to familiarize yourself with our services offered, there you will " +
+  "find answers to most questions and information of how everything works. " +
+  "CLICK ME TO VISIT refundgod.io With a total of 5 different paths on the " +
+  "website, each of which serves a different purpose and is a entire different " +
+  "category. Not sure which one is right for you? Below you can find a brief " +
+  "overview of what each path card contains to determine which is right for " +
+  "you, before visiting: CLICK ME TO LEARN Something not clear, or still have " +
+  "questions? Please don't hesitate to ask them to @refundlawfirmbot";
+
+/**
  * Body of the pinned clearing notice (message 18 in the saved page). The
  * same post is the latest message of the Announcements topic in the saved
  * topic list, so it seeds that topic too.

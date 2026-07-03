@@ -13,6 +13,7 @@ import NotificationSettings from "../NotificationSettings";
 import { ADMIN_TG, ensureTelegramReady } from "../useCommunityChat";
 import { IconBell, IconChat, IconClose } from "./TgIcons";
 import MiddleHeader from "./MiddleHeader";
+import SearchHeader from "./SearchHeader";
 import MessageBubble from "./MessageBubble";
 import VouchHistory from "./VouchTopic";
 import {
@@ -22,6 +23,7 @@ import {
   README_SEED_BODY,
   README_SEED_PHOTO,
   README_SEED_REACTIONS,
+  README_SEED_TEXT,
   README_SEED_TIME,
   SEED_AUTHOR,
   SEED_AVATAR,
@@ -153,6 +155,8 @@ export default function TelegramApp({
   // Fullscreen photo viewer for the locked READ ME topic (rendered standalone,
   // without a CommunityChat, so it needs its own lightbox).
   const [readmeLightbox, setReadmeLightbox] = useState<string | null>(null);
+  // In-topic search for the locked READ ME post: null = closed, string = query.
+  const [readmeSearch, setReadmeSearch] = useState<string | null>(null);
   const listQuery = (listSearch ?? "").trim().toLowerCase();
   const visibleTopics = listQuery
     ? TOPICS.filter((t) => t.title.toLowerCase().includes(listQuery))
@@ -330,13 +334,19 @@ export default function TelegramApp({
       </div>
     );
   } else if (active === "readme") {
+    const rq = (readmeSearch ?? "").trim().toLowerCase();
+    const showSeed = !rq || README_SEED_TEXT.toLowerCase().includes(rq);
+    const showWelcome =
+      !!welcome && (!rq || welcome.toLowerCase().includes(rq));
     middle = (
       <>
-        <MiddleHeader
+        <SearchHeader
           title="READ ME"
           subtitle={welcome ? "2 messages" : "1 message"}
           icon={<TopicIcon def={TOPICS.find((t) => t.key === "readme")!} />}
           onBack={back}
+          search={readmeSearch}
+          setSearch={setReadmeSearch}
         />
         <div className="Transition">
           <div className="Transition_slide Transition_slide-active">
@@ -352,28 +362,35 @@ export default function TelegramApp({
                   <div className="backwards-trigger" />
                   <div className="message-date-group first-message-date-group">
                     <div className="sender-group-container sKXqbu2I">
-                      <MessageBubble
-                        own={false}
-                        first
-                        last={!welcome}
-                        showAvatarGutter
-                        sender={{ name: SEED_AUTHOR, peer: 0, admin: true }}
-                        avatar={
-                          welcome
-                            ? null
-                            : { name: SEED_AUTHOR, photo: SEED_AVATAR, peer: 0 }
-                        }
-                        hasAppendix={!welcome}
-                        pinned
-                        media={[README_SEED_PHOTO]}
-                        reactions={README_SEED_REACTIONS}
-                        body={README_SEED_BODY}
-                        time={README_SEED_TIME}
-                        onOpenMedia={(src) => setReadmeLightbox(src)}
-                      />
-                      {welcome && (
+                      {showSeed && (
                         <MessageBubble
                           own={false}
+                          first
+                          last={!showWelcome}
+                          showAvatarGutter
+                          sender={{ name: SEED_AUTHOR, peer: 0, admin: true }}
+                          avatar={
+                            showWelcome
+                              ? null
+                              : {
+                                  name: SEED_AUTHOR,
+                                  photo: SEED_AVATAR,
+                                  peer: 0,
+                                }
+                          }
+                          hasAppendix={!showWelcome}
+                          pinned
+                          media={[README_SEED_PHOTO]}
+                          reactions={README_SEED_REACTIONS}
+                          body={README_SEED_BODY}
+                          time={README_SEED_TIME}
+                          onOpenMedia={(src) => setReadmeLightbox(src)}
+                        />
+                      )}
+                      {showWelcome && (
+                        <MessageBubble
+                          own={false}
+                          first={!showSeed}
                           last
                           showAvatarGutter
                           sender={null}
