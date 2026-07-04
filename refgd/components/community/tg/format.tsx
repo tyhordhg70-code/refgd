@@ -325,37 +325,110 @@ function LottieEmoji({
  * hundreds of parallel downloads saturating the browser's per-origin
  * connection pool, starving ALL emoji requests (visible tiles included).
  */
-let sharedTileIO: IntersectionObserver | null = null;
-const tileIOCallbacks = new Map<Element, () => void>();
+const tileIOEntries = new Map<
+  Element,
+  { cb: () => void; io: IntersectionObserver }
+>();
+// Per-root observers: a root:null observer's rootMargin is CLIPPED by any
+// scrolling ancestor (the picker grid is overflow-y:auto), so lookahead
+// inside the grid would be ~0px and tiles would pop in exactly at the edge.
+// Rooting the observer at the grid itself restores real prefetch distance.
+// WeakMap so an unmounted grid frees its observer with the DOM node.
+const tileIORoots = new WeakMap<Element, IntersectionObserver>();
+let tileIOViewport: IntersectionObserver | null = null;
+
+function makeTileIO(root: Element | null): IntersectionObserver {
+  return new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const entry = tileIOEntries.get(e.target);
+        if (entry) {
+          tileIOEntries.delete(e.target);
+          entry.io.unobserve(e.target);
+          entry.cb();
+        }
+      }
+    },
+    { root, rootMargin: "600px" },
+  );
+}
 
 function observeTile(el: Element, cb: () => void): void {
   if (typeof IntersectionObserver === "undefined") {
     cb();
     return;
   }
-  if (!sharedTileIO) {
-    sharedTileIO = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) continue;
-          const fire = tileIOCallbacks.get(e.target);
-          if (fire) {
-            tileIOCallbacks.delete(e.target);
-            sharedTileIO?.unobserve(e.target);
-            fire();
-          }
-        }
-      },
-      { rootMargin: "250px" },
-    );
+  const root = el.closest(".tg-emoji-grid");
+  let io: IntersectionObserver;
+  if (root) {
+    io = tileIORoots.get(root) ?? makeTileIO(root);
+    tileIORoots.set(root, io);
+  } else {
+    io = tileIOViewport ?? makeTileIO(null);
+    tileIOViewport = io;
   }
-  tileIOCallbacks.set(el, cb);
-  sharedTileIO.observe(el);
+  tileIOEntries.set(el, { cb, io });
+  io.observe(el);
 }
 
 function unobserveTile(el: Element): void {
-  tileIOCallbacks.delete(el);
-  sharedTileIO?.unobserve(el);
+  const entry = tileIOEntries.get(el);
+  if (entry) {
+    tileIOEntries.delete(el);
+    entry.io.unobserve(el);
+  }
+}
+
+/**
+ * Background tile warmer — the other half of Telegram Web A's "instant"
+ * picker: Web A feels instant because its media is already in the client
+ * cache, not because it downloads 1,000+ tiles at once. When the Custom tab's
+ * pack list arrives, every tile URL is queued here and fetched a few at a
+ * time; the responses land in the browser's HTTP cache (the route serves
+ * immutable, 1-year), so tiles render instantly the moment they mount — and
+ * on every later visit the whole picker paints from disk with zero network.
+ * Low concurrency on purpose: the visible tiles' own requests always have
+ * headroom (the old eager flood starved them). Pauses while the tab is
+ * hidden (background tabs must not hammer the API — see the tab-visibility
+ * lesson) and resumes on visibilitychange.
+ */
+const warmQueued = new Set<string>();
+const warmPending: string[] = [];
+let warmActive = 0;
+let warmListenerWired = false;
+const WARM_CONCURRENCY = 4;
+
+function warmStep(): void {
+  if (typeof document !== "undefined" && document.hidden) return;
+  while (warmActive < WARM_CONCURRENCY && warmPending.length > 0) {
+    const id = warmPending.shift();
+    if (!id) break;
+    warmActive++;
+    fetch(`/api/community/emoji/${id}?v=${EMOJI_CACHE_VERSION}`)
+      .then((r) => (r.ok ? r.blob() : null))
+      .catch(() => null)
+      .then(() => {
+        warmActive--;
+        warmStep();
+      });
+  }
+}
+
+export function warmEmojiTiles(ids: string[]): void {
+  if (typeof window === "undefined") return;
+  if (!warmListenerWired) {
+    warmListenerWired = true;
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) warmStep();
+    });
+  }
+  for (const id of ids) {
+    if (warmQueued.has(id)) continue;
+    warmQueued.add(id);
+    warmPending.push(id);
+  }
+  warmStep();
 }
 
 /**

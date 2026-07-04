@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import { CustomEmojiImg, emojiSrc } from "./format";
+import { CustomEmojiImg, emojiSrc, warmEmojiTiles } from "./format";
 import { EMOJI_CATEGORIES } from "./emoji-data";
 import { CUSTOM_EMOJI, EMOJI_CACHE_VERSION } from "@/lib/custom-emoji";
 import {
@@ -162,6 +162,14 @@ export default function EmojiPanel({
           setActivePack(groups[0].setName || groups[0].title || "0");
         }
         setPacksLoaded(true);
+        // Telegram-instant: quietly pre-download every tile (a few at a time)
+        // into the browser's HTTP cache so tiles paint the moment they mount
+        // — and the whole picker is instant on every later visit.
+        warmEmojiTiles(
+          groups.length > 0
+            ? groups.flatMap((g) => g.emoji.map((c) => c.id))
+            : CUSTOM_EMOJI.map((c) => c.id),
+        );
       }
     })();
     return () => {
