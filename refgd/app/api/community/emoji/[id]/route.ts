@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCustomEmoji, saveCustomEmoji, isPackEmoji } from "@/lib/community";
 import { communityBotToken } from "@/lib/community-bot";
-import { CUSTOM_EMOJI_IDS } from "@/lib/custom-emoji";
+import { CUSTOM_EMOJI_IDS, EMOJI_CACHE_VERSION } from "@/lib/custom-emoji";
 import {
   fetchStickerArt,
   FIRST_ORIGINALS_VERSION,
@@ -77,8 +77,13 @@ export async function GET(
   // destructive prod write) and double as the stale fallback below. The
   // allowlist + Telegram fetch still key off the raw numeric id; only the
   // cache row is versioned.
+  // Clamp ?v to the shipped client version: this route is unauthenticated and
+  // the self-heal below copies rows forward, so an unbounded v would let a
+  // client walking v=5,6,7… clone a cached row thousands of times.
   const v = new URL(req.url).searchParams.get("v");
-  const vNum = v && /^\d{1,4}$/.test(v) ? parseInt(v, 10) : null;
+  const vParsed = v && /^\d{1,4}$/.test(v) ? parseInt(v, 10) : null;
+  const vNum =
+    vParsed && vParsed <= EMOJI_CACHE_VERSION ? vParsed : null;
   const cacheKey = vNum ? `${id}:v${vNum}` : id;
 
   // CACHE-FIRST, allowlist second: bytes already cached in Postgres are served
