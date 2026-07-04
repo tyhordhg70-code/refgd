@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { readMemberSession } from "@/lib/community-auth";
 import {
   deletePackBySetName,
+  EMOJI_PACK_DENYLIST_KEY,
+  getModConfig,
   listPackEmoji,
+  setModConfig,
   upsertPackEmoji,
   type PackEmoji,
 } from "@/lib/community";
@@ -134,5 +137,14 @@ export async function DELETE(req: Request) {
   }
 
   const removed = await deletePackBySetName(setName);
+
+  // Persist the removal so discovery (the one-shot auto-discovery on an empty
+  // pack list AND the manual "Load packs" button) can never resurrect the
+  // pack — both filter against this denylist.
+  const denylist = await getModConfig<string[]>(EMOJI_PACK_DENYLIST_KEY, []);
+  if (Array.isArray(denylist) && !denylist.includes(setName)) {
+    await setModConfig(EMOJI_PACK_DENYLIST_KEY, [...denylist, setName]);
+  }
+
   return NextResponse.json({ ok: true, setName, removed });
 }

@@ -817,6 +817,13 @@ export async function upsertPackEmoji(rows: PackEmoji[]): Promise<number> {
 }
 
 /**
+ * mod_config key holding the JSON array of set_names an admin removed from
+ * the picker. Discovery (auto + manual "Load packs") filters against it so a
+ * removed pack can never be silently resurrected.
+ */
+export const EMOJI_PACK_DENYLIST_KEY = "emoji_pack_denylist";
+
+/**
  * Remove an entire pack from the picker library by its set_name (admin
  * curation). Only deletes the picker rows — cached emoji bytes in
  * custom_emoji stay, so ids already used inside messages keep rendering.

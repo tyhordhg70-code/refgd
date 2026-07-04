@@ -80,14 +80,14 @@ export async function GET(
   const v = new URL(req.url).searchParams.get("v");
   const vNum = v && /^\d{1,4}$/.test(v) ? parseInt(v, 10) : null;
   const cacheKey = vNum ? `${id}:v${vNum}` : id;
-  // Unauthenticated route: serve ONLY allowlisted ids — the static seed pack
-  // (lib/custom-emoji.ts) ∪ ids discovered into community_emoji_pack by an
-  // admin. Anything else is rejected before touching the cache or the Telegram
-  // API (no unbounded DB growth, no fetch amplification via hand-typed tokens).
-  if (!CUSTOM_EMOJI_IDS.has(id) && !(await isPackEmoji(id))) {
-    return degradedResponse(null);
-  }
 
+  // CACHE-FIRST, allowlist second: bytes already cached in Postgres are served
+  // even when the id is no longer allowlisted, so an admin removing a pack
+  // from the picker (community_emoji_pack) never blanks that pack's emoji in
+  // EXISTING messages. The allowlist gate below protects only the expensive
+  // paths (Telegram fetch / new cache rows) — same security intent (no
+  // unbounded DB growth, no fetch amplification via hand-typed tokens), since
+  // cached rows can only exist for ids that were allowlisted at fetch time.
   const cached = await getCustomEmoji(cacheKey);
   if (cached) {
     // A sub-floor row is a known-blank poison marker (see MIN_STICKER_BYTES):
@@ -102,7 +102,8 @@ export async function GET(
   // ORIGINAL documents, so a bump only needs a cheap row copy — not a fresh
   // Telegram download. This keeps a bump from re-triggering the rate-limit
   // stampede that broke the v4 warm-up. (v3/bare rows are old static
-  // thumbnails and are deliberately never copied forward.)
+  // thumbnails and are deliberately never copied forward.) Runs before the
+  // allowlist gate on purpose: it only copies bytes that are already cached.
   if (vNum && vNum > FIRST_ORIGINALS_VERSION) {
     const prev = await getCustomEmoji(`${id}:v${vNum - 1}`);
     if (prev && prev.bytes.length >= MIN_STICKER_BYTES) {
@@ -124,6 +125,15 @@ export async function GET(
     }
     return degradedResponse(null);
   };
+
+  // Unauthenticated route: only allowlisted ids may reach the Telegram API or
+  // create new cache rows — the static seed pack (lib/custom-emoji.ts) ∪ ids
+  // discovered into community_emoji_pack by an admin. Anything else stops
+  // here (no unbounded DB growth, no fetch amplification via hand-typed
+  // tokens); a removed-pack id still gets its stale legacy row above.
+  if (!CUSTOM_EMOJI_IDS.has(id) && !(await isPackEmoji(id))) {
+    return staleLegacy();
+  }
 
   const token = communityBotToken();
   if (!token) return staleLegacy();

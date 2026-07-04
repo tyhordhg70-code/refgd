@@ -5,7 +5,12 @@ import {
   getStickerSet,
   communityBotToken,
 } from "@/lib/community-bot";
-import { upsertPackEmoji, type PackEmoji } from "@/lib/community";
+import {
+  EMOJI_PACK_DENYLIST_KEY,
+  getModConfig,
+  upsertPackEmoji,
+  type PackEmoji,
+} from "@/lib/community";
 import { CUSTOM_EMOJI } from "@/lib/custom-emoji";
 
 export const runtime = "nodejs";
@@ -36,11 +41,16 @@ export async function POST() {
 
   const seedIds = CUSTOM_EMOJI.map((c) => c.id);
   const seedStickers = await getCustomEmojiStickers(seedIds);
+  // Packs the admin explicitly removed from the picker stay removed —
+  // discovery must never resurrect them (neither the auto-run on an empty
+  // pack list nor the manual "Load packs" button).
+  const denylistRaw = await getModConfig<string[]>(EMOJI_PACK_DENYLIST_KEY, []);
+  const denylist = new Set(Array.isArray(denylistRaw) ? denylistRaw : []);
   const setNames = Array.from(
     new Set(
       seedStickers
         .map((s) => (s.set_name ?? "").trim())
-        .filter((n): n is string => n.length > 0),
+        .filter((n): n is string => n.length > 0 && !denylist.has(n)),
     ),
   );
 
