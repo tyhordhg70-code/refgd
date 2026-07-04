@@ -39,6 +39,7 @@ export default function EmojiPanel({
   isAdmin?: boolean;
 }) {
   const [tab, setTab] = useState<"standard" | "custom">("standard");
+  const [expanded, setExpanded] = useState(false);
   const [activeCat, setActiveCat] = useState(EMOJI_CATEGORIES[0].key);
   const sectionRefs = useRef(new Map<string, HTMLDivElement>());
 
@@ -197,7 +198,7 @@ export default function EmojiPanel({
         onClick={onClose}
         aria-label="Close emoji panel"
       />
-      <div className="tg-emoji-panel">
+      <div className={`tg-emoji-panel${expanded ? " is-expanded" : ""}`}>
         <div className="tg-emoji-tabs" role="tablist">
           <button
             type="button"
@@ -216,6 +217,25 @@ export default function EmojiPanel({
             onClick={() => setTab("custom")}
           >
             Custom
+          </button>
+          <button
+            type="button"
+            className="tg-emoji-expand"
+            aria-label={expanded ? "Collapse emoji panel" : "Expand emoji panel"}
+            aria-pressed={expanded}
+            title={expanded ? "Collapse" : "Expand"}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+              <path
+                d="M7 14l5-5 5 5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         </div>
         {tab === "standard" ? (
@@ -244,7 +264,7 @@ export default function EmojiPanel({
                 </button>
               ))}
             </div>
-            <div className="tg-emoji-grid custom-scroll">
+            <div className="tg-emoji-grid custom-scroll" data-lenis-prevent>
               {EMOJI_CATEGORIES.map((cat) => (
                 <Fragment key={cat.key}>
                   <div
@@ -346,7 +366,7 @@ export default function EmojiPanel({
                 })}
               </div>
             )}
-            <div className="tg-emoji-grid custom-scroll">
+            <div className="tg-emoji-grid custom-scroll" data-lenis-prevent>
               {packs.map((g, i) => {
                 const key = packKey(g, i);
                 return (
@@ -376,7 +396,7 @@ export default function EmojiPanel({
             </div>
           </>
         ) : (
-          <div className="tg-emoji-grid custom-scroll">
+          <div className="tg-emoji-grid custom-scroll" data-lenis-prevent>
             {CUSTOM_EMOJI.map((c) => (
               <button
                 key={c.id}

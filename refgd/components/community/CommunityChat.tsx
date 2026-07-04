@@ -822,7 +822,7 @@ export default function CommunityChat({
 
       {pinnedBannerMsg && search === null && !pinnedOnly && (
         <div
-          className="HeaderPinnedMessageWrapper o9pW489x uLXlV2YQ tg-pinned-banner"
+          className="HeaderPinnedMessageWrapper tg-pinned-banner"
           data-is-panel-open="true"
         >
           <button
@@ -1678,7 +1678,12 @@ export default function CommunityChat({
                 </div>
               )}
               {(() => {
-                const t = chat.text.trim();
+                // Match the RAW composer text (not trimmed): applyCommand fills
+                // "/cmd " with a trailing space, so an un-trimmed match lets that
+                // space dismiss the popup instead of leaving it stuck open (the
+                // tap otherwise "did nothing" because the trimmed text still
+                // matched and re-rendered the same list).
+                const t = chat.text;
                 const m = t.match(/^\/(\w*)$/);
                 if (!m) return null;
                 const partial = m[1].toLowerCase();

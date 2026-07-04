@@ -460,10 +460,45 @@
   left: 0.5rem;
   width: 22rem;
   max-width: calc(100% - 1rem);
+  max-height: min(70vh, 26rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border-radius: 0.9375rem;
   background: rgb(100% 100% 100% / 0.98);
   box-shadow: 0 0.25rem 0.5rem 0.125rem var(--color-default-shadow);
   z-index: 21;
+}
+.tg-emoji-panel.is-expanded {
+  max-height: min(88vh, 42rem);
+}
+/* keep tabs / category slider / admin toolbar fixed; only the grid scrolls */
+.tg-emoji-panel > *:not(.tg-emoji-grid) {
+  flex: 0 0 auto;
+}
+/* expand / collapse chevron on the right of the tab row */
+.tg-emoji-expand {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--color-text-secondary, #707579);
+  cursor: pointer;
+}
+.tg-emoji-expand svg {
+  transition: transform 0.15s ease;
+}
+.tg-emoji-panel.is-expanded .tg-emoji-expand svg {
+  transform: rotate(180deg);
+}
+/* the compact reaction-picker popover is size-clamped by JS; the expand toggle
+   there could push it past the viewport, so hide it (grid still scrolls). */
+.tg-reaction-pop .tg-emoji-expand {
+  display: none;
 }
 /* Reaction picker: the same panel floated as a fixed popover near the
    long-pressed / right-clicked bubble (portaled outside the shifted
@@ -552,8 +587,10 @@
   grid-template-columns: repeat(auto-fill, minmax(2.25rem, 1fr));
   gap: 0.125rem;
   padding: 0.5rem 0.625rem 0.625rem;
-  max-height: 13.5rem;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .tg-emoji-grid button {
   display: flex;

@@ -154,35 +154,52 @@ const URL_RE = /(https?:\/\/[^\s]+|t\.me\/[^\s]+)/g;
 
 /**
  * Custom (premium pack) emoji sticker rendered from the Telegram document id.
- * Source cascade: self-hosted animated webp (/tg-emoji, committed to the
- * repo) → /api/community/emoji static thumb (Bot API, prod only) → plain
- * Apple-emoji sprite. Each tier moves on when the previous one 404s/fails.
+ *
+ * Apple-sprite-first: the visible <img> always starts as the fallback glyph's
+ * Apple sprite (guaranteed to render), then upgrades to the custom pack artwork
+ * only once that artwork has actually decoded (naturalWidth > 0) via a
+ * post-mount preload. This dodges two blank-emoji traps of the old onError
+ * cascade: (1) SSR emits the webp <img> and a 404/decode error can fire before
+ * hydration attaches onError, so the cascade never advances; (2) an animated
+ * webp that "loads" but paints nothing in a webview never fires onError either.
+ * Artwork cascade: self-hosted webp (/tg-emoji, only some ids) →
+ * /api/community/emoji thumb (Bot API, prod only). If neither decodes, the
+ * Apple sprite stays — never blank.
  */
 export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
-  const [tier, setTier] = useState(0);
-  if (tier >= 2) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={emojiSrc(alt)}
-        className="emoji emoji-small"
-        alt={alt}
-        draggable={false}
-        loading="lazy"
-      />
-    );
-  }
+  const [artSrc, setArtSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const sources = [`/tg-emoji/${id}.webp`, `/api/community/emoji/${id}`];
+    const tryLoad = (i: number) => {
+      if (cancelled || i >= sources.length) return;
+      const probe = new Image();
+      probe.onload = () => {
+        if (cancelled) return;
+        if (probe.naturalWidth > 0 && probe.naturalHeight > 0) {
+          setArtSrc(sources[i]);
+        } else {
+          tryLoad(i + 1);
+        }
+      };
+      probe.onerror = () => tryLoad(i + 1);
+      probe.src = sources[i];
+    };
+    tryLoad(0);
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={
-        tier === 0 ? `/tg-emoji/${id}.webp` : `/api/community/emoji/${id}`
-      }
+      src={artSrc ?? emojiSrc(alt)}
       className="emoji emoji-small tg-custom-emoji"
       alt={alt}
       draggable={false}
       loading="lazy"
-      onError={() => setTier((t) => t + 1)}
+      onError={() => setArtSrc(null)}
     />
   );
 }
