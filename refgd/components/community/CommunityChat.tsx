@@ -142,6 +142,8 @@ export default function CommunityChat({
   onVouchPinned,
   onSeedEdited,
   pinnedExtras,
+  chatNoticeText = CHAT_NOTICE_SEED_TEXT,
+  chatNoticeOverridden = false,
 }: {
   onBack?: () => void;
   /** Which forum topic this feed reads/writes; defaults to the group chat. */
@@ -194,6 +196,13 @@ export default function CommunityChat({
    * banner + pinned-only panel so migrated pins behave like live pins.
    */
   pinnedExtras?: { id: string; body: string }[];
+  /**
+   * Effective chat-notice seed body + whether it's an admin override, so the
+   * "messages will be cleared" seed bubble is editable like the other seeds
+   * (READ ME / welcome / announcement). Defaults keep the built-in text.
+   */
+  chatNoticeText?: string;
+  chatNoticeOverridden?: boolean;
 }) {
   const chat = useCommunityChat(topic);
   const isGroupChat = topic === "chat";
@@ -238,6 +247,13 @@ export default function CommunityChat({
       }
     | null
   >(null);
+  // The message-menu reaction row starts collapsed; the first tap on the
+  // show-more chevron expands it into a wrapped grid in place, a second tap
+  // opens the full emoji picker. Reset whenever the menu opens/closes.
+  const [reactionsExpanded, setReactionsExpanded] = useState(false);
+  useEffect(() => {
+    setReactionsExpanded(false);
+  }, [ctxMenu]);
   // Admin forward flow: when set, a destination-section picker is shown. The
   // payload is a live message or a read-only history post (text + its origin).
   const [forwardTarget, setForwardTarget] = useState<
@@ -845,9 +861,10 @@ export default function CommunityChat({
             type="button"
             className="tg-pinned-body-btn"
             onClick={() => {
-              document
-                .querySelector(`[data-mid="${pinnedBannerMsg.id}"]`)
-                ?.scrollIntoView({ behavior: "smooth", block: "center" });
+              // Reuse the reply-jump highlighter so tapping the banner briefly
+              // flashes the target message (same subtle grey fade as a quote
+              // jump) instead of scrolling with no visual cue.
+              scrollToMessage(pinnedBannerMsg.id);
               if (pinnedCount > 1)
                 setPinnedIdx(
                   ((pinnedBannerIdx - 1) % pinnedCount + pinnedCount) %
@@ -1082,42 +1099,56 @@ export default function CommunityChat({
           >
             {ctxMenu.kind === "chat" ? (
               <>
-                <div className="tg-ctx-reactions">
-                  {REACTIONS.map((e) => (
-                    <button
-                      key={e}
-                      type="button"
-                      className="tg-ctx-reaction"
-                      onClick={() => {
-                        void chat.react(ctxMenu.m.id, e);
-                        showToast("Reaction added");
-                        setCtxMenu(null);
-                      }}
+                <div className="ReactionSelector__items-wrapper tg-ctx-reactions">
+                  <div className="ReactionSelector__bubble-big" aria-hidden />
+                  <div className="ReactionSelector__items">
+                    <div
+                      className={
+                        "ReactionSelector__reactions" +
+                        (reactionsExpanded ? " tg-ctx-reactions-expanded" : "")
+                      }
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={emojiSrc(e)}
-                        alt={e}
-                        className="emoji"
-                        draggable={false}
-                      />
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    className="tg-ctx-reaction tg-ctx-reaction-more"
-                    aria-label="Show more reactions"
-                    onClick={() => {
-                      setReactTarget({
-                        id: ctxMenu.m.id,
-                        x: ctxMenu.x,
-                        y: ctxMenu.y,
-                      });
-                      setCtxMenu(null);
-                    }}
-                  >
-                    <i className="icon icon-down" aria-hidden />
-                  </button>
+                      {REACTIONS.map((e) => (
+                        <button
+                          key={e}
+                          type="button"
+                          className="tg-ctx-reaction ReactionSelector__reaction"
+                          onClick={() => {
+                            void chat.react(ctxMenu.m.id, e);
+                            showToast("Reaction added");
+                            setCtxMenu(null);
+                          }}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={emojiSrc(e)}
+                            alt={e}
+                            className="emoji"
+                            draggable={false}
+                          />
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className="Button ReactionSelector__show-more default translucent"
+                        aria-label="Show more reactions"
+                        onClick={() => {
+                          if (!reactionsExpanded) {
+                            setReactionsExpanded(true);
+                            return;
+                          }
+                          setReactTarget({
+                            id: ctxMenu.m.id,
+                            x: ctxMenu.x,
+                            y: ctxMenu.y,
+                          });
+                          setCtxMenu(null);
+                        }}
+                      >
+                        <i className="icon icon-down" aria-hidden />
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -1474,18 +1505,22 @@ export default function CommunityChat({
                           }}
                           hasAppendix
                           pinned
-                          body={CHAT_NOTICE_SEED_BODY}
+                          body={
+                            chatNoticeOverridden
+                              ? renderBody(chatNoticeText)
+                              : CHAT_NOTICE_SEED_BODY
+                          }
                           time={CHAT_NOTICE_SEED_TIME}
                           onOpenMenu={(pos) =>
                             openReadonlyMenu(pos, {
                               id: "seed:chat-notice",
-                              text: CHAT_NOTICE_SEED_TEXT,
+                              text: chatNoticeText,
                               pinned: true,
-                              // The chat-notice seed is neither editable (the
-                              // edit route's seed regex omits chat-notice) nor
-                              // pinnable (the pin route is numeric-vouch-only),
-                              // so suppress both admin controls.
-                              canModify: false,
+                              // Editable like the other seeds — the edit
+                              // persists to content_blocks
+                              // community_seed:chat-notice. Not pinnable: the
+                              // pin route is numeric-vouch-only.
+                              canModify: true,
                               canPin: false,
                             })
                           }

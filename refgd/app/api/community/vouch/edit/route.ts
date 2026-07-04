@@ -40,7 +40,9 @@ export async function POST(req: Request) {
       : "";
   // A numeric vouch id, or a constant "seed" bubble (READ ME / welcome /
   // announcement) which has no vouch row and persists elsewhere.
-  const seedMatch = /^seed:(readme|welcome|announcement)$/.exec(rawId);
+  const seedMatch = /^seed:(readme|welcome|announcement|chat-notice)$/.exec(
+    rawId,
+  );
   const id = /^\d+$/.test(rawId) || seedMatch ? rawId : null;
   if (!id) {
     return NextResponse.json(

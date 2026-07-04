@@ -29,6 +29,7 @@ export default async function CommunityPage() {
     hideMembers,
     seedReadme,
     seedAnnouncement,
+    seedChatNotice,
   ] = await Promise.all([
     listVouches("testimonials"),
     listVouches("buy4u"),
@@ -37,6 +38,7 @@ export default async function CommunityPage() {
     getModConfig<boolean>("chat_hide_members", false),
     getContentBlock("community_seed:readme"),
     getContentBlock("community_seed:announcement"),
+    getContentBlock("community_seed:chat-notice"),
   ]);
 
   let memberLabel = "public group";
@@ -75,6 +77,7 @@ export default async function CommunityPage() {
       welcome={welcome}
       seedReadme={seedReadme}
       seedAnnouncement={seedAnnouncement}
+      seedChatNotice={seedChatNotice}
       memberLabel={memberLabel}
       chatPreview={chatPreview}
     />

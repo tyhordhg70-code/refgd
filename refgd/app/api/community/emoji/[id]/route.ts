@@ -6,12 +6,17 @@ import { CUSTOM_EMOJI_IDS } from "@/lib/custom-emoji";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Static image mimes browsers can put in an <img>. Animated .tgs/.webm 404. */
+/**
+ * Mimes we serve: static images go in an <img>; video (.webm) stickers are
+ * served as video/webm and the client swaps to a <video>. Lottie (.tgs) has no
+ * entry → 404, so those fall back to their static thumbnail / the Apple sprite.
+ */
 const EXT_MIME: Record<string, string> = {
   webp: "image/webp",
   png: "image/png",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
+  webm: "video/webm",
 };
 
 const MAX_STICKER_BYTES = 512 * 1024;
@@ -32,19 +37,27 @@ function imageResponse(bytes: Buffer, mime: string) {
  * GET /api/community/emoji/[id]
  *
  * Serves a custom (premium pack) emoji sticker by Telegram document id.
- * First hit downloads the static artwork via the Bot API
- * (getCustomEmojiStickers → getFile, preferring the WEBP thumbnail so
- * animated packs still yield an <img>-safe image) and caches it in Postgres;
- * every later hit is served straight from the cache. Without
- * COMMUNITY_BOT_TOKEN (local dev) this 404s and the client falls back to the
- * plain Apple-emoji sprite.
+ * First hit downloads the artwork via the Bot API (getCustomEmojiStickers →
+ * getFile): video packs yield an animated .webm (served video/webm), Lottie
+ * packs fall back to their static WEBP thumbnail, static packs serve the image
+ * directly. The bytes are cached in Postgres; every later hit is served
+ * straight from the cache. Without COMMUNITY_BOT_TOKEN (local dev) this 404s
+ * and the client falls back to the plain Apple-emoji sprite.
  */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   if (!/^\d{1,32}$/.test(id)) return new NextResponse(null, { status: 400 });
+  // Version the Postgres cache key by ?v so a bumped client (format.tsx) forces
+  // a re-fetch: ids first cached as a STATIC thumbnail under the old fileId
+  // logic live under the bare `id`, so a new `${id}:v2` key misses the cache and
+  // re-downloads the real animated .webm document. Old rows are left untouched
+  // (additive — no destructive prod write). The allowlist + Telegram fetch still
+  // key off the raw numeric id; only the cache row is versioned.
+  const v = new URL(req.url).searchParams.get("v");
+  const cacheKey = v && /^\d{1,4}$/.test(v) ? `${id}:v${v}` : id;
   // Unauthenticated route: serve ONLY allowlisted ids — the static seed pack
   // (lib/custom-emoji.ts) ∪ ids discovered into community_emoji_pack by an
   // admin. Anything else is rejected before touching the cache or the Telegram
@@ -53,7 +66,7 @@ export async function GET(
     return new NextResponse(null, { status: 404 });
   }
 
-  const cached = await getCustomEmoji(id);
+  const cached = await getCustomEmoji(cacheKey);
   if (cached) return imageResponse(cached.bytes, cached.mime);
 
   const token = communityBotToken();
@@ -78,11 +91,15 @@ export async function GET(
     const sticker = stJson.ok ? stJson.result?.[0] : undefined;
     if (!sticker) return new NextResponse(null, { status: 404 });
 
-    // Animated (.tgs) / video (.webm) stickers can't go in an <img>; their
-    // thumbnail is a static image, so prefer it whenever present.
-    const fileId =
-      sticker.thumbnail?.file_id ??
-      (!sticker.is_animated && !sticker.is_video ? sticker.file_id : undefined);
+    // Video (.webm) stickers CAN animate in a <video>, so prefer the real
+    // document (file_id) and only fall back to the static thumbnail. Animated
+    // Lottie (.tgs) can't render → use its static thumbnail. Static stickers
+    // prefer the thumbnail (already <img>-safe) then the document itself.
+    const fileId = sticker.is_video
+      ? (sticker.file_id ?? sticker.thumbnail?.file_id)
+      : sticker.is_animated
+        ? sticker.thumbnail?.file_id
+        : (sticker.thumbnail?.file_id ?? sticker.file_id);
     if (!fileId) return new NextResponse(null, { status: 404 });
 
     const gfRes = await fetch(`${api}/getFile`, {
@@ -110,7 +127,7 @@ export async function GET(
       return new NextResponse(null, { status: 404 });
     }
 
-    await saveCustomEmoji(id, bytes, mime);
+    await saveCustomEmoji(cacheKey, bytes, mime);
     return imageResponse(bytes, mime);
   } catch {
     // Fail soft — the client swaps to the Apple-emoji sprite on error.

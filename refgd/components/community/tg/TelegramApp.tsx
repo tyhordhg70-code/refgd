@@ -21,6 +21,7 @@ import {
   ANNOUNCEMENT_SEED_PHOTO,
   ANNOUNCEMENT_SEED_TEXT,
   ANNOUNCEMENT_SEED_TIME,
+  CHAT_NOTICE_SEED_TEXT,
   README_SEED_BODY,
   README_SEED_PHOTO,
   README_SEED_REACTIONS,
@@ -134,6 +135,7 @@ export default function TelegramApp({
   welcome,
   seedReadme = "",
   seedAnnouncement = "",
+  seedChatNotice = "",
   memberLabel,
   chatPreview,
 }: {
@@ -145,6 +147,8 @@ export default function TelegramApp({
   seedReadme?: string;
   /** Persisted admin override for the announcement seed body ("" = built-in). */
   seedAnnouncement?: string;
+  /** Persisted admin override for the chat-notice seed body ("" = built-in). */
+  seedChatNotice?: string;
   memberLabel: string;
   chatPreview: ChatPreview | null;
 }) {
@@ -221,6 +225,10 @@ export default function TelegramApp({
     seedEdits["seed:announcement"] ?? (seedAnnouncement || ANNOUNCEMENT_SEED_TEXT);
   const announcementOverridden =
     seedEdits["seed:announcement"] !== undefined || seedAnnouncement.length > 0;
+  const effChatNotice =
+    seedEdits["seed:chat-notice"] ?? (seedChatNotice || CHAT_NOTICE_SEED_TEXT);
+  const chatNoticeOverridden =
+    seedEdits["seed:chat-notice"] !== undefined || seedChatNotice.length > 0;
   const applyEdits = (list: VouchView[]): VouchView[] =>
     list.map((v) => {
       const body = vouchEdits[v.id] !== undefined ? vouchEdits[v.id] : v.body;
@@ -474,6 +482,8 @@ export default function TelegramApp({
           setVouchPins((prev) => ({ ...prev, [id]: pinned }))
         }
         onSeedEdited={onSeedEdited}
+        chatNoticeText={effChatNotice}
+        chatNoticeOverridden={chatNoticeOverridden}
         pinnedExtras={(byTopic[topicKey] ?? [])
           .filter((v) => v.pinned)
           .sort((a, b) => {
@@ -541,7 +551,15 @@ export default function TelegramApp({
       />
     );
   } else {
-    middle = <CommunityChat key="chat" onBack={back} />;
+    middle = (
+      <CommunityChat
+        key="chat"
+        onBack={back}
+        onSeedEdited={onSeedEdited}
+        chatNoticeText={effChatNotice}
+        chatNoticeOverridden={chatNoticeOverridden}
+      />
+    );
   }
 
   return (

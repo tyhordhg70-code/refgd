@@ -159,16 +159,31 @@ export function renderTextWithEmoji(text: string, keyPrefix = "t"): ReactNode[] 
 const URL_RE = /(https?:\/\/[^\s]+|t\.me\/[^\s]+)/g;
 
 /**
+ * Force muted + play on mount so an animated custom-emoji <video> autoplays:
+ * React drops the `muted` attribute during SSR, which otherwise blocks autoplay
+ * until hydration (same trick the member-avatar video uses).
+ */
+function playCustomEmojiVideo(el: HTMLVideoElement | null) {
+  if (!el) return;
+  el.muted = true;
+  const p = el.play();
+  if (p && typeof p.catch === "function") p.catch(() => {});
+}
+
+type EmojiStage = { kind: "img"; src: string } | { kind: "video"; src: string };
+
+/**
  * Custom (premium pack) emoji sticker rendered from the Telegram document id.
  *
- * ARTWORK-FIRST: the visible <img> starts on the real pack artwork and only
+ * ARTWORK-FIRST: the visible node starts on the real pack artwork and only
  * falls back to the Apple sprite if the artwork fails to decode. The visible
- * element IS the artwork (a lazy <img>), not an eager `new Image()` probe per
- * emoji — a message list mounting hundreds of custom emoji at once stampeded
- * those probes, starving them so many glyphs ended up stuck on their WRONG
- * Apple fallback. Source cascade: self-hosted webp (/tg-emoji, only some ids)
- * → /api/community/emoji thumb (Bot API, prod only) → Apple sprite (last, so it
- * can never stay blank).
+ * element IS the artwork (a lazy <img>, or a <video> for animated .webm packs),
+ * not an eager `new Image()` probe per emoji — a message list mounting hundreds
+ * of custom emoji at once stampeded those probes, starving them so many glyphs
+ * ended up stuck on their WRONG Apple fallback. Source cascade: self-hosted
+ * webp (/tg-emoji, only some ids) → /api/community/emoji image (static packs) →
+ * /api/community/emoji <video> (animated .webm packs) → Apple sprite (last, so
+ * it can never stay blank).
  *
  * Two blank-emoji traps handled: (1) an SSR-emitted <img> whose 404/decode
  * error fires before hydration wires up onError — a mount effect re-checks
@@ -177,8 +192,20 @@ const URL_RE = /(https?:\/\/[^\s]+|t\.me\/[^\s]+)/g;
  * instead of inheriting the previous emoji's exhausted fallback.
  */
 export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
-  const sources = useMemo(
-    () => [`/tg-emoji/${id}.webp`, `/api/community/emoji/${id}`, emojiSrc(alt)],
+  // Each stage only advances on error (never loops back): self-hosted webp →
+  // API image (static packs) → API video (animated .webm packs) → Apple sprite
+  // (last, so nothing ever stays blank).
+  const stages = useMemo<EmojiStage[]>(
+    () => [
+      { kind: "img", src: `/tg-emoji/${id}.webp` },
+      // ?v=2 busts BOTH the immutable browser/CDN cache AND the Postgres cache
+      // (the route versions its cache key by ?v), so ids previously cached as a
+      // STATIC thumbnail under the old fileId logic get re-fetched as the real
+      // animated .webm document instead of forever serving the old still.
+      { kind: "img", src: `/api/community/emoji/${id}?v=2` },
+      { kind: "video", src: `/api/community/emoji/${id}?v=2` },
+      { kind: "img", src: emojiSrc(alt) },
+    ],
     [id, alt],
   );
   const [idx, setIdx] = useState(0);
@@ -189,9 +216,10 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
     setIdx(0);
   }, [id, alt]);
 
-  const advance = () => setIdx((i) => (i < sources.length - 1 ? i + 1 : i));
+  const advance = () => setIdx((i) => (i < stages.length - 1 ? i + 1 : i));
 
-  // Catch a decode error that fired before hydration attached onError.
+  // Catch a decode error that fired before hydration attached onError. Only the
+  // <img> stages set imgRef; on a <video> stage imgRef.current is null → no-op.
   useEffect(() => {
     const el = imgRef.current;
     if (el && el.complete && el.naturalWidth === 0) advance();
@@ -199,11 +227,27 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx]);
 
+  const stage = stages[idx];
+  if (stage.kind === "video") {
+    return (
+      <video
+        ref={playCustomEmojiVideo}
+        src={stage.src}
+        className="emoji emoji-small tg-custom-emoji"
+        autoPlay
+        loop
+        muted
+        playsInline
+        draggable={false}
+        onError={advance}
+      />
+    );
+  }
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       ref={imgRef}
-      src={sources[idx]}
+      src={stage.src}
       className="emoji emoji-small tg-custom-emoji"
       alt={alt}
       draggable={false}
