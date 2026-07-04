@@ -3,7 +3,12 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { CustomEmojiImg, emojiSrc } from "./format";
 import { EMOJI_CATEGORIES } from "./emoji-data";
-import { CUSTOM_EMOJI } from "@/lib/custom-emoji";
+import { CUSTOM_EMOJI, EMOJI_CACHE_VERSION } from "@/lib/custom-emoji";
+import {
+  getEmojiDebugSnapshot,
+  runEmojiSelfTest,
+  type EmojiDebugSnapshot,
+} from "./emoji-debug";
 
 /**
  * Composer emoji picker — a light Web A symbol-menu replica with two tabs:
@@ -48,6 +53,43 @@ export default function EmojiPanel({
   const [packsLoaded, setPacksLoaded] = useState(false);
   const [activePack, setActivePack] = useState<string>("");
   const packRefs = useRef(new Map<string, HTMLDivElement>());
+
+  // Hidden diagnostics overlay: tap the "Custom" tab 5 times fast to toggle.
+  // Shows live cascade counters + a device self-test (script/fetch/render) so
+  // an unreachable device (Telegram webview) can report which step breaks.
+  const [debugOn, setDebugOn] = useState(false);
+  const [debugSnap, setDebugSnap] = useState<EmojiDebugSnapshot | null>(null);
+  const [debugTest, setDebugTest] = useState<string[]>([]);
+  const tapCountRef = useRef(0);
+  const tapLastRef = useRef(0);
+
+  const onCustomTabTap = () => {
+    setTab("custom");
+    const now = Date.now();
+    tapCountRef.current = now - tapLastRef.current < 700 ? tapCountRef.current + 1 : 1;
+    tapLastRef.current = now;
+    if (tapCountRef.current >= 5) {
+      tapCountRef.current = 0;
+      setDebugOn((v) => !v);
+    }
+  };
+
+  useEffect(() => {
+    if (!debugOn) return undefined;
+    setDebugSnap(getEmojiDebugSnapshot());
+    const iv = window.setInterval(
+      () => setDebugSnap(getEmojiDebugSnapshot()),
+      800,
+    );
+    const sampleId =
+      packs?.[0]?.emoji?.[0]?.id ?? CUSTOM_EMOJI[0]?.id ?? "";
+    setDebugTest(["self-test running…"]);
+    void runEmojiSelfTest(sampleId, EMOJI_CACHE_VERSION).then((lines) =>
+      setDebugTest(lines),
+    );
+    return () => window.clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debugOn]);
 
   // Admin pack-management state (Custom tab). Declared here so the loader
   // effect below can drive the auto-discovery status message.
@@ -214,7 +256,7 @@ export default function EmojiPanel({
             role="tab"
             aria-selected={tab === "custom"}
             className={tab === "custom" ? "active" : undefined}
-            onClick={() => setTab("custom")}
+            onClick={onCustomTabTap}
           >
             Custom
           </button>
@@ -238,6 +280,51 @@ export default function EmojiPanel({
             </svg>
           </button>
         </div>
+        {debugOn && (
+          <div
+            style={{
+              position: "fixed",
+              left: 8,
+              right: 8,
+              top: 8,
+              maxHeight: "55vh",
+              overflowY: "auto",
+              zIndex: 100000,
+              background: "rgba(0,0,0,0.92)",
+              color: "#7CFC00",
+              fontFamily: "monospace",
+              fontSize: 10,
+              lineHeight: 1.5,
+              padding: 8,
+              borderRadius: 8,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+              textAlign: "left",
+            }}
+          >
+            <div style={{ color: "#fff" }}>
+              EMOJI DEBUG v{EMOJI_CACHE_VERSION} — tap Custom 5x to close
+            </div>
+            <div style={{ color: "#FFD700" }}>— self-test —</div>
+            {debugTest.map((l, i) => (
+              <div key={`t${i}`}>{l}</div>
+            ))}
+            <div style={{ color: "#FFD700" }}>— cascade counters —</div>
+            <div>
+              {debugSnap && Object.keys(debugSnap.counts).length > 0
+                ? Object.entries(debugSnap.counts)
+                    .map(([k, v]) => `${k}=${v}`)
+                    .join("  ")
+                : "(none yet)"}
+            </div>
+            <div style={{ color: "#FFD700" }}>— last errors —</div>
+            {debugSnap && debugSnap.errors.length > 0 ? (
+              debugSnap.errors.map((l, i) => <div key={`e${i}`}>{l}</div>)
+            ) : (
+              <div>(none)</div>
+            )}
+          </div>
+        )}
         {tab === "standard" ? (
           <>
             <div className="tg-emoji-cats" role="tablist">

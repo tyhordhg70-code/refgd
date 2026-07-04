@@ -9,6 +9,7 @@ import {
 } from "react";
 import { EMOJI_FE0F_KEEP } from "./emoji-fe0f";
 import { EMOJI_CACHE_VERSION } from "@/lib/custom-emoji";
+import { emojiDebugBump, emojiDebugError } from "./emoji-debug";
 
 /**
  * Shared deterministic formatting helpers for the Telegram replica.
@@ -207,6 +208,7 @@ function loadLottieLib(): Promise<LottieLib | null> {
       s.onload = () => resolve(w.lottie ?? null);
       s.onerror = () => {
         lottieLibPromise = null; // allow a later retry to re-attempt the load
+        emojiDebugError("lottie script load FAILED");
         resolve(null);
       };
       document.head.appendChild(s);
@@ -248,9 +250,9 @@ function LottieEmoji({
       started = true;
       try {
         const res = await fetch(src);
-        if (!res.ok) throw new Error(String(res.status));
+        if (!res.ok) throw new Error(`http ${res.status}`);
         const ct = res.headers.get("content-type") ?? "";
-        if (!ct.includes("json")) throw new Error(ct);
+        if (!ct.includes("json")) throw new Error(`ct ${ct}`);
         const data: unknown = await res.json();
         const lottie = await loadLottieLib();
         if (!lottie) throw new Error("lottie lib unavailable");
@@ -263,7 +265,12 @@ function LottieEmoji({
           animationData: data,
           rendererSettings: { preserveAspectRatio: "xMidYMid meet" },
         });
-      } catch {
+        emojiDebugBump("ok:lottie");
+      } catch (e) {
+        emojiDebugBump("fail:lottie");
+        emojiDebugError(
+          `lottie …${src.slice(-28)}: ${String((e as Error)?.message ?? e)}`,
+        );
         if (!cancelled) onErrorRef.current();
       }
     };
@@ -366,6 +373,12 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
 
   const advance = () =>
     setIdx((i) => {
+      const failed = stages[i] as EmojiStage | undefined;
+      if (failed && failed.kind !== "lottie") {
+        // Lottie failures are already counted (with reasons) in LottieEmoji.
+        emojiDebugBump(`fail:${failed.kind}${i === 0 ? ":self" : ""}`);
+      }
+      if (i >= stages.length - 1) emojiDebugBump("exhausted");
       if (i < stages.length - 1) return i + 1;
       // All artwork stages failed. Schedule a bounded backoff retry back at
       // the API image stage; meanwhile render the transparent placeholder.
@@ -417,6 +430,7 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
         muted
         playsInline
         draggable={false}
+        onLoadedData={() => emojiDebugBump("ok:video")}
         onError={advance}
       />
     );
@@ -430,6 +444,7 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
       alt={alt}
       draggable={false}
       loading="lazy"
+      onLoad={() => emojiDebugBump(idx === 0 ? "ok:img:self" : "ok:img")}
       onError={advance}
     />
   );
