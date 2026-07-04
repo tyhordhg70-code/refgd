@@ -746,6 +746,47 @@ export async function saveCustomEmoji(
   );
 }
 
+/** Emoji ids that already have a cached row under `id:v<version>` (suffix
+ *  stripped). Used by the warm endpoint to compute what is still missing. */
+export async function listWarmedEmojiIds(version: number): Promise<Set<string>> {
+  await initDb();
+  const { rows } = await getPool().query<{ id: string }>(
+    `SELECT id FROM custom_emoji WHERE id LIKE '%:v' || $1`,
+    [String(version)],
+  );
+  const suffix = `:v${version}`;
+  return new Set(rows.map((r) => String(r.id).slice(0, -suffix.length)));
+}
+
+/**
+ * Copy every cached row from one ?v generation to the next in a single
+ * statement (prior-version rows already hold the ORIGINAL documents, so a
+ * cache-version bump must not re-download ~2,300 files from the Bot API).
+ * Sub-500-byte poison markers are copied too — a known-blank sticker stays
+ * known-blank across bumps. Existing target rows are left untouched.
+ */
+export async function copyCustomEmojiVersion(
+  fromVersion: number,
+  toVersion: number,
+): Promise<number> {
+  await initDb();
+  // NOT EXISTS keeps repeat calls from re-reading every prior-generation
+  // byte blob just to hit ON CONFLICT DO NOTHING (the warm endpoint is
+  // public and calls this every time).
+  const { rowCount } = await getPool().query(
+    `INSERT INTO custom_emoji (id, bytes, mime)
+       SELECT replace(s.id, ':v' || $1, ':v' || $2), s.bytes, s.mime
+         FROM custom_emoji s
+        WHERE s.id LIKE '%:v' || $1
+          AND NOT EXISTS (
+            SELECT 1 FROM custom_emoji t
+             WHERE t.id = replace(s.id, ':v' || $1, ':v' || $2))
+       ON CONFLICT (id) DO NOTHING`,
+    [String(fromVersion), String(toVersion)],
+  );
+  return rowCount ?? 0;
+}
+
 export interface PackEmoji {
   id: string;
   alt: string;

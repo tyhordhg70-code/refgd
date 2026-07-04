@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { EMOJI_FE0F_KEEP } from "./emoji-fe0f";
+import { EMOJI_CACHE_VERSION } from "@/lib/custom-emoji";
 
 /**
  * Shared deterministic formatting helpers for the Telegram replica.
@@ -323,15 +324,16 @@ function LottieEmoji({
 export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
   const [attempt, setAttempt] = useState(0);
   // Each stage only advances on error (never loops back): self-hosted webp →
-  // API image → API video → API Lottie (fetch + vendored player). ?v=4 busts
-  // BOTH the immutable browser/CDN cache AND the Postgres cache (the route
-  // versions its cache key by ?v), so ids cached as a low-res STATIC thumbnail
-  // under the old fileId logic get re-fetched as the real original document
-  // (.webm for video packs, Lottie JSON for animated packs, full sticker for
-  // static packs) instead of forever serving the old still.
+  // API image → API video → API Lottie (fetch + vendored player). The ?v
+  // (EMOJI_CACHE_VERSION) busts BOTH the immutable browser/CDN cache AND the
+  // Postgres cache (the route versions its cache key by ?v), so ids cached as
+  // a low-res STATIC thumbnail under the old fileId logic get re-fetched as
+  // the real original document (.webm for video packs, Lottie JSON for
+  // animated packs, full sticker for static packs) instead of forever
+  // serving the old still.
   const stages = useMemo<EmojiStage[]>(() => {
     const retry = attempt > 0 ? `&r=${attempt}` : "";
-    const api = `/api/community/emoji/${id}?v=4${retry}`;
+    const api = `/api/community/emoji/${id}?v=${EMOJI_CACHE_VERSION}${retry}`;
     return [
       { kind: "img", src: `/tg-emoji/${id}.webp` },
       { kind: "img", src: api },

@@ -5,6 +5,17 @@
  * unauthenticated and each cache miss hits the Telegram Bot API + stores
  * bytes in Postgres, so unknown ids must be rejected before any work.
  */
+/**
+ * Cache version for /api/community/emoji URLs (client `?v=` and the route's
+ * Postgres key). Bumping it forces every tile past both the immutable
+ * browser/CDN cache AND the Postgres cache. v4 = first originals-only
+ * generation; v5 = re-warm after v4's rate-limit collapse pinned stale
+ * statics into browsers under immutable headers. The route copies rows
+ * forward from v-1 (>= v4) automatically, so bumps are cheap — but always
+ * warm via /api/community/emoji/warm after a bump.
+ */
+export const EMOJI_CACHE_VERSION = 5;
+
 export const CUSTOM_EMOJI: ReadonlyArray<{ id: string; alt: string }> = [
   { id: "5415825426633202840", alt: "🔥" },
   { id: "5922272602784534896", alt: "⚡️" },
