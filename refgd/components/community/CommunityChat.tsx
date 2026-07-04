@@ -140,6 +140,7 @@ export default function CommunityChat({
   history,
   onVouchEdited,
   onVouchPinned,
+  onSeedEdited,
   pinnedExtras,
 }: {
   onBack?: () => void;
@@ -165,6 +166,7 @@ export default function CommunityChat({
             text: string;
             pinned: boolean;
             canModify?: boolean;
+            canPin?: boolean;
           },
         ) => void,
         onOpenMedia: (src: string) => void,
@@ -180,6 +182,12 @@ export default function CommunityChat({
    * can patch its cached pin state in place (no refetch → no flicker).
    */
   onVouchPinned?: (id: string, pinned: boolean) => void;
+  /**
+   * Called after an admin edits a constant "seed" bubble (READ ME, the welcome
+   * card, the announcement seed) so the parent can patch its client-held
+   * override — seed bodies are server props with nothing to refetch here.
+   */
+  onSeedEdited?: (id: string, body: string) => void;
   /**
    * Pinned read-only history posts (id prefixed `v<id>` to match their bubble
    * `data-mid`, plus body for the banner preview), merged into the pinned
@@ -220,9 +228,11 @@ export default function CommunityChat({
         id: string;
         text: string;
         pinned: boolean;
-        // Seed/hardcoded bubbles set this false → only Copy Text / Forward show
-        // (Edit/Pin persist to the vouch API and can't apply to a constant).
+        // canModify → show Edit (seed bubbles ARE editable now — the edit
+        // persists to mod_config / content_blocks). canPin → show Pin; seed
+        // bubbles set this false because the pin route is numeric-vouch-only.
         canModify: boolean;
+        canPin: boolean;
         x: number;
         y: number;
       }
@@ -459,6 +469,7 @@ export default function CommunityChat({
       text: string;
       pinned: boolean;
       canModify?: boolean;
+      canPin?: boolean;
     },
   ) =>
     setCtxMenu({
@@ -467,6 +478,7 @@ export default function CommunityChat({
       text: payload.text,
       pinned: payload.pinned,
       canModify: payload.canModify ?? true,
+      canPin: payload.canPin ?? true,
       x: pos.x,
       y: pos.y,
     });
@@ -489,7 +501,11 @@ export default function CommunityChat({
       .then((r) => r.json().catch(() => null))
       .then((data: { ok?: boolean; body?: string; error?: string } | null) => {
         if (data?.ok) {
-          onVouchEdited?.(id, data.body ?? body);
+          const nextBody = data.body ?? body;
+          // Seed bubbles have no vouch row → patch the parent's seed override
+          // instead of its cached vouch body.
+          if (id.startsWith("seed:")) onSeedEdited?.(id, nextBody);
+          else onVouchEdited?.(id, nextBody);
           setEditPost(null);
           showToast("Post updated");
         } else {
@@ -1279,7 +1295,7 @@ export default function CommunityChat({
                     Edit
                   </button>
                 )}
-                {me?.admin && ctxMenu.canModify && (
+                {me?.admin && ctxMenu.canPin && (
                   <button
                     type="button"
                     className="tg-menu-item"
@@ -1400,19 +1416,21 @@ export default function CommunityChat({
             ref={chat.scrollRef}
             onScroll={chat.onScroll}
             className="Transition MessageList custom-scroll with-default-bg"
+            data-has-pinned-banner={
+              pinnedBannerMsg && search === null && !pinnedOnly
+                ? "true"
+                : undefined
+            }
             style={LIST_STYLE}
           >
             <div className="Transition_slide Transition_slide-active">
               <div
                 className="messages-container"
                 style={{
-                  // Base header clearance comes from CSS (.messages-container);
-                  // when the pinned banner floats below the header, push the
-                  // first message below the banner too so it isn't clipped.
-                  paddingTop:
-                    pinnedBannerMsg && search === null && !pinnedOnly
-                      ? "calc(var(--middle-header-height, 3rem) + var(--middle-panel-inline-padding, 1rem) + 2.75rem)"
-                      : undefined,
+                  // Header + pinned-pill clearance both come from CSS
+                  // (.messages-container, plus the [data-has-pinned-banner]
+                  // variant on the scroll container); only the dynamic composer
+                  // padding is set inline here.
                   paddingBottom: composerPad,
                 }}
               >
@@ -1463,7 +1481,12 @@ export default function CommunityChat({
                               id: "seed:chat-notice",
                               text: CHAT_NOTICE_SEED_TEXT,
                               pinned: true,
+                              // The chat-notice seed is neither editable (the
+                              // edit route's seed regex omits chat-notice) nor
+                              // pinnable (the pin route is numeric-vouch-only),
+                              // so suppress both admin controls.
                               canModify: false,
+                              canPin: false,
                             })
                           }
                         />

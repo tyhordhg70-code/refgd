@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readMemberSession } from "@/lib/community-auth";
-import { updateVouchBody, recordAction } from "@/lib/community";
+import { updateVouchBody, recordAction, setModConfig } from "@/lib/community";
+import { setContentBlock } from "@/lib/content";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,11 +34,14 @@ export async function POST(req: Request) {
     );
   }
 
-  const id =
-    (typeof payload.id === "string" || typeof payload.id === "number") &&
-    /^\d+$/.test(String(payload.id))
+  const rawId =
+    typeof payload.id === "string" || typeof payload.id === "number"
       ? String(payload.id)
-      : null;
+      : "";
+  // A numeric vouch id, or a constant "seed" bubble (READ ME / welcome /
+  // announcement) which has no vouch row and persists elsewhere.
+  const seedMatch = /^seed:(readme|welcome|announcement)$/.exec(rawId);
+  const id = /^\d+$/.test(rawId) || seedMatch ? rawId : null;
   if (!id) {
     return NextResponse.json(
       { ok: false, error: "Missing post id" },
@@ -59,12 +63,25 @@ export async function POST(req: Request) {
     );
   }
 
-  const updated = await updateVouchBody(id, body);
-  if (!updated) {
-    return NextResponse.json(
-      { ok: false, error: "Post not found" },
-      { status: 404 },
-    );
+  if (seedMatch) {
+    // The welcome seed IS the group welcome banner (mod_config.welcome), which
+    // also feeds the READ ME preview + search, so it must write there. The
+    // readme/announcement seeds live in content_blocks (cache disabled, so
+    // every Render worker sees the edit immediately).
+    const slot = seedMatch[1];
+    if (slot === "welcome") {
+      await setModConfig("welcome", body);
+    } else {
+      await setContentBlock(`community_seed:${slot}`, body);
+    }
+  } else {
+    const updated = await updateVouchBody(id, body);
+    if (!updated) {
+      return NextResponse.json(
+        { ok: false, error: "Post not found" },
+        { status: 404 },
+      );
+    }
   }
 
   await recordAction({

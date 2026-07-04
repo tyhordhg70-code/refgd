@@ -269,22 +269,19 @@ export default function MessageBubble({
                   </span>
                   <span className="message-title-name">
                     <div
-                      className={`Avatar forward-avatar size-micro no-photo tg-bg-peer-${peerIdx(
+                      className={`Avatar forward-avatar size-micro peer-color-${peerIdx(
                         forward.name,
-                      )}`}
+                      )} no-photo`}
+                      style={{ "--_size": "16px" } as CSSProperties}
                       aria-hidden
                     >
                       <div className="inner">
                         <span className="letters">
-                          {initials(forward.name)}
+                          {(Array.from(forward.name.trim())[0] ?? "").toUpperCase()}
                         </span>
                       </div>
                     </div>
-                    <span
-                      className={`sender-title tg-peer-${peerIdx(forward.name)}`}
-                    >
-                      {forward.name}
-                    </span>
+                    <span className="sender-title">{forward.name}</span>
                   </span>
                 </span>
                 <div className="title-spacer" />

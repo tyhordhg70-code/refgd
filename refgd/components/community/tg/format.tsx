@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { EMOJI_FE0F_KEEP } from "./emoji-fe0f";
 
 /**
@@ -155,51 +161,54 @@ const URL_RE = /(https?:\/\/[^\s]+|t\.me\/[^\s]+)/g;
 /**
  * Custom (premium pack) emoji sticker rendered from the Telegram document id.
  *
- * Apple-sprite-first: the visible <img> always starts as the fallback glyph's
- * Apple sprite (guaranteed to render), then upgrades to the custom pack artwork
- * only once that artwork has actually decoded (naturalWidth > 0) via a
- * post-mount preload. This dodges two blank-emoji traps of the old onError
- * cascade: (1) SSR emits the webp <img> and a 404/decode error can fire before
- * hydration attaches onError, so the cascade never advances; (2) an animated
- * webp that "loads" but paints nothing in a webview never fires onError either.
- * Artwork cascade: self-hosted webp (/tg-emoji, only some ids) →
- * /api/community/emoji thumb (Bot API, prod only). If neither decodes, the
- * Apple sprite stays — never blank.
+ * ARTWORK-FIRST: the visible <img> starts on the real pack artwork and only
+ * falls back to the Apple sprite if the artwork fails to decode. The visible
+ * element IS the artwork (a lazy <img>), not an eager `new Image()` probe per
+ * emoji — a message list mounting hundreds of custom emoji at once stampeded
+ * those probes, starving them so many glyphs ended up stuck on their WRONG
+ * Apple fallback. Source cascade: self-hosted webp (/tg-emoji, only some ids)
+ * → /api/community/emoji thumb (Bot API, prod only) → Apple sprite (last, so it
+ * can never stay blank).
+ *
+ * Two blank-emoji traps handled: (1) an SSR-emitted <img> whose 404/decode
+ * error fires before hydration wires up onError — a mount effect re-checks
+ * `complete && naturalWidth === 0` and advances the cascade; (2) the cascade
+ * index resets whenever `id`/`alt` changes so a recycled node re-tries artwork
+ * instead of inheriting the previous emoji's exhausted fallback.
  */
 export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
-  const [artSrc, setArtSrc] = useState<string | null>(null);
+  const sources = useMemo(
+    () => [`/tg-emoji/${id}.webp`, `/api/community/emoji/${id}`, emojiSrc(alt)],
+    [id, alt],
+  );
+  const [idx, setIdx] = useState(0);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+
+  // Restart at the artwork source whenever this node is reused for a new emoji.
   useEffect(() => {
-    let cancelled = false;
-    const sources = [`/tg-emoji/${id}.webp`, `/api/community/emoji/${id}`];
-    const tryLoad = (i: number) => {
-      if (cancelled || i >= sources.length) return;
-      const probe = new Image();
-      probe.onload = () => {
-        if (cancelled) return;
-        if (probe.naturalWidth > 0 && probe.naturalHeight > 0) {
-          setArtSrc(sources[i]);
-        } else {
-          tryLoad(i + 1);
-        }
-      };
-      probe.onerror = () => tryLoad(i + 1);
-      probe.src = sources[i];
-    };
-    tryLoad(0);
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+    setIdx(0);
+  }, [id, alt]);
+
+  const advance = () => setIdx((i) => (i < sources.length - 1 ? i + 1 : i));
+
+  // Catch a decode error that fired before hydration attached onError.
+  useEffect(() => {
+    const el = imgRef.current;
+    if (el && el.complete && el.naturalWidth === 0) advance();
+    // advance is stable enough; only re-run when the shown source changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx]);
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={artSrc ?? emojiSrc(alt)}
+      ref={imgRef}
+      src={sources[idx]}
       className="emoji emoji-small tg-custom-emoji"
       alt={alt}
       draggable={false}
       loading="lazy"
-      onError={() => setArtSrc(null)}
+      onError={advance}
     />
   );
 }

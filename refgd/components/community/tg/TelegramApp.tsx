@@ -132,6 +132,8 @@ export default function TelegramApp({
   buy4u,
   announcements,
   welcome,
+  seedReadme = "",
+  seedAnnouncement = "",
   memberLabel,
   chatPreview,
 }: {
@@ -139,6 +141,10 @@ export default function TelegramApp({
   buy4u: VouchView[];
   announcements: VouchView[];
   welcome: string;
+  /** Persisted admin override for the READ ME seed body ("" = use the built-in). */
+  seedReadme?: string;
+  /** Persisted admin override for the announcement seed body ("" = built-in). */
+  seedAnnouncement?: string;
   memberLabel: string;
   chatPreview: ChatPreview | null;
 }) {
@@ -198,6 +204,23 @@ export default function TelegramApp({
   // (which would flicker the whole topic). Keyed by vouch id.
   const [vouchEdits, setVouchEdits] = useState<Record<string, string>>({});
   const [vouchPins, setVouchPins] = useState<Record<string, boolean>>({});
+  // Constant "seed" bubbles (READ ME, the welcome card, the announcement seed)
+  // are admin-editable too. Their edit persists server-side (welcome →
+  // mod_config, readme/announcement → content_blocks) but the bodies arrive as
+  // SERVER props, so after a save we patch a client override keyed by the
+  // seed's menu id. Effective body = client edit ?? server override ?? built-in.
+  const [seedEdits, setSeedEdits] = useState<Record<string, string>>({});
+  const onSeedEdited = (id: string, body: string) =>
+    setSeedEdits((prev) => ({ ...prev, [id]: body }));
+  const effWelcome = seedEdits["seed:welcome"] ?? welcome;
+  const effReadme =
+    seedEdits["seed:readme"] ?? (seedReadme || README_SEED_TEXT);
+  const readmeOverridden =
+    seedEdits["seed:readme"] !== undefined || seedReadme.length > 0;
+  const effAnnouncement =
+    seedEdits["seed:announcement"] ?? (seedAnnouncement || ANNOUNCEMENT_SEED_TEXT);
+  const announcementOverridden =
+    seedEdits["seed:announcement"] !== undefined || seedAnnouncement.length > 0;
   const applyEdits = (list: VouchView[]): VouchView[] =>
     list.map((v) => {
       const body = vouchEdits[v.id] !== undefined ? vouchEdits[v.id] : v.body;
@@ -215,7 +238,7 @@ export default function TelegramApp({
 
   const rowMeta = (key: TopicKey): RowMeta => {
     if (key === "readme") {
-      const text = welcome.replace(/\s+/g, " ").trim();
+      const text = effWelcome.replace(/\s+/g, " ").trim();
       return {
         sender: null,
         summary:
@@ -362,12 +385,13 @@ export default function TelegramApp({
         topic="readme"
         title={def?.title ?? "READ ME"}
         icon={def ? <TopicIcon def={def} /> : undefined}
+        onSeedEdited={onSeedEdited}
         history={(query, onReadonlyMenu, onOpenMedia, pinnedOnly) => {
           if (pinnedOnly) return null;
           const rq = query.trim().toLowerCase();
-          const showSeed = !rq || README_SEED_TEXT.toLowerCase().includes(rq);
+          const showSeed = !rq || effReadme.toLowerCase().includes(rq);
           const showWelcome =
-            !!welcome && (!rq || welcome.toLowerCase().includes(rq));
+            !!effWelcome && (!rq || effWelcome.toLowerCase().includes(rq));
           if (!showSeed && !showWelcome) return null;
           return (
             <div className="message-date-group first-message-date-group">
@@ -388,14 +412,15 @@ export default function TelegramApp({
                     pinned
                     media={[README_SEED_PHOTO]}
                     reactions={README_SEED_REACTIONS}
-                    body={README_SEED_BODY}
+                    body={readmeOverridden ? renderBody(effReadme) : README_SEED_BODY}
                     time={README_SEED_TIME}
                     onOpenMenu={(pos) =>
                       onReadonlyMenu(pos, {
                         id: "seed:readme",
-                        text: README_SEED_TEXT,
+                        text: effReadme,
                         pinned: true,
-                        canModify: false,
+                        canModify: true,
+                        canPin: false,
                       })
                     }
                     onOpenMedia={onOpenMedia}
@@ -410,13 +435,14 @@ export default function TelegramApp({
                     sender={null}
                     avatar={{ name: SEED_AUTHOR, photo: SEED_AVATAR, peer: 0 }}
                     hasAppendix
-                    body={renderBody(welcome)}
+                    body={renderBody(effWelcome)}
                     onOpenMenu={(pos) =>
                       onReadonlyMenu(pos, {
                         id: "seed:welcome",
-                        text: welcome,
+                        text: effWelcome,
                         pinned: false,
-                        canModify: false,
+                        canModify: true,
+                        canPin: false,
                       })
                     }
                   />
@@ -447,6 +473,7 @@ export default function TelegramApp({
         onVouchPinned={(id, pinned) =>
           setVouchPins((prev) => ({ ...prev, [id]: pinned }))
         }
+        onSeedEdited={onSeedEdited}
         pinnedExtras={(byTopic[topicKey] ?? [])
           .filter((v) => v.pinned)
           .sort((a, b) => {
@@ -483,14 +510,19 @@ export default function TelegramApp({
                       hasAppendix
                       pinned
                       media={[ANNOUNCEMENT_SEED_PHOTO]}
-                      body={ANNOUNCEMENT_SEED_BODY}
+                      body={
+                        announcementOverridden
+                          ? renderBody(effAnnouncement)
+                          : ANNOUNCEMENT_SEED_BODY
+                      }
                       time={ANNOUNCEMENT_SEED_TIME}
                       onOpenMenu={(pos) =>
                         onReadonlyMenu(pos, {
                           id: "seed:announcement",
-                          text: ANNOUNCEMENT_SEED_TEXT,
+                          text: effAnnouncement,
                           pinned: true,
-                          canModify: false,
+                          canModify: true,
+                          canPin: false,
                         })
                       }
                       onOpenMedia={onOpenMedia}

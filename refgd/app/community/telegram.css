@@ -430,15 +430,25 @@
   gap: 0.375rem;
 }
 .tg-forward-title .forward-avatar {
-  width: 1.125rem;
-  height: 1.125rem;
+  width: var(--_size, 1.125rem);
+  height: var(--_size, 1.125rem);
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   flex: 0 0 auto;
+  color: #fff;
 }
+/* Real Web A colours the forwarded-sender avatar by its peer-color-N class
+   (tg-webapp.css only defines these vars, not the .forward-avatar mapping). */
+.tg-forward-title .forward-avatar.peer-color-0 { background: var(--peer-red); }
+.tg-forward-title .forward-avatar.peer-color-1 { background: var(--peer-orange); }
+.tg-forward-title .forward-avatar.peer-color-2 { background: var(--peer-violet); }
+.tg-forward-title .forward-avatar.peer-color-3 { background: var(--peer-green); }
+.tg-forward-title .forward-avatar.peer-color-4 { background: var(--peer-cyan); }
+.tg-forward-title .forward-avatar.peer-color-5 { background: var(--peer-blue); }
+.tg-forward-title .forward-avatar.peer-color-6 { background: var(--peer-pink); }
 .tg-forward-title .forward-avatar .letters {
   font-size: 0.625rem;
   font-weight: 600;
@@ -1340,13 +1350,25 @@ button.tg-reply-embed:focus-visible {
   background: var(--color-background);
   box-shadow: 0 1px 2px var(--color-default-shadow);
   font-size: 0.875rem;
+  line-height: 1.5;
   color: var(--color-text-secondary);
+  /* Long, multi-line system notes (e.g. the /help command list) must stay
+     legible in the narrow composer column: cap the height and scroll rather
+     than ballooning up over the messages, and wrap without splitting words. */
+  max-height: 40vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .tg-composer-alert span {
   flex: 1;
   min-width: 0;
   white-space: pre-wrap;
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  /* Hanging indent so wrapped command lines align under the command, not the
+     left edge — keeps the /help list readable when each row wraps. */
+  padding-left: 1.15rem;
+  text-indent: -1.15rem;
 }
 .tg-composer-alert.is-error {
   color: #c74343;
@@ -1584,6 +1606,15 @@ button.tg-reply-embed:focus-visible {
   padding-top: calc(
     var(--middle-header-height, 3rem) +
       var(--middle-panel-inline-padding, 1rem) + 0.5rem
+  );
+}
+/* When the floating pinned-message pill is showing it overlays the top of the
+   list; add its height to the clearance so the first message isn't hidden
+   beneath it. Toggled by CommunityChat via data-has-pinned-banner. */
+.tg-app .MessageList[data-has-pinned-banner="true"] .messages-container {
+  padding-top: calc(
+    var(--middle-header-height, 3rem) +
+      var(--middle-panel-inline-padding, 1rem) + 0.5rem + 2.75rem
   );
 }
 .tg-app .MessageList .first-message-date-group {
@@ -1841,18 +1872,24 @@ button.tg-reply-embed:focus-visible {
 /* ── Pinned-message banner under the header. ───────────────────────────── */
 .tg-pinned-banner {
   position: absolute;
-  top: var(--header-height, 3.5rem);
-  left: 0;
-  right: 0;
+  /* A rounded, floating pill centred under the header (not a full-width bar),
+     with a gap so it clears the opaque MiddleHeader instead of tucking beneath
+     it. */
+  top: calc(var(--header-height, 3.5rem) + 0.5rem);
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
   z-index: var(--z-middle-header, 10);
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  width: 100%;
-  padding: 0.375rem 0.75rem;
+  width: auto;
+  max-width: min(28rem, calc(100% - 1.5rem));
+  padding: 0.3125rem 0.5rem 0.3125rem 0.75rem;
   border: none;
-  background: var(--color-background);
-  box-shadow: 0 2px 2px var(--color-light-shadow);
+  border-radius: 1.375rem;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.16);
   cursor: pointer;
   text-align: left;
 }

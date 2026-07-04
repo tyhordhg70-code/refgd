@@ -6,6 +6,7 @@ import {
   listChatMessages,
   listVouches,
 } from "@/lib/community";
+import { getContentBlock } from "@/lib/content";
 import TelegramApp, {
   type ChatPreview,
 } from "@/components/community/tg/TelegramApp";
@@ -20,14 +21,23 @@ export const metadata = {
 };
 
 export default async function CommunityPage() {
-  const [testimonials, buy4u, announcements, welcome, hideMembers] =
-    await Promise.all([
-      listVouches("testimonials"),
-      listVouches("buy4u"),
-      listVouches("announcements"),
-      getModConfig<string>("welcome", ""),
-      getModConfig<boolean>("chat_hide_members", false),
-    ]);
+  const [
+    testimonials,
+    buy4u,
+    announcements,
+    welcome,
+    hideMembers,
+    seedReadme,
+    seedAnnouncement,
+  ] = await Promise.all([
+    listVouches("testimonials"),
+    listVouches("buy4u"),
+    listVouches("announcements"),
+    getModConfig<string>("welcome", ""),
+    getModConfig<boolean>("chat_hide_members", false),
+    getContentBlock("community_seed:readme"),
+    getContentBlock("community_seed:announcement"),
+  ]);
 
   let memberLabel = "public group";
   if (!hideMembers) {
@@ -63,6 +73,8 @@ export default async function CommunityPage() {
       buy4u={buy4u}
       announcements={announcements}
       welcome={welcome}
+      seedReadme={seedReadme}
+      seedAnnouncement={seedAnnouncement}
       memberLabel={memberLabel}
       chatPreview={chatPreview}
     />
