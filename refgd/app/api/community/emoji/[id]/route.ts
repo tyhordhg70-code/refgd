@@ -1,3 +1,4 @@
+import { gunzipSync } from "node:zlib";
 import { NextResponse } from "next/server";
 import { getCustomEmoji, saveCustomEmoji, isPackEmoji } from "@/lib/community";
 import { communityBotToken } from "@/lib/community-bot";
@@ -8,8 +9,10 @@ export const dynamic = "force-dynamic";
 
 /**
  * Mimes we serve: static images go in an <img>; video (.webm) stickers are
- * served as video/webm and the client swaps to a <video>. Lottie (.tgs) has no
- * entry → 404, so those fall back to their static thumbnail / the Apple sprite.
+ * served as video/webm and the client swaps to a <video>. Lottie (.tgs =
+ * gzip-compressed Lottie JSON) is inflated server-side and served as
+ * application/json — the client plays it with a vendored Lottie renderer
+ * (/vendor/lottie-light.min.js), the same way Telegram Web A animates them.
  */
 const EXT_MIME: Record<string, string> = {
   webp: "image/webp",
@@ -20,6 +23,8 @@ const EXT_MIME: Record<string, string> = {
 };
 
 const MAX_STICKER_BYTES = 512 * 1024;
+/** Inflated Lottie JSON cap (tgs downloads stay under MAX_STICKER_BYTES). */
+const MAX_LOTTIE_JSON_BYTES = 2 * 1024 * 1024;
 
 /**
  * Telegram's thumbnail for some stickers is an alpha-only ~120-360 byte WEBP
@@ -47,12 +52,13 @@ function imageResponse(bytes: Buffer, mime: string) {
  * GET /api/community/emoji/[id]
  *
  * Serves a custom (premium pack) emoji sticker by Telegram document id.
- * First hit downloads the artwork via the Bot API (getCustomEmojiStickers →
- * getFile): video packs yield an animated .webm (served video/webm), Lottie
- * packs fall back to their static WEBP thumbnail, static packs serve the image
- * directly. The bytes are cached in Postgres; every later hit is served
+ * First hit downloads the ORIGINAL document via the Bot API
+ * (getCustomEmojiStickers → getFile): video packs yield an animated .webm
+ * (served video/webm), Lottie packs yield inflated Lottie JSON (served
+ * application/json for the client's vendored player), static packs serve the
+ * full-res image. The bytes are cached in Postgres; every later hit is served
  * straight from the cache. Without COMMUNITY_BOT_TOKEN (local dev) this 404s
- * and the client falls back to the plain Apple-emoji sprite.
+ * and the client retries, then leaves the tile blank (never a substitute).
  */
 export async function GET(
   req: Request,
@@ -125,51 +131,71 @@ export async function GET(
     const sticker = stJson.ok ? stJson.result?.[0] : undefined;
     if (!sticker) return staleLegacy();
 
-    // ORIGINALS FIRST (owner requirement — no substitute artwork): video
-    // (.webm) stickers serve the real document (file_id) so they animate in a
-    // <video>; static stickers serve the original sticker document (full-res
-    // WEBP, still <img>-safe) instead of the low-res 100x100 thumbnail; only
-    // animated Lottie (.tgs) — which a browser <img> can't decode — falls back
-    // to its static thumbnail (same artwork, rendered still).
-    const fileId = sticker.is_animated
-      ? sticker.thumbnail?.file_id
-      : (sticker.file_id ?? sticker.thumbnail?.file_id);
-    if (!fileId) return staleLegacy();
+    // ORIGINALS FIRST (owner requirement — no substitute artwork): every pack
+    // type serves its real document (file_id) — video → animated .webm for a
+    // <video>, static → full-res WEBP for an <img>, animated Lottie → .tgs
+    // inflated to Lottie JSON for the client's vendored player. The low-res
+    // static thumbnail is only the fallback when the document itself fails.
+    const tryFile = async (
+      fid: string | undefined,
+    ): Promise<{ bytes: Buffer; mime: string } | null> => {
+      if (!fid) return null;
+      const gfRes = await fetch(`${api}/getFile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_id: fid }),
+      });
+      const gfJson = (await gfRes.json()) as {
+        ok?: boolean;
+        result?: { file_path?: string };
+      };
+      const filePath = gfJson.ok ? gfJson.result?.file_path : undefined;
+      if (!filePath) return null;
 
-    const gfRes = await fetch(`${api}/getFile`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file_id: fileId }),
-    });
-    const gfJson = (await gfRes.json()) as {
-      ok?: boolean;
-      result?: { file_path?: string };
+      const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+      if (ext !== "tgs" && !EXT_MIME[ext]) return null;
+
+      const dlRes = await fetch(
+        `https://api.telegram.org/file/bot${token}/${filePath}`,
+      );
+      if (!dlRes.ok) return null;
+      const bytes = Buffer.from(await dlRes.arrayBuffer());
+      if (bytes.length > MAX_STICKER_BYTES) return null;
+
+      if (ext === "tgs") {
+        // TGS = gzip-compressed Lottie JSON (magic 1f 8b; be lenient if a
+        // file ever arrives already inflated). maxOutputLength makes gunzip
+        // throw instead of ballooning memory on a hostile/corrupt archive.
+        try {
+          const json =
+            bytes[0] === 0x1f && bytes[1] === 0x8b
+              ? gunzipSync(bytes, { maxOutputLength: MAX_LOTTIE_JSON_BYTES })
+              : bytes;
+          if (json.length > MAX_LOTTIE_JSON_BYTES) return null;
+          return { bytes: json, mime: "application/json" };
+        } catch {
+          return null;
+        }
+      }
+      return { bytes, mime: EXT_MIME[ext] };
     };
-    const filePath = gfJson.ok ? gfJson.result?.file_path : undefined;
-    if (!filePath) return staleLegacy();
 
-    const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
-    const mime = EXT_MIME[ext];
-    if (!mime) return staleLegacy();
-
-    const dlRes = await fetch(
-      `https://api.telegram.org/file/bot${token}/${filePath}`,
-    );
-    if (!dlRes.ok) return staleLegacy();
-    const bytes = Buffer.from(await dlRes.arrayBuffer());
-    if (bytes.length > MAX_STICKER_BYTES) return staleLegacy();
-    if (bytes.length < MIN_STICKER_BYTES) {
+    const art =
+      (await tryFile(sticker.file_id)) ??
+      (await tryFile(sticker.thumbnail?.file_id));
+    if (!art) return staleLegacy();
+    if (art.bytes.length < MIN_STICKER_BYTES) {
       // Blank alpha-only thumbnail: cache it as a poison marker (later views
-      // skip the Bot API) and 404 so the client shows its sprite fallback —
-      // a stale legacy row for this id would be the same blank artwork.
-      await saveCustomEmoji(cacheKey, bytes, mime);
+      // skip the Bot API) and 404 — a stale legacy row for this id would be
+      // the same blank artwork.
+      await saveCustomEmoji(cacheKey, art.bytes, art.mime);
       return new NextResponse(null, { status: 404 });
     }
 
-    await saveCustomEmoji(cacheKey, bytes, mime);
-    return imageResponse(bytes, mime);
+    await saveCustomEmoji(cacheKey, art.bytes, art.mime);
+    return imageResponse(art.bytes, art.mime);
   } catch {
-    // Fail soft — stale artwork or the Apple-emoji sprite beats an error page.
+    // Fail soft — stale artwork beats an error page.
     return staleLegacy();
   }
 }

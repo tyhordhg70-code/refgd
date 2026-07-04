@@ -170,23 +170,147 @@ function playCustomEmojiVideo(el: HTMLVideoElement | null) {
   if (p && typeof p.catch === "function") p.catch(() => {});
 }
 
-type EmojiStage = { kind: "img"; src: string } | { kind: "video"; src: string };
+type EmojiStage =
+  | { kind: "img"; src: string }
+  | { kind: "video"; src: string }
+  | { kind: "lottie"; src: string };
 
 /** Bounded retry backoff for custom-emoji artwork (spreads Bot API stampedes). */
 const EMOJI_RETRY_DELAYS_MS = [2000, 5000, 12000];
+
+type LottieAnim = { play(): void; pause(): void; destroy(): void };
+type LottieLib = {
+  loadAnimation(opts: Record<string, unknown>): LottieAnim;
+};
+
+let lottieLibPromise: Promise<LottieLib | null> | null = null;
+
+/**
+ * Lazy-load the vendored Lottie renderer (public/vendor/lottie-light.min.js —
+ * no npm dependency: this repo's dual lockfiles make dependency changes a
+ * Render-outage risk). Loaded once, on the first Lottie emoji that scrolls
+ * into view; resolves null (→ error cascade) if the script can't load.
+ */
+function loadLottieLib(): Promise<LottieLib | null> {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  if (!lottieLibPromise) {
+    lottieLibPromise = new Promise((resolve) => {
+      const w = window as unknown as { lottie?: LottieLib };
+      if (w.lottie) {
+        resolve(w.lottie);
+        return;
+      }
+      const s = document.createElement("script");
+      s.src = "/vendor/lottie-light.min.js";
+      s.async = true;
+      s.onload = () => resolve(w.lottie ?? null);
+      s.onerror = () => {
+        lottieLibPromise = null; // allow a later retry to re-attempt the load
+        resolve(null);
+      };
+      document.head.appendChild(s);
+    });
+  }
+  return lottieLibPromise;
+}
+
+/**
+ * Animated Lottie (.tgs) custom emoji: fetches the route's inflated Lottie
+ * JSON and plays it with the vendored renderer — the same way Telegram Web A
+ * animates these packs. Work starts only when the tile nears the viewport
+ * (IntersectionObserver) so a Lottie-heavy picker grid doesn't fetch/build
+ * hundreds of players at once, and playback pauses offscreen to keep the
+ * main thread cool. Any failure calls onError → the cascade's retry path.
+ */
+function LottieEmoji({
+  src,
+  alt,
+  onError,
+}: {
+  src: string;
+  alt: string;
+  onError: () => void;
+}) {
+  const boxRef = useRef<HTMLSpanElement | null>(null);
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return undefined;
+    let cancelled = false;
+    let anim: LottieAnim | null = null;
+    let started = false;
+
+    const start = async () => {
+      if (started) return;
+      started = true;
+      try {
+        const res = await fetch(src);
+        if (!res.ok) throw new Error(String(res.status));
+        const ct = res.headers.get("content-type") ?? "";
+        if (!ct.includes("json")) throw new Error(ct);
+        const data: unknown = await res.json();
+        const lottie = await loadLottieLib();
+        if (!lottie) throw new Error("lottie lib unavailable");
+        if (cancelled || !boxRef.current) return;
+        anim = lottie.loadAnimation({
+          container: boxRef.current,
+          renderer: "svg",
+          loop: true,
+          autoplay: true,
+          animationData: data,
+          rendererSettings: { preserveAspectRatio: "xMidYMid meet" },
+        });
+      } catch {
+        if (!cancelled) onErrorRef.current();
+      }
+    };
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        const e = entries[entries.length - 1];
+        if (e.isIntersecting) {
+          void start();
+          if (anim) anim.play();
+        } else if (anim) {
+          anim.pause();
+        }
+      },
+      { rootMargin: "100px" },
+    );
+    io.observe(box);
+
+    return () => {
+      cancelled = true;
+      io.disconnect();
+      if (anim) anim.destroy();
+    };
+  }, [src]);
+
+  return (
+    <span
+      ref={boxRef}
+      className="emoji emoji-small tg-custom-emoji"
+      role="img"
+      aria-label={alt}
+    />
+  );
+}
 
 /**
  * Custom (premium pack) emoji sticker rendered from the Telegram document id.
  *
  * ORIGINALS ONLY — NEVER SUBSTITUTE: the tile always shows the real pack
  * artwork (owner requirement). Source cascade: self-hosted webp (/tg-emoji,
- * only some ids) → /api/community/emoji image (static packs / Lottie thumbs) →
- * /api/community/emoji <video> (animated .webm packs). When every stage fails
- * (Bot API hiccup/rate limit during a cache re-warm), the tile RETRIES the API
- * with backoff (`&r=N` busts any negative cache) instead of swapping in an
- * Apple-sprite lookalike — a generic sprite reads as the WRONG emoji next to
- * pack artwork. While waiting (and after giving up) it renders a transparent
- * placeholder, never a substitute glyph.
+ * only some ids) → /api/community/emoji <img> (static packs) → <video>
+ * (animated .webm packs) → Lottie player (animated .tgs packs, exactly how
+ * Telegram Web A renders them). When every stage fails (Bot API hiccup/rate
+ * limit during a cache re-warm), the tile RETRIES the API with backoff
+ * (`&r=N` busts any negative cache) instead of swapping in an Apple-sprite
+ * lookalike — a generic sprite reads as the WRONG emoji next to pack artwork.
+ * While waiting (and after giving up) it renders a transparent placeholder,
+ * never a substitute glyph.
  *
  * Blank-emoji traps handled: (1) an SSR-emitted <img> whose 404/decode error
  * fires before hydration wires up onError — a mount effect re-checks
@@ -199,17 +323,20 @@ const EMOJI_RETRY_DELAYS_MS = [2000, 5000, 12000];
 export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
   const [attempt, setAttempt] = useState(0);
   // Each stage only advances on error (never loops back): self-hosted webp →
-  // API image → API video. ?v=3 busts BOTH the immutable browser/CDN cache AND
-  // the Postgres cache (the route versions its cache key by ?v), so ids cached
-  // as a low-res STATIC thumbnail under the old fileId logic get re-fetched as
-  // the real original document (.webm for video packs, full sticker for
+  // API image → API video → API Lottie (fetch + vendored player). ?v=4 busts
+  // BOTH the immutable browser/CDN cache AND the Postgres cache (the route
+  // versions its cache key by ?v), so ids cached as a low-res STATIC thumbnail
+  // under the old fileId logic get re-fetched as the real original document
+  // (.webm for video packs, Lottie JSON for animated packs, full sticker for
   // static packs) instead of forever serving the old still.
   const stages = useMemo<EmojiStage[]>(() => {
     const retry = attempt > 0 ? `&r=${attempt}` : "";
+    const api = `/api/community/emoji/${id}?v=4${retry}`;
     return [
       { kind: "img", src: `/tg-emoji/${id}.webp` },
-      { kind: "img", src: `/api/community/emoji/${id}?v=3${retry}` },
-      { kind: "video", src: `/api/community/emoji/${id}?v=3${retry}` },
+      { kind: "img", src: api },
+      { kind: "video", src: api },
+      { kind: "lottie", src: api },
     ];
   }, [id, attempt]);
   const [idx, setIdx] = useState(0);
@@ -273,6 +400,9 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
         aria-label={alt}
       />
     );
+  }
+  if (stage.kind === "lottie") {
+    return <LottieEmoji src={stage.src} alt={alt} onError={advance} />;
   }
   if (stage.kind === "video") {
     return (
