@@ -21,6 +21,16 @@ const EXT_MIME: Record<string, string> = {
 
 const MAX_STICKER_BYTES = 512 * 1024;
 
+/**
+ * Telegram's thumbnail for some stickers is an alpha-only ~120-360 byte WEBP
+ * that decodes FULLY TRANSPARENT: an <img> "loads" it without error so the
+ * client cascade never advances and the emoji renders invisible. Any body
+ * smaller than this floor is treated as unusable — it is still cached (as a
+ * poison marker so later views skip the Bot API) but served as 404, which
+ * pushes the client on to its visible Apple-sprite fallback.
+ */
+const MIN_STICKER_BYTES = 500;
+
 function imageResponse(bytes: Buffer, mime: string) {
   return new NextResponse(new Uint8Array(bytes), {
     status: 200,
@@ -52,10 +62,12 @@ export async function GET(
   if (!/^\d{1,32}$/.test(id)) return new NextResponse(null, { status: 400 });
   // Version the Postgres cache key by ?v so a bumped client (format.tsx) forces
   // a re-fetch: ids first cached as a STATIC thumbnail under the old fileId
-  // logic live under the bare `id`, so a new `${id}:v2` key misses the cache and
-  // re-downloads the real animated .webm document. Old rows are left untouched
-  // (additive — no destructive prod write). The allowlist + Telegram fetch still
-  // key off the raw numeric id; only the cache row is versioned.
+  // logic live under the bare `id`, so a new `${id}:vN` key misses the cache and
+  // re-downloads the real original document (.webm for video packs, full-res
+  // sticker for static packs). Old rows are left untouched (additive — no
+  // destructive prod write) and double as the stale fallback below. The
+  // allowlist + Telegram fetch still key off the raw numeric id; only the
+  // cache row is versioned.
   const v = new URL(req.url).searchParams.get("v");
   const cacheKey = v && /^\d{1,4}$/.test(v) ? `${id}:v${v}` : id;
   // Unauthenticated route: serve ONLY allowlisted ids — the static seed pack
@@ -67,10 +79,32 @@ export async function GET(
   }
 
   const cached = await getCustomEmoji(cacheKey);
-  if (cached) return imageResponse(cached.bytes, cached.mime);
+  if (cached) {
+    // A sub-floor row is a known-blank poison marker (see MIN_STICKER_BYTES):
+    // 404 without re-hitting the Bot API so the client shows its sprite.
+    if (cached.bytes.length < MIN_STICKER_BYTES) {
+      return new NextResponse(null, { status: 404 });
+    }
+    return imageResponse(cached.bytes, cached.mime);
+  }
+
+  // When a versioned key (`id:vN`) misses and Telegram can't produce fresh
+  // artwork, fall back to the pre-bump row cached under the bare id: a stale
+  // still of the REAL pack artwork beats the wrong-looking Apple sprite. This
+  // also keeps a ?v bump's cache-wide re-fetch stampede from degrading tiles
+  // whenever the Bot API rate-limits or hiccups.
+  const staleLegacy = async () => {
+    if (cacheKey !== id) {
+      const legacy = await getCustomEmoji(id);
+      if (legacy && legacy.bytes.length >= MIN_STICKER_BYTES) {
+        return imageResponse(legacy.bytes, legacy.mime);
+      }
+    }
+    return new NextResponse(null, { status: 404 });
+  };
 
   const token = communityBotToken();
-  if (!token) return new NextResponse(null, { status: 404 });
+  if (!token) return staleLegacy();
 
   try {
     const api = `https://api.telegram.org/bot${token}`;
@@ -89,18 +123,18 @@ export async function GET(
       }>;
     };
     const sticker = stJson.ok ? stJson.result?.[0] : undefined;
-    if (!sticker) return new NextResponse(null, { status: 404 });
+    if (!sticker) return staleLegacy();
 
-    // Video (.webm) stickers CAN animate in a <video>, so prefer the real
-    // document (file_id) and only fall back to the static thumbnail. Animated
-    // Lottie (.tgs) can't render → use its static thumbnail. Static stickers
-    // prefer the thumbnail (already <img>-safe) then the document itself.
-    const fileId = sticker.is_video
-      ? (sticker.file_id ?? sticker.thumbnail?.file_id)
-      : sticker.is_animated
-        ? sticker.thumbnail?.file_id
-        : (sticker.thumbnail?.file_id ?? sticker.file_id);
-    if (!fileId) return new NextResponse(null, { status: 404 });
+    // ORIGINALS FIRST (owner requirement — no substitute artwork): video
+    // (.webm) stickers serve the real document (file_id) so they animate in a
+    // <video>; static stickers serve the original sticker document (full-res
+    // WEBP, still <img>-safe) instead of the low-res 100x100 thumbnail; only
+    // animated Lottie (.tgs) — which a browser <img> can't decode — falls back
+    // to its static thumbnail (same artwork, rendered still).
+    const fileId = sticker.is_animated
+      ? sticker.thumbnail?.file_id
+      : (sticker.file_id ?? sticker.thumbnail?.file_id);
+    if (!fileId) return staleLegacy();
 
     const gfRes = await fetch(`${api}/getFile`, {
       method: "POST",
@@ -112,25 +146,30 @@ export async function GET(
       result?: { file_path?: string };
     };
     const filePath = gfJson.ok ? gfJson.result?.file_path : undefined;
-    if (!filePath) return new NextResponse(null, { status: 404 });
+    if (!filePath) return staleLegacy();
 
     const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
     const mime = EXT_MIME[ext];
-    if (!mime) return new NextResponse(null, { status: 404 });
+    if (!mime) return staleLegacy();
 
     const dlRes = await fetch(
       `https://api.telegram.org/file/bot${token}/${filePath}`,
     );
-    if (!dlRes.ok) return new NextResponse(null, { status: 404 });
+    if (!dlRes.ok) return staleLegacy();
     const bytes = Buffer.from(await dlRes.arrayBuffer());
-    if (bytes.length === 0 || bytes.length > MAX_STICKER_BYTES) {
+    if (bytes.length > MAX_STICKER_BYTES) return staleLegacy();
+    if (bytes.length < MIN_STICKER_BYTES) {
+      // Blank alpha-only thumbnail: cache it as a poison marker (later views
+      // skip the Bot API) and 404 so the client shows its sprite fallback —
+      // a stale legacy row for this id would be the same blank artwork.
+      await saveCustomEmoji(cacheKey, bytes, mime);
       return new NextResponse(null, { status: 404 });
     }
 
     await saveCustomEmoji(cacheKey, bytes, mime);
     return imageResponse(bytes, mime);
   } catch {
-    // Fail soft — the client swaps to the Apple-emoji sprite on error.
-    return new NextResponse(null, { status: 404 });
+    // Fail soft — stale artwork or the Apple-emoji sprite beats an error page.
+    return staleLegacy();
   }
 }

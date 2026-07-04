@@ -172,62 +172,108 @@ function playCustomEmojiVideo(el: HTMLVideoElement | null) {
 
 type EmojiStage = { kind: "img"; src: string } | { kind: "video"; src: string };
 
+/** Bounded retry backoff for custom-emoji artwork (spreads Bot API stampedes). */
+const EMOJI_RETRY_DELAYS_MS = [2000, 5000, 12000];
+
 /**
  * Custom (premium pack) emoji sticker rendered from the Telegram document id.
  *
- * ARTWORK-FIRST: the visible node starts on the real pack artwork and only
- * falls back to the Apple sprite if the artwork fails to decode. The visible
- * element IS the artwork (a lazy <img>, or a <video> for animated .webm packs),
- * not an eager `new Image()` probe per emoji — a message list mounting hundreds
- * of custom emoji at once stampeded those probes, starving them so many glyphs
- * ended up stuck on their WRONG Apple fallback. Source cascade: self-hosted
- * webp (/tg-emoji, only some ids) → /api/community/emoji image (static packs) →
- * /api/community/emoji <video> (animated .webm packs) → Apple sprite (last, so
- * it can never stay blank).
+ * ORIGINALS ONLY — NEVER SUBSTITUTE: the tile always shows the real pack
+ * artwork (owner requirement). Source cascade: self-hosted webp (/tg-emoji,
+ * only some ids) → /api/community/emoji image (static packs / Lottie thumbs) →
+ * /api/community/emoji <video> (animated .webm packs). When every stage fails
+ * (Bot API hiccup/rate limit during a cache re-warm), the tile RETRIES the API
+ * with backoff (`&r=N` busts any negative cache) instead of swapping in an
+ * Apple-sprite lookalike — a generic sprite reads as the WRONG emoji next to
+ * pack artwork. While waiting (and after giving up) it renders a transparent
+ * placeholder, never a substitute glyph.
  *
- * Two blank-emoji traps handled: (1) an SSR-emitted <img> whose 404/decode
- * error fires before hydration wires up onError — a mount effect re-checks
+ * Blank-emoji traps handled: (1) an SSR-emitted <img> whose 404/decode error
+ * fires before hydration wires up onError — a mount effect re-checks
  * `complete && naturalWidth === 0` and advances the cascade; (2) the cascade
- * index resets whenever `id`/`alt` changes so a recycled node re-tries artwork
- * instead of inheriting the previous emoji's exhausted fallback.
+ * resets whenever `id`/`alt` changes so a recycled node re-tries artwork
+ * instead of inheriting the previous emoji's exhausted state; (3) the API
+ * itself 404s known-blank alpha-only thumbnails so a "successful" load can no
+ * longer paint an invisible image.
  */
 export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
+  const [attempt, setAttempt] = useState(0);
   // Each stage only advances on error (never loops back): self-hosted webp →
-  // API image (static packs) → API video (animated .webm packs) → Apple sprite
-  // (last, so nothing ever stays blank).
-  const stages = useMemo<EmojiStage[]>(
-    () => [
+  // API image → API video. ?v=3 busts BOTH the immutable browser/CDN cache AND
+  // the Postgres cache (the route versions its cache key by ?v), so ids cached
+  // as a low-res STATIC thumbnail under the old fileId logic get re-fetched as
+  // the real original document (.webm for video packs, full sticker for
+  // static packs) instead of forever serving the old still.
+  const stages = useMemo<EmojiStage[]>(() => {
+    const retry = attempt > 0 ? `&r=${attempt}` : "";
+    return [
       { kind: "img", src: `/tg-emoji/${id}.webp` },
-      // ?v=2 busts BOTH the immutable browser/CDN cache AND the Postgres cache
-      // (the route versions its cache key by ?v), so ids previously cached as a
-      // STATIC thumbnail under the old fileId logic get re-fetched as the real
-      // animated .webm document instead of forever serving the old still.
-      { kind: "img", src: `/api/community/emoji/${id}?v=2` },
-      { kind: "video", src: `/api/community/emoji/${id}?v=2` },
-      { kind: "img", src: emojiSrc(alt) },
-    ],
-    [id, alt],
-  );
+      { kind: "img", src: `/api/community/emoji/${id}?v=3${retry}` },
+      { kind: "video", src: `/api/community/emoji/${id}?v=3${retry}` },
+    ];
+  }, [id, attempt]);
   const [idx, setIdx] = useState(0);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const attemptRef = useRef(0);
+  const timerRef = useRef<number | null>(null);
 
   // Restart at the artwork source whenever this node is reused for a new emoji.
   useEffect(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    attemptRef.current = 0;
+    setAttempt(0);
     setIdx(0);
   }, [id, alt]);
 
-  const advance = () => setIdx((i) => (i < stages.length - 1 ? i + 1 : i));
+  useEffect(
+    () => () => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    },
+    [],
+  );
+
+  const advance = () =>
+    setIdx((i) => {
+      if (i < stages.length - 1) return i + 1;
+      // All artwork stages failed. Schedule a bounded backoff retry back at
+      // the API image stage; meanwhile render the transparent placeholder.
+      const a = attemptRef.current;
+      if (a < EMOJI_RETRY_DELAYS_MS.length && timerRef.current === null) {
+        timerRef.current = window.setTimeout(() => {
+          timerRef.current = null;
+          attemptRef.current = a + 1;
+          setAttempt(a + 1);
+          setIdx(1);
+        }, EMOJI_RETRY_DELAYS_MS[a]);
+      }
+      return stages.length;
+    });
 
   // Catch a decode error that fired before hydration attached onError. Only the
-  // <img> stages set imgRef; on a <video> stage imgRef.current is null → no-op.
+  // <img> stages set imgRef; React nulls it out when the <img> unmounts, so a
+  // <video>/placeholder render can't act on a stale detached node.
   useEffect(() => {
     const el = imgRef.current;
     if (el && el.complete && el.naturalWidth === 0) advance();
     // advance is stable enough; only re-run when the shown source changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idx]);
+  }, [idx, attempt]);
 
-  const stage = stages[idx];
+  const stage = stages[idx] as EmojiStage | undefined;
+  if (!stage) {
+    // Waiting for a retry (or exhausted): hold the emoji's box, show nothing —
+    // never a substitute glyph.
+    return (
+      <span
+        className="emoji emoji-small tg-custom-emoji"
+        role="img"
+        aria-label={alt}
+      />
+    );
+  }
   if (stage.kind === "video") {
     return (
       <video
