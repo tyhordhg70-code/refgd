@@ -816,6 +816,20 @@ export async function upsertPackEmoji(rows: PackEmoji[]): Promise<number> {
   return n;
 }
 
+/**
+ * Remove an entire pack from the picker library by its set_name (admin
+ * curation). Only deletes the picker rows — cached emoji bytes in
+ * custom_emoji stay, so ids already used inside messages keep rendering.
+ */
+export async function deletePackBySetName(setName: string): Promise<number> {
+  await initDb();
+  const { rowCount } = await getPool().query(
+    `DELETE FROM community_emoji_pack WHERE set_name = $1`,
+    [setName],
+  );
+  return rowCount ?? 0;
+}
+
 /** Is this document id part of a discovered pack? (serving allowlist). */
 export async function isPackEmoji(id: string): Promise<boolean> {
   await initDb();

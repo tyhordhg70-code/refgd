@@ -232,6 +232,48 @@ export default function EmojiPanel({
     }
   };
 
+  const removePack = async (g: PackGroup) => {
+    const setName = (g.setName || g.title || "").trim();
+    if (!setName) return;
+    const label = g.title || g.setName;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Remove the pack "${label}" (${g.emoji.length} emoji) from the picker? Emoji already used in messages keep working.`,
+      )
+    ) {
+      return;
+    }
+    setAdminBusy(true);
+    setAdminMsg(null);
+    try {
+      const res = await fetch("/api/community/emoji/list", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ setName }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        removed?: number;
+        error?: string;
+      };
+      if (data?.ok) {
+        setAdminMsg(`Removed "${label}" (${data.removed ?? 0} emoji)`);
+        setPacks((prev) =>
+          prev
+            ? prev.filter((p) => (p.setName || p.title || "").trim() !== setName)
+            : prev,
+        );
+      } else {
+        setAdminMsg(data?.error || "Remove failed");
+      }
+    } catch {
+      setAdminMsg("Remove failed");
+    } finally {
+      setAdminBusy(false);
+    }
+  };
+
   return (
     <>
       <button
@@ -464,8 +506,41 @@ export default function EmojiPanel({
                         else packRefs.current.delete(key);
                       }}
                       className="tg-emoji-section-title"
+                      style={
+                        isAdmin
+                          ? {
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: "0.5rem",
+                            }
+                          : undefined
+                      }
                     >
-                      {g.title || g.setName || "Custom"}
+                      <span>{g.title || g.setName || "Custom"}</span>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => void removePack(g)}
+                          disabled={adminBusy}
+                          aria-label={`Remove pack ${g.title || g.setName}`}
+                          style={{
+                            flex: "0 0 auto",
+                            border: "1px solid rgba(255,255,255,0.25)",
+                            borderRadius: "0.375rem",
+                            background: "transparent",
+                            color: "inherit",
+                            font: "inherit",
+                            fontSize: "0.6875rem",
+                            lineHeight: 1,
+                            padding: "0.25rem 0.4375rem",
+                            opacity: adminBusy ? 0.5 : 0.8,
+                            cursor: adminBusy ? "default" : "pointer",
+                          }}
+                        >
+                          ✕ Remove
+                        </button>
+                      )}
                     </div>
                     {g.emoji.map((c) => (
                       <button

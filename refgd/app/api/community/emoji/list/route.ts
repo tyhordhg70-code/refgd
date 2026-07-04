@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { readMemberSession } from "@/lib/community-auth";
-import { listPackEmoji, upsertPackEmoji, type PackEmoji } from "@/lib/community";
+import {
+  deletePackBySetName,
+  listPackEmoji,
+  upsertPackEmoji,
+  type PackEmoji,
+} from "@/lib/community";
 import { CUSTOM_EMOJI } from "@/lib/custom-emoji";
 
 export const runtime = "nodejs";
@@ -90,4 +95,44 @@ export async function POST(req: Request) {
   const rows: PackEmoji[] = [{ id, alt, setName: "Custom", title: "Custom" }];
   const upserted = await upsertPackEmoji(rows);
   return NextResponse.json({ ok: true, id, upserted });
+}
+
+/**
+ * DELETE /api/community/emoji/list — admin-only whole-pack removal.
+ *
+ * Removes every emoji of one pack (by set_name) from the picker library so
+ * the owner can curate away foreign packs pulled in by discovery. Cached
+ * emoji bytes are untouched — ids already used inside messages keep
+ * rendering; only the picker forgets the pack.
+ */
+export async function DELETE(req: Request) {
+  const me = await readMemberSession();
+  if (!me?.admin) {
+    return NextResponse.json(
+      { ok: false, error: "Admins only" },
+      { status: 403 },
+    );
+  }
+
+  let payload: { setName?: unknown };
+  try {
+    payload = (await req.json()) as { setName?: unknown };
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "Invalid JSON" },
+      { status: 400 },
+    );
+  }
+
+  const setName =
+    typeof payload.setName === "string" ? payload.setName.trim() : "";
+  if (!setName || setName.length > 128) {
+    return NextResponse.json(
+      { ok: false, error: "A pack set name is required" },
+      { status: 400 },
+    );
+  }
+
+  const removed = await deletePackBySetName(setName);
+  return NextResponse.json({ ok: true, setName, removed });
 }
