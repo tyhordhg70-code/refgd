@@ -36,6 +36,36 @@ type ProbeLottie = {
   loadAnimation(opts: Record<string, unknown>): { destroy(): void };
 };
 
+/**
+ * Telegram .tgs files omit empty arrays to save bytes — shape layers
+ * (ty:4) may arrive with NO `shapes` property at all. lottie-web's
+ * dataManager then crashes with "Cannot read properties of undefined
+ * (reading 'length')" during completeData, which blanked every emoji
+ * whose animation contains such a layer (in ALL browsers, not just the
+ * Telegram webview). Normalize in place before loadAnimation.
+ */
+export function sanitizeLottieData(data: unknown): unknown {
+  if (!data || typeof data !== "object") return data;
+  const fixLayers = (layers: unknown): void => {
+    if (!Array.isArray(layers)) return;
+    for (const l of layers) {
+      if (!l || typeof l !== "object") continue;
+      const layer = l as Record<string, unknown>;
+      if (layer.ty === 4 && !Array.isArray(layer.shapes)) layer.shapes = [];
+    }
+  };
+  const d = data as Record<string, unknown>;
+  fixLayers(d.layers);
+  if (Array.isArray(d.assets)) {
+    for (const a of d.assets) {
+      if (a && typeof a === "object") {
+        fixLayers((a as Record<string, unknown>).layers);
+      }
+    }
+  }
+  return data;
+}
+
 /** Rejects after `ms` so a hanging step reports as a TIMEOUT line. */
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -118,7 +148,7 @@ export async function runEmojiSelfTest(
     }
     let data: unknown;
     try {
-      data = JSON.parse(new TextDecoder().decode(bytes));
+      data = sanitizeLottieData(JSON.parse(new TextDecoder().decode(bytes)));
       onLine("json: parsed OK");
     } catch (e) {
       onLine(`json FAILED: ${String((e as Error)?.message ?? e)}`);

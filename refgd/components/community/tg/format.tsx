@@ -9,7 +9,11 @@ import {
 } from "react";
 import { EMOJI_FE0F_KEEP } from "./emoji-fe0f";
 import { EMOJI_CACHE_VERSION } from "@/lib/custom-emoji";
-import { emojiDebugBump, emojiDebugError } from "./emoji-debug";
+import {
+  emojiDebugBump,
+  emojiDebugError,
+  sanitizeLottieData,
+} from "./emoji-debug";
 
 /**
  * Shared deterministic formatting helpers for the Telegram replica.
@@ -255,7 +259,7 @@ function LottieEmoji({
         const ct = res.headers.get("content-type") ?? "";
         if (!ct.includes("json")) throw new Error(`ct ${ct}`);
         emojiDebugBump("lottie:fetch-ok");
-        const data: unknown = await res.json();
+        const data: unknown = sanitizeLottieData(await res.json());
         emojiDebugBump("lottie:json-ok");
         const lottie = await loadLottieLib();
         if (!lottie) throw new Error("lottie lib unavailable");
