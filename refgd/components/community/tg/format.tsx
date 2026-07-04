@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -315,6 +316,49 @@ function LottieEmoji({
 }
 
 /**
+ * Shared near-viewport latch — how Telegram Web A keeps a 2,000+ tile picker
+ * usable: NOTHING downloads until its tile approaches the viewport. One
+ * IntersectionObserver serves every custom-emoji tile (per-tile observers at
+ * this scale are their own perf problem). The latch is one-way: once a tile
+ * has been near the viewport it stays "near" (artwork is already cached).
+ * Without this, every offscreen <video> stage fetched eagerly on mount —
+ * hundreds of parallel downloads saturating the browser's per-origin
+ * connection pool, starving ALL emoji requests (visible tiles included).
+ */
+let sharedTileIO: IntersectionObserver | null = null;
+const tileIOCallbacks = new Map<Element, () => void>();
+
+function observeTile(el: Element, cb: () => void): void {
+  if (typeof IntersectionObserver === "undefined") {
+    cb();
+    return;
+  }
+  if (!sharedTileIO) {
+    sharedTileIO = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          const fire = tileIOCallbacks.get(e.target);
+          if (fire) {
+            tileIOCallbacks.delete(e.target);
+            sharedTileIO?.unobserve(e.target);
+            fire();
+          }
+        }
+      },
+      { rootMargin: "250px" },
+    );
+  }
+  tileIOCallbacks.set(el, cb);
+  sharedTileIO.observe(el);
+}
+
+function unobserveTile(el: Element): void {
+  tileIOCallbacks.delete(el);
+  sharedTileIO?.unobserve(el);
+}
+
+/**
  * Custom (premium pack) emoji sticker rendered from the Telegram document id.
  *
  * ORIGINALS ONLY — NEVER SUBSTITUTE: the tile always shows the real pack
@@ -337,6 +381,24 @@ function LottieEmoji({
  * longer paint an invisible image.
  */
 export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
+  // Near-viewport latch (see observeTile above): render an empty box and
+  // download NOTHING until this tile approaches the viewport — exactly how
+  // Telegram Web A survives multi-thousand-tile pickers.
+  const [near, setNear] = useState(false);
+  const nearRef = useRef(false);
+  const observedRef = useRef<HTMLSpanElement | null>(null);
+  const holderRef = useCallback((el: HTMLSpanElement | null) => {
+    if (observedRef.current && observedRef.current !== el) {
+      unobserveTile(observedRef.current);
+    }
+    observedRef.current = el;
+    if (el && !nearRef.current) {
+      observeTile(el, () => {
+        nearRef.current = true;
+        setNear(true);
+      });
+    }
+  }, []);
   const [attempt, setAttempt] = useState(0);
   // Each stage only advances on error (never loops back): self-hosted webp →
   // API image → API video → API Lottie (fetch + vendored player). The ?v
@@ -412,6 +474,16 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, attempt]);
 
+  if (!near) {
+    return (
+      <span
+        ref={holderRef}
+        className="emoji emoji-small tg-custom-emoji"
+        role="img"
+        aria-label={alt}
+      />
+    );
+  }
   const stage = stages[idx] as EmojiStage | undefined;
   if (!stage) {
     // Waiting for a retry (or exhausted): hold the emoji's box, show nothing —
