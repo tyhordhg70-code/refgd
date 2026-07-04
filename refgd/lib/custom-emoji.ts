@@ -49,6 +49,29 @@ export const CUSTOM_EMOJI: ReadonlyArray<{ id: string; alt: string }> = [
   { id: "5361794927028096622", alt: "🔠" },
   { id: "5364095856972681395", alt: "🔠" },
   { id: "5375319963726793021", alt: "🔠" },
+  // Pack covers captured from the owner's real Telegram picker — one id per
+  // pack is enough for discovery to expand the whole set.
+  { id: "5325660233295475057", alt: "💰" }, // ax1.vc x @PlushPepeSales
+  { id: "5384559872899555845", alt: "😀" }, // Emoticon Emoji
+];
+
+/**
+ * Custom-emoji pack short-names the owner listed explicitly (fullyst.com
+ * links). Discovery expands these DIRECTLY via getStickerSet — no seed id
+ * needed — so packs whose emoji never appeared in imported history still
+ * show up. Sticker packs (fstik.app links: CursedEmojis, Hot_3d_boys,
+ * videopopuga_by_fStikBot, Yellowboi) do NOT belong here: their stickers
+ * carry no custom_emoji_id, so they cannot render in an emoji picker —
+ * real Telegram shows them under the Stickers tab, a separate feature.
+ */
+export const SEED_SET_NAMES: ReadonlyArray<string> = [
+  "NewsEmoji",
+  "RetroFontEmoji",
+  "ApplicationEmoji",
+  "DuckEmoji",
+  "Topics",
+  "FaceEmoji",
+  "roflmoji",
 ];
 
 /** Fast membership check for the serving route. */

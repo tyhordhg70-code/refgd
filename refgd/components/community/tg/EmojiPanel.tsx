@@ -95,6 +95,7 @@ export default function EmojiPanel({
   // effect below can drive the auto-discovery status message.
   const [adminId, setAdminId] = useState("");
   const [adminAlt, setAdminAlt] = useState("");
+  const [adminPack, setAdminPack] = useState("");
   const [adminBusy, setAdminBusy] = useState(false);
   const [adminMsg, setAdminMsg] = useState<string | null>(null);
   // Guards the one-shot admin auto-discovery so it can never loop.
@@ -205,6 +206,52 @@ export default function EmojiPanel({
       }
     } catch {
       setAdminMsg("Discovery failed");
+    } finally {
+      setAdminBusy(false);
+    }
+  };
+
+  // "Add pack" — paste any pack link (t.me/addemoji/NAME, fullyst.com,
+  // fstik.app) or a bare short-name; the discover route pulls the whole set.
+  const parsePackName = (raw: string): string => {
+    const s = raw.trim();
+    const m = s.match(
+      /(?:t\.me\/add(?:emoji|stickers)\/|fullyst\.com\/[a-z]{2}\/emoji_set\/|fstik\.app\/stickerSet\/)([A-Za-z0-9_]+)/i,
+    );
+    if (m) return m[1];
+    return /^[A-Za-z0-9_]{1,64}$/.test(s) ? s : "";
+  };
+
+  const addPack = async () => {
+    const setName = parsePackName(adminPack);
+    if (!setName) {
+      setAdminMsg("Paste a pack link (t.me/addemoji/…) or its short name");
+      return;
+    }
+    setAdminBusy(true);
+    setAdminMsg(null);
+    try {
+      const res = await fetch("/api/community/emoji/discover", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ setName }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        discovered?: number;
+        sets?: Array<{ title?: string }>;
+        error?: string;
+      };
+      if (data?.ok) {
+        const title = data.sets?.[0]?.title || setName;
+        setAdminMsg(`Added "${title}" (${data.discovered ?? 0} emoji)`);
+        setAdminPack("");
+        reloadPacks();
+      } else {
+        setAdminMsg(data?.error || "Add pack failed");
+      }
+    } catch {
+      setAdminMsg("Add pack failed");
     } finally {
       setAdminBusy(false);
     }
@@ -446,6 +493,22 @@ export default function EmojiPanel({
                 >
                   Load packs
                 </button>
+                <div className="tg-emoji-admin-add">
+                  <input
+                    type="text"
+                    placeholder="Pack link or name"
+                    value={adminPack}
+                    onChange={(e) => setAdminPack(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="tg-emoji-admin-btn"
+                    onClick={() => void addPack()}
+                    disabled={adminBusy}
+                  >
+                    Add pack
+                  </button>
+                </div>
                 <div className="tg-emoji-admin-add">
                   <input
                     type="text"
