@@ -83,9 +83,9 @@ export default function EmojiPanel({
     );
     const sampleId =
       packs?.[0]?.emoji?.[0]?.id ?? CUSTOM_EMOJI[0]?.id ?? "";
-    setDebugTest(["self-test running…"]);
-    void runEmojiSelfTest(sampleId, EMOJI_CACHE_VERSION).then((lines) =>
-      setDebugTest(lines),
+    setDebugTest([`ua: ${navigator.userAgent}`]);
+    void runEmojiSelfTest(sampleId, EMOJI_CACHE_VERSION, (line) =>
+      setDebugTest((prev) => [...prev, line]),
     );
     return () => window.clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -249,13 +249,17 @@ function LottieEmoji({
       if (started) return;
       started = true;
       try {
+        emojiDebugBump("lottie:start");
         const res = await fetch(src);
         if (!res.ok) throw new Error(`http ${res.status}`);
         const ct = res.headers.get("content-type") ?? "";
         if (!ct.includes("json")) throw new Error(`ct ${ct}`);
+        emojiDebugBump("lottie:fetch-ok");
         const data: unknown = await res.json();
+        emojiDebugBump("lottie:json-ok");
         const lottie = await loadLottieLib();
         if (!lottie) throw new Error("lottie lib unavailable");
+        emojiDebugBump("lottie:lib-ok");
         if (cancelled || !boxRef.current) return;
         anim = lottie.loadAnimation({
           container: boxRef.current,

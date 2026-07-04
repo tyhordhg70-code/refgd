@@ -36,49 +36,94 @@ type ProbeLottie = {
   loadAnimation(opts: Record<string, unknown>): { destroy(): void };
 };
 
+/** Rejects after `ms` so a hanging step reports as a TIMEOUT line. */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = window.setTimeout(
+      () => reject(new Error(`${label} TIMEOUT ${ms}ms`)),
+      ms,
+    );
+    p.then(
+      (v) => {
+        window.clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        window.clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
 /**
  * Runs the full pipeline once on THIS device: API fetch → vendored Lottie
  * script → loadAnimation into an offscreen box → check an <svg> painted.
- * Returns human-readable result lines for the overlay.
+ * Reports each step INCREMENTALLY via onLine (so a hang still shows every
+ * completed step) and every step has its own timeout — the test can never
+ * stick at "running…".
  */
 export async function runEmojiSelfTest(
   sampleId: string,
   version: number,
-): Promise<string[]> {
-  const out: string[] = [];
+  onLine: (line: string) => void,
+): Promise<void> {
   try {
-    out.push(`ua: ${navigator.userAgent}`);
     const url = `/api/community/emoji/${sampleId}?v=${version}`;
-    out.push(`url: ${url}`);
+    onLine(`url: ${url}`);
     let ct = "";
+    let bytes: ArrayBuffer | null = null;
     try {
-      const res = await fetch(url);
+      const ac = new AbortController();
+      const kill = window.setTimeout(() => ac.abort(), 10000);
+      const res = await withTimeout(
+        fetch(url, { signal: ac.signal }),
+        10000,
+        "fetch",
+      );
       ct = res.headers.get("content-type") ?? "";
-      const buf = await res.arrayBuffer();
-      out.push(`fetch: ${res.status} ${ct || "(no ct)"} ${buf.byteLength}B`);
+      onLine(`fetch: ${res.status} ${ct || "(no ct)"}`);
+      bytes = await withTimeout(res.arrayBuffer(), 10000, "body");
+      window.clearTimeout(kill);
+      onLine(`body: ${bytes.byteLength}B`);
     } catch (e) {
-      out.push(`fetch FAILED: ${String((e as Error)?.message ?? e)}`);
-      return out;
+      onLine(`fetch FAILED: ${String((e as Error)?.message ?? e)}`);
+      return;
     }
     const w = window as unknown as { lottie?: ProbeLottie };
     if (!w.lottie) {
-      await new Promise<void>((resolve) => {
-        const s = document.createElement("script");
-        s.src = "/vendor/lottie-light.min.js";
-        s.async = true;
-        s.onload = () => resolve();
-        s.onerror = () => resolve();
-        document.head.appendChild(s);
-      });
+      onLine("loading /vendor/lottie-light.min.js …");
+      try {
+        await withTimeout(
+          new Promise<void>((resolve, reject) => {
+            const s = document.createElement("script");
+            s.src = "/vendor/lottie-light.min.js";
+            s.async = true;
+            s.onload = () => resolve();
+            s.onerror = () => reject(new Error("script onerror"));
+            document.head.appendChild(s);
+          }),
+          10000,
+          "script",
+        );
+      } catch (e) {
+        onLine(`script FAILED: ${String((e as Error)?.message ?? e)}`);
+      }
     }
-    out.push(`lottie lib: ${w.lottie ? "LOADED" : "MISSING"}`);
-    if (!w.lottie) return out;
-    if (!ct.includes("json")) {
-      out.push("(sample not Lottie JSON — render probe skipped)");
-      return out;
+    onLine(`lottie lib: ${w.lottie ? "LOADED" : "MISSING"}`);
+    if (!w.lottie) return;
+    if (!ct.includes("json") || !bytes) {
+      onLine("(sample not Lottie JSON — render probe skipped)");
+      return;
     }
-    const res2 = await fetch(url);
-    const data: unknown = await res2.json();
+    let data: unknown;
+    try {
+      data = JSON.parse(new TextDecoder().decode(bytes));
+      onLine("json: parsed OK");
+    } catch (e) {
+      onLine(`json FAILED: ${String((e as Error)?.message ?? e)}`);
+      return;
+    }
     const box = document.createElement("div");
     box.style.cssText =
       "position:fixed;left:-200px;top:0;width:64px;height:64px";
@@ -91,19 +136,20 @@ export async function runEmojiSelfTest(
         autoplay: true,
         animationData: data,
       });
+      onLine("loadAnimation: called OK");
       await new Promise((r) => setTimeout(r, 900));
       const svg = box.querySelector("svg");
-      out.push(
+      onLine(
         `render: svg=${svg ? "YES" : "NO"} nodes=${svg ? svg.childNodes.length : 0}`,
       );
       anim.destroy();
     } catch (e) {
-      out.push(`render FAILED: ${String((e as Error)?.message ?? e)}`);
+      onLine(`render FAILED: ${String((e as Error)?.message ?? e)}`);
     } finally {
       box.remove();
     }
+    onLine("self-test DONE");
   } catch (e) {
-    out.push(`selftest error: ${String((e as Error)?.message ?? e)}`);
+    onLine(`selftest error: ${String((e as Error)?.message ?? e)}`);
   }
-  return out;
 }
