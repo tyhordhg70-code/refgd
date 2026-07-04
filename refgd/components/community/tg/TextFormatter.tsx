@@ -7,20 +7,30 @@ import {
   useState,
   type RefObject,
 } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * Web A "TextFormatter" — the floating rich-text toolbar that appears when you
  * select text inside the composer input. The composer itself stays plain text;
  * each button wraps the current selection in a lightweight markdown-lite marker
- * (**bold**, __italic__, ~~strike~~, `mono`, ||spoiler||, [text](url)) that
- * renderBody turns back into styled spans on render. Visual styling is
- * inherited from the saved Web A stylesheet (.tg-body .TextFormatter…); we only
- * reuse those classnames and override positioning to track the live selection.
+ * (**bold**, __italic__, ++underline++, ~~strike~~, `mono`, ||spoiler||,
+ * [text](url)) that renderBody turns back into styled spans on render. Visual
+ * styling is inherited from the saved Web A stylesheet (.tg-body
+ * .TextFormatter…); we only reuse those classnames and override positioning to
+ * track the live selection.
+ *
+ * IMPORTANT: the toolbar must portal into `overlayEl` (a node OUTSIDE the
+ * translated #MiddleColumn) — the column's transform makes it the containing
+ * block for position:fixed, which anchored the toolbar off-viewport and made
+ * it "never appear" when rendered inline.
  */
 export default function TextFormatter({
   inputRef,
+  overlayEl,
 }: {
   inputRef: RefObject<HTMLDivElement | null>;
+  /** Portal host outside the transformed #MiddleColumn (see CommunityChat). */
+  overlayEl?: HTMLElement | null;
 }) {
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const [linkMode, setLinkMode] = useState(false);
@@ -140,23 +150,39 @@ export default function TextFormatter({
     </button>
   );
 
-  return (
+  const node = (
     <div
       ref={rootRef}
-      className="TextFormatter opacity-transition fast open shown"
-      style={{
-        position: "fixed",
-        left: pos.left,
-        top: pos.top,
-        opacity: 1,
-        zIndex: 30,
-      }}
+      className={
+        "TextFormatter opacity-transition fast open shown" +
+        (linkMode ? " link-control-shown" : "")
+      }
+      style={
+        {
+          position: "fixed",
+          left: pos.left,
+          top: pos.top,
+          opacity: 1,
+          // Above the edit-composer modal backdrop (z 60) so the toolbar also
+          // works for selections inside the modal's contentEditable.
+          zIndex: 80,
+          "--text-formatter-left": `${pos.left}px`,
+        } as React.CSSProperties
+      }
     >
-      {linkMode ? (
-        <div
-          className="TextFormatter-link-control"
-          style={{ position: "static", opacity: 1, pointerEvents: "auto" }}
-        >
+      <div className="TextFormatter-buttons">
+        {fmtBtn("Spoiler text", "eye-crossed", () => wrap("||"))}
+        <div className="TextFormatter-divider" />
+        {fmtBtn("Bold text", "bold", () => wrap("**"))}
+        {fmtBtn("Italic text", "italic", () => wrap("__"))}
+        {fmtBtn("Underlined text", "underlined", () => wrap("++"))}
+        {fmtBtn("Strikethrough text", "strikethrough", () => wrap("~~"))}
+        {fmtBtn("Monospace text", "monospace", () => wrap("`"))}
+        <div className="TextFormatter-divider" />
+        {fmtBtn("Add Link", "link", openLink)}
+      </div>
+      {linkMode && (
+        <div className="TextFormatter-link-control">
           <div className="TextFormatter-buttons">
             <button
               type="button"
@@ -164,7 +190,10 @@ export default function TextFormatter({
               aria-label="Cancel"
               title="Cancel"
               onMouseDown={(e) => e.preventDefault()}
-              onClick={reset}
+              onClick={() => {
+                setLinkMode(false);
+                setLinkUrl("");
+              }}
             >
               <i className="icon icon-arrow-left" aria-hidden />
             </button>
@@ -184,25 +213,35 @@ export default function TextFormatter({
                     confirmLink();
                   } else if (e.key === "Escape") {
                     e.preventDefault();
-                    reset();
+                    setLinkMode(false);
+                    setLinkUrl("");
                   }
                 }}
               />
             </div>
+            <div
+              className={
+                "TextFormatter-link-url-confirm" +
+                (linkUrl.trim() ? " shown" : "")
+              }
+            >
+              <div className="TextFormatter-divider" />
+              <button
+                type="button"
+                className="Button default translucent color-primary"
+                aria-label="Save"
+                title="Save"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={confirmLink}
+              >
+                <i className="icon icon-check" aria-hidden />
+              </button>
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="TextFormatter-buttons">
-          {fmtBtn("Spoiler text", "eye-crossed", () => wrap("||"))}
-          <div className="TextFormatter-divider" />
-          {fmtBtn("Bold text", "bold", () => wrap("**"))}
-          {fmtBtn("Italic text", "italic", () => wrap("__"))}
-          {fmtBtn("Strikethrough text", "strikethrough", () => wrap("~~"))}
-          {fmtBtn("Monospace text", "monospace", () => wrap("`"))}
-          <div className="TextFormatter-divider" />
-          {fmtBtn("Add Link", "link", openLink)}
         </div>
       )}
     </div>
   );
+
+  return overlayEl ? createPortal(node, overlayEl) : node;
 }

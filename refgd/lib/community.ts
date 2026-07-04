@@ -519,7 +519,7 @@ async function attachReactions(
     `SELECT message_id, emoji, COUNT(*)::int AS n,
             bool_or(tg_id::text = $2) AS mine
        FROM message_reactions
-      WHERE message_id = ANY($1::bigint[])
+      WHERE message_id = ANY($1::text[])
       GROUP BY message_id, emoji
       ORDER BY emoji`,
     [ids, viewerTid ?? ""],
@@ -642,7 +642,7 @@ export async function sweepExpiredMessages(): Promise<number> {
      ),
      _r AS (
        DELETE FROM message_reactions
-        WHERE message_id IN (SELECT id FROM del)
+        WHERE message_id IN (SELECT id::text FROM del)
      ),
      _m AS (
        DELETE FROM chat_media
@@ -934,6 +934,72 @@ export async function chatMessageExists(id: string): Promise<boolean> {
     [id],
   );
   return rows.length > 0;
+}
+
+/**
+ * Reactions target three kinds of posts, namespaced in one TEXT key space:
+ *   "123"          — live chat message (chat_messages.id)
+ *   "v123"         — imported/readonly history bubble (vouches.id)
+ *   "seed:<key>"   — constant seed posts (readme/welcome/announcement/…)
+ */
+const SEED_REACTION_TARGETS = new Set([
+  "seed:readme",
+  "seed:welcome",
+  "seed:announcement",
+  "seed:chat-notice",
+]);
+
+export function isReactionTargetId(id: string): boolean {
+  return /^\d+$/.test(id) || /^v\d+$/.test(id) || SEED_REACTION_TARGETS.has(id);
+}
+
+/** Whether the reaction target actually exists (per namespace). */
+export async function reactionTargetExists(id: string): Promise<boolean> {
+  if (/^\d+$/.test(id)) return chatMessageExists(id);
+  const v = id.match(/^v(\d+)$/);
+  if (v) {
+    await initDb();
+    const { rows } = await getPool().query<{ x: number }>(
+      `SELECT 1 AS x FROM vouches WHERE id = $1`,
+      [v[1]],
+    );
+    return rows.length > 0;
+  }
+  return SEED_REACTION_TARGETS.has(id);
+}
+
+/**
+ * Reaction summaries for an arbitrary set of target keys (vouches/seeds/chat
+ * alike). Used by the client to hydrate chips on readonly bubbles.
+ */
+export async function listReactionSummaries(
+  ids: string[],
+  viewerTid: string | null,
+): Promise<Record<string, ChatReaction[]>> {
+  const out: Record<string, ChatReaction[]> = {};
+  const valid = ids.filter(isReactionTargetId);
+  if (valid.length === 0) return out;
+  await initDb();
+  const { rows } = await getPool().query<{
+    message_id: string;
+    emoji: string;
+    n: number;
+    mine: boolean;
+  }>(
+    `SELECT message_id, emoji, COUNT(*)::int AS n,
+            bool_or(tg_id::text = $2) AS mine
+       FROM message_reactions
+      WHERE message_id = ANY($1::text[])
+      GROUP BY message_id, emoji
+      ORDER BY emoji`,
+    [valid, viewerTid ?? ""],
+  );
+  for (const r of rows) {
+    const arr = out[r.message_id] ?? [];
+    arr.push({ emoji: r.emoji, count: r.n, mine: Boolean(r.mine) });
+    out[r.message_id] = arr;
+  }
+  return out;
 }
 
 /**

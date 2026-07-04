@@ -2036,3 +2036,38 @@ video.tg-custom-emoji {
   color: var(--color-text-secondary, #707579);
   text-transform: capitalize;
 }
+
+/* ── Web A edit composer (readonly/seed post editing dialog) ──────────
+ * A floating composer replica: ComposerEmbeddedMessage bar docked on a
+ * contentEditable input inside .composer-wrapper, plus the round check
+ * send-button. The vendored stylesheet styles the embedded bar itself;
+ * these rules only lay out the dialog shell + input. */
+.tg-edit-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  width: min(30rem, 100%);
+}
+.tg-edit-composer .composer-wrapper {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  background: var(--color-background);
+  border-radius: var(--border-radius-messages, 0.9375rem);
+  box-shadow: 0 1px 2px var(--color-default-shadow, rgb(16 35 47 / 0.15));
+}
+.tg-edit-composer .tg-edit-input {
+  min-height: 3.5rem;
+  max-height: min(26rem, 60dvh);
+  overflow-y: auto;
+  padding: 1rem 0.875rem;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 1rem;
+  line-height: 1.3125;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  caret-color: var(--color-text);
+}

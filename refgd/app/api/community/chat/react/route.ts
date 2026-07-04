@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { readMemberSession } from "@/lib/community-auth";
 import {
   toggleReaction,
-  chatMessageExists,
+  isReactionTargetId,
+  reactionTargetExists,
   getChatMemberModState,
   isReactionEmoji,
 } from "@/lib/community";
@@ -36,7 +37,9 @@ export async function POST(req: Request) {
       : "";
   const emoji = typeof payload.emoji === "string" ? payload.emoji : "";
 
-  if (!/^\d+$/.test(messageId)) {
+  // Targets: live chat messages ("123"), imported history bubbles ("v123")
+  // and constant seed posts ("seed:<key>") — anyone signed in can toggle.
+  if (!isReactionTargetId(messageId)) {
     return NextResponse.json(
       { ok: false, error: "Bad message id" },
       { status: 400 },
@@ -48,7 +51,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  if (!(await chatMessageExists(messageId))) {
+  if (!(await reactionTargetExists(messageId))) {
     return NextResponse.json(
       { ok: false, error: "No such message" },
       { status: 404 },

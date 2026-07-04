@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import MessageBubble from "./MessageBubble";
+import MessageBubble, { type BubbleReaction } from "./MessageBubble";
 import type { VouchView } from "./types";
 import { LocalTime, dateKey, dateLabel, peerIdx, renderBody } from "./format";
 import { SEED_AUTHOR, SEED_AVATAR } from "./seed";
@@ -51,6 +51,8 @@ export default function VouchHistory({
   vouches,
   onOpenMenu,
   onOpenMedia,
+  reactionsFor,
+  onReact,
 }: {
   vouches: VouchView[];
   /** Opens the reduced (Edit / Pin / Copy Text / Forward) context menu for a vouch. */
@@ -60,6 +62,10 @@ export default function VouchHistory({
   ) => void;
   /** Opens the fullscreen media viewer for a clicked photo. */
   onOpenMedia?: (src: string) => void;
+  /** Live reaction chips for a vouch bubble (key `v<id>`). */
+  reactionsFor?: (id: string) => BubbleReaction[];
+  /** Toggle the viewer's reaction on a vouch bubble (key `v<id>`). */
+  onReact?: (id: string, emoji: string) => void;
 }) {
   const groups = useMemo(() => buildGroups(vouches), [vouches]);
 
@@ -113,6 +119,10 @@ export default function VouchHistory({
                     )}
                     body={v.body ? renderBody(v.body) : undefined}
                     time={<LocalTime iso={v.createdAt} />}
+                    reactions={reactionsFor?.(`v${v.id}`)}
+                    onReact={
+                      onReact ? (e) => onReact(`v${v.id}`, e) : undefined
+                    }
                     onOpenMenu={
                       onOpenMenu
                         ? (pos) =>

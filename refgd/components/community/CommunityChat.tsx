@@ -47,7 +47,9 @@ import {
   prepareChatImage,
   useCommunityChat,
   type ChatMessage,
+  type Reaction,
 } from "./useCommunityChat";
+import { useExtraReactions } from "./useExtraReactions";
 import { buildMiniAppLink, buildStartParam } from "./tg/deeplink";
 import type { ChatTopic } from "@/lib/community";
 import { COMMAND_SPECS } from "@/lib/community-commands";
@@ -173,6 +175,8 @@ export default function CommunityChat({
         ) => void,
         onOpenMedia: (src: string) => void,
         pinnedOnly: boolean,
+        reactionsFor: (id: string, baseline?: Reaction[]) => Reaction[],
+        onReact: (id: string, emoji: string) => void,
       ) => ReactNode);
   /**
    * Called after an admin edits a read-only history post so the parent can
@@ -223,9 +227,13 @@ export default function CommunityChat({
   const [fsRemember, setFsRemember] = useState(false);
   // Admin edit modal for a read-only history post (vouch / announcement /
   // testimonial): holds the target id + working text; null = closed.
-  const [editPost, setEditPost] = useState<{ id: string; body: string } | null>(
-    null,
-  );
+  // `orig` keeps the pre-edit body so the ComposerEmbeddedMessage preview
+  // shows the ORIGINAL message while typing (Web A parity), not the live text.
+  const [editPost, setEditPost] = useState<{
+    id: string;
+    body: string;
+    orig: string;
+  } | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   // Web A message context menu (right-click / long-press on a bubble). The
   // "readonly" variant is used for migrated history bubbles (vouches), which
@@ -345,6 +353,9 @@ export default function CommunityChat({
     [],
   );
   const inputRef = useRef<HTMLDivElement>(null);
+  // contentEditable inside the readonly-post edit dialog (Web A edit
+  // composer); its own TextFormatter binds to this ref.
+  const editInputRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Keep the message list clear of the composer: the footer is overlaid at the
   // bottom, so the list needs bottom padding equal to its live height (which
@@ -677,6 +688,76 @@ export default function CommunityChat({
   };
 
   const { state, me } = chat;
+
+  // Reactions on readonly bubbles (imported vouches + seed posts) live in
+  // their own TEXT key space ("v<id>" / "seed:<key>"); live chat messages
+  // keep the useCommunityChat flow. reactAny routes by key shape.
+  const extraReactions = useExtraReactions(!!me, () =>
+    showToast("Sign in with Telegram to react"),
+  );
+  const reactAny = (targetId: string, emoji: string) => {
+    if (/^\d+$/.test(targetId)) void chat.react(targetId, emoji);
+    else void extraReactions.toggle(targetId, emoji);
+  };
+
+  // Web A collapses the quick-reaction row again every time a context menu
+  // closes; without this the next menu would open pre-expanded.
+  useEffect(() => {
+    if (!ctxMenu) setReactionsExpanded(false);
+  }, [ctxMenu]);
+
+  // Web A quick-reaction row (+ show-more expand → full picker) shared by the
+  // chat AND readonly context menus, so seed/vouch bubbles react exactly like
+  // live messages. targetKey is the namespaced reaction id.
+  const reactionRow = (targetKey: string, x: number, y: number) => (
+    <div className="ReactionSelector__items-wrapper tg-ctx-reactions">
+      <div className="ReactionSelector__bubble-big" aria-hidden />
+      <div className="ReactionSelector__items">
+        <div
+          className={
+            "ReactionSelector__reactions" +
+            (reactionsExpanded ? " tg-ctx-reactions-expanded" : "")
+          }
+        >
+          {REACTIONS.map((e) => (
+            <button
+              key={e}
+              type="button"
+              className="tg-ctx-reaction ReactionSelector__reaction"
+              onClick={() => {
+                reactAny(targetKey, e);
+                setCtxMenu(null);
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={emojiSrc(e)}
+                alt={e}
+                className="emoji"
+                draggable={false}
+              />
+            </button>
+          ))}
+          <button
+            type="button"
+            className="Button ReactionSelector__show-more default translucent"
+            aria-label="Show more reactions"
+            onClick={() => {
+              if (!reactionsExpanded) {
+                setReactionsExpanded(true);
+                return;
+              }
+              setReactTarget({ id: targetKey, x, y });
+              setCtxMenu(null);
+            }}
+          >
+            <i className="icon icon-down" aria-hidden />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   const query = (search ?? "").trim().toLowerCase();
   const groups = useMemo(() => {
     const all = state?.messages ?? [];
@@ -1013,60 +1094,113 @@ export default function CommunityChat({
       {editPost &&
         overlayEl &&
         createPortal(
+          /* Web A edit flow for readonly/seed posts: instead of a generic
+             dialog, a floating composer — ComposerEmbeddedMessage bar
+             ("Edit Message" + original preview) docked on a contentEditable
+             input, with the round check send-button to save. */
           <div
-          className="tg-modal-backdrop"
-          onClick={() => (editSaving ? undefined : setEditPost(null))}
-        >
-          <div
-            className="tg-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Edit post"
-            onClick={(e) => e.stopPropagation()}
+            className="tg-modal-backdrop"
+            onClick={() => (editSaving ? undefined : setEditPost(null))}
           >
-            <div className="tg-modal-header">
-              <h3>Edit post</h3>
+            <div
+              className="tg-edit-composer"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Edit message"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="composer-wrapper">
+                <div className="ComposerEmbeddedMessage opacity-transition fast open shown">
+                  <div className="ComposerEmbeddedMessage_inner">
+                    <div
+                      className="embedded-left-icon"
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <i className="icon icon-edit" aria-hidden />
+                    </div>
+                    <div className="EmbeddedMessage inside-input no-selection">
+                      <div className="message-text">
+                        <p className="embedded-text-wrapper">
+                          {editPost.orig.trim() || "message"}
+                        </p>
+                        <div className="message-title">Edit Message</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="Button embedded-cancel default translucent round faded"
+                      aria-label="Cancel editing"
+                      title="Cancel editing"
+                      onClick={() => setEditPost(null)}
+                      disabled={editSaving}
+                    >
+                      <i className="icon icon-close" aria-hidden />
+                    </button>
+                  </div>
+                </div>
+                <div
+                  ref={(el) => {
+                    editInputRef.current = el;
+                    // Seed the editable once per opened post (innerText, not
+                    // dangerouslySetInnerHTML — the body is plain markdown-lite
+                    // text) and park the caret at the end like Web A.
+                    if (el && el.dataset.seededFor !== editPost.id) {
+                      el.dataset.seededFor = editPost.id;
+                      el.innerText = editPost.body;
+                      el.focus();
+                      const sel = window.getSelection();
+                      sel?.selectAllChildren(el);
+                      sel?.collapseToEnd();
+                    }
+                  }}
+                  className="form-control allow-selection tg-edit-input"
+                  contentEditable
+                  suppressContentEditableWarning
+                  role="textbox"
+                  dir="auto"
+                  tabIndex={0}
+                  aria-label="Edit message"
+                  onInput={(e) => {
+                    let v = e.currentTarget.innerText.replace(/\u00A0/g, " ");
+                    if (v === "\n") v = "";
+                    if (v.length > MAX_LEN) {
+                      v = v.slice(0, MAX_LEN);
+                      e.currentTarget.innerText = v;
+                      const sel = window.getSelection();
+                      sel?.selectAllChildren(e.currentTarget);
+                      sel?.collapseToEnd();
+                    }
+                    setEditPost((p) => (p ? { ...p, body: v } : p));
+                  }}
+                  onKeyDown={(e) => {
+                    if (
+                      e.key === "Enter" &&
+                      !e.shiftKey &&
+                      !e.nativeEvent.isComposing
+                    ) {
+                      e.preventDefault();
+                      if (!editSaving) saveEditPost();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      if (!editSaving) setEditPost(null);
+                    }
+                  }}
+                />
+              </div>
               <button
                 type="button"
-                className="Button smaller translucent round"
-                aria-label="Close"
-                onClick={() => setEditPost(null)}
-                disabled={editSaving}
+                className="Button send main-button default secondary round click-allowed"
+                aria-label="Save edited message"
+                title="Save edited message"
+                onClick={saveEditPost}
+                disabled={editSaving || !editPost.body.trim()}
               >
-                <i className="icon icon-close" aria-hidden />
+                <i className="icon icon-check" aria-hidden />
               </button>
+              <TextFormatter inputRef={editInputRef} overlayEl={overlayEl} />
             </div>
-            <div className="tg-modal-body">
-              <textarea
-                className="tg-edit-textarea"
-                value={editPost.body}
-                autoFocus
-                maxLength={MAX_LEN}
-                onChange={(e) =>
-                  setEditPost((p) => (p ? { ...p, body: e.target.value } : p))
-                }
-              />
-              <div className="tg-edit-actions">
-                <button
-                  type="button"
-                  className="tg-fs-btn"
-                  onClick={() => setEditPost(null)}
-                  disabled={editSaving}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="tg-fs-btn is-primary"
-                  onClick={saveEditPost}
-                  disabled={editSaving}
-                >
-                  {editSaving ? "Saving…" : "Save"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>,
+          </div>,
           overlayEl,
         )}
 
@@ -1099,57 +1233,7 @@ export default function CommunityChat({
           >
             {ctxMenu.kind === "chat" ? (
               <>
-                <div className="ReactionSelector__items-wrapper tg-ctx-reactions">
-                  <div className="ReactionSelector__bubble-big" aria-hidden />
-                  <div className="ReactionSelector__items">
-                    <div
-                      className={
-                        "ReactionSelector__reactions" +
-                        (reactionsExpanded ? " tg-ctx-reactions-expanded" : "")
-                      }
-                    >
-                      {REACTIONS.map((e) => (
-                        <button
-                          key={e}
-                          type="button"
-                          className="tg-ctx-reaction ReactionSelector__reaction"
-                          onClick={() => {
-                            void chat.react(ctxMenu.m.id, e);
-                            showToast("Reaction added");
-                            setCtxMenu(null);
-                          }}
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={emojiSrc(e)}
-                            alt={e}
-                            className="emoji"
-                            draggable={false}
-                          />
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        className="Button ReactionSelector__show-more default translucent"
-                        aria-label="Show more reactions"
-                        onClick={() => {
-                          if (!reactionsExpanded) {
-                            setReactionsExpanded(true);
-                            return;
-                          }
-                          setReactTarget({
-                            id: ctxMenu.m.id,
-                            x: ctxMenu.x,
-                            y: ctxMenu.y,
-                          });
-                          setCtxMenu(null);
-                        }}
-                      >
-                        <i className="icon icon-down" aria-hidden />
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                {reactionRow(ctxMenu.m.id, ctxMenu.x, ctxMenu.y)}
                 <button
                   type="button"
                   className="tg-menu-item"
@@ -1313,12 +1397,21 @@ export default function CommunityChat({
               </>
             ) : (
               <>
+                {reactionRow(
+                  /^\d+$/.test(ctxMenu.id) ? `v${ctxMenu.id}` : ctxMenu.id,
+                  ctxMenu.x,
+                  ctxMenu.y,
+                )}
                 {me?.admin && ctxMenu.canModify && (
                   <button
                     type="button"
                     className="tg-menu-item"
                     onClick={() => {
-                      setEditPost({ id: ctxMenu.id, body: ctxMenu.text });
+                      setEditPost({
+                        id: ctxMenu.id,
+                        body: ctxMenu.text,
+                        orig: ctxMenu.text,
+                      });
                       setCtxMenu(null);
                     }}
                   >
@@ -1396,8 +1489,7 @@ export default function CommunityChat({
                   onPick={(snippet) => {
                     // Only plain-unicode emoji are valid reactions; skip custom
                     // pack tokens ([ce:…]) the reaction chips can't render.
-                    if (!snippet.startsWith("[ce:"))
-                      void chat.react(rt.id, snippet);
+                    if (!snippet.startsWith("[ce:")) reactAny(rt.id, snippet);
                     setReactTarget(null);
                   }}
                   onClose={() => setReactTarget(null)}
@@ -1482,6 +1574,8 @@ export default function CommunityChat({
                           openReadonlyMenu,
                           (src) => setLightbox(src),
                           pinnedOnly,
+                          extraReactions.reactionsFor,
+                          reactAny,
                         )
                       : history}
                     {(isGroupChat || topic === "testimonials") &&
@@ -1511,6 +1605,10 @@ export default function CommunityChat({
                               : CHAT_NOTICE_SEED_BODY
                           }
                           time={CHAT_NOTICE_SEED_TIME}
+                          reactions={extraReactions.reactionsFor(
+                            "seed:chat-notice",
+                          )}
+                          onReact={(e) => reactAny("seed:chat-notice", e)}
                           onOpenMenu={(pos) =>
                             openReadonlyMenu(pos, {
                               id: "seed:chat-notice",
@@ -1660,25 +1758,36 @@ export default function CommunityChat({
                 isAdmin={!!me?.admin}
               />
             )}
-            <TextFormatter inputRef={inputRef} />
+            <TextFormatter inputRef={inputRef} overlayEl={overlayEl} />
             <div className="composer-wrapper">
               <Appendix own={false} composer />
               {chat.editing && (
-                <div className="tg-reply-bar tg-edit-bar">
-                  <span className="tg-reply-embed">
-                    <span className="tg-reply-sender">Editing message</span>
-                    <span className="tg-reply-text">
-                      {chat.editing.body || "message"}
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    className="tg-icon-btn"
-                    onClick={() => chat.cancelEdit()}
-                    aria-label="Cancel edit"
-                  >
-                    <IconClose />
-                  </button>
+                /* Web A ComposerEmbeddedMessage — the edit bar that docks on
+                   top of the input (pencil icon / "Edit Message" + preview /
+                   round cancel), styled entirely by the vendored stylesheet. */
+                <div className="ComposerEmbeddedMessage opacity-transition fast open shown">
+                  <div className="ComposerEmbeddedMessage_inner">
+                    <div className="embedded-left-icon" role="button" tabIndex={0}>
+                      <i className="icon icon-edit" aria-hidden />
+                    </div>
+                    <div className="EmbeddedMessage inside-input no-selection">
+                      <div className="message-text">
+                        <p className="embedded-text-wrapper">
+                          {chat.editing.body || "message"}
+                        </p>
+                        <div className="message-title">Edit Message</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="Button embedded-cancel default translucent round faded"
+                      aria-label="Cancel editing"
+                      title="Cancel editing"
+                      onClick={() => chat.cancelEdit()}
+                    >
+                      <i className="icon icon-close" aria-hidden />
+                    </button>
+                  </div>
                 </div>
               )}
               {chat.replyTo && (
@@ -1878,14 +1987,20 @@ export default function CommunityChat({
             <button
               type="button"
               className="Button send main-button default secondary round click-allowed"
-              aria-label="Send message"
-              title="Send message"
+              aria-label={
+                chat.editing ? "Save edited message" : "Send message"
+              }
+              title={chat.editing ? "Save edited message" : "Send message"}
               onClick={() => void chat.send()}
               disabled={
                 chat.sending || (!chat.text.trim() && !chat.attachment)
               }
             >
-              <i className="icon icon-send" aria-hidden />
+              {/* Web A swaps the paper plane for a check while editing. */}
+              <i
+                className={`icon ${chat.editing ? "icon-check" : "icon-send"}`}
+                aria-hidden
+              />
             </button>
           </div>
         )}

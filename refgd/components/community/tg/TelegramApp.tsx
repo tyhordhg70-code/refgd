@@ -394,7 +394,14 @@ export default function TelegramApp({
         title={def?.title ?? "READ ME"}
         icon={def ? <TopicIcon def={def} /> : undefined}
         onSeedEdited={onSeedEdited}
-        history={(query, onReadonlyMenu, onOpenMedia, pinnedOnly) => {
+        history={(
+          query,
+          onReadonlyMenu,
+          onOpenMedia,
+          pinnedOnly,
+          reactionsFor,
+          onReact,
+        ) => {
           if (pinnedOnly) return null;
           const rq = query.trim().toLowerCase();
           const showSeed = !rq || effReadme.toLowerCase().includes(rq);
@@ -419,7 +426,11 @@ export default function TelegramApp({
                     hasAppendix={!showWelcome}
                     pinned
                     media={[README_SEED_PHOTO]}
-                    reactions={README_SEED_REACTIONS}
+                    reactions={reactionsFor(
+                      "seed:readme",
+                      README_SEED_REACTIONS,
+                    )}
+                    onReact={(e) => onReact("seed:readme", e)}
                     body={readmeOverridden ? renderBody(effReadme) : README_SEED_BODY}
                     time={README_SEED_TIME}
                     onOpenMenu={(pos) =>
@@ -444,6 +455,8 @@ export default function TelegramApp({
                     avatar={{ name: SEED_AUTHOR, photo: SEED_AVATAR, peer: 0 }}
                     hasAppendix
                     body={renderBody(effWelcome)}
+                    reactions={reactionsFor("seed:welcome")}
+                    onReact={(e) => onReact("seed:welcome", e)}
                     onOpenMenu={(pos) =>
                       onReadonlyMenu(pos, {
                         id: "seed:welcome",
@@ -493,7 +506,14 @@ export default function TelegramApp({
             return Number(a.id) - Number(b.id);
           })
           .map((v) => ({ id: `v${v.id}`, body: v.body ?? "" }))}
-        history={(query, onReadonlyMenu, onOpenMedia, pinnedOnly) => {
+        history={(
+          query,
+          onReadonlyMenu,
+          onOpenMedia,
+          pinnedOnly,
+          reactionsFor,
+          onReact,
+        ) => {
           const q = query.trim().toLowerCase();
           const vouches = byTopic[topicKey] ?? [];
           const shown = (
@@ -526,6 +546,8 @@ export default function TelegramApp({
                           : ANNOUNCEMENT_SEED_BODY
                       }
                       time={ANNOUNCEMENT_SEED_TIME}
+                      reactions={reactionsFor("seed:announcement")}
+                      onReact={(e) => onReact("seed:announcement", e)}
                       onOpenMenu={(pos) =>
                         onReadonlyMenu(pos, {
                           id: "seed:announcement",
@@ -544,6 +566,8 @@ export default function TelegramApp({
                 vouches={shown}
                 onOpenMenu={onReadonlyMenu}
                 onOpenMedia={onOpenMedia}
+                reactionsFor={reactionsFor}
+                onReact={onReact}
               />
             </>
           );

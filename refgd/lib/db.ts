@@ -254,12 +254,28 @@
           ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;
 
         CREATE TABLE IF NOT EXISTS message_reactions (
-          message_id BIGINT NOT NULL,
+          message_id TEXT NOT NULL,
           tg_id      BIGINT NOT NULL,
           emoji      TEXT NOT NULL,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           PRIMARY KEY (message_id, tg_id, emoji)
         );
+
+        -- Reactions now target live chat messages (numeric id), imported
+        -- vouch bubbles ("v<id>") and seed posts ("seed:<key>"), so the key
+        -- column must be TEXT. Guarded so existing DBs migrate exactly once
+        -- and the table isn't rewritten on every boot.
+        DO $$ BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'message_reactions'
+               AND column_name = 'message_id'
+               AND data_type = 'bigint'
+          ) THEN
+            ALTER TABLE message_reactions
+              ALTER COLUMN message_id TYPE TEXT USING message_id::text;
+          END IF;
+        END $$;
 
         CREATE TABLE IF NOT EXISTS mod_config (
           key        TEXT PRIMARY KEY,

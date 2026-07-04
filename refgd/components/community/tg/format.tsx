@@ -644,7 +644,7 @@ function renderLinkified(body: string, keyPrefix: string): ReactNode[] {
  * The composer stays plain text; the floating TextFormatter wraps the
  * selection in these lightweight markers, and this parser turns them back
  * into styled spans on render. Deliberately small (not full markdown):
- * bold, strike, italic, spoiler, monospace and [text](url).
+ * bold, strike, underline, italic, spoiler, monospace and [text](url).
  */
 interface InlineRule {
   re: RegExp;
@@ -673,6 +673,11 @@ const INLINE_RULES: InlineRule[] = [
     re: /~~([\s\S]+?)~~/,
     mode: "recurse",
     wrap: (key, kids) => <s key={key}>{kids}</s>,
+  },
+  {
+    re: /\+\+([\s\S]+?)\+\+/,
+    mode: "recurse",
+    wrap: (key, kids) => <u key={key}>{kids}</u>,
   },
   {
     re: /__([\s\S]+?)__/,
