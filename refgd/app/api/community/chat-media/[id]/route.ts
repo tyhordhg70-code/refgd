@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * responses cache forever in the browser and for a week at the CDN.
  */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -21,12 +21,43 @@ export async function GET(
   const media = await getChatMedia(id);
   if (!media) return new NextResponse(null, { status: 404 });
 
+  const total = media.bytes.length;
   const headers = new Headers({
     "Content-Type": media.mime || "image/jpeg",
-    "Content-Length": String(media.bytes.length),
+    "Accept-Ranges": "bytes",
     "Cache-Control":
       "public, max-age=31536000, immutable, s-maxage=604800, stale-while-revalidate=86400",
   });
+
+  // Byte-range support: Safari/iOS insists on 206 responses for <audio>
+  // (voice notes) and will refuse to play — or to seek — without them.
+  const range = req.headers.get("range");
+  const m = range ? /^bytes=(\d*)-(\d*)$/.exec(range.trim()) : null;
+  if (m && (m[1] !== "" || m[2] !== "")) {
+    let start: number;
+    let end: number;
+    if (m[1] === "") {
+      // suffix form: bytes=-N (last N bytes)
+      const suffix = Math.min(Number(m[2]), total);
+      start = total - suffix;
+      end = total - 1;
+    } else {
+      start = Number(m[1]);
+      end = m[2] === "" ? total - 1 : Math.min(Number(m[2]), total - 1);
+    }
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start > end || start >= total) {
+      headers.set("Content-Range", `bytes */${total}`);
+      return new NextResponse(null, { status: 416, headers });
+    }
+    headers.set("Content-Range", `bytes ${start}-${end}/${total}`);
+    headers.set("Content-Length", String(end - start + 1));
+    return new NextResponse(new Uint8Array(media.bytes.subarray(start, end + 1)), {
+      status: 206,
+      headers,
+    });
+  }
+
+  headers.set("Content-Length", String(total));
   return new NextResponse(new Uint8Array(media.bytes), {
     status: 200,
     headers,

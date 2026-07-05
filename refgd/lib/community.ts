@@ -1679,3 +1679,267 @@ export async function recordInviteJoin(
     )
     .catch(() => undefined);
 }
+
+/* ------------------------------------------------------------------ */
+/*  Polls                                                              */
+/* ------------------------------------------------------------------ */
+
+export interface PollOptionResult {
+  text: string;
+  votes: number;
+  mine: boolean;
+}
+
+export interface PollData {
+  id: string;
+  question: string;
+  options: PollOptionResult[];
+  multiple: boolean;
+  closed: boolean;
+  /** Distinct members who voted (Telegram shows "N votes" as voters). */
+  totalVoters: number;
+}
+
+export const POLL_QUESTION_MAX = 255;
+export const POLL_OPTION_MAX = 100;
+export const POLL_OPTIONS_MAX = 10;
+
+interface PollRow {
+  id: string;
+  question: string;
+  options: unknown;
+  multiple: boolean;
+  closed: boolean;
+}
+
+function pollOptionTexts(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((o) => (typeof o === "string" ? o : "")).filter(Boolean);
+}
+
+/**
+ * Create a poll and its [poll:<id>] chat message atomically — if the message
+ * insert fails the poll row is rolled back too, so no orphaned polls exist.
+ * Moderation gates (ban/mute/blocklist/flood) run in the route BEFORE this.
+ */
+export async function createPollWithMessage(input: {
+  tgId: string;
+  authorName: string;
+  question: string;
+  options: string[];
+  multiple: boolean;
+  topic: ChatTopic;
+  expiresAt?: Date | null;
+}): Promise<ChatMessage | null> {
+  await initDb();
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: pr } = await client.query<{ id: string }>(
+      `INSERT INTO polls (creator_tg_id, question, options, multiple)
+       VALUES ($1, $2, $3::jsonb, $4) RETURNING id`,
+      [
+        input.tgId,
+        input.question,
+        JSON.stringify(input.options),
+        input.multiple,
+      ],
+    );
+    const pollId = String(pr[0].id);
+    const { rows } = await client.query<ChatMsgRow>(
+      `INSERT INTO chat_messages (tg_id, author_name, body, expires_at, topic)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, tg_id, author_name, body, media_id, pinned, created_at, edited_at, reply_to,
+                 (SELECT photo_url FROM chat_members WHERE tg_id = $1) AS photo_url,
+                 NULL AS reply_author, NULL AS reply_body`,
+      [
+        input.tgId,
+        input.authorName,
+        `[poll:${pollId}]`,
+        input.expiresAt ?? null,
+        input.topic,
+      ],
+    );
+    await client.query("COMMIT");
+    if (!rows[0]) return null;
+    const [msg] = await attachReactions(rows, input.tgId);
+    return msg ?? null;
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/** Batch-load poll results for the ids visible on screen (one round trip). */
+export async function getPolls(
+  ids: string[],
+  viewerTid: string | null,
+): Promise<Record<string, PollData>> {
+  await initDb();
+  const clean = [...new Set(ids.filter((id) => /^\d+$/.test(id)))].slice(0, 100);
+  if (clean.length === 0) return {};
+  const pool = getPool();
+  const [pollsRes, votesRes, votersRes] = await Promise.all([
+    pool.query<PollRow>(
+      `SELECT id, question, options, multiple, closed
+         FROM polls WHERE id = ANY($1::bigint[])`,
+      [clean],
+    ),
+    pool.query<{ poll_id: string; option_idx: number; n: number; mine: boolean }>(
+      `SELECT poll_id, option_idx, COUNT(*)::int AS n,
+              bool_or(tg_id::text = $2) AS mine
+         FROM poll_votes WHERE poll_id = ANY($1::bigint[])
+        GROUP BY poll_id, option_idx`,
+      [clean, viewerTid ?? ""],
+    ),
+    pool.query<{ poll_id: string; n: number }>(
+      `SELECT poll_id, COUNT(DISTINCT tg_id)::int AS n
+         FROM poll_votes WHERE poll_id = ANY($1::bigint[])
+        GROUP BY poll_id`,
+      [clean],
+    ),
+  ]);
+  const votes = new Map<string, Map<number, { n: number; mine: boolean }>>();
+  for (const v of votesRes.rows) {
+    const key = String(v.poll_id);
+    const m = votes.get(key) ?? new Map<number, { n: number; mine: boolean }>();
+    m.set(Number(v.option_idx), { n: v.n, mine: Boolean(v.mine) });
+    votes.set(key, m);
+  }
+  const voters = new Map<string, number>(
+    votersRes.rows.map((r) => [String(r.poll_id), r.n]),
+  );
+  const out: Record<string, PollData> = {};
+  for (const p of pollsRes.rows) {
+    const id = String(p.id);
+    const texts = pollOptionTexts(p.options);
+    const pv = votes.get(id);
+    out[id] = {
+      id,
+      question: p.question,
+      options: texts.map((text, i) => ({
+        text,
+        votes: pv?.get(i)?.n ?? 0,
+        mine: Boolean(pv?.get(i)?.mine),
+      })),
+      multiple: Boolean(p.multiple),
+      closed: Boolean(p.closed),
+      totalVoters: voters.get(id) ?? 0,
+    };
+  }
+  return out;
+}
+
+/**
+ * Replace the viewer's vote. Empty `optionIdxs` = retract. Runs DELETE+INSERT
+ * in a transaction — the PK alone would let a single-choice poll accumulate
+ * one row per option across separate requests.
+ */
+export async function votePoll(input: {
+  pollId: string;
+  tgId: string;
+  optionIdxs: number[];
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  await initDb();
+  const { rows } = await getPool().query<PollRow>(
+    `SELECT id, question, options, multiple, closed FROM polls WHERE id = $1`,
+    [input.pollId],
+  );
+  const poll = rows[0];
+  if (!poll) return { ok: false, error: "Poll not found" };
+  if (poll.closed) return { ok: false, error: "This poll is closed" };
+  const optionCount = pollOptionTexts(poll.options).length;
+  const idxs = [...new Set(input.optionIdxs.map((n) => Math.floor(n)))];
+  if (idxs.some((i) => !Number.isFinite(i) || i < 0 || i >= optionCount)) {
+    return { ok: false, error: "Invalid option" };
+  }
+  if (!poll.multiple && idxs.length > 1) {
+    return { ok: false, error: "This poll allows one answer" };
+  }
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `DELETE FROM poll_votes WHERE poll_id = $1 AND tg_id = $2`,
+      [input.pollId, input.tgId],
+    );
+    for (const idx of idxs) {
+      await client.query(
+        `INSERT INTO poll_votes (poll_id, tg_id, option_idx) VALUES ($1, $2, $3)`,
+        [input.pollId, input.tgId, idx],
+      );
+    }
+    await client.query("COMMIT");
+    return { ok: true };
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/** Close a poll (creator or admin) so no further votes are accepted. */
+export async function closePoll(
+  pollId: string,
+  byTgId: string,
+  isAdmin: boolean,
+): Promise<boolean> {
+  await initDb();
+  const { rowCount } = await getPool().query(
+    isAdmin
+      ? `UPDATE polls SET closed = TRUE WHERE id = $1`
+      : `UPDATE polls SET closed = TRUE WHERE id = $1 AND creator_tg_id = $2`,
+    isAdmin ? [pollId] : [pollId, byTgId],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Typing presence                                                    */
+/* ------------------------------------------------------------------ */
+
+/** Refresh the member's "typing" heartbeat for a topic (throttled client-side). */
+export async function pingTyping(
+  topic: ChatTopic,
+  tgId: string,
+  name: string,
+): Promise<void> {
+  await initDb();
+  await getPool().query(
+    `INSERT INTO typing_pings (topic, tg_id, name, at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (topic, tg_id)
+     DO UPDATE SET at = NOW(), name = EXCLUDED.name`,
+    [topic, tgId, name],
+  );
+}
+
+/** Drop the member's typing heartbeat (called right after a send). */
+export async function clearTyping(topic: ChatTopic, tgId: string): Promise<void> {
+  await initDb();
+  await getPool().query(
+    `DELETE FROM typing_pings WHERE topic = $1 AND tg_id = $2`,
+    [topic, tgId],
+  );
+}
+
+/** Names currently typing in a topic (fresh within ~6s), excluding the viewer. */
+export async function listTyping(
+  topic: ChatTopic,
+  excludeTgId: string | null,
+): Promise<string[]> {
+  await initDb();
+  const { rows } = await getPool().query<{ name: string }>(
+    `SELECT name FROM typing_pings
+      WHERE topic = $1
+        AND at > NOW() - INTERVAL '6 seconds'
+        AND tg_id::text <> $2
+      ORDER BY at DESC
+      LIMIT 3`,
+    [topic, excludeTgId ?? ""],
+  );
+  return rows.map((r) => r.name).filter(Boolean);
+}

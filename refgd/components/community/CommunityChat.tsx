@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -8,6 +9,7 @@ import {
   useState,
   type CSSProperties,
   type ReactNode,
+  type UIEvent as ReactUIEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import NotificationSettings from "./NotificationSettings";
@@ -17,6 +19,12 @@ import MessageBubble from "./tg/MessageBubble";
 import Appendix from "./tg/Appendix";
 import EmojiPanel from "./tg/EmojiPanel";
 import TextFormatter from "./tg/TextFormatter";
+import VoiceMessage from "./tg/VoiceMessage";
+import PollBubble from "./tg/PollBubble";
+import PollCreateModal from "./tg/PollCreateModal";
+import { useVoiceRecorder } from "./tg/useVoiceRecorder";
+import { usePolls } from "./usePolls";
+import { EMOJI_SHORTCODES } from "./tg/emoji-shortcodes";
 import {
   IconBan,
   IconBell,
@@ -34,12 +42,17 @@ import {
   IconSettings,
 } from "./tg/TgIcons";
 import {
+  CustomEmojiImg,
   LocalTime,
   dateKey,
   dateLabel,
   emojiSrc,
+  isSingleCustomEmoji,
+  parsePollToken,
+  parseVoiceToken,
   peerIdx,
   renderBody,
+  tokenPreview,
 } from "./tg/format";
 import {
   ADMIN_TG,
@@ -267,6 +280,7 @@ export default function CommunityChat({
   const [forwardTarget, setForwardTarget] = useState<
     | { kind: "msg"; m: ChatMessage }
     | { kind: "text"; origin: string; text: string }
+    | { kind: "multi"; ms: ChatMessage[] }
     | null
   >(null);
   // Measured + clamped position of the open context menu. It renders hidden for
@@ -459,6 +473,29 @@ export default function CommunityChat({
   // Run the forward once the admin has picked a destination section. A
   // re-forward preserves the ORIGINAL author (keeps any existing [fwd:] token)
   // and re-uploads any attached photo.
+  const forwardOne = (m: ChatMessage, dest: { topic: ChatTopic; title: string }) => {
+    const src = parseForward(m.body ?? "");
+    const origin = src.name || m.authorName || "a member";
+    // Voice/poll tokens are server-composed only — the chat POST strips them,
+    // so forwarding one raw would land as an empty banner. Forward the text
+    // preview ("🎤 Voice message" / "📊 Poll") instead.
+    const rest = isTokenBody(src.rest) ? tokenPreview(src.rest) : src.rest;
+    const body = buildForwardBody(origin, rest);
+    if (m.mediaId) {
+      const id = m.mediaId;
+      void (async () => {
+        try {
+          const res = await fetch(mediaUrl(id));
+          const blob = await res.blob();
+          postForward(body, dest, { blob, name: `photo-${id}.jpg` });
+        } catch {
+          postForward(body || buildForwardBody(origin, "📷 Photo"), dest);
+        }
+      })();
+      return;
+    }
+    postForward(body, dest);
+  };
   const runForward = (
     target: NonNullable<typeof forwardTarget>,
     dest: { topic: ChatTopic; title: string },
@@ -468,25 +505,20 @@ export default function CommunityChat({
       postForward(buildForwardBody(target.origin, target.text), dest);
       return;
     }
-    const m = target.m;
-    const src = parseForward(m.body ?? "");
-    const origin = src.name || m.authorName || "a member";
-    const body = buildForwardBody(origin, src.rest);
-    if (m.mediaId) {
-      const id = m.mediaId;
+    if (target.kind === "multi") {
+      // Sequential: each selected message forwards as its own post (Telegram
+      // parity), spaced past the server flood gate (default 2s) so a batch
+      // isn't rejected mid-run; postForward toasts per message.
+      const ms = [...target.ms];
       void (async () => {
-        try {
-          const res = await fetch(mediaUrl(id));
-          const blob = await res.blob();
-          postForward(body, dest, { blob, name: `photo-${id}.jpg` });
-        } catch {
-          // Fall back to a text-only repost if the photo can't be fetched.
-          postForward(body || buildForwardBody(origin, "📷 Photo"), dest);
+        for (let i = 0; i < ms.length; i++) {
+          if (i > 0) await new Promise((r) => setTimeout(r, 2600));
+          forwardOne(ms[i], dest);
         }
       })();
       return;
     }
-    postForward(body, dest);
+    forwardOne(target.m, dest);
   };
   // Open the reduced context menu for a read-only history bubble.
   const openReadonlyMenu = (
@@ -700,6 +732,253 @@ export default function CommunityChat({
     else void extraReactions.toggle(targetId, emoji);
   };
 
+  // ——— Voice notes, polls, multi-select, scroll FAB, unread + autocomplete.
+  const recorder = useVoiceRecorder();
+  const polls = usePolls(!!me, () =>
+    showToast("Sign in with Telegram to vote"),
+  );
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [pollModal, setPollModal] = useState(false);
+  const [pollBusy, setPollBusy] = useState(false);
+  const [pollError, setPollError] = useState<string | null>(null);
+  // Multi-select mode: Copy N messages for everyone, Forward N for admins.
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Scroll-to-latest FAB with an unread badge + the one-shot unread divider.
+  const [showFab, setShowFab] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const prevMsgCountRef = useRef(0);
+  const [unreadDividerId, setUnreadDividerId] = useState<string | null>(null);
+  const dividerDoneRef = useRef(false);
+
+  // Surface mic failures through the composer's normal error alert.
+  useEffect(() => {
+    if (recorder.error) chat.setError(recorder.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recorder.error]);
+
+  // Freeze the "Unread Messages" divider position ONCE per mount from the
+  // last-seen live id stored on the previous visit — Web A keeps the divider
+  // where it was even as newer messages keep arriving.
+  useEffect(() => {
+    if (dividerDoneRef.current) return;
+    const msgs = state?.messages;
+    if (!msgs || msgs.length === 0) return;
+    dividerDoneRef.current = true;
+    try {
+      const seen = Number(localStorage.getItem(`rg_seen_${topic}`) ?? "");
+      if (!Number.isFinite(seen) || seen <= 0) return;
+      const firstUnread = msgs.find(
+        (m) => /^\d+$/.test(m.id) && Number(m.id) > seen,
+      );
+      if (firstUnread) setUnreadDividerId(firstUnread.id);
+    } catch {
+      /* storage unavailable */
+    }
+  }, [state?.messages, topic]);
+
+  // Count arrivals while scrolled up (FAB badge) and persist the newest seen
+  // live id whenever the viewer is at the bottom.
+  useEffect(() => {
+    const msgs = state?.messages ?? [];
+    const prev = prevMsgCountRef.current;
+    prevMsgCountRef.current = msgs.length;
+    if (msgs.length === 0) return;
+    if (chat.atBottomRef.current) {
+      setUnread(0);
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (/^\d+$/.test(msgs[i].id)) {
+          try {
+            localStorage.setItem(`rg_seen_${topic}`, msgs[i].id);
+          } catch {
+            /* storage unavailable */
+          }
+          break;
+        }
+      }
+    } else if (prev > 0 && msgs.length > prev) {
+      setUnread((u) => u + (msgs.length - prev));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.messages, topic]);
+
+  const jumpToLatest = () => {
+    const el = chat.scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    chat.atBottomRef.current = true;
+    setUnread(0);
+    setShowFab(false);
+  };
+
+  // Wraps the hook's scroll handler to also drive the FAB show/hide state.
+  const handleScroll = (e: ReactUIEvent<HTMLDivElement>) => {
+    chat.onScroll();
+    const el = e.currentTarget;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    setShowFab(!nearBottom);
+    if (nearBottom) setUnread(0);
+  };
+
+  const exitSelect = () => {
+    setSelecting(false);
+    setSelectedIds(new Set());
+  };
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const copySelected = () => {
+    const parts = (state?.messages ?? [])
+      .filter((m) => selectedIds.has(m.id))
+      .map((m) => {
+        const rest = parseForward(m.body ?? "").rest;
+        const text = tokenPreview(rest).trim() || "📷 Photo";
+        return `${m.authorName}:\n${text}`;
+      });
+    if (parts.length === 0) return;
+    void navigator.clipboard
+      ?.writeText(parts.join("\n\n"))
+      .then(() =>
+        showToast(
+          `${parts.length} message${parts.length === 1 ? "" : "s"} copied`,
+        ),
+      )
+      .catch(() => showToast("Couldn't copy"));
+    exitSelect();
+  };
+  const forwardSelected = () => {
+    const ms = (state?.messages ?? []).filter((m) => selectedIds.has(m.id));
+    if (ms.length === 0) return;
+    setForwardTarget({ kind: "multi", ms });
+    exitSelect();
+  };
+
+  // Voice/poll message bodies are structured tokens — editing them raw would
+  // corrupt the token, so the Edit action is hidden for them.
+  const isTokenBody = (b: string) => {
+    const rest = parseForward(b).rest;
+    return Boolean(parseVoiceToken(rest) || parsePollToken(rest));
+  };
+
+  const startVoice = () => {
+    void recorder.start();
+  };
+  const stopAndSendVoice = () => {
+    void recorder.stop().then((rec) => {
+      if (rec) void chat.sendVoice(rec.blob, rec.durationSec, rec.waveform);
+    });
+  };
+
+  const createPoll = (
+    question: string,
+    options: string[],
+    multiple: boolean,
+  ) => {
+    setPollBusy(true);
+    setPollError(null);
+    void fetch("/api/community/chat/poll", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic, question, options, multiple }),
+    })
+      .then(async (res) => {
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          error?: string;
+        } | null;
+        if (res.ok && data?.ok) {
+          setPollModal(false);
+          showToast("Poll created");
+        } else {
+          setPollError(data?.error ?? "Couldn't create the poll — try again");
+        }
+      })
+      .catch(() => setPollError("Couldn't create the poll — try again"))
+      .finally(() => setPollBusy(false));
+  };
+
+  // @mention / :emoji autocomplete over the RAW composer text (matching the
+  // slash-command popup: never trim, the trailing token must end the text).
+  const acMatch = useMemo(() => {
+    if (!me || chat.editing) return null;
+    const t = chat.text;
+    const at = /(?:^|\s)@([\w ]{1,24})$/.exec(t);
+    if (at && !at[1].endsWith(" ")) {
+      return {
+        kind: "mention" as const,
+        partial: at[1].toLowerCase(),
+        start: t.length - at[1].length - 1,
+      };
+    }
+    const em = /(?:^|\s):([\w+-]{2,24})$/.exec(t);
+    if (em) {
+      return {
+        kind: "emoji" as const,
+        partial: em[1].toLowerCase(),
+        start: t.length - em[1].length - 1,
+      };
+    }
+    return null;
+  }, [me, chat.editing, chat.text]);
+
+  const mentionNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const m of state?.messages ?? []) {
+      if (m.authorName && m.authorName !== me?.name) names.add(m.authorName);
+    }
+    return Array.from(names);
+  }, [state?.messages, me?.name]);
+
+  const acItems = useMemo(() => {
+    if (!acMatch) return [];
+    if (acMatch.kind === "mention") {
+      const p = acMatch.partial;
+      return mentionNames
+        .filter((n) => {
+          const low = n.toLowerCase();
+          return low.startsWith(p) || low.replace(/\s+/g, "").startsWith(p);
+        })
+        .slice(0, 6)
+        .map((n) => ({
+          key: `@${n}`,
+          label: n,
+          snippet: `@${n} `,
+          emoji: null as string | null,
+        }));
+    }
+    return EMOJI_SHORTCODES.filter((s) => s.name.startsWith(acMatch.partial))
+      .slice(0, 8)
+      .map((s) => ({
+        key: `:${s.name}`,
+        label: `:${s.name}:`,
+        snippet: s.emoji,
+        emoji: s.emoji as string | null,
+      }));
+  }, [acMatch, mentionNames]);
+
+  // Replace the trailing @partial / :partial with the chosen snippet and put
+  // the caret at the end (same contenteditable sync as insertAtComposer).
+  const applyAutocomplete = (snippet: string) => {
+    if (!acMatch) return;
+    const next = (chat.text.slice(0, acMatch.start) + snippet).slice(
+      0,
+      MAX_LEN,
+    );
+    chat.setText(next);
+    const el = inputRef.current;
+    if (el) {
+      el.innerText = next;
+      el.focus();
+      const sel = window.getSelection();
+      sel?.selectAllChildren(el);
+      sel?.collapseToEnd();
+    }
+  };
+
   // Web A collapses the quick-reaction row again every time a context menu
   // closes; without this the next menu would open pre-expanded.
   useEffect(() => {
@@ -846,14 +1125,19 @@ export default function CommunityChat({
     sel?.collapseToEnd();
   }, [editingId, editingBody]);
 
+  // Live "X is typing…" presence takes over the subtitle line (Web A shows
+  // typing state in the chat header's status slot).
+  const typingNames = chat.typing ?? [];
   const subtitle =
-    state === null
-      ? "connecting…"
-      : state.memberCount !== null && state.memberCount > 0
-        ? `${state.memberCount} member${state.memberCount === 1 ? "" : "s"}`
-        : state.memberCount === 0
-          ? "public group"
-          : "members hidden";
+    typingNames.length > 0
+      ? `${typingNames.join(", ")} ${typingNames.length === 1 ? "is" : "are"} typing…`
+      : state === null
+        ? "connecting…"
+        : state.memberCount !== null && state.memberCount > 0
+          ? `${state.memberCount} member${state.memberCount === 1 ? "" : "s"}`
+          : state.memberCount === 0
+            ? "public group"
+            : "members hidden";
 
   return (
     <>
@@ -961,8 +1245,9 @@ export default function CommunityChat({
                   : "Pinned message"}
               </span>
               <span className="tg-pinned-text">
-                {parseForward(pinnedBannerMsg.body ?? "").rest.trim() ||
-                  "Photo"}
+                {tokenPreview(
+                  parseForward(pinnedBannerMsg.body ?? "").rest,
+                ).trim() || "Photo"}
               </span>
             </span>
           </button>
@@ -1272,7 +1557,8 @@ export default function CommunityChat({
                     onClick={() => {
                       void navigator.clipboard
                         ?.writeText(
-                          parseForward(ctxMenu.m.body).rest || ctxMenu.m.body,
+                          tokenPreview(parseForward(ctxMenu.m.body).rest) ||
+                            ctxMenu.m.body,
                         )
                         .catch(() => undefined);
                       showToast("Text copied");
@@ -1283,7 +1569,8 @@ export default function CommunityChat({
                     Copy Text
                   </button>
                 )}
-                {(ctxMenu.m.tgId === me?.tid || me?.admin) && (
+                {(ctxMenu.m.tgId === me?.tid || me?.admin) &&
+                  !isTokenBody(ctxMenu.m.body ?? "") && (
                   <button
                     type="button"
                     className="tg-menu-item"
@@ -1297,6 +1584,19 @@ export default function CommunityChat({
                     Edit
                   </button>
                 )}
+                <button
+                  type="button"
+                  className="tg-menu-item"
+                  onClick={() => {
+                    const id = ctxMenu.m.id;
+                    setCtxMenu(null);
+                    setSelecting(true);
+                    setSelectedIds(new Set([id]));
+                  }}
+                >
+                  <i className="icon icon-select" aria-hidden />
+                  Select
+                </button>
                 <button
                   type="button"
                   className="tg-menu-item"
@@ -1537,7 +1837,7 @@ export default function CommunityChat({
         <div className="Transition_slide Transition_slide-active">
           <div
             ref={chat.scrollRef}
-            onScroll={chat.onScroll}
+            onScroll={handleScroll}
             className="Transition MessageList custom-scroll with-default-bg"
             data-has-pinned-banner={
               pinnedBannerMsg && search === null && !pinnedOnly
@@ -1646,9 +1946,49 @@ export default function CommunityChat({
                               const last = i === run.length - 1;
                               const peer = peerIdx(m.authorName);
                               const fwd = parseForward(m.body ?? "");
+                              // Structured token bodies render as rich
+                              // bubbles: voice notes, polls and the jumbo
+                              // single-custom-emoji "video sticker".
+                              const voice = parseVoiceToken(fwd.rest);
+                              const pollId = voice
+                                ? null
+                                : parsePollToken(fwd.rest);
+                              const single =
+                                voice || pollId
+                                  ? null
+                                  : isSingleCustomEmoji(fwd.rest);
+                              const body = voice ? (
+                                <VoiceMessage
+                                  src={mediaUrl(voice.mediaId)}
+                                  duration={voice.duration}
+                                  waveform={voice.waveform}
+                                  own={own}
+                                />
+                              ) : pollId ? (
+                                <PollBubble
+                                  poll={polls.pollFor(pollId)}
+                                  canClose={own || !!me?.admin}
+                                  onVote={(idxs) => polls.vote(pollId, idxs)}
+                                  onClose={() => polls.close(pollId)}
+                                />
+                              ) : single ? (
+                                <span className="tg-jumbo-sticker">
+                                  <CustomEmojiImg
+                                    id={single.id}
+                                    alt={single.alt}
+                                  />
+                                </span>
+                              ) : fwd.rest ? (
+                                renderBody(fwd.rest)
+                              ) : undefined;
                               return (
-                                <MessageBubble
-                                  key={m.id}
+                                <Fragment key={m.id}>
+                                  {unreadDividerId === m.id && (
+                                    <div className="tg-unread-divider">
+                                      <span>Unread Messages</span>
+                                    </div>
+                                  )}
+                                  <MessageBubble
                                   mid={m.id}
                                   own={own}
                                   first={first}
@@ -1674,10 +2014,16 @@ export default function CommunityChat({
                                   }
                                   hasAppendix={last}
                                   pinned={m.pinned}
-                                  reply={m.reply}
-                                  body={
-                                    fwd.rest ? renderBody(fwd.rest) : undefined
+                                  reply={
+                                    m.reply
+                                      ? {
+                                          ...m.reply,
+                                          body: tokenPreview(m.reply.body),
+                                        }
+                                      : m.reply
                                   }
+                                  body={body}
+                                  plain={!!single}
                                   media={
                                     m.mediaId
                                       ? [
@@ -1703,7 +2049,26 @@ export default function CommunityChat({
                                   }
                                   onReplyClick={scrollToMessage}
                                   forward={fwd.name ? { name: fwd.name } : null}
-                                />
+                                  onDoubleTap={
+                                    me
+                                      ? () => reactAny(m.id, "❤️")
+                                      : undefined
+                                  }
+                                  onSwipeReply={
+                                    me && !selecting
+                                      ? () =>
+                                          chat.setReplyTo({
+                                            id: m.id,
+                                            authorName: m.authorName,
+                                            body: tokenPreview(m.body ?? ""),
+                                          })
+                                      : undefined
+                                  }
+                                  selectMode={selecting}
+                                  selected={selectedIds.has(m.id)}
+                                  onToggleSelect={() => toggleSelect(m.id)}
+                                  />
+                                </Fragment>
                               );
                             })}
                           </div>
@@ -1724,6 +2089,55 @@ export default function CommunityChat({
         }`}
         ref={footerRef}
       >
+        {showFab && (
+          <button
+            type="button"
+            className="tg-scroll-fab"
+            aria-label="Go to latest messages"
+            onClick={jumpToLatest}
+          >
+            {unread > 0 && (
+              <span className="tg-scroll-fab-badge">
+                {unread > 99 ? "99+" : unread}
+              </span>
+            )}
+            <i className="icon icon-arrow-down" aria-hidden />
+          </button>
+        )}
+        {selecting && (
+          <div className="tg-select-bar">
+            <span className="tg-select-count">
+              {selectedIds.size} selected
+            </span>
+            <div className="tg-select-actions">
+              <button
+                type="button"
+                className="Button smaller translucent"
+                onClick={copySelected}
+                disabled={selectedIds.size === 0}
+              >
+                Copy
+              </button>
+              {me?.admin && (
+                <button
+                  type="button"
+                  className="Button smaller translucent"
+                  onClick={forwardSelected}
+                  disabled={selectedIds.size === 0}
+                >
+                  Forward
+                </button>
+              )}
+              <button
+                type="button"
+                className="Button smaller translucent"
+                onClick={exitSelect}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
         {chat.error && (
           <div className="tg-composer-alert is-error">
             <span>{chat.error}</span>
@@ -1797,7 +2211,7 @@ export default function CommunityChat({
                       Reply to {chat.replyTo.authorName || "message"}
                     </span>
                     <span className="tg-reply-text">
-                      {chat.replyTo.body || "message"}
+                      {tokenPreview(chat.replyTo.body ?? "") || "message"}
                     </span>
                   </span>
                   <button
@@ -1884,7 +2298,69 @@ export default function CommunityChat({
                   </div>
                 );
               })()}
-              <div className="message-input-wrapper">
+              {acItems.length > 0 && (
+                <div
+                  className="tg-command-list tg-autocomplete"
+                  role="listbox"
+                  aria-label="Suggestions"
+                >
+                  {acItems.map((it) => (
+                    <button
+                      key={it.key}
+                      type="button"
+                      role="option"
+                      className="tg-command-item"
+                      onClick={() => applyAutocomplete(it.snippet)}
+                    >
+                      <span className="tg-command-main">
+                        {it.emoji ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={emojiSrc(it.emoji)}
+                            className="emoji emoji-small tg-ac-emoji"
+                            alt={it.emoji}
+                            draggable={false}
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span className="tg-ac-at" aria-hidden>
+                            @
+                          </span>
+                        )}
+                        <span className="tg-command-name">{it.label}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div
+                className={`message-input-wrapper${
+                  recorder.recording || recorder.processing
+                    ? " is-recording"
+                    : ""
+                }`}
+              >
+                {(recorder.recording || recorder.processing) && (
+                  <div className="tg-voice-rec">
+                    <span className="tg-voice-rec-dot" aria-hidden />
+                    <span className="tg-voice-rec-time">
+                      {recorder.processing
+                        ? "Sending…"
+                        : `${Math.floor(recorder.elapsed / 60)}:${String(
+                            recorder.elapsed % 60,
+                          ).padStart(2, "0")}`}
+                    </span>
+                    {recorder.recording && (
+                      <button
+                        type="button"
+                        className="tg-voice-rec-cancel"
+                        onClick={recorder.cancel}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                )}
                 <button
                   type="button"
                   className="Button symbol-menu-button composer-action-button default translucent round"
@@ -1921,6 +2397,7 @@ export default function CommunityChat({
                             sel?.collapseToEnd();
                           }
                           chat.setText(v);
+                          if (v.trim()) chat.notifyTyping();
                         }}
                         onKeyDown={(e) => {
                           if (
@@ -1977,31 +2454,96 @@ export default function CommunityChat({
                     className="Button AttachMenu--button composer-action-button default translucent round"
                     aria-label="Add an attachment"
                     title="Add an attachment"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => setAttachOpen((v) => !v)}
                   >
                     <i className="icon icon-attach" aria-hidden />
                   </button>
+                  {attachOpen && (
+                    <>
+                      <button
+                        type="button"
+                        className="tg-menu-backdrop"
+                        aria-label="Close menu"
+                        onClick={() => setAttachOpen(false)}
+                      />
+                      <div className="tg-menu tg-attach-menu" role="menu">
+                        <button
+                          type="button"
+                          className="tg-menu-item"
+                          onClick={() => {
+                            setAttachOpen(false);
+                            fileInputRef.current?.click();
+                          }}
+                        >
+                          <i className="icon icon-photo" aria-hidden />
+                          Photo
+                        </button>
+                        <button
+                          type="button"
+                          className="tg-menu-item"
+                          onClick={() => {
+                            setAttachOpen(false);
+                            setPollError(null);
+                            setPollModal(true);
+                          }}
+                        >
+                          <i className="icon icon-poll" aria-hidden />
+                          Poll
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              className="Button send main-button default secondary round click-allowed"
-              aria-label={
-                chat.editing ? "Save edited message" : "Send message"
-              }
-              title={chat.editing ? "Save edited message" : "Send message"}
-              onClick={() => void chat.send()}
-              disabled={
-                chat.sending || (!chat.text.trim() && !chat.attachment)
-              }
-            >
-              {/* Web A swaps the paper plane for a check while editing. */}
-              <i
-                className={`icon ${chat.editing ? "icon-check" : "icon-send"}`}
-                aria-hidden
-              />
-            </button>
+            {!chat.text.trim() &&
+            !chat.attachment &&
+            !chat.editing &&
+            !recorder.processing ? (
+              recorder.recording ? (
+                <button
+                  type="button"
+                  className="Button send main-button default secondary round click-allowed"
+                  aria-label="Send voice message"
+                  title="Send voice message"
+                  onClick={stopAndSendVoice}
+                >
+                  <i className="icon icon-send" aria-hidden />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="Button send main-button default secondary round click-allowed tg-mic-button"
+                  aria-label="Record voice message"
+                  title="Record voice message"
+                  onClick={startVoice}
+                  disabled={chat.sending}
+                >
+                  <i className="icon icon-microphone-alt" aria-hidden />
+                </button>
+              )
+            ) : (
+              <button
+                type="button"
+                className="Button send main-button default secondary round click-allowed"
+                aria-label={
+                  chat.editing ? "Save edited message" : "Send message"
+                }
+                title={chat.editing ? "Save edited message" : "Send message"}
+                onClick={() => void chat.send()}
+                disabled={
+                  chat.sending ||
+                  recorder.processing ||
+                  (!chat.text.trim() && !chat.attachment)
+                }
+              >
+                {/* Web A swaps the paper plane for a check while editing. */}
+                <i
+                  className={`icon ${chat.editing ? "icon-check" : "icon-send"}`}
+                  aria-hidden
+                />
+              </button>
+            )}
           </div>
         )}
 
@@ -2069,6 +2611,18 @@ export default function CommunityChat({
             onClick={(e) => e.stopPropagation()}
           />
         </div>,
+          overlayEl,
+        )}
+
+      {overlayEl &&
+        createPortal(
+          <PollCreateModal
+            open={pollModal}
+            busy={pollBusy}
+            error={pollError}
+            onCancel={() => setPollModal(false)}
+            onCreate={createPoll}
+          />,
           overlayEl,
         )}
 

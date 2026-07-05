@@ -16,6 +16,8 @@ import {
   claimNotifySlot,
   isChatTopic,
   isNotifCategory,
+  listTyping,
+  clearTyping,
   type ChatTopic,
 } from "@/lib/community";
 import { notifyCategory } from "@/lib/community-notify";
@@ -59,6 +61,30 @@ function sniffImageMime(buf: Buffer): string | null {
 }
 
 /**
+ * Sniff a recorded voice note's real container from magic bytes. Recorders
+ * produce audio/mp4 (AAC — Safari + modern Chrome), webm/opus (older Chrome/
+ * Firefox) or ogg/opus; mp3 accepted for completeness.
+ */
+function sniffAudioMime(buf: Buffer): string | null {
+  if (buf.length < 12) return null;
+  if (
+    buf[0] === 0x1a &&
+    buf[1] === 0x45 &&
+    buf[2] === 0xdf &&
+    buf[3] === 0xa3
+  )
+    return "audio/webm";
+  if (buf.subarray(4, 8).toString("ascii") === "ftyp") return "audio/mp4";
+  if (buf.subarray(0, 4).toString("ascii") === "OggS") return "audio/ogg";
+  if (buf.subarray(0, 3).toString("ascii") === "ID3") return "audio/mpeg";
+  if (buf[0] === 0xff && ((buf[1] ?? 0) & 0xe0) === 0xe0) return "audio/mpeg";
+  return null;
+}
+
+/** Max recorded voice-note length accepted by the server (seconds). */
+const MAX_VOICE_S = 600;
+
+/**
  * GET  → chat state: recent messages (or only those after `?after=<id>` when
  *        short-polling), the current member (if signed in), the live member
  *        count (unless the admin has hidden it) and the community bot username
@@ -92,13 +118,16 @@ export async function GET(req: Request) {
     await sweepExpiredMessages().catch(() => undefined);
   }
 
-  const [messages, memberCount, hideMembers, botUsername, welcome] =
+  // typing[] rides on BOTH the short-poll and the full load — the 2.5s
+  // ?after= tick is the delivery path that makes the indicator feel live.
+  const [messages, memberCount, hideMembers, botUsername, welcome, typing] =
     await Promise.all([
       listChatMessages({ afterId: after, viewerTid: me?.tid ?? null, topic }),
       countChatMembers(),
       getModConfig<boolean>("chat_hide_members", false),
       getCommunityBotUsername(),
       getModConfig<string>("welcome", ""),
+      listTyping(topic, me?.tid ?? null).catch(() => [] as string[]),
     ]);
 
   const showCount = !hideMembers || Boolean(me?.admin);
@@ -110,6 +139,7 @@ export async function GET(req: Request) {
     hideMembers,
     botUsername,
     welcome,
+    typing,
   });
 }
 
@@ -133,6 +163,15 @@ export async function POST(req: Request) {
     topic?: unknown;
   };
   let photo: { bytes: Buffer; mime: string } | null = null;
+  // Recorded voice note (multipart `voice` field). The [voice:…] body token
+  // is composed SERVER-side after all gates pass — the client never sends it,
+  // so the blocklist can't randomly trip on waveform characters.
+  let voice: {
+    bytes: Buffer;
+    mime: string;
+    duration: number;
+    waveform: string;
+  } | null = null;
 
   const contentType = req.headers.get("content-type") ?? "";
   if (contentType.includes("multipart/form-data")) {
@@ -151,28 +190,63 @@ export async function POST(req: Request) {
       ttlSeconds: form.get("ttlSeconds"),
       topic: form.get("topic"),
     };
+    const voiceFile = form.get("voice");
     const file = form.get("photo");
-    if (!(file instanceof Blob)) {
+    if (voiceFile instanceof Blob) {
+      if (voiceFile.size > MAX_MEDIA_BYTES) {
+        return NextResponse.json(
+          { ok: false, error: "Voice message is too large (max 3 MB)" },
+          { status: 413 },
+        );
+      }
+      const bytes = Buffer.from(await voiceFile.arrayBuffer());
+      const mime = sniffAudioMime(bytes);
+      if (!mime) {
+        return NextResponse.json(
+          { ok: false, error: "Unsupported audio type" },
+          { status: 415 },
+        );
+      }
+      const durRaw = form.get("duration");
+      const duration = Math.min(
+        Math.max(
+          Math.round(
+            typeof durRaw === "string" && /^\d+$/.test(durRaw)
+              ? Number(durRaw)
+              : 1,
+          ),
+          1,
+        ),
+        MAX_VOICE_S,
+      );
+      const wfRaw = form.get("waveform");
+      const waveform =
+        typeof wfRaw === "string" && /^[0-9a-v]{1,64}$/.test(wfRaw)
+          ? wfRaw
+          : "";
+      voice = { bytes, mime, duration, waveform };
+    } else if (file instanceof Blob) {
+      if (file.size > MAX_MEDIA_BYTES) {
+        return NextResponse.json(
+          { ok: false, error: "Image is too large (max 3 MB)" },
+          { status: 413 },
+        );
+      }
+      const bytes = Buffer.from(await file.arrayBuffer());
+      const mime = sniffImageMime(bytes);
+      if (!mime) {
+        return NextResponse.json(
+          { ok: false, error: "Unsupported image type" },
+          { status: 415 },
+        );
+      }
+      photo = { bytes, mime };
+    } else {
       return NextResponse.json(
-        { ok: false, error: "No image attached" },
+        { ok: false, error: "No file attached" },
         { status: 400 },
       );
     }
-    if (file.size > MAX_MEDIA_BYTES) {
-      return NextResponse.json(
-        { ok: false, error: "Image is too large (max 3 MB)" },
-        { status: 413 },
-      );
-    }
-    const bytes = Buffer.from(await file.arrayBuffer());
-    const mime = sniffImageMime(bytes);
-    if (!mime) {
-      return NextResponse.json(
-        { ok: false, error: "Unsupported image type" },
-        { status: 415 },
-      );
-    }
-    photo = { bytes, mime };
   } else {
     try {
       payload = (await req.json()) as {
@@ -210,8 +284,15 @@ export async function POST(req: Request) {
   if (!me.admin) {
     text = text.replace(/^(?:\[fwd:[^\]\n]{1,64}\]\n?)+/, "").trim();
   }
+  // [voice:…] and [poll:…] body tokens are reserved for the server — voice
+  // notes compose theirs below and polls are created via the poll route. A
+  // member typing one literally would render a broken voice/poll bubble, so
+  // strip them from every typed message.
+  text = text.replace(/\[(?:voice|poll):[^\]\n]*\]/g, "").trim();
+  // Voice notes are caption-less (Web A parity) — the token IS the body.
+  if (voice) text = "";
   // A photo may go out caption-less; a plain message still needs text.
-  if (!text && !photo) {
+  if (!text && !photo && !voice) {
     return NextResponse.json(
       { ok: false, error: "Message is empty" },
       { status: 400 },
@@ -266,7 +347,7 @@ export async function POST(req: Request) {
   // admin can always moderate, and any member can read the rules. A command
   // never becomes a chat message — it returns ephemeral `system` feedback.
   // A caption on a photo is never a command — only bare text can be one.
-  const command = photo ? null : parseCommand(text);
+  const command = photo || voice ? null : parseCommand(text);
   if (command) {
     const result = await executeModCommand({
       me,
@@ -320,8 +401,8 @@ export async function POST(req: Request) {
     isAdmin: me.admin,
   }).catch(() => undefined);
 
-  // Persist the photo only after every moderation gate has passed, so a
-  // rejected message never leaves an orphaned blob behind.
+  // Persist the photo/voice blob only after every moderation gate has passed,
+  // so a rejected message never leaves an orphaned blob behind.
   let mediaId: string | null = null;
   if (photo) {
     try {
@@ -333,6 +414,21 @@ export async function POST(req: Request) {
       );
     }
   }
+  // Voice notes: store the audio in chat_media, then compose the body token
+  // here (server-side). mediaId stays NULL on the message row so the photo
+  // renderer never tries to <img> an audio blob.
+  if (voice) {
+    let voiceMediaId: string;
+    try {
+      voiceMediaId = await saveChatMedia(voice.bytes, voice.mime);
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: "Couldn't save the voice message — try again" },
+        { status: 500 },
+      );
+    }
+    text = `[voice:${voiceMediaId}:${voice.duration}:${voice.waveform}]`;
+  }
 
   const message = await createChatMessage({
     tgId: me.tid,
@@ -343,6 +439,9 @@ export async function POST(req: Request) {
     topic,
     mediaId,
   });
+
+  // A send always ends the sender's "typing…" state immediately (fail-soft).
+  void clearTyping(topic, me.tid).catch(() => undefined);
 
   // Throttled chat notification: at most one fan-out per window across all
   // workers (atomic claim on mod_config), fail-soft so it can never break the
@@ -357,7 +456,9 @@ export async function POST(req: Request) {
                 topic === "chat"
                   ? "Group Chat is active"
                   : "New activity in the community",
-              body: `${me.name}: ${text ? text.slice(0, 120) : "📷 Photo"}`,
+              body: `${me.name}: ${
+                voice ? "🎤 Voice message" : text ? text.slice(0, 120) : "📷 Photo"
+              }`,
               url: "/community",
             })
           : undefined,

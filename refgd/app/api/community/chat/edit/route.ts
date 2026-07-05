@@ -53,7 +53,15 @@ export async function POST(req: Request) {
     );
   }
 
-  const body = typeof payload.body === "string" ? payload.body.trim() : "";
+  let body = typeof payload.body === "string" ? payload.body.trim() : "";
+  // Mirror the chat POST token shielding: only admins may carry "Forwarded
+  // from …" banners, and [voice:…]/[poll:…] tokens are server-composed only.
+  // Without this an edit could smuggle a spoofed forward header or point a
+  // voice/poll bubble at arbitrary ids, bypassing the POST-only strip.
+  if (!me.admin) {
+    body = body.replace(/^(?:\[fwd:[^\]\n]{1,64}\]\n?)+/, "").trim();
+  }
+  body = body.replace(/\[(?:voice|poll):[^\]\n]*\]/g, "").trim();
   if (!body) {
     return NextResponse.json(
       { ok: false, error: "Message is empty" },

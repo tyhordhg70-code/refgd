@@ -277,6 +277,41 @@
           END IF;
         END $$;
 
+        -- Native polls posted into the chat topics. The message row carries a
+        -- [poll:<id>] body token; question/options/results live here. Votes
+        -- are one row per (poll, voter, option) — multi-answer polls insert
+        -- several rows, single-answer polls exactly one (enforced in the vote
+        -- route via DELETE+INSERT inside a transaction).
+        CREATE TABLE IF NOT EXISTS polls (
+          id            BIGSERIAL PRIMARY KEY,
+          creator_tg_id BIGINT NOT NULL,
+          question      TEXT NOT NULL,
+          options       JSONB NOT NULL DEFAULT '[]',
+          multiple      BOOLEAN NOT NULL DEFAULT FALSE,
+          closed        BOOLEAN NOT NULL DEFAULT FALSE,
+          created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS poll_votes (
+          poll_id    BIGINT NOT NULL,
+          tg_id      BIGINT NOT NULL,
+          option_idx INT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (poll_id, tg_id, option_idx)
+        );
+        CREATE INDEX IF NOT EXISTS poll_votes_poll_idx ON poll_votes (poll_id);
+
+        -- "X is typing…" presence, delivered via the 2.5s chat short-poll.
+        -- One row per (topic, member), refreshed by the typing ping route;
+        -- rows older than ~6s are simply ignored by readers (no sweeper
+        -- needed — the table stays tiny because it is keyed per member).
+        CREATE TABLE IF NOT EXISTS typing_pings (
+          topic TEXT NOT NULL,
+          tg_id BIGINT NOT NULL,
+          name  TEXT NOT NULL DEFAULT '',
+          at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (topic, tg_id)
+        );
+
         CREATE TABLE IF NOT EXISTS mod_config (
           key        TEXT PRIMARY KEY,
           value      JSONB NOT NULL DEFAULT '{}',

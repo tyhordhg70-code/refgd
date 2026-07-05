@@ -736,6 +736,49 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 /** `[ce:<documentId>:<alt>]` — custom emoji token written by the composer. */
 const CE_RE = /\[ce:(\d+):([^\]]+)\]/g;
 
+/** `[voice:<mediaId>:<durSec>:<waveform>]` — server-composed voice note body. */
+const VOICE_TOKEN_RE = /^\[voice:(\d+):(\d+):([0-9a-v]{0,64})\]$/;
+
+/** `[poll:<id>]` — server-composed poll message body. */
+const POLL_TOKEN_RE = /^\[poll:(\d+)\]$/;
+
+export function parseVoiceToken(
+  body: string,
+): { mediaId: string; duration: number; waveform: string } | null {
+  const m = VOICE_TOKEN_RE.exec(body.trim());
+  if (!m) return null;
+  return { mediaId: m[1], duration: Number(m[2]), waveform: m[3] };
+}
+
+export function parsePollToken(body: string): string | null {
+  const m = POLL_TOKEN_RE.exec(body.trim());
+  return m ? m[1] : null;
+}
+
+/**
+ * A message whose body is EXACTLY one custom-emoji token renders as a jumbo
+ * "video sticker" (no bubble, big artwork) — Web A's single-emoji treatment.
+ */
+export function isSingleCustomEmoji(
+  body: string,
+): { id: string; alt: string } | null {
+  const m = /^\[ce:(\d+):([^\]]+)\]$/.exec(body.trim());
+  return m ? { id: m[1], alt: m[2] } : null;
+}
+
+/**
+ * Human preview for token bodies — topic-list rows, reply embeds, copy text
+ * and notifications must never show a raw `[voice:…]`/`[poll:…]` token.
+ */
+export function tokenPreview(body: string): string {
+  const b = body.trim();
+  if (VOICE_TOKEN_RE.test(b)) return "🎤 Voice message";
+  if (POLL_TOKEN_RE.test(b)) return "📊 Poll";
+  const single = isSingleCustomEmoji(b);
+  if (single) return `${single.alt} Sticker`;
+  return body;
+}
+
 /**
  * Body text with custom-emoji tokens, linkified URLs and Apple emoji
  * (React escapes the rest).

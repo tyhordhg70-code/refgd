@@ -36,6 +36,7 @@ import {
   renderBody,
   renderTextWithEmoji,
   shortDateLabel,
+  tokenPreview,
 } from "./format";
 
 /**
@@ -259,7 +260,7 @@ export default function TelegramApp({
       if (!chatPreview) {
         return { sender: null, summary: "Talk to the community", time: "" };
       }
-      const text = chatPreview.body.replace(/\s+/g, " ").trim();
+      const text = tokenPreview(chatPreview.body).replace(/\s+/g, " ").trim();
       return {
         sender: chatPreview.authorName,
         summary: text || "Photo",
@@ -280,7 +281,7 @@ export default function TelegramApp({
       }
       return { sender: null, summary: "No messages yet", time: "" };
     }
-    const text = last.body.replace(/\s+/g, " ").trim();
+    const text = tokenPreview(last.body).replace(/\s+/g, " ").trim();
     return {
       sender: last.authorName,
       summary: text || (last.mediaIds.length > 0 ? "Photo" : ""),

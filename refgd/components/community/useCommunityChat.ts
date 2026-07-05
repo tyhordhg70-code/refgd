@@ -62,6 +62,8 @@ export interface ChatState {
   hideMembers: boolean;
   botUsername: string | null;
   welcome: string;
+  /** Names of members typing right now (excludes the viewer, max 3). */
+  typing?: string[];
 }
 
 interface TelegramSafeAreaInset {
@@ -273,6 +275,8 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
   } | null>(null);
   const [inTelegram, setInTelegram] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Who is typing right now (from the server heartbeat table, via GET).
+  const [typing, setTyping] = useState<string[]>([]);
 
   const setAttachment = useCallback((blob: Blob | null) => {
     setAttachmentState((prev) => {
@@ -352,6 +356,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
         "0",
       );
       setState(data);
+      setTyping(Array.isArray(data.typing) ? data.typing : []);
     } catch {
       setError("Couldn't load the chat. Retrying…");
     }
@@ -380,6 +385,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
             }
           : prev,
       );
+      setTyping(Array.isArray(data.typing) ? data.typing : []);
       mergeMessages(data.messages);
     } catch {
       /* transient — next tick retries */
@@ -498,6 +504,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
                 }
               : prev,
           );
+          setTyping(Array.isArray(data.typing) ? data.typing : []);
           reconcileFull(data.messages);
         } catch {
           /* transient — next tick retries */
@@ -702,6 +709,66 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     editMessage,
   ]);
 
+  // Throttled "I'm typing" heartbeat: at most one ping every 3s while the
+  // member is actively typing. Fire-and-forget — presence must never block
+  // or error the composer.
+  const lastTypingPingRef = useRef(0);
+  const notifyTyping = useCallback(() => {
+    if (!me) return;
+    const now = Date.now();
+    if (now - lastTypingPingRef.current < 3000) return;
+    lastTypingPingRef.current = now;
+    void fetch("/api/community/chat/typing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic }),
+    }).catch(() => undefined);
+  }, [me, topic]);
+
+  // Upload a recorded voice note (multipart `voice`). The server composes the
+  // [voice:<mediaId>:<dur>:<wf>] body token after moderation gates pass.
+  const sendVoice = useCallback(
+    async (blob: Blob, durationSec: number, waveform: string): Promise<boolean> => {
+      if (sending) return false;
+      setSending(true);
+      setError(null);
+      setSystemNote(null);
+      try {
+        const form = new FormData();
+        form.append("voice", blob, "voice");
+        form.append("duration", String(Math.max(1, Math.round(durationSec))));
+        form.append("waveform", waveform);
+        form.append("text", "");
+        if (replyTo?.id) form.append("replyTo", replyTo.id);
+        form.append("ttlSeconds", String(me?.admin ? ttlSeconds : 0));
+        form.append("topic", topic);
+        const res = await fetch("/api/community/chat", {
+          method: "POST",
+          body: form,
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          error?: string;
+          message?: ChatMessage;
+        };
+        if (!res.ok || !data.ok) {
+          setError(data.error ?? "Couldn't send the voice message");
+          return false;
+        }
+        setReplyTo(null);
+        atBottomRef.current = true;
+        if (data.message) mergeMessages([data.message]);
+        return true;
+      } catch {
+        setError("Couldn't send the voice message");
+        return false;
+      } finally {
+        setSending(false);
+      }
+    },
+    [sending, replyTo, ttlSeconds, me, mergeMessages, topic],
+  );
+
   const react = useCallback(
     async (messageId: string, emoji: string) => {
       setReactOpen(null);
@@ -836,8 +903,12 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     canFullscreen,
     toggleFullscreen,
     scrollRef,
+    atBottomRef,
     onScroll,
     send,
+    sendVoice,
+    typing,
+    notifyTyping,
     react,
     sendCommand,
     deleteMessage,

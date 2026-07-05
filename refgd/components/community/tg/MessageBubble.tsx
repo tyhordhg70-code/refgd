@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type CSSProperties, type ReactNode } from "react";
+import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import Appendix from "./Appendix";
 import { emojiSrc, initials, peerIdx } from "./format";
 
@@ -60,6 +60,12 @@ export default function MessageBubble({
   mid,
   edited,
   forward,
+  plain,
+  onDoubleTap,
+  onSwipeReply,
+  selectMode,
+  selected,
+  onToggleSelect,
 }: {
   own: boolean;
   /** First message of its author run (adds first-in-group). */
@@ -98,17 +104,41 @@ export default function MessageBubble({
    * (share icon + label + colored micro-avatar + origin name) above the body.
    */
   forward?: { name: string } | null;
+  /**
+   * Renders the bubble without the solid background/shadow chrome — used for
+   * the jumbo single-custom-emoji "sticker" presentation.
+   */
+  plain?: boolean;
+  /** Double-click / double-tap quick reaction (Web A ❤️ parity). */
+  onDoubleTap?: () => void;
+  /** Swipe-right-to-reply on touch devices. */
+  onSwipeReply?: () => void;
+  /** Multi-select mode: taps toggle selection instead of normal actions. */
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const pressTimer = useRef<number | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
   // Set true when a long-press has opened the context menu, so the synthetic
   // click that follows touchend does not ALSO fire (e.g. open the photo).
   const menuFired = useRef(false);
+  // Swipe-to-reply drag offset (touch only); the bubble follows the finger up
+  // to 72px and releases into a reply past the 56px threshold.
+  const [dragX, setDragX] = useState(0);
+  const dragXRef = useRef(0);
+  const swiping = useRef(false);
+  // Timestamp of the previous touchend for double-tap detection.
+  const lastTap = useRef(0);
   const clearPress = () => {
     if (pressTimer.current !== null) {
       window.clearTimeout(pressTimer.current);
       pressTimer.current = null;
     }
+  };
+  const setDrag = (v: number) => {
+    dragXRef.current = v;
+    setDragX(v);
   };
   const mediaList = media ?? [];
   const hasBody = Boolean(body);
@@ -134,6 +164,8 @@ export default function MessageBubble({
     showAvatar ? "has-avatar" : "",
     "shown",
     "open",
+    selectMode ? "is-select-mode" : "",
+    selectMode && selected ? "is-selected" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -142,9 +174,10 @@ export default function MessageBubble({
     "message-content",
     "peer-color-count-2",
     hasBody || hasReactions ? "text" : "",
-    "has-shadow",
-    "has-solid-background",
-    hasAppendix ? "has-appendix" : "",
+    plain ? "" : "has-shadow",
+    plain ? "" : "has-solid-background",
+    plain ? "tg-plain-content" : "",
+    plain && hasAppendix ? "" : hasAppendix ? "has-appendix" : "",
     hasBody ? "has-footer" : "",
     mediaOnly ? "is-media-only" : "",
   ]
@@ -180,44 +213,103 @@ export default function MessageBubble({
     <div
       className={rootCls}
       data-mid={mid}
+      onClickCapture={
+        selectMode && onToggleSelect
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleSelect();
+            }
+          : undefined
+      }
+      onDoubleClick={
+        !selectMode && onDoubleTap ? () => onDoubleTap() : undefined
+      }
       onContextMenu={
         onOpenMenu
           ? (e) => {
               e.preventDefault();
+              if (selectMode) return;
               onOpenMenu({ x: e.clientX, y: e.clientY });
             }
           : undefined
       }
       onTouchStart={
-        onOpenMenu
+        onOpenMenu || onSwipeReply || onDoubleTap
           ? (e) => {
               const t = e.touches[0];
               if (!t) return;
               const pos = { x: t.clientX, y: t.clientY };
               pressStart.current = pos;
               menuFired.current = false;
+              swiping.current = false;
               clearPress();
-              pressTimer.current = window.setTimeout(() => {
-                menuFired.current = true;
-                onOpenMenu(pos);
-              }, 450);
+              if (onOpenMenu && !selectMode) {
+                pressTimer.current = window.setTimeout(() => {
+                  menuFired.current = true;
+                  onOpenMenu(pos);
+                }, 450);
+              }
             }
           : undefined
       }
       onTouchMove={
-        onOpenMenu
+        onOpenMenu || onSwipeReply
           ? (e) => {
               const t = e.touches[0];
               const s = pressStart.current;
+              if (!t || !s) return;
+              const dx = t.clientX - s.x;
+              const dy = t.clientY - s.y;
               // Only cancel the long-press on a real drag (>10px) so a tiny
               // finger wobble no longer eats the menu on others' messages.
-              if (t && s && Math.hypot(t.clientX - s.x, t.clientY - s.y) > 10)
-                clearPress();
+              if (Math.hypot(dx, dy) > 10) clearPress();
+              if (!onSwipeReply || selectMode || menuFired.current) return;
+              // Horizontal rightward drag becomes a swipe-to-reply; the
+              // bubble follows the finger up to 72px.
+              if (!swiping.current && dx > 12 && Math.abs(dy) < 30)
+                swiping.current = true;
+              if (swiping.current)
+                setDrag(Math.max(0, Math.min(72, dx - 12)));
             }
           : undefined
       }
-      onTouchEnd={onOpenMenu ? clearPress : undefined}
-      onTouchCancel={onOpenMenu ? clearPress : undefined}
+      onTouchEnd={
+        onOpenMenu || onSwipeReply || onDoubleTap
+          ? () => {
+              clearPress();
+              if (swiping.current) {
+                if (dragXRef.current > 56 && onSwipeReply) onSwipeReply();
+                swiping.current = false;
+                setDrag(0);
+                lastTap.current = 0;
+                return;
+              }
+              if (
+                onDoubleTap &&
+                !selectMode &&
+                !menuFired.current
+              ) {
+                const now = Date.now();
+                if (now - lastTap.current < 300) {
+                  lastTap.current = 0;
+                  onDoubleTap();
+                } else {
+                  lastTap.current = now;
+                }
+              }
+            }
+          : undefined
+      }
+      onTouchCancel={
+        onOpenMenu || onSwipeReply
+          ? () => {
+              clearPress();
+              swiping.current = false;
+              setDrag(0);
+            }
+          : undefined
+      }
     >
       {showAvatar && avatar && (
         <div
@@ -254,7 +346,25 @@ export default function MessageBubble({
         </div>
       )}
 
-      <div className="message-content-wrapper can-select-text">
+      {selectMode && (
+        <span
+          className={`tg-select-dot${selected ? " is-on" : ""}`}
+          aria-hidden
+        >
+          {selected && <i className="icon icon-check" aria-hidden />}
+        </span>
+      )}
+      <div
+        className="message-content-wrapper can-select-text"
+        style={
+          dragX > 0
+            ? {
+                transform: `translateX(${dragX}px)`,
+                transition: swiping.current ? "none" : "transform 0.15s ease",
+              }
+            : undefined
+        }
+      >
         <div className={contentCls} dir="auto">
           <div className="content-inner" dir="auto">
             {forward && (
