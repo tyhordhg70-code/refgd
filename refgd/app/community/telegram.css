@@ -379,6 +379,21 @@
 .tg-menu-item-danger:hover {
   background: rgb(90% 22% 21% / 0.08);
 }
+/* Two-line menu item: main label with a dim one-line subtitle beneath it
+   (admin-only "Auto-deletes in N days" hint under Delete). */
+.tg-menu-item-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.25;
+  min-width: 0;
+}
+.tg-menu-item-sub {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-text-secondary, #707579);
+  white-space: nowrap;
+}
 
 /* forward → pick a destination section (admin only): a small centered sheet
    reusing the context-menu look. */
@@ -2044,39 +2059,47 @@ video.tg-custom-emoji {
   text-transform: capitalize;
 }
 
-/* ── Web A edit composer (readonly/seed post editing dialog) ──────────
- * A floating composer replica: ComposerEmbeddedMessage bar docked on a
- * contentEditable input inside .composer-wrapper, plus the round check
- * send-button. The vendored stylesheet styles the embedded bar itself;
- * these rules only lay out the dialog shell + input. */
-.tg-edit-composer {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.5rem;
-  width: min(30rem, 100%);
-}
-.tg-edit-composer .composer-wrapper {
-  flex: 1;
-  min-width: 0;
-  position: relative;
-  background: var(--color-background);
-  border-radius: var(--border-radius-messages, 0.9375rem);
-  box-shadow: 0 1px 2px var(--color-default-shadow, rgb(16 35 47 / 0.15));
-}
-.tg-edit-composer .tg-edit-input {
-  min-height: 3.5rem;
-  max-height: min(26rem, 60dvh);
+/* ── Web A edit composer (readonly/seed post editing) ─────────────────
+ * Docked at the bottom IN PLACE of the normal composer (exact Web A
+ * behaviour): the vendored .Composer / .composer-wrapper /
+ * .message-input-wrapper rules lay everything out; these rules only style
+ * the edit input itself + the embedded-bar photo thumb. */
+.tg-edit-dock .tg-edit-input {
+  min-height: 1.5rem;
+  max-height: min(26rem, 50dvh);
   overflow-y: auto;
-  padding: 1rem 0.875rem;
   border: none;
   outline: none;
   background: transparent;
   color: var(--color-text);
-  font-size: 1rem;
-  line-height: 1.3125;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   caret-color: var(--color-text);
+}
+.tg-edit-dock .embedded-thumb {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  margin-inline-end: 0.375rem;
+  border-radius: 0.25rem;
+  overflow: hidden;
+  align-self: center;
+}
+.tg-edit-dock .embedded-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.tg-edit-dock .EmbeddedMessage.with-thumb {
+  display: flex;
+  align-items: center;
+}
+
+/* ── In-chat search: matched-term paint (CSS Custom Highlight API). ── */
+::highlight(rg-search) {
+  background-color: rgba(51, 144, 236, 0.35);
+  color: inherit;
 }
 
 /* ============================================================

@@ -44,6 +44,8 @@ export interface ChatMessage {
   createdAt: string;
   /** ISO timestamp of the last in-place edit, or null if never edited. */
   editedAt: string | null;
+  /** ISO auto-delete deadline (group-chat TTL), or null if it never expires. */
+  expiresAt?: string | null;
   reactions: Reaction[];
   reply: ReplyRef | null;
 }
@@ -544,18 +546,107 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
   }, [reconcileFull, topic]);
 
   // Keep the view pinned to the latest message when the user is at the bottom.
+  // On the FIRST render of a topic, restore the scroll spot saved when the
+  // viewer last left it (topic switches unmount the list, so the DOM position
+  // is lost otherwise); "bottom" (or nothing saved) keeps the default
+  // scroll-to-latest behaviour.
+  const didRestoreRef = useRef(false);
   useEffect(() => {
-    if (atBottomRef.current && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    const el = scrollRef.current;
+    // Gate on the initial fetch finishing (NOT on live messages existing) so
+    // history-only topics — e.g. vouches, whose bubbles render from props —
+    // still get their spot restored.
+    if (!el || state === null || didRestoreRef.current) return;
+    didRestoreRef.current = true;
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(`rg_scroll_${topic}`);
+    } catch {
+      /* storage unavailable */
     }
+    if (saved && saved !== "bottom") {
+      const top = Number(saved);
+      if (Number.isFinite(top) && top >= 0) {
+        atBottomRef.current = false;
+        el.scrollTop = top;
+        return;
+      }
+    }
+    el.scrollTop = el.scrollHeight;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state === null, topic]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !state?.messages?.length) return;
+    if (atBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [state?.messages]);
+
+  // While the viewer is at the bottom, KEEP them fully at the bottom as the
+  // content grows after the fact (photos/custom emoji finishing loading used
+  // to leave the view landing slightly above the last message).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || state === null || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      if (atBottomRef.current) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state === null]);
+
+  // Persist the scroll spot (trailing-edge throttled) so reopening the topic
+  // resumes where the viewer left off; a plain "bottom" sentinel keeps the
+  // default jump-to-latest.
+  const saveScrollTimerRef = useRef<number | null>(null);
+  // Last observed scroll snapshot — read in the unmount cleanup, where React
+  // has ALREADY detached scrollRef (DOM refs null out before passive-effect
+  // cleanups run on unmount).
+  const scrollSnapRef = useRef<{ top: number; atBottom: boolean } | null>(
+    null,
+  );
+  const saveScrollSpot = useCallback(() => {
+    const el = scrollRef.current;
+    const snap = el
+      ? { top: Math.round(el.scrollTop), atBottom: atBottomRef.current }
+      : scrollSnapRef.current;
+    if (!snap) return;
+    try {
+      localStorage.setItem(
+        `rg_scroll_${topic}`,
+        snap.atBottom ? "bottom" : String(snap.top),
+      );
+    } catch {
+      /* storage unavailable */
+    }
+  }, [topic]);
+  useEffect(() => {
+    return () => {
+      if (saveScrollTimerRef.current !== null) {
+        window.clearTimeout(saveScrollTimerRef.current);
+        saveScrollTimerRef.current = null;
+      }
+      saveScrollSpot();
+    };
+  }, [saveScrollSpot]);
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     atBottomRef.current =
       el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-  }, []);
+    scrollSnapRef.current = {
+      top: Math.round(el.scrollTop),
+      atBottom: atBottomRef.current,
+    };
+    if (saveScrollTimerRef.current === null) {
+      saveScrollTimerRef.current = window.setTimeout(() => {
+        saveScrollTimerRef.current = null;
+        saveScrollSpot();
+      }, 250);
+    }
+  }, [saveScrollSpot]);
 
   // Delete a message with instant optimistic removal. The /del moderation
   // command soft-deletes server-side (admin/own-message gated there); on

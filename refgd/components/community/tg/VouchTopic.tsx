@@ -58,7 +58,12 @@ export default function VouchHistory({
   /** Opens the reduced (Edit / Pin / Copy Text / Forward) context menu for a vouch. */
   onOpenMenu?: (
     pos: { x: number; y: number },
-    payload: { id: string; text: string; pinned: boolean },
+    payload: {
+      id: string;
+      text: string;
+      pinned: boolean;
+      media?: string[];
+    },
   ) => void;
   /** Opens the fullscreen media viewer for a clicked photo. */
   onOpenMedia?: (src: string) => void;
@@ -118,7 +123,7 @@ export default function VouchHistory({
                       (id) => `/api/community/media/${id}`,
                     )}
                     body={v.body ? renderBody(v.body) : undefined}
-                    time={<LocalTime iso={v.createdAt} />}
+                    time={<LocalTime iso={v.originDate ?? v.createdAt} />}
                     reactions={reactionsFor?.(`v${v.id}`)}
                     onReact={
                       onReact ? (e) => onReact(`v${v.id}`, e) : undefined
@@ -130,6 +135,7 @@ export default function VouchHistory({
                               id: v.id,
                               text: v.body ?? "",
                               pinned: v.pinned,
+                              media: v.mediaIds,
                             })
                         : undefined
                     }

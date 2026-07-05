@@ -126,7 +126,11 @@ interface RowMeta {
 function latest(vouches: VouchView[]): VouchView | undefined {
   let best: VouchView | undefined;
   for (const v of vouches) {
-    if (!best || v.createdAt > best.createdAt) best = v;
+    if (
+      !best ||
+      (v.originDate ?? v.createdAt) > (best.originDate ?? best.createdAt)
+    )
+      best = v;
   }
   return best;
 }

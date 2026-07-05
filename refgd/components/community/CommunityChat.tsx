@@ -136,6 +136,20 @@ function buildForwardBody(origin: string, body: string): string {
   );
 }
 
+// Human countdown for the group-chat auto-delete TTL, shown to admins under
+// the Delete menu item ("Auto-deletes in 6 days"). Null once already expired
+// (the sweep will drop the row on the next full load anyway).
+function autoDeleteLabel(expiresAt: string): string | null {
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  const mins = Math.ceil(ms / 60_000);
+  if (mins < 60) return `Auto-deletes in ${mins} minute${mins === 1 ? "" : "s"}`;
+  const hours = Math.ceil(ms / 3_600_000);
+  if (hours < 24) return `Auto-deletes in ${hours} hour${hours === 1 ? "" : "s"}`;
+  const days = Math.ceil(ms / 86_400_000);
+  return `Auto-deletes in ${days} day${days === 1 ? "" : "s"}`;
+}
+
 // Admin-only "forward to section" destinations (the postable forum topics). A
 // regular member never sees the Forward action at all.
 const FORWARD_TARGETS: { topic: ChatTopic; title: string }[] = [
@@ -248,6 +262,8 @@ export default function CommunityChat({
     id: string;
     body: string;
     orig: string;
+    /** Media ids of the post being edited — drives the embedded-bar thumb. */
+    media?: string[];
   } | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   // Web A message context menu (right-click / long-press on a bubble). The
@@ -265,6 +281,7 @@ export default function CommunityChat({
         // bubbles set this false because the pin route is numeric-vouch-only.
         canModify: boolean;
         canPin: boolean;
+        media?: string[];
         x: number;
         y: number;
       }
@@ -531,6 +548,7 @@ export default function CommunityChat({
       pinned: boolean;
       canModify?: boolean;
       canPin?: boolean;
+      media?: string[];
     },
   ) =>
     setCtxMenu({
@@ -540,6 +558,7 @@ export default function CommunityChat({
       pinned: payload.pinned,
       canModify: payload.canModify ?? true,
       canPin: payload.canPin ?? true,
+      media: payload.media,
       x: pos.x,
       y: pos.y,
     });
@@ -1161,6 +1180,55 @@ export default function CommunityChat({
     return buildGroups(shown);
   }, [state?.messages, query, pinnedOnly]);
 
+  // Paint the active search term inside the filtered results (CSS Custom
+  // Highlight API — highlights text WITHOUT rewriting the DOM, so custom
+  // emoji, links and reactions inside bubbles stay untouched). Feature-gated:
+  // browsers without the API simply show the filtered list unhighlighted.
+  useEffect(() => {
+    const cssObj =
+      typeof CSS !== "undefined"
+        ? (CSS as unknown as { highlights?: Map<string, unknown> })
+        : null;
+    const HighlightCtor = (
+      typeof window !== "undefined"
+        ? (window as unknown as { Highlight?: new (...r: Range[]) => unknown })
+        : {}
+    ).Highlight;
+    if (!cssObj?.highlights || !HighlightCtor) return;
+    const registry = cssObj.highlights;
+    registry.delete("rg-search");
+    if (!query) return;
+    const root = chat.scrollRef.current;
+    if (!root) return;
+    const ranges: Range[] = [];
+    // Only message bodies + sender titles — the same fields the filter
+    // matches on — so timestamps/badges never light up.
+    const scopes = root.querySelectorAll<HTMLElement>(
+      ".text-content, .message-title",
+    );
+    outer: for (const scope of scopes) {
+      const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        const text = (node.nodeValue ?? "").toLowerCase();
+        let idx = text.indexOf(query);
+        while (idx !== -1) {
+          const r = new Range();
+          r.setStart(node, idx);
+          r.setEnd(node, idx + query.length);
+          ranges.push(r);
+          if (ranges.length >= 500) break outer;
+          idx = text.indexOf(query, idx + query.length);
+        }
+      }
+    }
+    if (ranges.length) registry.set("rg-search", new HighlightCtor(...ranges));
+    return () => {
+      registry.delete("rg-search");
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, groups]);
+
   // All pinned messages surfaced in the banner under the header and in the
   // pinned-only panel (Web A parity). Migrated history pins (pinnedExtras, id
   // prefixed `v<id>` to match their bubble data-mid) come first in DOM/visual
@@ -1490,119 +1558,6 @@ export default function CommunityChat({
         </div>
       )}
 
-      {editPost &&
-        overlayEl &&
-        createPortal(
-          /* Web A edit flow for readonly/seed posts: instead of a generic
-             dialog, a floating composer — ComposerEmbeddedMessage bar
-             ("Edit Message" + original preview) docked on a contentEditable
-             input, with the round check send-button to save. */
-          <div
-            className="tg-modal-backdrop"
-            onClick={() => (editSaving ? undefined : setEditPost(null))}
-          >
-            <div
-              className="tg-edit-composer"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Edit message"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="composer-wrapper">
-                <div className="ComposerEmbeddedMessage opacity-transition fast open shown">
-                  <div className="ComposerEmbeddedMessage_inner">
-                    <div
-                      className="embedded-left-icon"
-                      role="button"
-                      tabIndex={0}
-                    >
-                      <i className="icon icon-edit" aria-hidden />
-                    </div>
-                    <div className="EmbeddedMessage inside-input no-selection">
-                      <div className="message-text">
-                        <p className="embedded-text-wrapper">
-                          {editPost.orig.trim() || "message"}
-                        </p>
-                        <div className="message-title">Edit Message</div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="Button embedded-cancel default translucent round faded"
-                      aria-label="Cancel editing"
-                      title="Cancel editing"
-                      onClick={() => setEditPost(null)}
-                      disabled={editSaving}
-                    >
-                      <i className="icon icon-close" aria-hidden />
-                    </button>
-                  </div>
-                </div>
-                <div
-                  ref={(el) => {
-                    editInputRef.current = el;
-                    // Seed the editable once per opened post (innerText, not
-                    // dangerouslySetInnerHTML — the body is plain markdown-lite
-                    // text) and park the caret at the end like Web A.
-                    if (el && el.dataset.seededFor !== editPost.id) {
-                      el.dataset.seededFor = editPost.id;
-                      el.innerText = editPost.body;
-                      el.focus();
-                      const sel = window.getSelection();
-                      sel?.selectAllChildren(el);
-                      sel?.collapseToEnd();
-                    }
-                  }}
-                  className="form-control allow-selection tg-edit-input"
-                  contentEditable
-                  suppressContentEditableWarning
-                  role="textbox"
-                  dir="auto"
-                  tabIndex={0}
-                  aria-label="Edit message"
-                  onInput={(e) => {
-                    let v = e.currentTarget.innerText.replace(/\u00A0/g, " ");
-                    if (v === "\n") v = "";
-                    if (v.length > MAX_LEN) {
-                      v = v.slice(0, MAX_LEN);
-                      e.currentTarget.innerText = v;
-                      const sel = window.getSelection();
-                      sel?.selectAllChildren(e.currentTarget);
-                      sel?.collapseToEnd();
-                    }
-                    setEditPost((p) => (p ? { ...p, body: v } : p));
-                  }}
-                  onKeyDown={(e) => {
-                    if (
-                      e.key === "Enter" &&
-                      !e.shiftKey &&
-                      !e.nativeEvent.isComposing
-                    ) {
-                      e.preventDefault();
-                      if (!editSaving) saveEditPost();
-                    } else if (e.key === "Escape") {
-                      e.preventDefault();
-                      if (!editSaving) setEditPost(null);
-                    }
-                  }}
-                />
-              </div>
-              <button
-                type="button"
-                className="Button send main-button default secondary round click-allowed"
-                aria-label="Save edited message"
-                title="Save edited message"
-                onClick={saveEditPost}
-                disabled={editSaving || !editPost.body.trim()}
-              >
-                <i className="icon icon-check" aria-hidden />
-              </button>
-              <TextFormatter inputRef={editInputRef} overlayEl={overlayEl} />
-            </div>
-          </div>,
-          overlayEl,
-        )}
-
       {/* Web A message context menu — Reply/Copy for members, moderation for
           admins. Admin items ride the slash-command pipeline (/pin /del /ban)
           so server-side auth + audit apply exactly as if typed. */}
@@ -1788,7 +1743,17 @@ export default function CommunityChat({
                     }}
                   >
                     <IconDelete />
-                    Delete
+                    {ctxMenu.m.expiresAt &&
+                    autoDeleteLabel(ctxMenu.m.expiresAt) ? (
+                      <span className="tg-menu-item-col">
+                        <span>Delete</span>
+                        <span className="tg-menu-item-sub">
+                          {autoDeleteLabel(ctxMenu.m.expiresAt)}
+                        </span>
+                      </span>
+                    ) : (
+                      "Delete"
+                    )}
                   </button>
                 )}
                 {me?.admin &&
@@ -1826,6 +1791,7 @@ export default function CommunityChat({
                         id: ctxMenu.id,
                         body: ctxMenu.text,
                         orig: ctxMenu.text,
+                        media: ctxMenu.media,
                       });
                       setCtxMenu(null);
                     }}
@@ -2306,7 +2272,142 @@ export default function CommunityChat({
           </div>
         )}
 
-        {state !== null && me && !selecting && (!lockedForMembers || me.admin) && (
+        {editPost && !selecting && (
+          /* Web A edit flow for readonly/seed posts: the edit composer DOCKS
+             at the bottom in place of the normal composer (exact Web A
+             behaviour) — ComposerEmbeddedMessage bar ("Edit Message" +
+             original preview + photo thumb when the post has media) on top of
+             a contentEditable input, with the round check button to save. */
+          <div className="Composer shown mounted tg-edit-dock">
+            <TextFormatter inputRef={editInputRef} overlayEl={overlayEl} />
+            <div className="composer-wrapper">
+              <Appendix own={false} composer />
+              <div className="ComposerEmbeddedMessage opacity-transition fast open shown">
+                <div className="ComposerEmbeddedMessage_inner">
+                  <div
+                    className="embedded-left-icon"
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <i className="icon icon-edit" aria-hidden />
+                  </div>
+                  <div
+                    className={
+                      "EmbeddedMessage inside-input no-selection" +
+                      (editPost.media?.length ? " with-thumb" : "")
+                    }
+                  >
+                    {editPost.media?.length ? (
+                      <div className="embedded-thumb">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`/api/community/media/${editPost.media[0]}`}
+                          alt=""
+                          className="full-media opacity-transition slow shown open"
+                          draggable={false}
+                        />
+                      </div>
+                    ) : null}
+                    <div className="message-text">
+                      <p className="embedded-text-wrapper">
+                        {editPost.orig.trim() || "message"}
+                      </p>
+                      <div className="message-title">Edit Message</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="Button embedded-cancel default translucent round faded"
+                    aria-label="Cancel editing"
+                    title="Cancel editing"
+                    onClick={() => setEditPost(null)}
+                    disabled={editSaving}
+                  >
+                    <i className="icon icon-close" aria-hidden />
+                  </button>
+                </div>
+              </div>
+              <div className="message-input-wrapper">
+                <div id="message-input-text">
+                  <div className="custom-scroll input-scroller">
+                    <div className="input-scroller-content">
+                      <div
+                        ref={(el) => {
+                          editInputRef.current = el;
+                          // Seed the editable once per opened post (innerText,
+                          // not dangerouslySetInnerHTML — the body is plain
+                          // markdown-lite text) and park the caret at the end
+                          // like Web A.
+                          if (el && el.dataset.seededFor !== editPost.id) {
+                            el.dataset.seededFor = editPost.id;
+                            el.innerText = editPost.body;
+                            el.focus();
+                            const sel = window.getSelection();
+                            sel?.selectAllChildren(el);
+                            sel?.collapseToEnd();
+                          }
+                        }}
+                        id="editable-message-text"
+                        className="form-control allow-selection tg-edit-input"
+                        contentEditable
+                        suppressContentEditableWarning
+                        role="textbox"
+                        dir="auto"
+                        tabIndex={0}
+                        aria-label="Edit message"
+                        onInput={(e) => {
+                          let v = e.currentTarget.innerText.replace(
+                            /\u00A0/g,
+                            " ",
+                          );
+                          if (v === "\n") v = "";
+                          if (v.length > MAX_LEN) {
+                            v = v.slice(0, MAX_LEN);
+                            e.currentTarget.innerText = v;
+                            const sel = window.getSelection();
+                            sel?.selectAllChildren(e.currentTarget);
+                            sel?.collapseToEnd();
+                          }
+                          setEditPost((p) => (p ? { ...p, body: v } : p));
+                        }}
+                        onKeyDown={(e) => {
+                          if (
+                            e.key === "Enter" &&
+                            !e.shiftKey &&
+                            !e.nativeEvent.isComposing
+                          ) {
+                            e.preventDefault();
+                            if (!editSaving) saveEditPost();
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            if (!editSaving) setEditPost(null);
+                          }
+                        }}
+                      />
+                      {!editPost.body && (
+                        <span className="placeholder-text" dir="auto">
+                          Message
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="Button send main-button default secondary round click-allowed"
+              aria-label="Save edited message"
+              title="Save edited message"
+              onClick={saveEditPost}
+              disabled={editSaving || !editPost.body.trim()}
+            >
+              <i className="icon icon-check" aria-hidden />
+            </button>
+          </div>
+        )}
+
+        {state !== null && me && !selecting && !editPost && (!lockedForMembers || me.admin) && (
           <div className="Composer shown mounted">
             {emojiOpen && (
               <EmojiPanel
