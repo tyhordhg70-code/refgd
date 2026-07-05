@@ -142,23 +142,37 @@ export async function GET(req: Request) {
 
   const me = await readMemberSession();
 
-  // Anonymous FULL loads are byte-identical for every logged-out visitor of
-  // a topic, yet each one re-read the whole 60-message window from the DB —
-  // scrapers and cold tabs made this a top egress source in the July 2026
-  // Neon quota incident. One shared 3s snapshot per topic absorbs them;
-  // signed-in readers below always get a fresh, viewer-specific read.
-  if (!me && !after) {
+  // Anonymous readers are all served from ONE shared 3s snapshot per topic
+  // (July 2026 Neon quota incident): every logged-out visitor previously
+  // re-read the whole 60-message window from the DB on full load AND hit
+  // listChatMessages/listTyping on every 2.5s short-poll. Signed-in readers
+  // below always get a fresh, viewer-specific read.
+  if (!me) {
     const payload = await memoTtl(
       `community:anonFull:${topic}`,
       3_000,
       async () => {
         // Opportunistic auto-delete sweep rides the (now rate-limited)
-        // anonymous full load too (idempotent, no cron needed on Render).
+        // anonymous snapshot refresh too (idempotent, no cron on Render).
         await sweepExpiredMessages().catch(() => undefined);
         return buildChatState(topic, null, null);
       },
     );
-    return NextResponse.json(payload);
+    if (!after) return NextResponse.json(payload);
+    // Short-poll: derive "messages newer than `after`" from the SAME
+    // snapshot — zero extra DB reads and a BOUNDED cache key space (one
+    // entry per topic; never key a public cache by a client-supplied
+    // value). Ids are numeric-ASC; an invalid `after` falls back to the
+    // full window, matching listChatMessages' own afterId validation. A
+    // very stale anon tab gets the latest-60 window instead of the next-60
+    // after its id — acceptable: the 30s full refresh reconciles to the
+    // same window anyway. Worst-case freshness for anon viewers is ~3s
+    // (snapshot TTL) + the 2.5s poll tick.
+    const afterNum = /^\d+$/.test(after) ? Number(after) : Number.NaN;
+    const newer = Number.isFinite(afterNum)
+      ? payload.messages.filter((m) => Number(m.id) > afterNum)
+      : payload.messages;
+    return NextResponse.json({ ...payload, messages: newer });
   }
 
   // Refresh presence on the full load (no `after`) only — skip it on the 2.5s
