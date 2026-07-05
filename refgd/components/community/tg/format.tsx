@@ -222,13 +222,80 @@ const URL_RE = /(https?:\/\/[^\s]+|t\.me\/[^\s]+)/g;
 /**
  * Force muted + play on mount so an animated custom-emoji <video> autoplays:
  * React drops the `muted` attribute during SSR, which otherwise blocks autoplay
- * until hydration (same trick the member-avatar video uses).
+ * until hydration (same trick the member-avatar video uses). Every video is
+ * also registered with a shared IntersectionObserver + a visibilitychange
+ * handler so offscreen/hidden-tab tiles stop decoding (dozens of looping
+ * .webm decoders were the picker's main scroll lag) — IO does NOT fire on tab
+ * switches, so both hooks are needed (see the tab-visibility lesson).
  */
-function playCustomEmojiVideo(el: HTMLVideoElement | null) {
-  if (!el) return;
-  el.muted = true;
-  const p = el.play();
+const emojiVideos = new Set<HTMLVideoElement>();
+let emojiVideoIO: IntersectionObserver | null = null;
+let emojiVideoWired = false;
+
+function emojiVideoPlay(v: HTMLVideoElement): void {
+  v.muted = true;
+  const p = v.play();
   if (p && typeof p.catch === "function") p.catch(() => {});
+}
+
+function wireEmojiVideoPlayback(): void {
+  if (emojiVideoWired || typeof window === "undefined") return;
+  emojiVideoWired = true;
+  if (typeof IntersectionObserver !== "undefined") {
+    emojiVideoIO = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          const v = e.target as HTMLVideoElement;
+          if (!v.isConnected) {
+            // Unmounted node (callback refs can't unobserve for us) — drop it.
+            emojiVideoIO?.unobserve(v);
+            emojiVideos.delete(v);
+            continue;
+          }
+          if (e.isIntersecting && !document.hidden) emojiVideoPlay(v);
+          else v.pause();
+        }
+      },
+      { rootMargin: "100px" },
+    );
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      for (const v of emojiVideos) v.pause();
+      return;
+    }
+    // Resume only what's actually visible: re-observing forces the IO to
+    // re-report each video's intersection instead of blind-playing them all.
+    for (const v of Array.from(emojiVideos)) {
+      if (!v.isConnected) {
+        emojiVideoIO?.unobserve(v);
+        emojiVideos.delete(v);
+        continue;
+      }
+      emojiVideoIO?.unobserve(v);
+      emojiVideoIO?.observe(v);
+    }
+  });
+}
+
+function playCustomEmojiVideo(el: HTMLVideoElement | null) {
+  if (!el) {
+    // React calls the callback ref with null at unmount; the removed node is
+    // already detached by now, so sweep every disconnected video out of the
+    // registry (a module-level ref can't tell WHICH element unmounted).
+    for (const v of emojiVideos) {
+      if (!v.isConnected) {
+        emojiVideoIO?.unobserve(v);
+        emojiVideos.delete(v);
+      }
+    }
+    return;
+  }
+  wireEmojiVideoPlayback();
+  emojiVideos.add(el);
+  emojiVideoIO?.observe(el);
+  if (typeof document !== "undefined" && document.hidden) return;
+  emojiVideoPlay(el);
 }
 
 type EmojiStage =
@@ -239,7 +306,13 @@ type EmojiStage =
 /** Bounded retry backoff for custom-emoji artwork (spreads Bot API stampedes). */
 const EMOJI_RETRY_DELAYS_MS = [2000, 5000, 12000];
 
-type LottieAnim = { play(): void; pause(): void; destroy(): void };
+type LottieAnim = {
+  play(): void;
+  pause(): void;
+  destroy(): void;
+  // lottie-web extra: false = render on whole frames only (~halves CPU).
+  setSubframe?(useSubFrames: boolean): void;
+};
 type LottieLib = {
   loadAnimation(opts: Record<string, unknown>): LottieAnim;
 };
@@ -288,14 +361,18 @@ function LottieEmoji({
   src,
   alt,
   onError,
+  onReady,
 }: {
   src: string;
   alt: string;
   onError: () => void;
+  onReady?: () => void;
 }) {
   const boxRef = useRef<HTMLSpanElement | null>(null);
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   useEffect(() => {
     const box = boxRef.current;
@@ -328,7 +405,11 @@ function LottieEmoji({
           animationData: data,
           rendererSettings: { preserveAspectRatio: "xMidYMid meet" },
         });
+        // Whole-frame rendering: Web A does the same — subframe interpolation
+        // roughly doubles Lottie CPU for no visible gain at emoji size.
+        if (typeof anim.setSubframe === "function") anim.setSubframe(false);
         emojiDebugBump("ok:lottie");
+        onReadyRef.current?.();
       } catch (e) {
         emojiDebugBump("fail:lottie");
         emojiDebugError(
@@ -486,6 +567,58 @@ export function warmEmojiTiles(ids: string[]): void {
 }
 
 /**
+ * Per-id resolved-stage memo (localStorage): the cascade below discovers each
+ * emoji's real kind by failing forward (img → video → lottie), and an animated
+ * .webm tile pays that churn — a full download decoded as an <img>, erroring,
+ * then re-rendered as <video> — on EVERY mount. Remembering the winning stage
+ * makes every later render jump straight to the right element: no wasted
+ * decode, no blank flash. Keyed by EMOJI_CACHE_VERSION so a cache-version
+ * bump (which can change what the API serves per id) restarts discovery.
+ */
+const STAGE_MEMO_KEY = `tg-emoji-stage-v1:${EMOJI_CACHE_VERSION}`;
+let stageMemo: Record<string, number> | null = null;
+let stageMemoSaveTimer: number | null = null;
+
+function loadStageMemo(): Record<string, number> {
+  if (stageMemo) return stageMemo;
+  try {
+    const raw = localStorage.getItem(STAGE_MEMO_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    stageMemo =
+      parsed && typeof parsed === "object"
+        ? (parsed as Record<string, number>)
+        : {};
+  } catch {
+    stageMemo = {};
+  }
+  return stageMemo;
+}
+
+function recallStage(id: string): number {
+  if (typeof window === "undefined") return 0;
+  const n = loadStageMemo()[id];
+  return typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 3
+    ? n
+    : 0;
+}
+
+function rememberStage(id: string, idx: number): void {
+  if (typeof window === "undefined") return;
+  const memo = loadStageMemo();
+  if (memo[id] === idx) return;
+  memo[id] = idx;
+  if (stageMemoSaveTimer !== null) return; // a save is already scheduled
+  stageMemoSaveTimer = window.setTimeout(() => {
+    stageMemoSaveTimer = null;
+    try {
+      localStorage.setItem(STAGE_MEMO_KEY, JSON.stringify(loadStageMemo()));
+    } catch {
+      // storage full/blocked — memo stays in-memory for this session
+    }
+  }, 800);
+}
+
+/**
  * Custom (premium pack) emoji sticker rendered from the Telegram document id.
  *
  * ORIGINALS ONLY — NEVER SUBSTITUTE: the tile always shows the real pack
@@ -550,7 +683,10 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
   const attemptRef = useRef(0);
   const timerRef = useRef<number | null>(null);
 
-  // Restart at the artwork source whenever this node is reused for a new emoji.
+  // Restart whenever this node is reused for a new emoji — at the remembered
+  // winning stage when we've resolved this id before (instant, no cascade
+  // churn), else at the artwork source. Recall happens here (post-hydration)
+  // rather than in the useState initializer so SSR markup can't mismatch.
   useEffect(() => {
     if (timerRef.current !== null) {
       window.clearTimeout(timerRef.current);
@@ -558,7 +694,7 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
     }
     attemptRef.current = 0;
     setAttempt(0);
-    setIdx(0);
+    setIdx(recallStage(id));
   }, [id, alt]);
 
   useEffect(
@@ -624,7 +760,14 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
     );
   }
   if (stage.kind === "lottie") {
-    return <LottieEmoji src={stage.src} alt={alt} onError={advance} />;
+    return (
+      <LottieEmoji
+        src={stage.src}
+        alt={alt}
+        onError={advance}
+        onReady={() => rememberStage(id, 3)}
+      />
+    );
   }
   if (stage.kind === "video") {
     return (
@@ -637,7 +780,10 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
         muted
         playsInline
         draggable={false}
-        onLoadedData={() => emojiDebugBump("ok:video")}
+        onLoadedData={() => {
+          emojiDebugBump("ok:video");
+          rememberStage(id, 2);
+        }}
         onError={advance}
       />
     );
@@ -651,7 +797,10 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
       alt={alt}
       draggable={false}
       loading="lazy"
-      onLoad={() => emojiDebugBump(idx === 0 ? "ok:img:self" : "ok:img")}
+      onLoad={() => {
+        emojiDebugBump(idx === 0 ? "ok:img:self" : "ok:img");
+        rememberStage(id, idx === 0 ? 0 : 1);
+      }}
       onError={advance}
     />
   );

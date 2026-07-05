@@ -82,6 +82,15 @@ export async function POST(req: Request) {
       { status: 404 },
     );
   }
+  // Forwarded messages (leading [fwd:NAME] token) mirror someone else's
+  // words — editing them would let the banner attribute invented text to the
+  // original sender, so they can't be edited at all (Telegram parity).
+  if (/^\[fwd:/.test(info.body)) {
+    return NextResponse.json(
+      { ok: false, error: "Forwarded messages can't be edited" },
+      { status: 403 },
+    );
+  }
   if (!me.admin && info.tgId !== me.tid) {
     return NextResponse.json(
       { ok: false, error: "You can only edit your own messages" },

@@ -1317,22 +1317,30 @@ export async function getMessageForPin(
   return { authorName: rows[0].author_name, body: rows[0].body ?? "" };
 }
 
-/** Owner + deleted flag for a message, used to authorize an in-place edit. */
+/** Owner + deleted flag + body for a message, used to authorize an in-place
+ *  edit (the body lets the route refuse edits on forwarded messages, which
+ *  carry a leading [fwd:NAME] token). */
 export interface MessageEditInfo {
   tgId: string;
   deleted: boolean;
+  body: string;
 }
 
 export async function getMessageEditInfo(
   id: string,
 ): Promise<MessageEditInfo | null> {
   await initDb();
-  const { rows } = await getPool().query<{ tg_id: string; deleted: boolean }>(
-    `SELECT tg_id, deleted FROM chat_messages WHERE id = $1`,
-    [id],
-  );
+  const { rows } = await getPool().query<{
+    tg_id: string;
+    deleted: boolean;
+    body: string | null;
+  }>(`SELECT tg_id, deleted, body FROM chat_messages WHERE id = $1`, [id]);
   if (!rows[0]) return null;
-  return { tgId: String(rows[0].tg_id), deleted: Boolean(rows[0].deleted) };
+  return {
+    tgId: String(rows[0].tg_id),
+    deleted: Boolean(rows[0].deleted),
+    body: String(rows[0].body ?? ""),
+  };
 }
 
 /**

@@ -398,24 +398,13 @@
   color: var(--color-text-secondary, #707579);
 }
 
-/* "Forwarded from" title banner inside a bubble (Web A parity). */
-.tg-forward-title .message-title-name-container {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.125rem;
-}
+/* "Forwarded from" title banner inside a bubble (Web A parity). The vendored
+   sheet already styles the whole line — accent colour, medium weight, single
+   flex row that wraps (`.message-content .message-title` and the
+   `.is-forwarded .message-title .icon` sizing) — so we only add what it
+   can't know about: the tiny sender avatar this replica renders inline. */
 .tg-forward-title .forward-title-container {
-  display: inline-flex;
-  align-items: center;
   gap: 0.25rem;
-  color: var(--color-text-secondary, #707579);
-  font-size: 0.8125rem;
-  font-weight: 500;
-}
-.tg-forward-title .forward-title-container .icon {
-  font-size: 0.875rem;
-  line-height: 1;
 }
 .tg-forward-title .forward-avatar .inner {
   display: flex;
@@ -425,9 +414,7 @@
   height: 100%;
 }
 .tg-forward-title .message-title-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
+  gap: 0.25rem;
 }
 .tg-forward-title .forward-avatar {
   width: var(--_size, 1.125rem);
@@ -454,10 +441,6 @@
   font-weight: 600;
   color: #fff;
   line-height: 1;
-}
-.tg-forward-title .sender-title {
-  font-weight: 600;
-  font-size: 0.9375rem;
 }
 
 /* ── composer emoji panel (Web A symbol-menu replica) ────────────── */
@@ -557,7 +540,9 @@
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  flex: 1;
+  /* Each add-row takes its own full line — sharing one row with the "Load
+     packs" button crammed the inputs into slivers (fields looked cut off). */
+  flex: 1 1 100%;
   min-width: 0;
 }
 .tg-emoji-admin-add input {
@@ -774,12 +759,20 @@ button.tg-reply-embed:focus-visible {
   margin-left: auto;
 }
 /* reaction row at the top of the message context menu (Web A ReactionSelector
-   structure: __items-wrapper > __items > __reactions + a __show-more chevron) */
+   structure: __items-wrapper > __items > __reactions + a __show-more chevron).
+   The chevron sits OUTSIDE the scrollable strip (pinned right, always
+   visible) — inside it, it scrolled offscreen with the overflowing emoji. */
 .tg-ctx-reactions {
   margin-bottom: 0.375rem;
   border-radius: 1.375rem;
   background: var(--color-background, #fff);
   box-shadow: 0 0.125rem 0.5rem rgb(0 0 0 / 0.14);
+}
+.tg-ctx-reactions .tg-ctx-reactions-row {
+  display: flex;
+  align-items: center;
+  max-width: 17.875rem;
+  padding-right: 0.25rem;
 }
 .tg-ctx-reactions .ReactionSelector__reactions {
   display: flex;
@@ -787,9 +780,13 @@ button.tg-reply-embed:focus-visible {
   gap: 0.25rem;
   /* extra vertical padding so the :hover scale isn't clipped by overflow-x */
   padding: 0.5rem 0.4375rem;
-  max-width: 16rem;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
+  /* keep the horizontal swipe inside the strip (Lenis/page must not steal it) */
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
   /* override tg-webapp.css `.tg-body .ReactionSelector__reactions{height:2.5rem}`
      (same specificity, but it never sets height here) so the row sizes to its
      content — otherwise the expanded wrapped grid stays a 2.5rem sliver */
@@ -804,6 +801,7 @@ button.tg-reply-embed:focus-visible {
   max-height: 12rem;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 /* the decorative Web A pointer bubble is cosmetic here — hide it */
 .tg-ctx-reactions .ReactionSelector__bubble-big {
@@ -855,6 +853,10 @@ button.tg-reply-embed:focus-visible {
 .tg-ctx-reactions .ReactionSelector__show-more .icon {
   font-size: 1.125rem;
   color: var(--color-text-secondary, #707579);
+  transition: transform 0.15s ease;
+}
+.tg-ctx-reactions .tg-ctx-reactions-row.is-expanded .ReactionSelector__show-more .icon {
+  transform: rotate(180deg);
 }
 /* animated (video) custom emoji: match the inline sizing of the <img> variant */
 video.tg-custom-emoji {
@@ -888,18 +890,8 @@ video.tg-custom-emoji {
   outline: none;
 }
 
-/* brief highlight when jumping to a quoted (replied-to) message */
-@keyframes tg-flash {
-  0% {
-    background-color: rgb(150 150 150 / 0.22);
-  }
-  100% {
-    background-color: transparent;
-  }
-}
-.tg-flash .message-content {
-  animation: tg-flash 1.2s ease-out;
-}
+/* Jump-to-message highlight uses the vendored Web A `.Message.focused:before`
+   full-row overlay (tg-webapp.css) — no custom flash CSS needed. */
 
 /* reply strip above the composer input */
 .tg-reply-bar {
@@ -1805,6 +1797,17 @@ video.tg-custom-emoji {
   opacity: 0.55;
   cursor: default;
 }
+/* The vendored Web A sheet stacks four icons inside one .Button.send and
+   blanks the inactive ones with `animation: hide-icon forwards` (opacity:0).
+   Our buttons hold exactly ONE icon each, so that animation just erased the
+   idle mic and the edit-save check — neutralize it (6 classes beats the
+   vendor's 5, and this sheet loads after tg-webapp.css). */
+.tg-app .Composer > .Button.send.main-button .icon-microphone-alt,
+.tg-app .Composer > .Button.send.main-button .icon-check {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
 
 /* ── Photo lightbox — click a message photo to view it full size. ───────── */
 .tg-media-clickable {
@@ -2479,73 +2482,34 @@ video.tg-custom-emoji {
   text-align: center;
 }
 
-/* --- Multi-select. --- */
-.tg-select-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 0 auto 0.375rem;
-  padding: 0.375rem 0.75rem;
-  max-width: var(--messages-container-width, 45.5rem);
-  width: 100%;
-  background: var(--color-background);
-  border: 1px solid var(--color-borders);
-  border-radius: 0.75rem;
-  box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.12);
-}
-.tg-select-count {
-  font-weight: 500;
-  color: var(--color-text);
-}
-.tg-select-actions {
-  margin-left: auto;
-  display: flex;
-  gap: 0.375rem;
-}
-.tg-select-actions .Button {
-  width: auto;
-  height: 2rem;
-  padding: 0 0.75rem;
-  border-radius: 1rem;
-  font-size: 0.875rem;
-}
+/* --- Multi-select (vendored Web A machinery: .select-mode-active on the
+   MessageList shifts rows + reveals each .message-select-control, and the
+   .MessageSelectToolbar replaces the composer; tg-webapp.css styles all of
+   it). Only the deltas the replica needs live here. --- */
 .Message.is-select-mode {
   cursor: pointer;
 }
 .Message.is-select-mode .message-content-wrapper {
   pointer-events: none;
 }
-.Message.is-selected .message-content {
-  outline: 2px solid var(--color-primary, #3390ec);
-  outline-offset: 1px;
+/* The toolbar renders in flow where the composer was (the vendored absolute
+   bottom-anchoring targets Web A's .middle-column-footer, which this replica
+   doesn't reproduce). */
+.tg-app .MessageSelectToolbar {
+  position: static;
+  width: 100%;
+  margin: 0;
 }
-.tg-select-dot {
-  position: absolute;
-  left: 0.25rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 1.25rem;
-  height: 1.25rem;
-  border: 2px solid var(--color-borders);
-  border-radius: 50%;
-  background: var(--color-background);
-  display: inline-flex;
+/* Web A renders the action items as divs; ours are real <button>s. */
+.tg-app .MessageSelectToolbar-actions .item {
+  border: 0;
+  width: auto;
+  font-family: inherit;
+}
+.tg-app .MessageSelectToolbar-inner {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  z-index: 2;
-  pointer-events: none;
-}
-.tg-select-dot.is-on {
-  background: var(--color-primary, #3390ec);
-  border-color: var(--color-primary, #3390ec);
-  color: #fff;
-  font-size: 0.75rem;
-}
-.Message.is-select-mode.has-avatar {
-  padding-left: 4.5rem;
-}
-.Message.is-select-mode .Avatar {
-  opacity: 0.5;
+  padding: 0.25rem 0.5rem;
 }
 
 /* --- Attach menu popup. --- */

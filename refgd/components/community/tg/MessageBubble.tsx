@@ -181,6 +181,8 @@ export default function MessageBubble({
   const contentCls = [
     "message-content",
     "peer-color-count-2",
+    // Web A sizes the "Forwarded from" icon/title via .is-forwarded rules.
+    forward ? "is-forwarded" : "",
     hasBody || hasReactions ? "text" : "",
     plain ? "" : "has-shadow",
     plain ? "" : "has-solid-background",
@@ -359,12 +361,11 @@ export default function MessageBubble({
       )}
 
       {selectMode && (
-        <span
-          className={`tg-select-dot${selected ? " is-on" : ""}`}
-          aria-hidden
-        >
-          {selected && <i className="icon icon-check" aria-hidden />}
-        </span>
+        <div className="message-select-control" aria-hidden>
+          {selected && (
+            <i className="icon icon-select message-select-control-icon" />
+          )}
+        </div>
       )}
       <div
         className="message-content-wrapper can-select-text"

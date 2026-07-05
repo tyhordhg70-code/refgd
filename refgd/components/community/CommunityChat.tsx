@@ -597,6 +597,28 @@ export default function CommunityChat({
       )
       .catch(() => showToast("Couldn't update pin"));
   };
+  // Jump-target highlight: Web A adds `focused` to the .Message row, which
+  // lights the vendored full-width `.Message.focused:before` overlay (instant
+  // on, fades out on removal via --select-transition).
+  const focusTimerRef = useRef<number | null>(null);
+  const focusedElRef = useRef<HTMLElement | null>(null);
+  const focusMessage = (el: HTMLElement) => {
+    if (focusTimerRef.current !== null) {
+      window.clearTimeout(focusTimerRef.current);
+      focusTimerRef.current = null;
+    }
+    if (focusedElRef.current && focusedElRef.current !== el) {
+      focusedElRef.current.classList.remove("focused");
+    }
+    el.classList.add("focused");
+    focusedElRef.current = el;
+    focusTimerRef.current = window.setTimeout(() => {
+      el.classList.remove("focused");
+      focusTimerRef.current = null;
+      focusedElRef.current = null;
+    }, 1400);
+  };
+
   // Jump to a quoted message when its reply preview is tapped, briefly
   // highlighting the target the way the real client does.
   const scrollToMessage = (id: string) => {
@@ -607,10 +629,7 @@ export default function CommunityChat({
     );
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "center" });
-    el.classList.remove("tg-flash");
-    void el.offsetWidth;
-    el.classList.add("tg-flash");
-    window.setTimeout(() => el.classList.remove("tg-flash"), 1200);
+    focusMessage(el);
   };
 
   // Append an emoji character / custom-emoji token to the composer text and
@@ -1071,31 +1090,42 @@ export default function CommunityChat({
     <div className="ReactionSelector__items-wrapper tg-ctx-reactions">
       <div className="ReactionSelector__bubble-big" aria-hidden />
       <div className="ReactionSelector__items">
+        {/* The show-more chevron lives OUTSIDE the scrollable strip so it's
+            always visible; inside it, the overflow scrolled it offscreen and
+            the row looked like it had no expand at all. data-lenis-prevent
+            keeps the horizontal swipe on the strip (Lenis owns page touch). */}
         <div
           className={
-            "ReactionSelector__reactions" +
-            (reactionsExpanded ? " tg-ctx-reactions-expanded" : "")
+            "tg-ctx-reactions-row" + (reactionsExpanded ? " is-expanded" : "")
           }
         >
-          {REACTIONS.map((e) => (
-            <button
-              key={e}
-              type="button"
-              className="tg-ctx-reaction ReactionSelector__reaction"
-              onClick={() => {
-                reactAny(targetKey, e);
-                setCtxMenu(null);
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={emojiSrc(e)}
-                alt={e}
-                className="emoji"
-                draggable={false}
-              />
-            </button>
-          ))}
+          <div
+            className={
+              "ReactionSelector__reactions" +
+              (reactionsExpanded ? " tg-ctx-reactions-expanded" : "")
+            }
+            data-lenis-prevent=""
+          >
+            {REACTIONS.map((e) => (
+              <button
+                key={e}
+                type="button"
+                className="tg-ctx-reaction ReactionSelector__reaction"
+                onClick={() => {
+                  reactAny(targetKey, e);
+                  setCtxMenu(null);
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={emojiSrc(e)}
+                  alt={e}
+                  className="emoji"
+                  draggable={false}
+                />
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             className="Button ReactionSelector__show-more default translucent"
@@ -1165,11 +1195,16 @@ export default function CommunityChat({
     if (!m) return;
     const id = m[1];
     const t = window.setTimeout(() => {
-      document
-        .querySelector(`[data-mid="${CSS.escape(id)}"]`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const el = document.querySelector<HTMLElement>(
+        `[data-mid="${CSS.escape(id)}"]`,
+      );
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      focusMessage(el);
     }, 80);
     return () => window.clearTimeout(t);
+    // focusMessage is a stable closure over refs only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.messages?.length]);
 
   // Keep the contenteditable input in sync with chat.text when it changes
@@ -1649,7 +1684,8 @@ export default function CommunityChat({
                   </button>
                 )}
                 {(ctxMenu.m.tgId === me?.tid || me?.admin) &&
-                  !isTokenBody(ctxMenu.m.body ?? "") && (
+                  !isTokenBody(ctxMenu.m.body ?? "") &&
+                  parseForward(ctxMenu.m.body ?? "").name === null && (
                   <button
                     type="button"
                     className="tg-menu-item"
@@ -1917,7 +1953,10 @@ export default function CommunityChat({
           <div
             ref={chat.scrollRef}
             onScroll={handleScroll}
-            className="Transition MessageList custom-scroll with-default-bg"
+            className={
+              "Transition MessageList custom-scroll with-default-bg" +
+              (selecting ? " select-mode-active" : "")
+            }
             data-has-pinned-banner={
               pinnedBannerMsg && search === null && !pinnedOnly
                 ? "true"
@@ -2196,36 +2235,49 @@ export default function CommunityChat({
           </button>
         )}
         {selecting && (
-          <div className="tg-select-bar">
-            <span className="tg-select-count">
-              {selectedIds.size} selected
-            </span>
-            <div className="tg-select-actions">
+          <div className="MessageSelectToolbar with-composer shown">
+            <div className="MessageSelectToolbar-inner">
               <button
                 type="button"
-                className="Button smaller translucent"
-                onClick={copySelected}
-                disabled={selectedIds.size === 0}
-              >
-                Copy
-              </button>
-              {me?.admin && (
-                <button
-                  type="button"
-                  className="Button smaller translucent"
-                  onClick={forwardSelected}
-                  disabled={selectedIds.size === 0}
-                >
-                  Forward
-                </button>
-              )}
-              <button
-                type="button"
-                className="Button smaller translucent"
+                className="Button smaller translucent round"
+                aria-label="Exit select mode"
                 onClick={exitSelect}
               >
-                Cancel
+                <i className="icon icon-close" aria-hidden />
               </button>
+              <span className="MessageSelectToolbar-count">
+                {selectedIds.size === 1
+                  ? "1 message selected"
+                  : `${selectedIds.size} messages selected`}
+              </span>
+              <div className="MessageSelectToolbar-actions">
+                <button
+                  type="button"
+                  className={
+                    "item" + (selectedIds.size === 0 ? " disabled" : "")
+                  }
+                  aria-label="Copy selected messages"
+                  title="Copy"
+                  onClick={copySelected}
+                  disabled={selectedIds.size === 0}
+                >
+                  <i className="icon icon-copy" aria-hidden />
+                </button>
+                {me?.admin && (
+                  <button
+                    type="button"
+                    className={
+                      "item" + (selectedIds.size === 0 ? " disabled" : "")
+                    }
+                    aria-label="Forward selected messages"
+                    title="Forward"
+                    onClick={forwardSelected}
+                    disabled={selectedIds.size === 0}
+                  >
+                    <i className="icon icon-forward" aria-hidden />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -2254,7 +2306,7 @@ export default function CommunityChat({
           </div>
         )}
 
-        {state !== null && me && (!lockedForMembers || me.admin) && (
+        {state !== null && me && !selecting && (!lockedForMembers || me.admin) && (
           <div className="Composer shown mounted">
             {emojiOpen && (
               <EmojiPanel
