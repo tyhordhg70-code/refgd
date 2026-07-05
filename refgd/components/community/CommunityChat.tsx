@@ -39,6 +39,7 @@ import {
   IconLink,
   IconPin,
   IconReply,
+  IconSelect,
   IconSettings,
 } from "./tg/TgIcons";
 import {
@@ -1664,7 +1665,7 @@ export default function CommunityChat({
                     setSelectedIds(new Set([id]));
                   }}
                 >
-                  <i className="icon icon-select" aria-hidden />
+                  <IconSelect />
                   Select
                 </button>
                 <button

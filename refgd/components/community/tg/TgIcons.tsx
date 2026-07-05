@@ -138,6 +138,29 @@ export function IconCopy() {
   );
 }
 
+export function IconSelect() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        fill="none"
+      />
+      <path
+        d="m8.1 12.4 2.6 2.6 5.2-5.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
 export function IconPin() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden>
