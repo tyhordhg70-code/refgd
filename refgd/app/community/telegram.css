@@ -1673,16 +1673,20 @@ video.tg-custom-emoji {
    rendered as a blank white column. Full-bleed the topic panel instead.
    The panel is position:absolute (top:0), so #LeftColumn's fullscreen
    safe-area padding doesn't push it down — offset its top directly and
-   pin the bottom so the height stays correct. */
-.tg-html .m2EjaIDq {
-  left: 0 !important;
-  border-left: none;
-  top: calc(
-    var(--tg-safe-area-inset-top, 0px) +
-      var(--tg-content-safe-area-inset-top, 0px)
-  );
-  bottom: 0;
-  height: auto;
+   pin the bottom so the height stays correct. Scoped to the single-pane
+   (mobile) layout; the desktop two-pane block at the end of this file
+   positions the panel itself. */
+@media (max-width: 925px) {
+  .tg-html .m2EjaIDq {
+    left: 0 !important;
+    border-left: none;
+    top: calc(
+      var(--tg-safe-area-inset-top, 0px) +
+        var(--tg-content-safe-area-inset-top, 0px)
+    );
+    bottom: 0;
+    height: auto;
+  }
 }
 
 /* "Topic locked" bar — Web A's compact read-only footer: lock icon +
@@ -2575,4 +2579,149 @@ video.tg-custom-emoji {
 .tg-autocomplete .tg-command-name {
   color: var(--color-text);
   font-weight: 500;
+}
+
+/* ── Desktop two-pane layout (≥926px) ────────────────────────────────
+   Web A keeps the chat list beside the open chat on desktop. The replica's
+   left grid track collapsed to 0 because the saved client sizes #LeftColumn
+   from a JS-managed --left-column-width var we never set, which left the
+   topic panel floating as a short card over a bare middle. Pin the track
+   width ourselves and anchor the panel inside it. #Main.tg-list-collapsed
+   (user toggle in the list header, persisted) slides the pane away and
+   reveals the floating reopen button in the chat header corner. */
+.tg-app .tg-desk-only {
+  display: none;
+}
+.tg-app .tg-list-reopen {
+  display: none;
+  position: absolute;
+  top: 0.4375rem;
+  left: 0.5rem;
+  z-index: calc(var(--z-middle-header, 11) + 1);
+}
+@media (min-width: 926px) {
+  .tg-app .tg-body #Main {
+    grid-template-columns: 26.5rem minmax(0, 1fr);
+    transition: grid-template-columns 0.25s ease-in-out;
+  }
+  .tg-app .tg-body #Main.tg-list-collapsed {
+    grid-template-columns: 0rem minmax(0, 1fr);
+  }
+  .tg-app .tg-body #LeftColumn {
+    position: relative;
+    inset: auto;
+    width: auto;
+    max-width: none;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    transform: none;
+    overflow: hidden;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  /* the panel keeps its full width while the track shrinks, so collapsing
+     clips it like a slide instead of squishing the rows. Positioning is
+     self-contained here (the round-4 full-bleed rule is mobile-scoped):
+     left:0 overrides the saved client's left:4.75rem chat-list strip. */
+  .tg-app .tg-html .m2EjaIDq {
+    width: 26.5rem;
+    left: 0 !important;
+    right: auto;
+    top: 0;
+    bottom: 0;
+    height: auto;
+    border-left: none;
+    border-right: 1px solid var(--color-borders);
+  }
+  /* the chat pane lives in the second grid track — never overlay-fixed */
+  .tg-app .tg-body #MiddleColumn {
+    position: relative;
+    inset: auto;
+    max-width: none;
+    transform: none;
+  }
+  /* the topic list is always reachable beside the chat, so the in-chat
+     back arrow is meaningless on desktop */
+  .tg-app .MiddleHeader .back-button {
+    display: none;
+  }
+  .tg-app .tg-desk-only {
+    display: flex;
+  }
+  .tg-app .tg-body #Main.tg-list-collapsed .tg-list-reopen {
+    display: flex;
+  }
+  .tg-app .tg-body #Main.tg-list-collapsed .MiddleHeader .Transition {
+    margin-left: 2.75rem;
+  }
+}
+
+/* ── Send / appear animations ────────────────────────────────────────
+   One-shot entrance for messages that arrive AFTER the initial load —
+   own sends pop up from the composer corner, incoming posts float up.
+   The class stays on the node (CommunityChat remembers it per id), so the
+   animation only runs when the bubble is first inserted. */
+@keyframes tg-msg-appear-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tg-msg-appear-own {
+  from {
+    opacity: 0;
+    transform: translateY(1rem) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.tg-app .Message.tg-msg-new-in {
+  animation: tg-msg-appear-in 0.25s ease-out both;
+}
+.tg-app .Message.tg-msg-new-own {
+  transform-origin: bottom right;
+  animation: tg-msg-appear-own 0.3s cubic-bezier(0.34, 1.3, 0.64, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tg-app .Message.tg-msg-new-in,
+  .tg-app .Message.tg-msg-new-own {
+    animation: none;
+  }
+}
+
+/* ── T205 polish: mobile chat slide-in + topic-row ripple support ────
+   Slide-in: when a topic opens on mobile (#Main loses left-column-shown),
+   the chat column animates in from the right like Web A. The swipe-back
+   gesture (inline transform) is untouched — the animation only plays as
+   the selector STARTS matching, i.e. at open. Ripple: the vendored
+   stylesheet ships .ripple-container/.ripple-wave + keyframes; the button
+   just needs a positioning context so the wave clips to the row. */
+@keyframes tg-middle-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@media (max-width: 925px) {
+  .tg-app #Main:not(.left-column-shown) #MiddleColumn {
+    animation: tg-middle-slide-in 0.25s ease-out;
+  }
+}
+.tg-app #LeftColumn .ListItem-button {
+  position: relative;
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tg-app #Main:not(.left-column-shown) #MiddleColumn {
+    animation: none;
+  }
 }

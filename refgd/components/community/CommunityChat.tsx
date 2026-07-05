@@ -48,6 +48,8 @@ import {
   dateLabel,
   emojiSrc,
   isSingleCustomEmoji,
+  isSingleStandardEmoji,
+  AnimatedEmoji,
   parsePollToken,
   parseVoiceToken,
   peerIdx,
@@ -721,6 +723,38 @@ export default function CommunityChat({
 
   const { state, me } = chat;
 
+  // ── Send / appear animations ───────────────────────────────────────
+  // Messages present at the initial load render statically; anything that
+  // arrives after the seed (an own send, or another member's post landing
+  // via the poll) gets a one-shot entrance class. The class is remembered
+  // per id and stays on the node, so re-renders never restart the
+  // animation — it only plays when the bubble is first inserted.
+  const appearTopicRef = useRef(topic);
+  const appearSeedRef = useRef<number | null>(null);
+  const appearClsRef = useRef<Map<string, string>>(new Map());
+  if (appearTopicRef.current !== topic) {
+    appearTopicRef.current = topic;
+    appearSeedRef.current = null;
+    appearClsRef.current = new Map();
+  }
+  useEffect(() => {
+    if (appearSeedRef.current !== null || state === null) return;
+    appearSeedRef.current = state.messages.reduce(
+      (acc, m) => Math.max(acc, Number(m.id) || 0),
+      0,
+    );
+  }, [state]);
+  const appearClsFor = (id: string, own: boolean) => {
+    const seed = appearSeedRef.current;
+    if (seed === null || !(Number(id) > seed)) return undefined;
+    let cls = appearClsRef.current.get(id);
+    if (!cls) {
+      cls = own ? "tg-msg-new-own" : "tg-msg-new-in";
+      appearClsRef.current.set(id, cls);
+    }
+    return cls;
+  };
+
   // Reactions on readonly bubbles (imported vouches + seed posts) live in
   // their own TEXT key space ("v<id>" / "seed:<key>"); live chat messages
   // keep the useCommunityChat flow. reactAny routes by key shape.
@@ -810,6 +844,50 @@ export default function CommunityChat({
     setShowFab(false);
   };
 
+  // Drives the vendored Web A sticky-date CSS: the stylesheet already ships
+  // the sticky/fade rules but expects the CLIENT to toggle three classes —
+  // `scrolled` on the MessageList (enables position:sticky),
+  // `is-scrolling-messages` on .tg-body while the user scrolls (the pinned
+  // pill fades out ~1s after scrolling stops), and `stuck` on the date pill
+  // currently pinned at the top. Pure classList work on a handful of date
+  // groups — no React state, so scrolling stays render-free.
+  const scrollIdleRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (scrollIdleRef.current !== null) {
+        window.clearTimeout(scrollIdleRef.current);
+      }
+    },
+    [],
+  );
+  const updateStickyDate = (el: HTMLDivElement) => {
+    const scrolledDown = el.scrollTop > 16;
+    el.classList.toggle("scrolled", scrolledDown);
+    const body = el.closest(".tg-body");
+    if (body) {
+      body.classList.add("is-scrolling-messages");
+      if (scrollIdleRef.current !== null) {
+        window.clearTimeout(scrollIdleRef.current);
+      }
+      scrollIdleRef.current = window.setTimeout(() => {
+        body.classList.remove("is-scrolling-messages");
+        scrollIdleRef.current = null;
+      }, 1000);
+    }
+    const listTop = el.getBoundingClientRect().top;
+    const groups = el.querySelectorAll<HTMLElement>(".message-date-group");
+    let current: HTMLElement | null = null;
+    groups.forEach((g) => {
+      if (g.getBoundingClientRect().top - listTop <= 64) current = g;
+    });
+    groups.forEach((g) => {
+      const pill = g.querySelector(".sticky-date");
+      if (pill) {
+        pill.classList.toggle("stuck", scrolledDown && g === current);
+      }
+    });
+  };
+
   // Wraps the hook's scroll handler to also drive the FAB show/hide state.
   const handleScroll = (e: ReactUIEvent<HTMLDivElement>) => {
     chat.onScroll();
@@ -817,6 +895,7 @@ export default function CommunityChat({
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
     setShowFab(!nearBottom);
     if (nearBottom) setUnread(0);
+    updateStickyDate(el);
   };
 
   const exitSelect = () => {
@@ -1957,6 +2036,13 @@ export default function CommunityChat({
                                 voice || pollId
                                   ? null
                                   : isSingleCustomEmoji(fwd.rest);
+                              // Single STANDARD emoji ("🔥" alone) → jumbo
+                              // Telegram-style ANIMATED emoji (T204); falls
+                              // back to the static Apple sprite on any miss.
+                              const singleStd =
+                                voice || pollId || single
+                                  ? null
+                                  : isSingleStandardEmoji(fwd.rest);
                               const body = voice ? (
                                 <VoiceMessage
                                   src={mediaUrl(voice.mediaId)}
@@ -1978,6 +2064,10 @@ export default function CommunityChat({
                                     alt={single.alt}
                                   />
                                 </span>
+                              ) : singleStd ? (
+                                <span className="tg-jumbo-sticker">
+                                  <AnimatedEmoji ch={singleStd} />
+                                </span>
                               ) : fwd.rest ? (
                                 renderBody(fwd.rest)
                               ) : undefined;
@@ -1991,6 +2081,7 @@ export default function CommunityChat({
                                   <MessageBubble
                                   mid={m.id}
                                   own={own}
+                                  appearCls={appearClsFor(m.id, own)}
                                   first={first}
                                   last={last}
                                   showAvatarGutter
@@ -2023,7 +2114,7 @@ export default function CommunityChat({
                                       : m.reply
                                   }
                                   body={body}
-                                  plain={!!single}
+                                  plain={!!single || !!singleStd}
                                   media={
                                     m.mediaId
                                       ? [

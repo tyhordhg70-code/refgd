@@ -66,6 +66,7 @@ export default function MessageBubble({
   selectMode,
   selected,
   onToggleSelect,
+  appearCls,
 }: {
   own: boolean;
   /** First message of its author run (adds first-in-group). */
@@ -117,6 +118,12 @@ export default function MessageBubble({
   selectMode?: boolean;
   selected?: boolean;
   onToggleSelect?: () => void;
+  /**
+   * One-shot entrance animation class (tg-msg-new-own / tg-msg-new-in) for
+   * messages appended after the initial load. Kept on the node afterwards —
+   * the CSS animation only runs on insertion.
+   */
+  appearCls?: string;
 }) {
   const pressTimer = useRef<number | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
@@ -166,6 +173,7 @@ export default function MessageBubble({
     "open",
     selectMode ? "is-select-mode" : "",
     selectMode && selected ? "is-selected" : "",
+    appearCls ?? "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -265,6 +273,10 @@ export default function MessageBubble({
               // finger wobble no longer eats the menu on others' messages.
               if (Math.hypot(dx, dy) > 10) clearPress();
               if (!onSwipeReply || selectMode || menuFired.current) return;
+              // Touches starting at the left screen edge belong to the
+              // swipe-back-to-topic-list gesture (TelegramApp); don't turn
+              // them into a swipe-to-reply.
+              if (s.x < 28) return;
               // Horizontal rightward drag becomes a swipe-to-reply; the
               // bubble follows the finger up to 72px.
               if (!swiping.current && dx > 12 && Math.abs(dy) < 30)

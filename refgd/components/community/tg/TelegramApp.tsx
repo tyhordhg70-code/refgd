@@ -5,7 +5,9 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
+  type TouchEvent as ReactTouchEvent,
 } from "react";
 import { useRouter } from "next/navigation";
 import CommunityChat from "../CommunityChat";
@@ -160,6 +162,26 @@ export default function TelegramApp({
   // Topic-list search: null = closed, string = open with that query.
   const [listSearch, setListSearch] = useState<string | null>(null);
   const [showNotif, setShowNotif] = useState(false);
+  // Desktop-only (≥926px): collapse the persistent topic-list pane. Read the
+  // saved preference in an effect so the SSR markup matches the first paint.
+  const [listCollapsed, setListCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("tg_list_collapsed") === "1")
+        setListCollapsed(true);
+    } catch {
+      /* storage unavailable */
+    }
+  }, []);
+  const toggleListCollapsed = () =>
+    setListCollapsed((v) => {
+      try {
+        localStorage.setItem("tg_list_collapsed", v ? "0" : "1");
+      } catch {
+        /* storage unavailable */
+      }
+      return !v;
+    });
   const listQuery = (listSearch ?? "").trim().toLowerCase();
   const visibleTopics = listQuery
     ? TOPICS.filter((t) => t.title.toLowerCase().includes(listQuery))
@@ -342,6 +364,98 @@ export default function TelegramApp({
 
   const back = () => setActive(null);
 
+  // Web A-style tap ripple on topic rows: the vendored stylesheet already
+  // ships .ripple-container/.ripple-wave and the ripple-animation keyframes —
+  // this just spawns the wave <span> at the press point, exactly what Web A's
+  // RippleEffect component does. Self-cleaning after the 0.7s animation.
+  const spawnRipple = (e: ReactMouseEvent<HTMLAnchorElement>) => {
+    const btn = e.currentTarget;
+    const container = btn.querySelector(".ripple-container");
+    if (!container) return;
+    const rect = btn.getBoundingClientRect();
+    const size = rect.width / 2;
+    const wave = document.createElement("span");
+    wave.className = "ripple-wave";
+    wave.style.width = `${size}px`;
+    wave.style.height = `${size}px`;
+    wave.style.left = `${e.clientX - rect.left - size / 2}px`;
+    wave.style.top = `${e.clientY - rect.top - size / 2}px`;
+    container.appendChild(wave);
+    window.setTimeout(() => wave.remove(), 700);
+  };
+
+  // ── Mobile swipe-back (≤925px) ─────────────────────────────────────
+  // iOS-style edge gesture: a touch starting within 28px of the left screen
+  // edge drags the whole chat column with the finger; releasing past 90px
+  // slides it away and returns to the topic list. The drag writes an inline
+  // transform on #MiddleColumn directly so no re-renders happen per move.
+  // MessageBubble ignores edge-started touches for its swipe-to-reply.
+  const middleRef = useRef<HTMLDivElement | null>(null);
+  const backSwipe = useRef<{
+    x: number;
+    y: number;
+    dragging: boolean;
+    dead: boolean;
+  } | null>(null);
+  const onMiddleTouchStart = (e: ReactTouchEvent<HTMLDivElement>) => {
+    if (active === null || e.touches.length > 1) return;
+    if (!window.matchMedia("(max-width: 925px)").matches) return;
+    const t = e.touches[0];
+    if (!t || t.clientX >= 28) return;
+    backSwipe.current = {
+      x: t.clientX,
+      y: t.clientY,
+      dragging: false,
+      dead: false,
+    };
+  };
+  const onMiddleTouchMove = (e: ReactTouchEvent<HTMLDivElement>) => {
+    const s = backSwipe.current;
+    const el = middleRef.current;
+    if (!s || s.dead || !el) return;
+    const t = e.touches[0];
+    if (!t) return;
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    if (!s.dragging) {
+      if (Math.abs(dy) > Math.abs(dx)) {
+        // vertical intent — let the message list scroll
+        if (Math.abs(dy) > 12) s.dead = true;
+        return;
+      }
+      if (dx < 8) return;
+      s.dragging = true;
+      el.style.transition = "none";
+    }
+    el.style.transform = `translateX(${Math.max(0, dx)}px)`;
+  };
+  const onMiddleTouchEnd = (e: ReactTouchEvent<HTMLDivElement>) => {
+    const s = backSwipe.current;
+    backSwipe.current = null;
+    const el = middleRef.current;
+    if (!s || !s.dragging || !el) return;
+    const t = e.changedTouches[0];
+    const dx = t ? t.clientX - s.x : 0;
+    el.style.transition = "transform 0.2s ease-out";
+    if (dx > 90) {
+      // Commit: finish the slide offscreen, then show the list and hand
+      // the column's transform back to the stylesheet.
+      el.style.transform = "translateX(100vw)";
+      window.setTimeout(() => {
+        back();
+        el.style.transition = "";
+        el.style.transform = "";
+      }, 210);
+    } else {
+      // Revert: spring back into place.
+      el.style.transform = "translateX(0px)";
+      window.setTimeout(() => {
+        el.style.transition = "";
+        el.style.transform = "";
+      }, 210);
+    }
+  };
+
   // In the Mini App the ✕ must close the sheet (Web A parity); on the web it
   // returns to the main site. router.push inside Telegram stranded users on
   // the site within the webview.
@@ -367,6 +481,7 @@ export default function TelegramApp({
     "opacity-transition",
     "fast",
     active === null ? "left-column-shown left-column-open" : "",
+    listCollapsed ? "tg-list-collapsed" : "",
     "right-column-not-shown",
     "right-column-not-open",
   ]
@@ -633,6 +748,15 @@ export default function TelegramApp({
                       <div className="HeaderActions">
                         <button
                           type="button"
+                          className="Button smaller translucent round tg-desk-only"
+                          aria-label="Hide topic list"
+                          title="Hide topic list"
+                          onClick={toggleListCollapsed}
+                        >
+                          <i className="icon icon-sidebar" aria-hidden />
+                        </button>
+                        <button
+                          type="button"
                           className="Button smaller translucent round"
                           aria-label="Search topics"
                           title="Search topics"
@@ -733,11 +857,13 @@ export default function TelegramApp({
                             className="ListItem-button"
                             href={`#${t.key}`}
                             tabIndex={0}
+                            onMouseDown={spawnRipple}
                             onClick={(e) => {
                               e.preventDefault();
                               setActive(t.key);
                             }}
                           >
+                            <div className="ripple-container" />
                             <div className="info">
                               <div className="info-row">
                                 <div className="title">
@@ -787,9 +913,26 @@ export default function TelegramApp({
               </div>
             </div>
 
-            <div id="MiddleColumn" className="mask-image-disabled ui-ready">
+            <div
+              id="MiddleColumn"
+              className="mask-image-disabled ui-ready"
+              ref={middleRef}
+              onTouchStart={onMiddleTouchStart}
+              onTouchMove={onMiddleTouchMove}
+              onTouchEnd={onMiddleTouchEnd}
+              onTouchCancel={onMiddleTouchEnd}
+            >
               <div className="resize-handle" />
               <div id="middle-column-portals" />
+              <button
+                type="button"
+                className="Button smaller translucent round tg-list-reopen"
+                aria-label="Show topic list"
+                title="Show topic list"
+                onClick={toggleListCollapsed}
+              >
+                <i className="icon icon-sidebar" aria-hidden />
+              </button>
               <div className="messages-layout">{middle}</div>
             </div>
           </div>

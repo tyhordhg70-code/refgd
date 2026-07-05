@@ -163,6 +163,60 @@ export function renderTextWithEmoji(text: string, keyPrefix = "t"): ReactNode[] 
   return out;
 }
 
+/**
+ * A message whose ENTIRE trimmed body is one standard-emoji grapheme (e.g.
+ * "🔥", "❤️", a flag or a ZWJ family) — Telegram renders those as a jumbo
+ * ANIMATED emoji instead of a text bubble. Returns the emoji or null.
+ */
+const SINGLE_EMOJI_RE = new RegExp(`^(?:${EMOJI_RE.source})$`, "u");
+export function isSingleStandardEmoji(text: string): string | null {
+  const t = text.trim();
+  if (!t || t.length > 24) return null;
+  return SINGLE_EMOJI_RE.test(t) ? t : null;
+}
+
+/** Emoji sequence → the animated-emoji route's hex codepoint key. */
+function emojiHexKey(seq: string): string {
+  return Array.from(seq)
+    .map((c) => (c.codePointAt(0) ?? 0).toString(16))
+    .join("-");
+}
+
+/**
+ * Telegram-style animated standard emoji: plays the official AnimatedEmojies
+ * .tgs artwork (served as Lottie JSON by /api/community/animated-emoji) with
+ * the vendored player; on ANY failure (no artwork for this emoji, route 404
+ * without the bot token, player unavailable) it falls back to the static
+ * Apple sprite of the SAME glyph — unlike pack emoji, a static same-glyph
+ * substitute is correct here.
+ */
+export function AnimatedEmoji({ ch }: { ch: string }) {
+  const [fallback, setFallback] = useState(false);
+  // A recycled node can switch to a different emoji: reset the cascade.
+  useEffect(() => {
+    setFallback(false);
+  }, [ch]);
+  if (fallback) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={emojiSrc(ch)}
+        className="emoji emoji-small tg-custom-emoji"
+        alt={ch}
+        draggable={false}
+        loading="lazy"
+      />
+    );
+  }
+  return (
+    <LottieEmoji
+      src={`/api/community/animated-emoji/${emojiHexKey(ch)}`}
+      alt={ch}
+      onError={() => setFallback(true)}
+    />
+  );
+}
+
 const URL_RE = /(https?:\/\/[^\s]+|t\.me\/[^\s]+)/g;
 
 /**
