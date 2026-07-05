@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getChatMedia } from "@/lib/community";
+import { getCachedBlob, putCachedBlob } from "@/lib/blob-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,8 +19,16 @@ export async function GET(
   const { id } = await params;
   if (!/^\d+$/.test(id)) return new NextResponse(null, { status: 400 });
 
-  const media = await getChatMedia(id);
-  if (!media) return new NextResponse(null, { status: 404 });
+  // Ids are immutable — serve hot media from process memory instead of
+  // streaming the blob out of Postgres on every browser-cache miss (range
+  // requests below slice from the same cached buffer).
+  let media = getCachedBlob(`cm:${id}`);
+  if (!media) {
+    const row = await getChatMedia(id);
+    if (!row) return new NextResponse(null, { status: 404 });
+    putCachedBlob(`cm:${id}`, row.bytes, row.mime);
+    media = { bytes: row.bytes, mime: row.mime };
+  }
 
   const total = media.bytes.length;
   const headers = new Headers({

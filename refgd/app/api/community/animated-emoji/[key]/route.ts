@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCustomEmoji, saveCustomEmoji } from "@/lib/community";
+import { getCachedBlob, putCachedBlob } from "@/lib/blob-cache";
 import { communityBotToken } from "@/lib/community-bot";
 import {
   fetchStickerArt,
@@ -138,12 +139,22 @@ export async function GET(
   if (!KEY_RE.test(key)) return new NextResponse(null, { status: 400 });
 
   const cacheKey = `ae:${normKey(key)}`;
+
+  // In-process byte cache first (July 2026 Neon-egress incident): only
+  // full-quality immutable artwork is remembered — misses stay no-store.
+  const mem = getCachedBlob(cacheKey);
+  if (mem) return artResponse(mem.bytes, mem.mime);
+  const remember = (bytes: Buffer, mime: string) => {
+    putCachedBlob(cacheKey, bytes, mime);
+    return artResponse(bytes, mime);
+  };
+
   const cached = await getCustomEmoji(cacheKey);
   if (cached) {
     // Sub-floor row = poison marker (emoji not in the set): 404 without
     // re-hitting the Bot API; the client stays on its static sprite.
     if (cached.bytes.length < MIN_STICKER_BYTES) return missResponse();
-    return artResponse(cached.bytes, cached.mime);
+    return remember(cached.bytes, cached.mime);
   }
 
   const token = communityBotToken();
@@ -167,7 +178,7 @@ export async function GET(
     if (!art || art.bytes.length < MIN_STICKER_BYTES) return missResponse();
 
     await saveCustomEmoji(cacheKey, art.bytes, art.mime);
-    return artResponse(art.bytes, art.mime);
+    return remember(art.bytes, art.mime);
   } catch {
     return missResponse();
   }

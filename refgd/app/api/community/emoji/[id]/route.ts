@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCustomEmoji, saveCustomEmoji, isPackEmoji } from "@/lib/community";
+import { getCachedBlob, putCachedBlob } from "@/lib/blob-cache";
 import { communityBotToken } from "@/lib/community-bot";
 import { CUSTOM_EMOJI_IDS, EMOJI_CACHE_VERSION } from "@/lib/custom-emoji";
 import {
@@ -86,6 +87,18 @@ export async function GET(
     vParsed && vParsed <= EMOJI_CACHE_VERSION ? vParsed : null;
   const cacheKey = vNum ? `${id}:v${vNum}` : id;
 
+  // In-process byte cache first (July 2026 Neon-egress incident): the same
+  // hot emoji were being pulled out of Postgres BYTEA on every
+  // browser-cache miss. Cache keys are versioned (`:vN`), so entries are
+  // immutable — ONLY the full-quality imageResponse path is remembered
+  // here; degraded/poison/no-store paths are never memory-cached.
+  const mem = getCachedBlob(`ce:${cacheKey}`);
+  if (mem) return imageResponse(mem.bytes, mem.mime);
+  const remember = (bytes: Buffer, mime: string) => {
+    putCachedBlob(`ce:${cacheKey}`, bytes, mime);
+    return imageResponse(bytes, mime);
+  };
+
   // CACHE-FIRST, allowlist second: bytes already cached in Postgres are served
   // even when the id is no longer allowlisted, so an admin removing a pack
   // from the picker (community_emoji_pack) never blanks that pack's emoji in
@@ -100,7 +113,7 @@ export async function GET(
     if (cached.bytes.length < MIN_STICKER_BYTES) {
       return degradedResponse(null);
     }
-    return imageResponse(cached.bytes, cached.mime);
+    return remember(cached.bytes, cached.mime);
   }
 
   // Version-bump self-heal: rows from the previous ?v (>= v4) already hold the
@@ -113,7 +126,7 @@ export async function GET(
     const prev = await getCustomEmoji(`${id}:v${vNum - 1}`);
     if (prev && prev.bytes.length >= MIN_STICKER_BYTES) {
       await saveCustomEmoji(cacheKey, prev.bytes, prev.mime);
-      return imageResponse(prev.bytes, prev.mime);
+      return remember(prev.bytes, prev.mime);
     }
   }
 
@@ -170,7 +183,7 @@ export async function GET(
     }
 
     await saveCustomEmoji(cacheKey, art.bytes, art.mime);
-    return imageResponse(art.bytes, art.mime);
+    return remember(art.bytes, art.mime);
   } catch {
     // Fail soft — stale artwork beats an error page.
     return staleLegacy();

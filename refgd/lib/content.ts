@@ -1,9 +1,6 @@
 import { getPool, initDb } from "./db";
-import {
-  getCachedContent,
-  setCachedContent,
-  invalidateContent,
-} from "./cache";
+import { setCachedContent, invalidateContent } from "./cache";
+import { memoTtl, invalidateMemo } from "./micro-cache";
 import type { ContentBlock } from "./types";
 
 export const DEFAULT_CONTENT: Record<string, string> = {
@@ -27,55 +24,61 @@ export const DEFAULT_CONTENT: Record<string, string> = {
   "buy.url": "https://refundgod.bgng.io/",
 };
 
-/** Load all content blocks from DB into cache. */
-async function loadAll(): Promise<Map<string, string>> {
+/** Load all content blocks straight from the DB. Throws when unreachable. */
+async function loadAllFromDb(): Promise<Map<string, string>> {
   const map = new Map<string, string>();
+  await initDb();
+  const { rows } = await getPool().query(
+    "SELECT id, value FROM content_blocks"
+  );
+  for (const row of rows) {
+    map.set(row.id as string, row.value as string);
+  }
+  // Keep the legacy snapshot fresh for any code still reading
+  // getCachedContent() directly from this process.
+  setCachedContent(map);
+  return map;
+}
+
+const CONTENT_TTL_MS = 10_000;
+const CONTENT_MEMO_KEY = "content:all";
+
+/**
+ * Content reads: 10-SECOND micro-cache (July 2026).
+ *
+ * History matters here. v6.13.49 disabled caching entirely because the
+ * process-LIFETIME cache in ./cache.ts made admin edits invisible on the
+ * other Render workers forever ("edits don't actually publish to live").
+ * That fix was correct about the disease but the cure — a full
+ * `SELECT * FROM content_blocks` on EVERY page render, layout included —
+ * became the site's single biggest database-egress source and helped
+ * exhaust the Neon free-plan data-transfer quota, which took the DB down
+ * project-wide (every query rejected).
+ *
+ * This is the middle ground: reads are memoized for 10 seconds per
+ * worker (with in-flight dedupe and stale-on-error), so
+ *  - visitors cost ONE small query per worker per 10s instead of one per
+ *    page view;
+ *  - an admin Save is visible on the SAME worker instantly (the write
+ *    invalidates the memo below) and on every other worker within 10s —
+ *    bounded staleness, not the unbounded staleness v6.13.49 fixed.
+ * Do NOT extend this TTL casually and do NOT remove the invalidation in
+ * setContentBlock().
+ */
+async function getAllContent(): Promise<Map<string, string>> {
   try {
-    await initDb();
-    const { rows } = await getPool().query(
-      "SELECT id, value FROM content_blocks"
-    );
-    for (const row of rows) {
-      map.set(row.id as string, row.value as string);
-    }
+    return await memoTtl(CONTENT_MEMO_KEY, CONTENT_TTL_MS, loadAllFromDb);
   } catch (err) {
-    // DB unreachable — fall back to defaults so the page still
-    // renders. Production environments configure RENDER_DATABASE_URL;
-    // local previews / dev-without-DB use the in-code defaults below.
+    // DB unreachable and nothing cached yet — fall back to defaults so
+    // the page still renders (same behavior as before this cache).
     if (process.env.NODE_ENV !== "production") {
       console.warn(
         "[content] DB unavailable, using DEFAULT_CONTENT fallback:",
         (err as Error).message,
       );
     }
+    return new Map();
   }
-  setCachedContent(map);
-  return map;
-}
-
-/**
- * v6.13.49 — CACHE DISABLED for content reads.
- *
- * Why: Render auto-scales the Next.js service across multiple Node
- * instances. The module-level cache in `./cache.ts` lives in ONE
- * process; when an admin Saves, the PUT lands on instance A, A's
- * cache is invalidated, but instances B/C/D still serve their stale
- * cached Map for the lifetime of those processes. From the user's
- * perspective: "edits don't actually publish to live — when I go
- * back to edit mode the changes are saved there, but visitors see
- * the old text". Confirmed root cause.
- *
- * Fix: skip the cache entirely. content_blocks is a tiny table
- * (dozens of rows, single SELECT, no joins). Every page render that
- * needs the content map does ONE small query — well below 5 ms even
- * on Render's free tier — and every visitor (and every admin going
- * back into edit mode on any worker) immediately sees the saved
- * value. We KEEP `setCachedContent` calls inside `loadAll()` so any
- * legacy code path still hitting `getCachedContent()` directly will
- * at least get the most-recently-loaded snapshot from this process.
- */
-async function getAllContent(): Promise<Map<string, string>> {
-  return loadAll();
 }
 
 export async function getContentBlock(id: string): Promise<string> {
@@ -93,6 +96,9 @@ export async function setContentBlock(id: string, value: string): Promise<void> 
     [id, value]
   );
   invalidateContent();
+  // Same-worker reads must see the write IMMEDIATELY (the admin's own
+  // next render); other workers converge within CONTENT_TTL_MS.
+  invalidateMemo(CONTENT_MEMO_KEY);
 }
 
 /**

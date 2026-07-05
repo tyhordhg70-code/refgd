@@ -474,44 +474,73 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     }
   }, []);
 
-  // Short-poll for new messages.
+  // Short-poll for new messages. PAUSED while the tab is hidden — a
+  // backgrounded tab used to keep polling every 2.5s forever, which (across
+  // all open tabs, 24/7) was a top database-egress source in the July 2026
+  // Neon data-transfer-quota outage. On return to the tab we poll
+  // immediately, so nothing feels slower.
   useEffect(() => {
-    const id = window.setInterval(() => void poll(), POLL_MS);
-    return () => window.clearInterval(id);
+    const tick = () => {
+      if (document.hidden) return;
+      void poll();
+    };
+    const id = window.setInterval(tick, POLL_MS);
+    const onVisible = () => {
+      if (!document.hidden) void poll();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [poll]);
 
   // Periodic full re-fetch: merges fresh copies of already-rendered messages so
   // reaction counts and pin state stay in sync without a manual reload.
+  // Also paused while hidden (same egress incident — this one re-downloaded
+  // the whole 60-message window every 30s per tab); a catch-up refresh runs
+  // when the tab becomes visible again if one is overdue.
   useEffect(() => {
+    let lastRun = Date.now();
+    const run = async () => {
+      lastRun = Date.now();
+      try {
+        const res = await fetch(
+          `/api/community/chat?topic=${encodeURIComponent(topic)}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as ChatState;
+        setState((prev) =>
+          prev
+            ? {
+                ...prev,
+                me: data.me,
+                memberCount: data.memberCount,
+                hideMembers: data.hideMembers,
+                botUsername: data.botUsername ?? prev.botUsername,
+                welcome: data.welcome ?? prev.welcome,
+              }
+            : prev,
+        );
+        setTyping(Array.isArray(data.typing) ? data.typing : []);
+        reconcileFull(data.messages);
+      } catch {
+        /* transient — next tick retries */
+      }
+    };
     const id = window.setInterval(() => {
-      void (async () => {
-        try {
-          const res = await fetch(
-            `/api/community/chat?topic=${encodeURIComponent(topic)}`,
-            { cache: "no-store" },
-          );
-          if (!res.ok) return;
-          const data = (await res.json()) as ChatState;
-          setState((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  me: data.me,
-                  memberCount: data.memberCount,
-                  hideMembers: data.hideMembers,
-                  botUsername: data.botUsername ?? prev.botUsername,
-                  welcome: data.welcome ?? prev.welcome,
-                }
-              : prev,
-          );
-          setTyping(Array.isArray(data.typing) ? data.typing : []);
-          reconcileFull(data.messages);
-        } catch {
-          /* transient — next tick retries */
-        }
-      })();
+      if (document.hidden) return;
+      void run();
     }, REFRESH_MS);
-    return () => window.clearInterval(id);
+    const onVisible = () => {
+      if (!document.hidden && Date.now() - lastRun >= REFRESH_MS) void run();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [reconcileFull, topic]);
 
   // Keep the view pinned to the latest message when the user is at the bottom.

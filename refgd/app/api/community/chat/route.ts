@@ -22,6 +22,7 @@ import {
 } from "@/lib/community";
 import { notifyCategory } from "@/lib/community-notify";
 import { parseCommand, executeModCommand } from "@/lib/moderation";
+import { memoTtl } from "@/lib/micro-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -93,6 +94,46 @@ const MAX_VOICE_S = 600;
  * Reading the chat is public — it is the "window into the group". Loading it
  * while signed in also refreshes the member's presence (a lightweight join).
  */
+/** Build the chat-state payload for one GET. `me` is null when anonymous. */
+async function buildChatState(
+  topic: ChatTopic,
+  me: Awaited<ReturnType<typeof readMemberSession>>,
+  after: string | null,
+) {
+  // typing[] rides on BOTH the short-poll and the full load — the 2.5s
+  // ?after= tick is the delivery path that makes the indicator feel live.
+  //
+  // The single-row scalars (member count, group settings) used to run on
+  // EVERY 2.5s poll of every open tab — memoized a few seconds each since
+  // the July 2026 Neon data-transfer-quota incident. An admin toggling
+  // hide-members / editing the welcome converges within seconds.
+  const [messages, memberCount, hideMembers, botUsername, welcome, typing] =
+    await Promise.all([
+      listChatMessages({ afterId: after, viewerTid: me?.tid ?? null, topic }),
+      memoTtl("community:memberCount", 15_000, countChatMembers),
+      memoTtl("community:cfg:hideMembers", 10_000, () =>
+        getModConfig<boolean>("chat_hide_members", false),
+      ),
+      getCommunityBotUsername(), // already memoized in-process (getMe)
+      memoTtl("community:cfg:welcome", 10_000, () =>
+        getModConfig<string>("welcome", ""),
+      ),
+      listTyping(topic, me?.tid ?? null).catch(() => [] as string[]),
+    ]);
+
+  const showCount = !hideMembers || Boolean(me?.admin);
+
+  return {
+    me,
+    messages,
+    memberCount: showCount ? memberCount : null,
+    hideMembers,
+    botUsername,
+    welcome,
+    typing,
+  };
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const after = url.searchParams.get("after");
@@ -100,6 +141,26 @@ export async function GET(req: Request) {
   const topic: ChatTopic = isChatTopic(topicRaw) ? topicRaw : "chat";
 
   const me = await readMemberSession();
+
+  // Anonymous FULL loads are byte-identical for every logged-out visitor of
+  // a topic, yet each one re-read the whole 60-message window from the DB —
+  // scrapers and cold tabs made this a top egress source in the July 2026
+  // Neon quota incident. One shared 3s snapshot per topic absorbs them;
+  // signed-in readers below always get a fresh, viewer-specific read.
+  if (!me && !after) {
+    const payload = await memoTtl(
+      `community:anonFull:${topic}`,
+      3_000,
+      async () => {
+        // Opportunistic auto-delete sweep rides the (now rate-limited)
+        // anonymous full load too (idempotent, no cron needed on Render).
+        await sweepExpiredMessages().catch(() => undefined);
+        return buildChatState(topic, null, null);
+      },
+    );
+    return NextResponse.json(payload);
+  }
+
   // Refresh presence on the full load (no `after`) only — skip it on the 2.5s
   // short-poll to avoid a write on every tick across all clients.
   if (me && !after) {
@@ -118,29 +179,7 @@ export async function GET(req: Request) {
     await sweepExpiredMessages().catch(() => undefined);
   }
 
-  // typing[] rides on BOTH the short-poll and the full load — the 2.5s
-  // ?after= tick is the delivery path that makes the indicator feel live.
-  const [messages, memberCount, hideMembers, botUsername, welcome, typing] =
-    await Promise.all([
-      listChatMessages({ afterId: after, viewerTid: me?.tid ?? null, topic }),
-      countChatMembers(),
-      getModConfig<boolean>("chat_hide_members", false),
-      getCommunityBotUsername(),
-      getModConfig<string>("welcome", ""),
-      listTyping(topic, me?.tid ?? null).catch(() => [] as string[]),
-    ]);
-
-  const showCount = !hideMembers || Boolean(me?.admin);
-
-  return NextResponse.json({
-    me,
-    messages,
-    memberCount: showCount ? memberCount : null,
-    hideMembers,
-    botUsername,
-    welcome,
-    typing,
-  });
+  return NextResponse.json(await buildChatState(topic, me, after));
 }
 
 /** POST → post a message (members only; banned/muted members are blocked). */

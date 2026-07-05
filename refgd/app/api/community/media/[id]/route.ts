@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getVouchMedia } from "@/lib/community";
+import { getCachedBlob, putCachedBlob } from "@/lib/blob-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,8 +20,15 @@ export async function GET(
   const { id } = await params;
   if (!/^\d+$/.test(id)) return new NextResponse(null, { status: 400 });
 
-  const media = await getVouchMedia(id);
-  if (!media) return new NextResponse(null, { status: 404 });
+  // Ids are immutable — serve hot images from process memory instead of
+  // streaming the blob out of Postgres on every browser-cache miss.
+  let media = getCachedBlob(`vm:${id}`);
+  if (!media) {
+    const row = await getVouchMedia(id);
+    if (!row) return new NextResponse(null, { status: 404 });
+    putCachedBlob(`vm:${id}`, row.bytes, row.mime);
+    media = { bytes: row.bytes, mime: row.mime };
+  }
 
   const headers = new Headers({
     "Content-Type": media.mime || "image/jpeg",
