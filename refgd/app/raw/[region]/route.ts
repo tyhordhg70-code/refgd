@@ -34,14 +34,20 @@ import { getStoreInfoByDomain } from "@/data/telegraph-content";
  * dump of the info-popup ("boxcard") text — for stores that have a popup we
  * keep ONLY the link(s) so a reader can follow them for the full info.
  *
- * ALWAYS IN SYNC: this route reads the live database on EVERY request,
- * bypassing the in-process store cache (the same "query every request"
- * approach lib/content.ts already uses), so an admin edit is reflected
- * immediately even on a multi-worker Render deployment where another
- * worker's cache could otherwise be stale. Stores come straight from the
- * `stores` table (same SQL + row mapping as lib/stores.ts); info-popup
- * overrides come from getAllContentMap(). Any add/remove/edit of a store,
- * fee, limit, note, or tag shows up here automatically.
+ * IN SYNC (≤60s): this route reads the live database — bypassing the
+ * in-process store cache — but through a short per-region micro-cache of
+ * the final HTML (60s TTL, concurrent requests share one build). Stores
+ * come straight from the `stores` table (same SQL + row mapping as
+ * lib/stores.ts); info-popup overrides come from getAllContentMap(). Any
+ * add/remove/edit of a store, fee, limit, note, or tag shows up here
+ * within a minute. The cache exists because these pages are scraped
+ * heavily and each uncached hit pulled the whole table + content map out
+ * of the database — that egress exhausted the Neon free-plan data-transfer
+ * quota (July 2026) and took the whole DB offline. If a rebuild fails
+ * (e.g. the DB is unreachable), the last successfully built copy is served
+ * with an `x-raw-stale: true` header instead of a 500, so scrapers keep
+ * getting content during an outage; a hard 500 only happens when there is
+ * no good copy at all.
  *
  * SAFETY: this file is purely additive and read-only. It edits NO existing
  * file, imports no client components, performs no DB writes, and shares
@@ -190,6 +196,79 @@ async function loadStoresFresh(region: Region): Promise<Store[]> {
     .map(rowToStore)
     .filter((s) => s.regions.includes(region))
     .map((s) => ({ ...s, priceLimit: applyRegionCurrency(s.priceLimit, region) }));
+}
+
+/* ------------------------------------------------------------------ *
+ * Per-region micro-cache of the rendered page.
+ *
+ * These pages are built for scrapers, and every uncached hit read the
+ * ENTIRE stores table plus the full content map from Postgres — heavy
+ * scraping burned through the Neon free plan's monthly data-transfer
+ * quota and blocked the whole database. A 60s TTL keeps the mirror
+ * effectively in sync with admin edits while capping DB reads at one
+ * rebuild per region per minute PER WORKER (the cache is per-process;
+ * on multi-worker Render that is still at most workers×4 rebuilds/min).
+ *
+ * - In-flight dedupe: concurrent requests during a rebuild await the
+ *   same promise instead of each hitting the database.
+ * - Stale-on-error: if a rebuild throws and a previous good copy
+ *   exists, serve it flagged with `x-raw-stale: true` (and keep its
+ *   timestamp) rather than failing — an outage then degrades to
+ *   "slightly old data" instead of a 500. With no good copy, the
+ *   error propagates to the existing 500 page.
+ * ------------------------------------------------------------------ */
+const CACHE_TTL_MS = 60_000;
+// After a FAILED rebuild, wait this long before trying the DB again —
+// during a sustained outage heavy scrape traffic would otherwise fire one
+// doomed connection attempt per request once the TTL lapses.
+const FAILURE_COOLDOWN_MS = 15_000;
+const htmlCache = new Map<Region, { html: string; builtAt: number }>();
+const inFlight = new Map<Region, Promise<string>>();
+const lastFailureAt = new Map<Region, number>();
+
+async function buildFreshDocument(region: Region): Promise<string> {
+  const [stores, contentMap] = await Promise.all([
+    loadStoresFresh(region),
+    getAllContentMap(),
+  ]);
+  return buildDocument(region, stores, contentMap);
+}
+
+async function getDocument(
+  region: Region,
+): Promise<{ html: string; stale: boolean }> {
+  const cached = htmlCache.get(region);
+  if (cached && Date.now() - cached.builtAt < CACHE_TTL_MS) {
+    return { html: cached.html, stale: false };
+  }
+  const failedAt = lastFailureAt.get(region);
+  if (failedAt && Date.now() - failedAt < FAILURE_COOLDOWN_MS) {
+    // Recent rebuild failure — don't hammer the DB; serve the last good
+    // copy if there is one, otherwise re-throw the outage state.
+    if (cached) return { html: cached.html, stale: true };
+    throw new Error("Store list temporarily unavailable (retrying shortly)");
+  }
+  let pending = inFlight.get(region);
+  if (!pending) {
+    pending = buildFreshDocument(region)
+      .then((html) => {
+        htmlCache.set(region, { html, builtAt: Date.now() });
+        lastFailureAt.delete(region);
+        return html;
+      })
+      .catch((err) => {
+        lastFailureAt.set(region, Date.now());
+        throw err;
+      })
+      .finally(() => inFlight.delete(region));
+    inFlight.set(region, pending);
+  }
+  try {
+    return { html: await pending, stale: false };
+  } catch (err) {
+    if (cached) return { html: cached.html, stale: true };
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -534,13 +613,13 @@ ${items}
 <p><strong>Region:</strong> ${esc(REGION_FULL[region])}</p>
 <p><strong>Total stores:</strong> ${stores.length}</p>
 <p><strong>Categories:</strong> ${sections.length}</p>
-<p>Auto-generated, plain-text mirror of the live store list — grouped by the same categories, in the same order, as /store-list — rebuilt from the database on every request so it always matches.</p>
+<p>Auto-generated, plain-text mirror of the live store list — grouped by the same categories, in the same order, as /store-list — rebuilt from the database at most once a minute, so edits appear here within ~60 seconds.</p>
 ${body}
 </body>
 </html>`;
 }
 
-function baseHeaders(): HeadersInit {
+function baseHeaders(): Record<string, string> {
   return {
     "content-type": "text/html; charset=utf-8",
     "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
@@ -570,12 +649,10 @@ export async function GET(
   }
 
   try {
-    const [stores, contentMap] = await Promise.all([
-      loadStoresFresh(region),
-      getAllContentMap(),
-    ]);
-    const html = buildDocument(region, stores, contentMap);
-    return new Response(html, { status: 200, headers: baseHeaders() });
+    const { html, stale } = await getDocument(region);
+    const headers = baseHeaders();
+    if (stale) headers["x-raw-stale"] = "true";
+    return new Response(html, { status: 200, headers });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     const html = `<!doctype html>

@@ -28,7 +28,7 @@ export async function GET(): Promise<Response> {
 </head>
 <body>
 <h1>RefundGod — RAW store-list mirrors</h1>
-<p>Hidden, plain-text mirrors of the live store list for scraping. Each is rebuilt from the live database on every request and always stays in sync with /store-list.</p>
+<p>Hidden, plain-text mirrors of the live store list for scraping. Each is rebuilt from the live database at most once a minute and stays in sync with /store-list (edits appear within ~60 seconds).</p>
 <ul>
 ${items}
 </ul>
