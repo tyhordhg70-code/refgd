@@ -18,7 +18,8 @@
  */
 
 import { EMOJI_CACHE_VERSION } from "@/lib/custom-emoji";
-import { resolveEmojiKind } from "./format";
+import { sanitizeLottieData } from "./emoji-debug";
+import { loadLottieLib, resolveEmojiKind } from "./format";
 
 const ESC: Record<string, string> = {
   "&": "&amp;",
@@ -189,6 +190,72 @@ function ceVideo(img: HTMLImageElement, id: string): void {
   void v.play().catch(() => {});
 }
 
+/* Editable-surface Lottie animations keep running after their host span is
+ * deleted (backspace, composer unmount on topic switch) — lottie-web's rAF
+ * loop doesn't know about DOM removal. A single lazy sweep destroys players
+ * whose span left the document; it self-stops when none remain. */
+const liveEditLotties = new Set<{ el: HTMLElement; destroy: () => void }>();
+let editLottieSweep: number | null = null;
+function trackEditLottie(el: HTMLElement, destroy: () => void): void {
+  liveEditLotties.add({ el, destroy });
+  if (editLottieSweep !== null) return;
+  editLottieSweep = window.setInterval(() => {
+    for (const entry of liveEditLotties) {
+      if (!entry.el.isConnected) {
+        entry.destroy();
+        liveEditLotties.delete(entry);
+      }
+    }
+    if (liveEditLotties.size === 0 && editLottieSweep !== null) {
+      window.clearInterval(editLottieSweep);
+      editLottieSweep = null;
+    }
+  }, 5000);
+}
+
+/**
+ * Swap a custom-emoji <img> for an atomic inline span hosting the vendored
+ * Lottie player (animated .tgs pack emoji — Web A animates these in its own
+ * composer too). The span carries data-document-id/data-alt so
+ * editHtmlToBody keeps the [ce:] token (its document-id branch matches ANY
+ * element), and contenteditable=false keeps it a single caret unit. The img
+ * is replaced only AFTER the JSON + renderer have loaded — any failure
+ * leaves the static still exactly as it was.
+ */
+function ceLottie(img: HTMLImageElement, id: string): void {
+  const alt = img.getAttribute("alt") ?? "";
+  void (async () => {
+    try {
+      const res = await fetch(
+        `/api/community/emoji/${id}?v=${EMOJI_CACHE_VERSION}`,
+      );
+      if (!res.ok) return;
+      if (!(res.headers.get("content-type") ?? "").includes("json")) return;
+      const data = sanitizeLottieData(await res.json());
+      const lottie = await loadLottieLib();
+      if (!lottie || !img.isConnected) return;
+      const s = document.createElement("span");
+      s.className = "tg-edit-ce tg-edit-ce-lottie";
+      s.setAttribute("data-document-id", id);
+      s.setAttribute("data-alt", alt);
+      s.setAttribute("contenteditable", "false");
+      img.replaceWith(s);
+      const anim = lottie.loadAnimation({
+        container: s,
+        renderer: "svg",
+        loop: true,
+        autoplay: true,
+        animationData: data,
+        rendererSettings: { preserveAspectRatio: "xMidYMid meet" },
+      });
+      anim.setSubframe?.(false);
+      trackEditLottie(s, () => anim.destroy());
+    } catch {
+      /* keep the static still — the token round-trips either way */
+    }
+  })();
+}
+
 /**
  * One-time capture-phase error listener: a failed self-hosted custom-emoji
  * <img> retries once via the API route; if THAT fails too the bytes exist
@@ -221,8 +288,8 @@ export function wireEditCeFallback(el: HTMLElement): void {
  * an autoplaying <video> immediately instead of churning through the img
  * error cascade. A MutationObserver re-runs the pass so pasted / re-seeded
  * emoji get upgraded no matter how they were inserted (innerHTML seed,
- * execCommand insertHTML paste, …). Lottie (.tgs) ids keep the static still
- * — the vendored Lottie player is bubble-only.
+ * execCommand insertHTML paste, …). Lottie (.tgs) ids mount the vendored
+ * Lottie player as an atomic span (ceLottie) the same way.
  */
 export function wireEditCeAnimations(el: HTMLElement): void {
   if (el.dataset.ceAnimWired) return;
@@ -236,7 +303,9 @@ export function wireEditCeAnimations(el: HTMLElement): void {
       img.dataset.kindChecked = "1";
       const id = img.dataset.documentId ?? "";
       resolveEmojiKind(id, (kind) => {
-        if (kind === "video" && img.isConnected) ceVideo(img, id);
+        if (!img.isConnected) return;
+        if (kind === "video") ceVideo(img, id);
+        else if (kind === "lottie") ceLottie(img, id);
       });
     }
   };
@@ -283,6 +352,14 @@ export function editHtmlToBody(root: HTMLElement): string {
       // token regex — fall back to a neutral emoji character.
       const alt = rawAlt.replace(/[\]\n]/g, "").trim() || "🙂";
       return `[ce:${pastedDoc}:${alt}]`;
+    }
+    // Unicode ANIMATED emoji span (LottieEmoji stamps data-alt but has no
+    // document id): round-trip as the plain character — descending into the
+    // injected svg would yield "" and the emoji silently vanished from
+    // copied text.
+    if (n.classList.contains("tg-custom-emoji")) {
+      const alt = n.getAttribute("data-alt");
+      if (alt) return alt;
     }
     if (tag === "IMG" || tag === "VIDEO") {
       // Custom emoji round-trip: bubble/composer emoji (img OR the animated

@@ -425,7 +425,9 @@ export default function CommunityChat({
     },
     [],
   );
-  const inputRef = useRef<HTMLDivElement>(null);
+  // `| null` in the type parameter keeps `.current` mutable (React 18 types
+  // make bare useRef<T>(null) readonly) — the composer uses a callback ref.
+  const inputRef = useRef<HTMLDivElement | null>(null);
   // contentEditable inside the readonly-post edit dialog (Web A edit
   // composer); its own TextFormatter binds to this ref.
   const editInputRef = useRef<HTMLDivElement | null>(null);
@@ -729,14 +731,18 @@ export default function CommunityChat({
     focusMessage(el);
   };
 
-  // Append an emoji character / custom-emoji token to the composer text and
-  // keep the contenteditable + caret in sync.
-  const insertAtComposer = (snippet: string) => {
-    const next = (chat.text + snippet).slice(0, MAX_LEN);
+  // Seed the composer contenteditable from token text as RICH nodes (custom
+  // emoji imgs, quote blocks — bodyToEditHtml) and drop the caret at the end.
+  // The composer serializes back to tokens via editHtmlToBody on input, so
+  // everything round-trips; an innerText seed would show raw [ce:]/`> `
+  // marker text instead (custom emoji looked like static bracket gibberish).
+  const seedComposer = (next: string) => {
     chat.setText(next);
     const el = inputRef.current;
     if (el) {
-      el.innerText = next;
+      el.innerHTML = bodyToEditHtml(next);
+      wireEditCeFallback(el);
+      wireEditCeAnimations(el);
       el.focus();
       const sel = window.getSelection();
       sel?.selectAllChildren(el);
@@ -744,19 +750,16 @@ export default function CommunityChat({
     }
   };
 
+  // Append an emoji character / custom-emoji token to the composer text and
+  // keep the contenteditable + caret in sync.
+  const insertAtComposer = (snippet: string) => {
+    seedComposer((chat.text + snippet).slice(0, MAX_LEN));
+  };
+
   // Replace the composer text with a chosen slash command (+ trailing space)
   // and drop the caret at the end so the admin can type its argument.
   const applyCommand = (cmd: string) => {
-    const next = `/${cmd} `;
-    chat.setText(next);
-    const el = inputRef.current;
-    if (el) {
-      el.innerText = next;
-      el.focus();
-      const sel = window.getSelection();
-      sel?.selectAllChildren(el);
-      sel?.collapseToEnd();
-    }
+    seedComposer(`/${cmd} `);
   };
 
   // Turn a picked/pasted image into the pending attachment (downscaled
@@ -1169,19 +1172,9 @@ export default function CommunityChat({
   // the caret at the end (same contenteditable sync as insertAtComposer).
   const applyAutocomplete = (snippet: string) => {
     if (!acMatch) return;
-    const next = (chat.text.slice(0, acMatch.start) + snippet).slice(
-      0,
-      MAX_LEN,
+    seedComposer(
+      (chat.text.slice(0, acMatch.start) + snippet).slice(0, MAX_LEN),
     );
-    chat.setText(next);
-    const el = inputRef.current;
-    if (el) {
-      el.innerText = next;
-      el.focus();
-      const sel = window.getSelection();
-      sel?.selectAllChildren(el);
-      sel?.collapseToEnd();
-    }
   };
 
   // Web A collapses the quick-reaction row again every time a context menu
@@ -1361,22 +1354,25 @@ export default function CommunityChat({
 
   // Keep the contenteditable input in sync with chat.text when it changes
   // programmatically (e.g. cleared after send) without clobbering the caret
-  // while the user is typing.
+  // while the user is typing. The composer DOM now holds RICH nodes (emoji
+  // imgs/videos, quote blocks) in BOTH modes, so compare via the serializer
+  // and seed via bodyToEditHtml — an innerText comparison would never match
+  // the token text and an innerText seed would flatten pasted formatting
+  // into raw [ce:]/`> ` marker gibberish.
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
-    // While composer edit mode is active the input holds RICH nodes (styled
-    // spans + emoji imgs seeded from the message body) whose innerText never
-    // equals the token text — syncing here would flatten the formatting.
+    // Composer edit mode has its own seeding effect below.
     if (chat.editing) return;
-    const current = el.innerText.replace(/\n$/, "");
-    // firstChild check: an emoji-ONLY edit seeds pure <img> nodes whose
-    // innerText is "" — after save/cancel both strings are "" yet the images
-    // would linger visibly in the composer without it.
+    const current = editHtmlToBody(el).replace(/\n$/, "");
+    // firstChild check: an emoji-ONLY body serializes back to its tokens but
+    // clearing must also remove the leftover <img>/<video> nodes themselves.
     if (chat.text === "" && (current !== "" || el.firstChild !== null)) {
-      el.innerText = "";
+      el.innerHTML = "";
     } else if (current !== chat.text && document.activeElement !== el) {
-      el.innerText = chat.text;
+      el.innerHTML = bodyToEditHtml(chat.text);
+      wireEditCeFallback(el);
+      wireEditCeAnimations(el);
     }
   }, [chat.text, chat.editing]);
 
@@ -2709,7 +2705,17 @@ export default function CommunityChat({
                   <div className="custom-scroll input-scroller" data-lenis-prevent="">
                     <div className="input-scroller-content">
                       <div
-                        ref={inputRef}
+                        ref={(el) => {
+                          inputRef.current = el;
+                          // Wire the emoji fallback/animation upgraders the
+                          // moment the composer exists — a paste can arrive
+                          // before any programmatic seed does (both helpers
+                          // are idempotent via dataset flags).
+                          if (el) {
+                            wireEditCeFallback(el);
+                            wireEditCeAnimations(el);
+                          }
+                        }}
                         id="editable-message-text"
                         className="form-control allow-selection"
                         contentEditable
@@ -2719,32 +2725,23 @@ export default function CommunityChat({
                         tabIndex={0}
                         aria-label={`Message as ${me.name}`}
                         onInput={(e) => {
-                          if (chat.editing) {
-                            // Edit mode: the DOM holds rich nodes — serialize
-                            // them back to markdown-lite + [ce:] tokens so
-                            // formatting/emoji survive the save (innerText
-                            // would flatten them). No DOM reset on overflow:
-                            // that would destroy the rich tree mid-typing.
-                            let v = editHtmlToBody(e.currentTarget);
-                            if (v === "\n") v = "";
-                            if (v.length > MAX_LEN) v = v.slice(0, MAX_LEN);
-                            chat.setText(v);
-                            return;
-                          }
-                          let v = e.currentTarget.innerText.replace(
-                            /\u00A0/g,
-                            " ",
-                          );
+                          // BOTH modes hold rich nodes now (pasted quotes,
+                          // emoji imgs) — serialize back to markdown-lite +
+                          // [ce:] tokens so they survive send/save (innerText
+                          // would flatten them). No DOM reset on overflow:
+                          // that would destroy the rich tree mid-typing.
+                          let v = editHtmlToBody(e.currentTarget);
                           if (v === "\n") v = "";
-                          if (v.length > MAX_LEN) {
-                            v = v.slice(0, MAX_LEN);
-                            e.currentTarget.innerText = v;
-                            const sel = window.getSelection();
-                            sel?.selectAllChildren(e.currentTarget);
-                            sel?.collapseToEnd();
-                          }
+                          // Strip the browser's padding <br> (Firefox keeps
+                          // one at end-of-line) — without this "/ban" reads
+                          // as "/ban\n" and the slash-command matcher's $
+                          // never fires. Mirrors the sync effect's
+                          // normalization; a real Shift+Enter break inserts
+                          // TWO \n so one always survives.
+                          v = v.replace(/\n$/, "");
+                          if (v.length > MAX_LEN) v = v.slice(0, MAX_LEN);
                           chat.setText(v);
-                          if (v.trim()) chat.notifyTyping();
+                          if (!chat.editing && v.trim()) chat.notifyTyping();
                         }}
                         onKeyDown={(e) => {
                           if (
@@ -2773,22 +2770,20 @@ export default function CommunityChat({
                             }
                           }
                           // Rich paste, Web A style: clipboard html →
-                          // markdown-lite tokens. In edit mode insert as
-                          // rendered formatting (the DOM is rich); while
-                          // composing insert the tokens as text (they render
-                          // formatted once sent).
+                          // markdown-lite tokens, inserted as RENDERED
+                          // formatting in BOTH modes (the composer serializes
+                          // rich DOM back to tokens on input). Inserting raw
+                          // token text while composing showed literal `> `
+                          // markers and static [ce:] alt characters instead
+                          // of the highlight + animated emoji.
                           const html = e.clipboardData.getData("text/html");
                           const tokens = html ? pasteHtmlToTokens(html) : "";
                           if (tokens) {
-                            if (chat.editing) {
-                              document.execCommand(
-                                "insertHTML",
-                                false,
-                                bodyToEditHtml(tokens),
-                              );
-                            } else {
-                              document.execCommand("insertText", false, tokens);
-                            }
+                            document.execCommand(
+                              "insertHTML",
+                              false,
+                              bodyToEditHtml(tokens),
+                            );
                             return;
                           }
                           const text = e.clipboardData.getData("text/plain");

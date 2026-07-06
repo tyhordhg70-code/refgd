@@ -377,7 +377,7 @@ let lottieLibPromise: Promise<LottieLib | null> | null = null;
  * Render-outage risk). Loaded once, on the first Lottie emoji that scrolls
  * into view; resolves null (→ error cascade) if the script can't load.
  */
-function loadLottieLib(): Promise<LottieLib | null> {
+export function loadLottieLib(): Promise<LottieLib | null> {
   if (typeof window === "undefined") return Promise.resolve(null);
   if (!lottieLibPromise) {
     lottieLibPromise = new Promise((resolve) => {
@@ -410,11 +410,14 @@ function loadLottieLib(): Promise<LottieLib | null> {
  * main thread cool. Any failure calls onError → the cascade's retry path.
  */
 function LottieEmoji({
+  id,
   src,
   alt,
   onError,
   onReady,
 }: {
+  /** Custom-emoji document id; unicode animated emoji have none. */
+  id?: string;
   src: string;
   alt: string;
   onError: () => void;
@@ -511,11 +514,18 @@ function LottieEmoji({
   }, [src]);
 
   return (
+    // data-document-id/data-alt: copying a bubble while the emoji is in its
+    // Lottie stage must still serialize to a [ce:] token (editHtmlToBody
+    // matches the document id on ANY element) — without them the emoji was
+    // silently LOST from copied text. Unicode animated emoji carry only
+    // data-alt: they round-trip as the plain character.
     <span
       ref={boxRef}
       className="emoji emoji-small tg-custom-emoji"
       role="img"
       aria-label={alt}
+      data-document-id={id}
+      data-alt={alt}
     />
   );
 }
@@ -892,6 +902,9 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, attempt]);
 
+  // Both placeholder spans carry data-document-id/data-alt so copying a
+  // bubble mid-load still round-trips the [ce:] token (same reason as the
+  // LottieEmoji span — the serializer matches the id on any element).
   if (!near) {
     return (
       <span
@@ -899,6 +912,8 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
         className="emoji emoji-small tg-custom-emoji"
         role="img"
         aria-label={alt}
+        data-document-id={id}
+        data-alt={alt}
       />
     );
   }
@@ -911,12 +926,15 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
         className="emoji emoji-small tg-custom-emoji"
         role="img"
         aria-label={alt}
+        data-document-id={id}
+        data-alt={alt}
       />
     );
   }
   if (stage.kind === "lottie") {
     return (
       <LottieEmoji
+        id={id}
         src={stage.src}
         alt={alt}
         onError={advance}
