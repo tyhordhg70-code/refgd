@@ -71,6 +71,7 @@ import { buildMiniAppLink, buildStartParam } from "./tg/deeplink";
 import {
   bodyToEditHtml,
   editHtmlToBody,
+  pasteHtmlToTokens,
   wireEditCeFallback,
 } from "./tg/editHtml";
 import type { ChatTopic } from "@/lib/community";
@@ -1326,13 +1327,20 @@ export default function CommunityChat({
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
+    // While composer edit mode is active the input holds RICH nodes (styled
+    // spans + emoji imgs seeded from the message body) whose innerText never
+    // equals the token text — syncing here would flatten the formatting.
+    if (chat.editing) return;
     const current = el.innerText.replace(/\n$/, "");
-    if (chat.text === "" && current !== "") {
+    // firstChild check: an emoji-ONLY edit seeds pure <img> nodes whose
+    // innerText is "" — after save/cancel both strings are "" yet the images
+    // would linger visibly in the composer without it.
+    if (chat.text === "" && (current !== "" || el.firstChild !== null)) {
       el.innerText = "";
     } else if (current !== chat.text && document.activeElement !== el) {
       el.innerText = chat.text;
     }
-  }, [chat.text]);
+  }, [chat.text, chat.editing]);
 
   // Entering composer edit mode: seed the input with the message body and drop
   // the caret at the end. We set innerText explicitly (not relying on the
@@ -1345,7 +1353,12 @@ export default function CommunityChat({
     if (!editingId) return;
     const el = inputRef.current;
     if (!el) return;
-    el.innerText = editingBody;
+    // Seed with the body rendered as REAL formatting (markdown-lite tokens →
+    // styled spans, [ce:] tokens → emoji imgs — see editHtml.ts) so the edit
+    // input shows the message exactly as it looks in the bubble, Web A style,
+    // instead of raw ** __ markers.
+    el.innerHTML = bodyToEditHtml(editingBody);
+    wireEditCeFallback(el);
     el.focus();
     const sel = window.getSelection();
     sel?.selectAllChildren(el);
@@ -2339,7 +2352,11 @@ export default function CommunityChat({
                     ) : null}
                     <div className="message-text">
                       <p className="embedded-text-wrapper">
-                        {editPost.orig.trim() || "message"}
+                        {/* Formatted single-line preview, Web A style — raw
+                            ** __ [ce:] tokens must never show here. */}
+                        {editPost.orig.trim()
+                          ? renderBody(editPost.orig)
+                          : "message"}
                       </p>
                       <div className="message-title">Edit Message</div>
                     </div>
@@ -2411,6 +2428,28 @@ export default function CommunityChat({
                             if (!editSaving) setEditPost(null);
                           }
                         }}
+                        onPaste={(e) => {
+                          // Rich paste (Web A): normalize clipboard html to
+                          // our token syntax, re-render as formatting. The
+                          // browser default would insert ARBITRARY html the
+                          // serializer only partially understands.
+                          e.preventDefault();
+                          const html = e.clipboardData.getData("text/html");
+                          const tokens = html ? pasteHtmlToTokens(html) : "";
+                          if (tokens) {
+                            document.execCommand(
+                              "insertHTML",
+                              false,
+                              bodyToEditHtml(tokens),
+                            );
+                            return;
+                          }
+                          document.execCommand(
+                            "insertText",
+                            false,
+                            e.clipboardData.getData("text/plain"),
+                          );
+                        }}
                       />
                       {!editPost.body && (
                         <span className="placeholder-text" dir="auto">
@@ -2459,7 +2498,11 @@ export default function CommunityChat({
                     <div className="EmbeddedMessage inside-input no-selection">
                       <div className="message-text">
                         <p className="embedded-text-wrapper">
-                          {chat.editing.body || "message"}
+                          {/* Formatted preview of the ORIGINAL body (Web A
+                              parity) — never the raw token text. */}
+                          {chat.editing.body
+                            ? renderBody(chat.editing.body)
+                            : "message"}
                         </p>
                         <div className="message-title">Edit Message</div>
                       </div>
@@ -2656,6 +2699,18 @@ export default function CommunityChat({
                         tabIndex={0}
                         aria-label={`Message as ${me.name}`}
                         onInput={(e) => {
+                          if (chat.editing) {
+                            // Edit mode: the DOM holds rich nodes — serialize
+                            // them back to markdown-lite + [ce:] tokens so
+                            // formatting/emoji survive the save (innerText
+                            // would flatten them). No DOM reset on overflow:
+                            // that would destroy the rich tree mid-typing.
+                            let v = editHtmlToBody(e.currentTarget);
+                            if (v === "\n") v = "";
+                            if (v.length > MAX_LEN) v = v.slice(0, MAX_LEN);
+                            chat.setText(v);
+                            return;
+                          }
                           let v = e.currentTarget.innerText.replace(
                             /\u00A0/g,
                             " ",
@@ -2684,17 +2739,37 @@ export default function CommunityChat({
                         onPaste={(e) => {
                           e.preventDefault();
                           // A pasted screenshot/photo becomes the pending
-                          // attachment (Web A parity), text pastes as plain.
+                          // attachment (Web A parity) — except in edit mode,
+                          // where Telegram edits are text-only.
                           const items = Array.from(e.clipboardData.items);
                           const img = items.find((it) =>
                             it.type.startsWith("image/"),
                           );
-                          if (img) {
+                          if (img && !chat.editing) {
                             const file = img.getAsFile();
                             if (file) {
                               void attachImage(file);
                               return;
                             }
+                          }
+                          // Rich paste, Web A style: clipboard html →
+                          // markdown-lite tokens. In edit mode insert as
+                          // rendered formatting (the DOM is rich); while
+                          // composing insert the tokens as text (they render
+                          // formatted once sent).
+                          const html = e.clipboardData.getData("text/html");
+                          const tokens = html ? pasteHtmlToTokens(html) : "";
+                          if (tokens) {
+                            if (chat.editing) {
+                              document.execCommand(
+                                "insertHTML",
+                                false,
+                                bodyToEditHtml(tokens),
+                              );
+                            } else {
+                              document.execCommand("insertText", false, tokens);
+                            }
+                            return;
                           }
                           const text = e.clipboardData.getData("text/plain");
                           document.execCommand("insertText", false, text);

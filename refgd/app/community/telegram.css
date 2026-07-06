@@ -2134,10 +2134,21 @@ video.tg-custom-emoji {
  * behaviour): the vendored .Composer / .composer-wrapper /
  * .message-input-wrapper rules lay everything out; these rules only style
  * the edit input itself + the embedded-bar photo thumb. */
+/* The vendored .input-scroller ships overflow:hidden and only scrolls once
+   Web A's JS measures the input and adds .overflown — our composer has no
+   such measurer, so past max-height the text CLIPPED and the wheel/touch
+   scrolled the topic page behind instead. Let it scroll natively (auto shows
+   a scrollbar only when needed) and keep the gesture inside at the edges. */
+.tg-body .composer-wrapper .input-scroller {
+  overflow-y: auto;
+  max-height: min(26rem, 40dvh);
+  overscroll-behavior: contain;
+}
 .tg-edit-dock .tg-edit-input {
   min-height: 1.5rem;
   max-height: min(26rem, 50dvh);
   overflow-y: auto;
+  overscroll-behavior: contain;
   border: none;
   outline: none;
   background: transparent;

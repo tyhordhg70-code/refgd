@@ -159,10 +159,16 @@ export function editHtmlToBody(root: HTMLElement): string {
     }
     if (!(n instanceof HTMLElement)) return "";
     const tag = n.tagName;
+    // Office/Word clipboard html embeds <style> blocks in the body — their
+    // CSS text must never leak into the serialized message.
+    if (tag === "STYLE" || tag === "SCRIPT" || tag === "TEMPLATE") return "";
     if (tag === "BR") return "\n";
-    if (tag === "IMG") {
+    if (tag === "IMG" || tag === "VIDEO") {
+      // Custom emoji round-trip: bubble/composer emoji (img OR the animated
+      // <video> stage) carry data-document-id; anything else degrades to its
+      // alt text (the plain emoji character).
       const doc = n.getAttribute("data-document-id");
-      const alt = n.getAttribute("alt") ?? "";
+      const alt = n.getAttribute("alt") ?? n.getAttribute("data-alt") ?? "";
       return doc ? `[ce:${doc}:${alt}]` : alt;
     }
     let inner = Array.from(n.childNodes).map(ser).join("");
@@ -191,4 +197,17 @@ export function editHtmlToBody(root: HTMLElement): string {
   // The first line has no preceding line break — drop the leading \n the
   // block rule adds when the first child is already a <div>.
   return out.replace(/^\n/, "");
+}
+
+/**
+ * Normalize CLIPBOARD html (a copied Telegram bubble, rich text from another
+ * site or document) into markdown-lite tokens by walking it with the same
+ * serializer the edit composer uses — so pasting preserves bold/italic/
+ * underline/strike/mono/links/custom-emoji exactly like Web A instead of
+ * flattening to plain text. DOMParser yields an INERT document: nothing
+ * loads, no scripts run, unknown wrappers collapse to their text.
+ */
+export function pasteHtmlToTokens(html: string): string {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return editHtmlToBody(doc.body).replace(/\n+$/, "");
 }

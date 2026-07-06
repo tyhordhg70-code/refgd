@@ -778,6 +778,8 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
         ref={playCustomEmojiVideo}
         src={stage.src}
         className="emoji emoji-small tg-custom-emoji"
+        data-document-id={id}
+        data-alt={alt}
         autoPlay
         loop
         muted
@@ -798,6 +800,7 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
       src={stage.src}
       className="emoji emoji-small tg-custom-emoji"
       alt={alt}
+      data-document-id={id}
       draggable={false}
       // Deliberately NOT loading="lazy": the near-viewport latch above already
       // gates the mount, and lazy added a SECOND browser gate that deferred
