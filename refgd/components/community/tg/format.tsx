@@ -622,6 +622,67 @@ function rememberStage(id: string, idx: number): void {
 }
 
 /**
+ * Build-time kind manifest (/tg-emoji/kinds-v1.json, generated from the
+ * server's emoji cache): `v` = animated .webm ids, `l` = Lottie .tgs ids —
+ * every OTHER cached id is a static image. Without it, a FIRST-visit Lottie
+ * tile pays four sequential steps (static-webp 404 → its JSON downloaded and
+ * decode-failed as <img> → again as <video> → finally the Lottie fetch), and
+ * that multiplied across a picker of thousands is exactly the "emoji take
+ * forever to show up" complaint. With it, every known id jumps STRAIGHT to
+ * its real renderer on the very first mount — like Telegram, which knows each
+ * document's type up front. Ids missing from the manifest (freshly cached
+ * packs) simply keep the failing-forward cascade. Ids that have a self-hosted
+ * /tg-emoji/<id>.webp file are deliberately EXCLUDED at generation time so
+ * the instant static artwork keeps winning stage 0 for them.
+ */
+let emojiKinds: Map<string, number> | null = null;
+let emojiKindsStarted = false;
+const emojiKindsWaiters = new Set<() => void>();
+
+function ensureEmojiKinds(): void {
+  if (emojiKindsStarted || typeof window === "undefined") return;
+  emojiKindsStarted = true;
+  fetch("/tg-emoji/kinds-v1.json")
+    .then((r) => (r.ok ? (r.json() as Promise<unknown>) : null))
+    .then((j) => {
+      const m = new Map<string, number>();
+      if (j && typeof j === "object") {
+        const { v, l } = j as { v?: unknown; l?: unknown };
+        if (Array.isArray(v)) {
+          for (const id of v) if (typeof id === "string") m.set(id, 2);
+        }
+        if (Array.isArray(l)) {
+          for (const id of l) if (typeof id === "string") m.set(id, 3);
+        }
+      }
+      emojiKinds = m;
+      for (const w of emojiKindsWaiters) w();
+      emojiKindsWaiters.clear();
+    })
+    .catch(() => {
+      // Manifest unavailable — the cascade still resolves every tile.
+      emojiKinds = new Map();
+      for (const w of emojiKindsWaiters) w();
+      emojiKindsWaiters.clear();
+    });
+}
+
+/** Known direct stage for an id (0 if unknown), or null while still loading. */
+function emojiKindStage(id: string): number | null {
+  return emojiKinds ? (emojiKinds.get(id) ?? 0) : null;
+}
+
+/** Run cb once the manifest resolves (immediately if it already has). */
+function onEmojiKinds(cb: () => void): () => void {
+  if (emojiKinds) {
+    cb();
+    return () => {};
+  }
+  emojiKindsWaiters.add(cb);
+  return () => emojiKindsWaiters.delete(cb);
+}
+
+/**
  * Custom (premium pack) emoji sticker rendered from the Telegram document id.
  *
  * ORIGINALS ONLY — NEVER SUBSTITUTE: the tile always shows the real pack
@@ -688,8 +749,12 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
 
   // Restart whenever this node is reused for a new emoji — at the remembered
   // winning stage when we've resolved this id before (instant, no cascade
-  // churn), else at the artwork source. Recall happens here (post-hydration)
-  // rather than in the useState initializer so SSR markup can't mismatch.
+  // churn), else at the manifest-known stage for its real kind (video/Lottie
+  // ids skip the doomed webp/img attempts entirely on FIRST visit), else at
+  // the artwork source. Recall happens here (post-hydration) rather than in
+  // the useState initializer so SSR markup can't mismatch. If the manifest
+  // is still in flight, subscribe and fast-forward when it lands — never
+  // backwards, so a tile that already cascaded ahead keeps its progress.
   useEffect(() => {
     if (timerRef.current !== null) {
       window.clearTimeout(timerRef.current);
@@ -697,7 +762,13 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
     }
     attemptRef.current = 0;
     setAttempt(0);
-    setIdx(recallStage(id));
+    ensureEmojiKinds();
+    const known = emojiKindStage(id);
+    setIdx(Math.max(recallStage(id), known ?? 0));
+    if (known !== null) return;
+    return onEmojiKinds(() =>
+      setIdx((i) => Math.max(i, emojiKindStage(id) ?? 0)),
+    );
   }, [id, alt]);
 
   useEffect(

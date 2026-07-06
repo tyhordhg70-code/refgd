@@ -157,20 +157,37 @@ export const README_SEED_BODY: ReactNode = (
 );
 
 /**
- * Plain-text distillation of {@link README_SEED_BODY}, used only to make the
- * READ ME post searchable (the JSX body above can't be substring-matched).
- * Keep the copy roughly in sync with the message above.
+ * Markdown-lite token distillation of {@link README_SEED_BODY}. Used for
+ * search matching, Copy Text / Forward, and — critically — as the body the
+ * EDIT composer is seeded with (bodyToEditHtml renders these tokens into
+ * rich HTML, so the admin edits the post with its real line breaks, bold,
+ * links and custom emoji instead of one flat "clustered" line).
+ * Keep the layout in sync with the JSX message above.
  */
 export const README_SEED_TEXT =
-  "WELCOME If you haven't already, we kindly ask you to please visit our " +
-  "website, to familiarize yourself with our services offered, there you will " +
-  "find answers to most questions and information of how everything works. " +
-  "CLICK ME TO VISIT refundgod.io With a total of 5 different paths on the " +
-  "website, each of which serves a different purpose and is a entire different " +
-  "category. Not sure which one is right for you? Below you can find a brief " +
-  "overview of what each path card contains to determine which is right for " +
-  "you, before visiting: CLICK ME TO LEARN Something not clear, or still have " +
-  "questions? Please don't hesitate to ask them to @refundlawfirmbot";
+  "[ce:5364095856972681395:🔠][ce:5361794927028096622:🔠]" +
+  "[ce:5359354676934364278:🔠][ce:5359451970828520680:🔠]" +
+  "[ce:5375319963726793021:🔠][ce:5361625615122319358:🔠]" +
+  "[ce:5361794927028096622:🔠][ce:5375080832832652559:❗️]\n" +
+  "\n" +
+  "If you haven't already, we kindly ask you to **please visit our website, " +
+  "to familiarize yourself with our services offered,** there you will find " +
+  "answers to most questions and information of how everything works.\n" +
+  "\n" +
+  "[ce:5416117059207572332:➡️] [CLICK ME TO VISIT](http://refundgod.io/)\n" +
+  "\n" +
+  "With a total of **5 different paths on the website**, each of which " +
+  "serves a different purpose and is a entire different category. Not sure " +
+  "which one is right for you?\n" +
+  "Below you can find a brief overview of what each path card contains to " +
+  "determine which is right for you, before visiting:\n" +
+  "\n" +
+  "[ce:5271604874419647061:🔗] " +
+  "[CLICK ME TO LEARN](https://telegra.ph/NAVIGATION-MENU-08-06)\n" +
+  "\n" +
+  "[ce:5443038326535759644:💬] Something not clear, or still have questions?\n" +
+  "**Please don't hesitate to ask them to** " +
+  "[@refundlawfirmbot](https://t.me/refundlawfirmbot)";
 
 /**
  * Body of the pinned clearing notice (message 18 in the saved page). The
@@ -188,20 +205,42 @@ export const CHAT_NOTICE_SEED_BODY: ReactNode = (
   </>
 );
 
-/** Plain-text distillation of {@link CHAT_NOTICE_SEED_BODY} for Copy Text / search. */
+/**
+ * Token distillation of {@link CHAT_NOTICE_SEED_BODY} for Copy Text / search
+ * and for seeding the edit composer (real line breaks preserved).
+ */
 export const CHAT_NOTICE_SEED_TEXT =
   "All group chat messages will be cleared, to assert attorney-client " +
-  "privilege 🧹 Clearing occurs once every three days.";
+  "privilege 🧹\n" +
+  "\n" +
+  "Clearing occurs once every three days.";
 
-/** Plain-text distillation of {@link ANNOUNCEMENT_SEED_BODY} for Copy Text / Forward. */
+/**
+ * Markdown-lite token distillation of {@link ANNOUNCEMENT_SEED_BODY} for
+ * Copy Text / Forward and for seeding the edit composer — the same blank-line
+ * layout, bold highlight, custom emoji and @refundlawfirmbot links as the
+ * JSX body, so editing shows the message exactly as it renders instead of
+ * one flat run-together paragraph.
+ */
 export const ANNOUNCEMENT_SEED_TEXT =
-  "Dear members, ❓ Do you have a question, and do not want to wait for a " +
-  "response? Wait no longer, because now you can receive instant responses. " +
-  "💬 Please from now on, ask all of your questions to @refundlawfirmbot and " +
-  "receive near instant detailed responses. The bot is equipped to handle " +
-  "everything other than giving status updates on live orders. If for some " +
-  "reason the bot is unable to answer your question, please only then reach " +
-  "out to us. ➡️ @refundlawfirmbot ➡️ @refundlawfirmbot";
+  "Dear members,\n" +
+  "\n" +
+  "[ce:5436113877181941026:❓] Do you have a question, and do not want to " +
+  "wait for a response?\n" +
+  "\n" +
+  "**Wait no longer, because now you can receive instant responses.**\n" +
+  "\n" +
+  "[ce:5443038326535759644:💬] Please from now on, ask all of your questions " +
+  "to [@refundlawfirmbot](https://t.me/refundlawfirmbot) and receive near " +
+  "instant detailed responses.\n" +
+  "The bot is equipped to handle everything other than giving status updates " +
+  "on live orders.\n" +
+  "\n" +
+  "If for some reason the bot is unable to answer your question, please only " +
+  "then reach out to us.\n" +
+  "\n" +
+  "[ce:5416117059207572332:➡️] [@refundlawfirmbot](https://t.me/refundlawfirmbot)\n" +
+  "[ce:5416117059207572332:➡️] [@refundlawfirmbot](https://t.me/refundlawfirmbot)";
 
 /**
  * The email / paper-plane illustration attached to the Announcements post

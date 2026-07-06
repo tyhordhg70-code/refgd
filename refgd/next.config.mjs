@@ -76,6 +76,18 @@ const nextConfig = {
             ],
           },
           {
+            // Self-hosted custom-emoji pack artwork (/tg-emoji/<docId>.webp)
+            // and the versioned kind manifest (kinds-v1.json). A Telegram
+            // document id's artwork never changes and the manifest is bumped
+            // by filename, so cache for a year — without this, every /community
+            // visit revalidated EVERY emoji tile (public/ serves max-age=0),
+            // which is exactly the "emoji take forever to show up" pain.
+            source: "/tg-emoji/:path*",
+            headers: [
+              { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+            ],
+          },
+          {
             // Scroll-scrubbed hero frame sequence (f_001.webp … f_101.webp).
             // Content-stable and 1-indexed, so cache them for a year — the
             // browser reuses every frame on repeat visits instead of re-pulling
