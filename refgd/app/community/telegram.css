@@ -417,45 +417,15 @@
    sheet already styles the whole line — accent colour, medium weight, single
    flex row that wraps (`.message-content .message-title` and the
    `.is-forwarded .message-title .icon` sizing) — so we only add what it
-   can't know about: the tiny sender avatar this replica renders inline. */
+   can't know about: the icon↔label gap and the origin-name spacing. */
 .tg-forward-title .forward-title-container {
   gap: 0.25rem;
 }
-.tg-forward-title .forward-avatar .inner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-}
+/* One clean gap between "Forwarded from" and the origin name (the old inline
+   letter-avatar — which painted a stray "@" for @-prefixed origins — is gone,
+   so the name spacing is set here instead of by avatar flex gaps). */
 .tg-forward-title .message-title-name {
-  gap: 0.25rem;
-}
-.tg-forward-title .forward-avatar {
-  width: var(--_size, 1.125rem);
-  height: var(--_size, 1.125rem);
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  flex: 0 0 auto;
-  color: #fff;
-}
-/* Real Web A colours the forwarded-sender avatar by its peer-color-N class
-   (tg-webapp.css only defines these vars, not the .forward-avatar mapping). */
-.tg-forward-title .forward-avatar.peer-color-0 { background: var(--peer-red); }
-.tg-forward-title .forward-avatar.peer-color-1 { background: var(--peer-orange); }
-.tg-forward-title .forward-avatar.peer-color-2 { background: var(--peer-violet); }
-.tg-forward-title .forward-avatar.peer-color-3 { background: var(--peer-green); }
-.tg-forward-title .forward-avatar.peer-color-4 { background: var(--peer-cyan); }
-.tg-forward-title .forward-avatar.peer-color-5 { background: var(--peer-blue); }
-.tg-forward-title .forward-avatar.peer-color-6 { background: var(--peer-pink); }
-.tg-forward-title .forward-avatar .letters {
-  font-size: 0.625rem;
-  font-weight: 600;
-  color: #fff;
-  line-height: 1;
+  margin-inline-start: 0.25rem;
 }
 
 /* ── composer emoji panel (Web A symbol-menu replica) ────────────── */

@@ -2,7 +2,7 @@
 
 import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import Appendix from "./Appendix";
-import { emojiSrc, initials, peerIdx } from "./format";
+import { emojiSrc, initials } from "./format";
 
 /** Autoplay a member's animated (mp4/webm) avatar reliably. React does not emit
  * the `muted` attribute during SSR, which can block autoplay until hydration; a
@@ -391,20 +391,13 @@ export default function MessageBubble({
                     <span className="forward-title">Forwarded from</span>
                   </span>
                   <span className="message-title-name">
-                    <div
-                      className={`Avatar forward-avatar size-micro peer-color-${peerIdx(
-                        forward.name,
-                      )} no-photo`}
-                      style={{ "--_size": "16px" } as CSSProperties}
-                      aria-hidden
-                    >
-                      <div className="inner">
-                        <span className="letters">
-                          {(Array.from(forward.name.trim())[0] ?? "").toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-                    <span className="sender-title">{forward.name}</span>
+                    {/* No avatar: Web A only shows the tiny circle when a real
+                        photo exists — the letter-avatar fallback painted the
+                        origin's first char (often "@") as a stray glyph.
+                        Leading @ is stripped (usernames never shown in UI). */}
+                    <span className="sender-title">
+                      {forward.name.replace(/^@+\s*/, "") || forward.name}
+                    </span>
                   </span>
                 </span>
                 <div className="title-spacer" />
