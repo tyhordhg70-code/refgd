@@ -8,6 +8,17 @@ import {
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
+import {
+  IconBack,
+  IconBold,
+  IconCheck,
+  IconEyeCrossed,
+  IconItalic,
+  IconLink,
+  IconMono,
+  IconStrikethrough,
+  IconUnderline,
+} from "./TgIcons";
 
 /**
  * Web A "TextFormatter" — the floating rich-text toolbar that appears when you
@@ -137,7 +148,10 @@ export default function TextFormatter({
 
   if (!pos) return null;
 
-  const fmtBtn = (label: string, icon: string, onClick: () => void) => (
+  // Inline SVG icons — the vendored icon-font glyph rules are scoped under
+  // .tg-body and never reach this .tg-overlay-root portal (same trap as the
+  // portaled context menu; see TgIcons).
+  const fmtBtn = (label: string, icon: React.ReactNode, onClick: () => void) => (
     <button
       type="button"
       className="Button default translucent"
@@ -146,7 +160,7 @@ export default function TextFormatter({
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
     >
-      <i className={`icon icon-${icon}`} aria-hidden />
+      {icon}
     </button>
   );
 
@@ -171,15 +185,15 @@ export default function TextFormatter({
       }
     >
       <div className="TextFormatter-buttons">
-        {fmtBtn("Spoiler text", "eye-crossed", () => wrap("||"))}
+        {fmtBtn("Spoiler text", <IconEyeCrossed />, () => wrap("||"))}
         <div className="TextFormatter-divider" />
-        {fmtBtn("Bold text", "bold", () => wrap("**"))}
-        {fmtBtn("Italic text", "italic", () => wrap("__"))}
-        {fmtBtn("Underlined text", "underlined", () => wrap("++"))}
-        {fmtBtn("Strikethrough text", "strikethrough", () => wrap("~~"))}
-        {fmtBtn("Monospace text", "monospace", () => wrap("`"))}
+        {fmtBtn("Bold text", <IconBold />, () => wrap("**"))}
+        {fmtBtn("Italic text", <IconItalic />, () => wrap("__"))}
+        {fmtBtn("Underlined text", <IconUnderline />, () => wrap("++"))}
+        {fmtBtn("Strikethrough text", <IconStrikethrough />, () => wrap("~~"))}
+        {fmtBtn("Monospace text", <IconMono />, () => wrap("`"))}
         <div className="TextFormatter-divider" />
-        {fmtBtn("Add Link", "link", openLink)}
+        {fmtBtn("Add Link", <IconLink />, openLink)}
       </div>
       {linkMode && (
         <div className="TextFormatter-link-control">
@@ -195,7 +209,7 @@ export default function TextFormatter({
                 setLinkUrl("");
               }}
             >
-              <i className="icon icon-arrow-left" aria-hidden />
+              <IconBack />
             </button>
             <div className="TextFormatter-divider" />
             <div className="TextFormatter-link-url-input-wrapper">
@@ -234,7 +248,7 @@ export default function TextFormatter({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={confirmLink}
               >
-                <i className="icon icon-check" aria-hidden />
+                <IconCheck />
               </button>
             </div>
           </div>

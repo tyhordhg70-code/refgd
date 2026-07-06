@@ -485,7 +485,10 @@ function makeTileIO(root: Element | null): IntersectionObserver {
         }
       }
     },
-    { root, rootMargin: "600px" },
+    // 1000px lookahead: far enough that a fast flick-scroll can't outrun the
+    // latch (tiles were mounting blank at the edge mid-scroll), still lazy
+    // enough that a multi-thousand-tile picker doesn't flood the network.
+    { root, rootMargin: "1000px" },
   );
 }
 
@@ -796,7 +799,13 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
       className="emoji emoji-small tg-custom-emoji"
       alt={alt}
       draggable={false}
-      loading="lazy"
+      // Deliberately NOT loading="lazy": the near-viewport latch above already
+      // gates the mount, and lazy added a SECOND browser gate that deferred
+      // the fetch again until the tile hit the viewport edge — that (not
+      // download speed) was the blank-while-scrolling flash, since the bytes
+      // are usually already in the HTTP cache from the warmer. decoding=async
+      // keeps the decode off the scroll's critical path.
+      decoding="async"
       onLoad={() => {
         emojiDebugBump(idx === 0 ? "ok:img:self" : "ok:img");
         rememberStage(id, idx === 0 ? 0 : 1);

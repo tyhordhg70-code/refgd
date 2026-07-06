@@ -34,6 +34,7 @@ import {
   IconDelete,
   IconDownload,
   IconEdit,
+  IconChevronDown,
   IconExpand,
   IconForward,
   IconLink,
@@ -67,14 +68,17 @@ import {
 } from "./useCommunityChat";
 import { useExtraReactions } from "./useExtraReactions";
 import { buildMiniAppLink, buildStartParam } from "./tg/deeplink";
+import {
+  bodyToEditHtml,
+  editHtmlToBody,
+  wireEditCeFallback,
+} from "./tg/editHtml";
 import type { ChatTopic } from "@/lib/community";
 import { COMMAND_SPECS } from "@/lib/community-commands";
 import {
   CHAT_NOTICE_SEED_BODY,
   CHAT_NOTICE_SEED_TEXT,
   CHAT_NOTICE_SEED_TIME,
-  SEED_AUTHOR,
-  SEED_AVATAR,
 } from "./tg/seed";
 
 /**
@@ -172,10 +176,13 @@ export default function CommunityChat({
   history,
   onVouchEdited,
   onVouchPinned,
+  onVouchDeleted,
   onSeedEdited,
   pinnedExtras,
   chatNoticeText = CHAT_NOTICE_SEED_TEXT,
   chatNoticeOverridden = false,
+  chatNoticePinned = false,
+  chatNoticeHidden = false,
 }: {
   onBack?: () => void;
   /** Which forum topic this feed reads/writes; defaults to the group chat. */
@@ -201,6 +208,7 @@ export default function CommunityChat({
             pinned: boolean;
             canModify?: boolean;
             canPin?: boolean;
+            canDelete?: boolean;
           },
         ) => void,
         onOpenMedia: (src: string) => void,
@@ -218,6 +226,12 @@ export default function CommunityChat({
    * can patch its cached pin state in place (no refetch → no flicker).
    */
   onVouchPinned?: (id: string, pinned: boolean) => void;
+  /**
+   * Called after an admin deletes a read-only history post (vouch row hard-
+   * deleted) or a seed bubble (hidden flag persisted) so the parent drops it
+   * from its cached view in place (no refetch → no flicker).
+   */
+  onVouchDeleted?: (id: string) => void;
   /**
    * Called after an admin edits a constant "seed" bubble (READ ME, the welcome
    * card, the announcement seed) so the parent can patch its client-held
@@ -237,6 +251,9 @@ export default function CommunityChat({
    */
   chatNoticeText?: string;
   chatNoticeOverridden?: boolean;
+  /** Persisted admin pin/delete state for the chat-notice seed bubble. */
+  chatNoticePinned?: boolean;
+  chatNoticeHidden?: boolean;
 }) {
   const chat = useCommunityChat(topic);
   const isGroupChat = topic === "chat";
@@ -278,10 +295,12 @@ export default function CommunityChat({
         text: string;
         pinned: boolean;
         // canModify → show Edit (seed bubbles ARE editable now — the edit
-        // persists to mod_config / content_blocks). canPin → show Pin; seed
-        // bubbles set this false because the pin route is numeric-vouch-only.
+        // persists to mod_config / content_blocks). canPin → show Pin (the pin
+        // route accepts numeric vouch ids AND seed:<slot> ids). canDelete →
+        // show Delete (vouch rows hard-delete; seeds persist a hidden flag).
         canModify: boolean;
         canPin: boolean;
+        canDelete: boolean;
         media?: string[];
         x: number;
         y: number;
@@ -336,7 +355,10 @@ export default function CommunityChat({
         Math.min(ctxMenu.y, window.innerHeight - height - margin - insetBottom),
       ),
     });
-  }, [ctxMenu]);
+    // reactionsExpanded: expanding the quick-reaction row grows the menu after
+    // the initial measure — re-clamp so it can't spill past the viewport and
+    // sit over the composer.
+  }, [ctxMenu, reactionsExpanded]);
   // #MiddleColumn carries Telegram's slide-transition `transform`, which makes
   // it the containing block for every position:fixed descendant. On desktop
   // that pane is translated ~33.5rem to the right, so a "centered" toast lands
@@ -549,6 +571,7 @@ export default function CommunityChat({
       pinned: boolean;
       canModify?: boolean;
       canPin?: boolean;
+      canDelete?: boolean;
       media?: string[];
     },
   ) =>
@@ -559,6 +582,7 @@ export default function CommunityChat({
       pinned: payload.pinned,
       canModify: payload.canModify ?? true,
       canPin: payload.canPin ?? true,
+      canDelete: payload.canDelete ?? true,
       media: payload.media,
       x: pos.x,
       y: pos.y,
@@ -616,6 +640,26 @@ export default function CommunityChat({
         },
       )
       .catch(() => showToast("Couldn't update pin"));
+  };
+  // Admin delete of a read-only history post or seed bubble. Vouch rows are
+  // hard-deleted server-side; seed bubbles persist a hidden flag. Either way
+  // the parent patches its cached view (no refetch → no flicker).
+  const deleteReadonlyPost = (id: string) => {
+    void fetch("/api/community/vouch/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    })
+      .then((r) => r.json().catch(() => null))
+      .then((data: { ok?: boolean; error?: string } | null) => {
+        if (data?.ok) {
+          onVouchDeleted?.(id);
+          showToast("Post deleted");
+        } else {
+          showToast(data?.error || "Couldn't delete");
+        }
+      })
+      .catch(() => showToast("Couldn't delete"));
   };
   // Jump-target highlight: Web A adds `focused` to the .Message row, which
   // lights the vendored full-width `.Message.focused:before` overlay (instant
@@ -1159,7 +1203,7 @@ export default function CommunityChat({
               setCtxMenu(null);
             }}
           >
-            <i className="icon icon-down" aria-hidden />
+            <IconChevronDown />
           </button>
         </div>
       </div>
@@ -1844,6 +1888,20 @@ export default function CommunityChat({
                     Forward
                   </button>
                 )}
+                {me?.admin && ctxMenu.canDelete && (
+                  <button
+                    type="button"
+                    className="tg-menu-item tg-menu-item-danger"
+                    onClick={() => {
+                      const id = ctxMenu.id;
+                      setCtxMenu(null);
+                      deleteReadonlyPost(id);
+                    }}
+                  >
+                    <IconDelete />
+                    Delete
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -1965,25 +2023,16 @@ export default function CommunityChat({
                       : history}
                     {(isGroupChat || topic === "testimonials") &&
                       !query &&
-                      !pinnedOnly && (
+                      !chatNoticeHidden &&
+                      (!pinnedOnly || chatNoticePinned) && (
                       <div className="sender-group-container sKXqbu2I">
                         <MessageBubble
-                          own={false}
+                          own
                           first
                           last
-                          showAvatarGutter
-                          sender={{
-                            name: SEED_AUTHOR,
-                            peer: peerIdx(SEED_AUTHOR),
-                            admin: true,
-                          }}
-                          avatar={{
-                            name: SEED_AUTHOR,
-                            photo: SEED_AVATAR,
-                            peer: peerIdx(SEED_AUTHOR),
-                          }}
                           hasAppendix
-                          pinned
+                          pinned={chatNoticePinned}
+                          mid="seed:chat-notice"
                           body={
                             chatNoticeOverridden
                               ? renderBody(chatNoticeText)
@@ -1998,13 +2047,13 @@ export default function CommunityChat({
                             openReadonlyMenu(pos, {
                               id: "seed:chat-notice",
                               text: chatNoticeText,
-                              pinned: true,
-                              // Editable like the other seeds — the edit
-                              // persists to content_blocks
-                              // community_seed:chat-notice. Not pinnable: the
-                              // pin route is numeric-vouch-only.
+                              pinned: chatNoticePinned,
+                              // Editable, pinnable and deletable like the
+                              // other seeds — pin/delete persist to
+                              // content_blocks community_seed_pin/_hidden.
                               canModify: true,
-                              canPin: false,
+                              canPin: true,
+                              canDelete: true,
                             })
                           }
                         />
@@ -2248,30 +2297,9 @@ export default function CommunityChat({
             </div>
           </div>
         )}
-        {chat.error && (
-          <div className="tg-composer-alert is-error">
-            <span>{chat.error}</span>
-            <button
-              type="button"
-              onClick={() => chat.setError(null)}
-              aria-label="Dismiss"
-            >
-              <IconClose />
-            </button>
-          </div>
-        )}
-        {chat.systemNote && (
-          <div className="tg-composer-alert">
-            <span>{chat.systemNote}</span>
-            <button
-              type="button"
-              onClick={() => chat.setSystemNote(null)}
-              aria-label="Dismiss"
-            >
-              <IconClose />
-            </button>
-          </div>
-        )}
+        {/* errors + system notes render CENTERED via the overlay portal
+            below (Web A notifications pop over the chat, not squeezed into
+            the composer column). */}
 
         {editPost && !selecting && (
           /* Web A edit flow for readonly/seed posts: the edit composer DOCKS
@@ -2335,13 +2363,17 @@ export default function CommunityChat({
                       <div
                         ref={(el) => {
                           editInputRef.current = el;
-                          // Seed the editable once per opened post (innerText,
-                          // not dangerouslySetInnerHTML — the body is plain
-                          // markdown-lite text) and park the caret at the end
-                          // like Web A.
+                          // Seed the editable once per opened post with the
+                          // body rendered as REAL formatting (markdown-lite
+                          // tokens → styled spans, [ce:] tokens → emoji imgs
+                          // — see editHtml.ts) so editing shows what the
+                          // message looks like, not raw markers. The HTML is
+                          // built from escaped text on our side only. Park
+                          // the caret at the end like Web A.
                           if (el && el.dataset.seededFor !== editPost.id) {
                             el.dataset.seededFor = editPost.id;
-                            el.innerText = editPost.body;
+                            el.innerHTML = bodyToEditHtml(editPost.body);
+                            wireEditCeFallback(el);
                             el.focus();
                             const sel = window.getSelection();
                             sel?.selectAllChildren(el);
@@ -2356,19 +2388,14 @@ export default function CommunityChat({
                         dir="auto"
                         tabIndex={0}
                         aria-label="Edit message"
+                        data-lenis-prevent=""
                         onInput={(e) => {
-                          let v = e.currentTarget.innerText.replace(
-                            /\u00A0/g,
-                            " ",
-                          );
+                          // Serialize the edited DOM back to markdown-lite +
+                          // [ce:] tokens so formatting/emoji survive the save
+                          // instead of being flattened to innerText.
+                          let v = editHtmlToBody(e.currentTarget);
                           if (v === "\n") v = "";
-                          if (v.length > MAX_LEN) {
-                            v = v.slice(0, MAX_LEN);
-                            e.currentTarget.innerText = v;
-                            const sel = window.getSelection();
-                            sel?.selectAllChildren(e.currentTarget);
-                            sel?.collapseToEnd();
-                          }
+                          if (v.length > MAX_LEN) v = v.slice(0, MAX_LEN);
                           setEditPost((p) => (p ? { ...p, body: v } : p));
                         }}
                         onKeyDown={(e) => {
@@ -2869,6 +2896,40 @@ export default function CommunityChat({
             onCreate={createPoll}
           />,
           overlayEl,
+        )}
+
+      {/* Centered notifications (Web A style) — portaled to <body> so the
+          #MiddleColumn transform can't re-anchor the fixed box (see the
+          overlay-portal note in telegram.css). */}
+      {chat.error &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="tg-center-alert is-error" role="alert">
+            <span>{chat.error}</span>
+            <button
+              type="button"
+              onClick={() => chat.setError(null)}
+              aria-label="Dismiss"
+            >
+              <IconClose />
+            </button>
+          </div>,
+          document.body,
+        )}
+      {chat.systemNote &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="tg-center-alert" role="status">
+            <span>{chat.systemNote}</span>
+            <button
+              type="button"
+              onClick={() => chat.setSystemNote(null)}
+              aria-label="Dismiss"
+            >
+              <IconClose />
+            </button>
+          </div>,
+          document.body,
         )}
 
       {toast &&

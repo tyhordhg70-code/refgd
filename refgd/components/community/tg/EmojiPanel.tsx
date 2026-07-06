@@ -33,6 +33,13 @@ interface PackGroup {
   emoji: EmojiRef[];
 }
 
+// Last successfully fetched pack list — module-level so it survives the
+// panel unmounting (the picker closes on every send). Reopening paints the
+// full list instantly from this memo while a background refetch checks for
+// changes; without it every open flashed the small static seed set first,
+// then jumped to the full packs when the fetch landed.
+let packMemoCache: PackGroup[] | null = null;
+
 export default function EmojiPanel({
   onPick,
   onClose,
@@ -48,10 +55,15 @@ export default function EmojiPanel({
   const [activeCat, setActiveCat] = useState(EMOJI_CATEGORIES[0].key);
   const sectionRefs = useRef(new Map<string, HTMLDivElement>());
 
-  // Discovered custom packs (null until first load; falls back to static).
-  const [packs, setPacks] = useState<PackGroup[] | null>(null);
+  // Discovered custom packs (seeded from the module memo when this isn't the
+  // first open; falls back to static only after a load confirms none exist).
+  const [packs, setPacks] = useState<PackGroup[] | null>(packMemoCache);
   const [packsLoaded, setPacksLoaded] = useState(false);
-  const [activePack, setActivePack] = useState<string>("");
+  const [activePack, setActivePack] = useState<string>(() =>
+    packMemoCache && packMemoCache.length > 0
+      ? packMemoCache[0].setName || packMemoCache[0].title || "0"
+      : "",
+  );
   const packRefs = useRef(new Map<string, HTMLDivElement>());
 
   // Hidden diagnostics overlay: tap the "Custom" tab 5 times fast to toggle.
@@ -113,17 +125,20 @@ export default function EmojiPanel({
   useEffect(() => {
     if (tab !== "custom" || packsLoaded) return;
     let cancelled = false;
-    const load = async (): Promise<PackGroup[]> => {
+    // null = fetch/parse FAILED (keep whatever is on screen + in the memo);
+    // [] = the server CONFIRMED there are no packs (safe to drop the memo).
+    const load = async (): Promise<PackGroup[] | null> => {
       try {
         const res = await fetch("/api/community/emoji/list");
         const data = (await res.json()) as { ok?: boolean; groups?: PackGroup[] };
-        return data?.ok && Array.isArray(data.groups) ? data.groups : [];
+        return data?.ok && Array.isArray(data.groups) ? data.groups : null;
       } catch {
-        return [];
+        return null;
       }
     };
     (async () => {
-      let groups = await load();
+      let loaded = await load();
+      let groups = loaded ?? [];
       // Admin auto-discovery: when the pack DB is empty, expand the seed ids
       // into their FULL Telegram packs on first open — so the owner sees every
       // emoji in each pack without having to find/press "Load packs". One-shot
@@ -144,7 +159,8 @@ export default function EmojiPanel({
           };
           if (data?.ok) {
             setAdminMsg(`Loaded ${data.discovered ?? 0} emoji`);
-            groups = await load();
+            loaded = await load();
+            groups = loaded ?? [];
           } else {
             setAdminMsg(data?.error || "Discovery failed");
           }
@@ -159,8 +175,23 @@ export default function EmojiPanel({
       }
       if (!cancelled) {
         if (groups.length > 0) {
-          setPacks(groups);
-          setActivePack(groups[0].setName || groups[0].title || "0");
+          // Seamless refresh: when the fetch matches the memo the panel was
+          // seeded from (the common case — every reopen), skip the state
+          // update entirely so nothing re-renders, scroll position holds and
+          // the user's active pack tab isn't clobbered.
+          const changed =
+            JSON.stringify(groups) !== JSON.stringify(packMemoCache);
+          packMemoCache = groups;
+          if (changed) {
+            setPacks(groups);
+            setActivePack(groups[0].setName || groups[0].title || "0");
+          }
+        } else if (loaded !== null) {
+          // The server CONFIRMED there are no packs (not a failed fetch) —
+          // drop the memo + any list it seeded so the seed fallback shows
+          // instead of a stale pack list that no longer exists.
+          packMemoCache = null;
+          setPacks(null);
         }
         setPacksLoaded(true);
         // Telegram-instant: quietly pre-download every tile (a few at a time)
@@ -181,8 +212,9 @@ export default function EmojiPanel({
   const packKey = (g: PackGroup, i: number) => g.setName || g.title || `pack-${i}`;
 
   // ── Admin pack management (Custom tab only). ────────────────────────────
+  // Keeps the current list on screen while the loader effect refetches — the
+  // fresh result replaces it only if it actually differs (no blank flash).
   const reloadPacks = () => {
-    setPacks(null);
     setPacksLoaded(false);
   };
 
@@ -319,6 +351,12 @@ export default function EmojiPanel({
             ? prev.filter((p) => (p.setName || p.title || "").trim() !== setName)
             : prev,
         );
+        // Keep the reopen memo in step with the on-screen list so the next
+        // open doesn't resurrect the removed pack for a frame.
+        packMemoCache =
+          packMemoCache?.filter(
+            (p) => (p.setName || p.title || "").trim() !== setName,
+          ) ?? null;
       } else {
         setAdminMsg(data?.error || "Remove failed");
       }
@@ -628,7 +666,7 @@ export default function EmojiPanel({
               })}
             </div>
           </>
-        ) : (
+        ) : packsLoaded ? (
           <div className="tg-emoji-grid custom-scroll" data-lenis-prevent>
             {CUSTOM_EMOJI.map((c) => (
               <button
@@ -641,6 +679,10 @@ export default function EmojiPanel({
               </button>
             ))}
           </div>
+        ) : (
+          /* First-ever load in flight: hold an empty grid instead of
+             flashing the static seed set that the full list then replaces. */
+          <div className="tg-emoji-grid custom-scroll" data-lenis-prevent />
             )}
           </>
         )}

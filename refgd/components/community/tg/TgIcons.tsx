@@ -138,6 +138,17 @@ export function IconCopy() {
   );
 }
 
+export function IconChevronDown() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="m6 9.4 1.4-1.4 4.6 4.6L16.6 8 18 9.4l-6 6-6-6Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export function IconSelect() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -232,6 +243,86 @@ export function IconEdit() {
     <svg viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
         d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25ZM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+/* ── TextFormatter toolbar icons (the vendored icon-font glyphs are scoped
+   under .tg-body and never reach the .tg-overlay-root portal). ─────────── */
+
+export function IconBold() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42ZM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3Zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+export function IconItalic() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4h-8Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+export function IconUnderline() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6Zm-7 2v2h14v-2H5Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+export function IconStrikethrough() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M10 19h4v-3h-4v3ZM5 4v3h5v3h4V7h5V4H5ZM3 14h18v-2H3v2Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+export function IconMono() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4Zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+export function IconEyeCrossed() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 7a5 5 0 0 1 5 5c0 .65-.13 1.26-.36 1.83l2.92 2.92A11.8 11.8 0 0 0 22.99 12C21.27 7.61 17 4.5 12 4.5c-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7ZM2 4.27l2.28 2.28.46.46A11.8 11.8 0 0 0 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27ZM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65a3 3 0 0 0 3 3c.22 0 .44-.03.65-.08l1.55 1.55A4.98 4.98 0 0 1 7 12c0-.79.18-1.53.53-2.2Zm4.31-.78 3.15 3.15.02-.17a3 3 0 0 0-3-3l-.17.02Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+export function IconCheck() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17Z"
         fill="currentColor"
       />
     </svg>

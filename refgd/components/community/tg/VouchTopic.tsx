@@ -3,8 +3,7 @@
 import { useMemo } from "react";
 import MessageBubble, { type BubbleReaction } from "./MessageBubble";
 import type { VouchView } from "./types";
-import { LocalTime, dateKey, dateLabel, peerIdx, renderBody } from "./format";
-import { SEED_AUTHOR, SEED_AVATAR } from "./seed";
+import { LocalTime, dateKey, dateLabel, renderBody } from "./format";
 
 /**
  * Read-only vouch history (Client Testimonials, BUY4U Vouches, Announcements)
@@ -94,28 +93,9 @@ export default function VouchHistory({
                 return (
                   <MessageBubble
                     key={v.id}
-                    own={false}
+                    own
                     first={first}
                     last={last}
-                    showAvatarGutter
-                    sender={
-                      first
-                        ? {
-                            name: SEED_AUTHOR,
-                            peer: peerIdx(SEED_AUTHOR),
-                            admin: true,
-                          }
-                        : null
-                    }
-                    avatar={
-                      last
-                        ? {
-                            name: SEED_AUTHOR,
-                            photo: SEED_AVATAR,
-                            peer: peerIdx(SEED_AUTHOR),
-                          }
-                        : null
-                    }
                     hasAppendix={last}
                     mid={`v${v.id}`}
                     pinned={v.pinned}

@@ -30,6 +30,7 @@ export default async function CommunityPage() {
     seedReadme,
     seedAnnouncement,
     seedChatNotice,
+    ...seedFlags
   ] = await Promise.all([
     listVouches("testimonials"),
     listVouches("buy4u"),
@@ -39,7 +40,38 @@ export default async function CommunityPage() {
     getContentBlock("community_seed:readme"),
     getContentBlock("community_seed:announcement"),
     getContentBlock("community_seed:chat-notice"),
+    /* Admin pin/delete state for the constant seed bubbles ("1" = set). */
+    getContentBlock("community_seed_pin:readme"),
+    getContentBlock("community_seed_pin:welcome"),
+    getContentBlock("community_seed_pin:announcement"),
+    getContentBlock("community_seed_pin:chat-notice"),
+    getContentBlock("community_seed_hidden:readme"),
+    getContentBlock("community_seed_hidden:welcome"),
+    getContentBlock("community_seed_hidden:announcement"),
+    getContentBlock("community_seed_hidden:chat-notice"),
   ]);
+  const [
+    pinReadme,
+    pinWelcome,
+    pinAnnouncement,
+    pinChatNotice,
+    hiddenReadme,
+    hiddenWelcome,
+    hiddenAnnouncement,
+    hiddenChatNotice,
+  ] = seedFlags as string[];
+  const seedPins = {
+    readme: pinReadme === "1",
+    welcome: pinWelcome === "1",
+    announcement: pinAnnouncement === "1",
+    "chat-notice": pinChatNotice === "1",
+  };
+  const seedHidden = {
+    readme: hiddenReadme === "1",
+    welcome: hiddenWelcome === "1",
+    announcement: hiddenAnnouncement === "1",
+    "chat-notice": hiddenChatNotice === "1",
+  };
 
   let memberLabel = "public group";
   if (!hideMembers) {
@@ -78,6 +110,8 @@ export default async function CommunityPage() {
       seedReadme={seedReadme}
       seedAnnouncement={seedAnnouncement}
       seedChatNotice={seedChatNotice}
+      seedPins={seedPins}
+      seedHidden={seedHidden}
       memberLabel={memberLabel}
       chatPreview={chatPreview}
     />

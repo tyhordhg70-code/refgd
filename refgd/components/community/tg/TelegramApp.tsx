@@ -30,7 +30,6 @@ import {
   README_SEED_TEXT,
   README_SEED_TIME,
   SEED_AUTHOR,
-  SEED_AVATAR,
 } from "./seed";
 import type { TopicDef, TopicKey, VouchView } from "./types";
 import {
@@ -143,6 +142,8 @@ export default function TelegramApp({
   seedReadme = "",
   seedAnnouncement = "",
   seedChatNotice = "",
+  seedPins = {},
+  seedHidden = {},
   memberLabel,
   chatPreview,
 }: {
@@ -156,6 +157,10 @@ export default function TelegramApp({
   seedAnnouncement?: string;
   /** Persisted admin override for the chat-notice seed body ("" = built-in). */
   seedChatNotice?: string;
+  /** Persisted admin pin state per seed slot (readme/welcome/announcement/chat-notice). */
+  seedPins?: Record<string, boolean>;
+  /** Persisted admin delete (hide) state per seed slot. */
+  seedHidden?: Record<string, boolean>;
   memberLabel: string;
   chatPreview: ChatPreview | null;
 }) {
@@ -166,7 +171,7 @@ export default function TelegramApp({
   // Topic-list search: null = closed, string = open with that query.
   const [listSearch, setListSearch] = useState<string | null>(null);
   const [showNotif, setShowNotif] = useState(false);
-  // Desktop-only (≥926px): collapse the persistent topic-list pane. Read the
+  // Desktop-only (≥768px): collapse the persistent topic-list pane. Read the
   // saved preference in an effect so the SSR markup matches the first paint.
   const [listCollapsed, setListCollapsed] = useState(false);
   useEffect(() => {
@@ -243,6 +248,39 @@ export default function TelegramApp({
   const [seedEdits, setSeedEdits] = useState<Record<string, string>>({});
   const onSeedEdited = (id: string, body: string) =>
     setSeedEdits((prev) => ({ ...prev, [id]: body }));
+  // Seed pin/delete state works the same way: the server persists it in
+  // content_blocks (community_seed_pin/_hidden:<slot>), the page passes it as
+  // props, and a client override keyed by menu id patches the view instantly.
+  const [seedPinEdits, setSeedPinEdits] = useState<Record<string, boolean>>({});
+  const [seedHiddenEdits, setSeedHiddenEdits] = useState<
+    Record<string, boolean>
+  >({});
+  // Admin hard-deletes of vouch rows, applied client-side (no refetch).
+  const [vouchDeletes, setVouchDeletes] = useState<Set<string>>(new Set());
+  const seedPin = (slot: string) =>
+    seedPinEdits[`seed:${slot}`] ?? seedPins[slot] ?? false;
+  const seedGone = (slot: string) =>
+    seedHiddenEdits[`seed:${slot}`] ?? seedHidden[slot] ?? false;
+  // Pin + delete callbacks shared by vouch rows AND seed bubbles — routed by
+  // id shape ("seed:<slot>" vs numeric vouch id).
+  const onAnyPinned = (id: string, pinned: boolean) => {
+    if (id.startsWith("seed:")) {
+      setSeedPinEdits((prev) => ({ ...prev, [id]: pinned }));
+    } else {
+      setVouchPins((prev) => ({ ...prev, [id]: pinned }));
+    }
+  };
+  const onAnyDeleted = (id: string) => {
+    if (id.startsWith("seed:")) {
+      setSeedHiddenEdits((prev) => ({ ...prev, [id]: true }));
+    } else {
+      setVouchDeletes((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+    }
+  };
   const effWelcome = seedEdits["seed:welcome"] ?? welcome;
   const effReadme =
     seedEdits["seed:readme"] ?? (seedReadme || README_SEED_TEXT);
@@ -257,7 +295,7 @@ export default function TelegramApp({
   const chatNoticeOverridden =
     seedEdits["seed:chat-notice"] !== undefined || seedChatNotice.length > 0;
   const applyEdits = (list: VouchView[]): VouchView[] =>
-    list.map((v) => {
+    list.filter((v) => !vouchDeletes.has(v.id)).map((v) => {
       const body = vouchEdits[v.id] !== undefined ? vouchEdits[v.id] : v.body;
       const pinned =
         vouchPins[v.id] !== undefined ? vouchPins[v.id] : v.pinned;
@@ -388,7 +426,7 @@ export default function TelegramApp({
     window.setTimeout(() => wave.remove(), 700);
   };
 
-  // ── Mobile swipe-back (≤925px) ─────────────────────────────────────
+  // ── Mobile swipe-back (≤767px) ─────────────────────────────────────
   // iOS-style edge gesture: a touch starting within 28px of the left screen
   // edge drags the whole chat column with the finger; releasing past 90px
   // slides it away and returns to the topic list. The drag writes an inline
@@ -403,7 +441,7 @@ export default function TelegramApp({
   } | null>(null);
   const onMiddleTouchStart = (e: ReactTouchEvent<HTMLDivElement>) => {
     if (active === null || e.touches.length > 1) return;
-    if (!window.matchMedia("(max-width: 925px)").matches) return;
+    if (!window.matchMedia("(max-width: 767px)").matches) return;
     const t = e.touches[0];
     if (!t || t.clientX >= 28) return;
     backSwipe.current = {
@@ -514,6 +552,16 @@ export default function TelegramApp({
         title={def?.title ?? "READ ME"}
         icon={def ? <TopicIcon def={def} /> : undefined}
         onSeedEdited={onSeedEdited}
+        onVouchPinned={onAnyPinned}
+        onVouchDeleted={onAnyDeleted}
+        pinnedExtras={[
+          ...(seedPin("readme") && !seedGone("readme")
+            ? [{ id: "seed:readme", body: effReadme }]
+            : []),
+          ...(seedPin("welcome") && !seedGone("welcome") && effWelcome
+            ? [{ id: "seed:welcome", body: effWelcome }]
+            : []),
+        ]}
         history={(
           query,
           onReadonlyMenu,
@@ -522,29 +570,28 @@ export default function TelegramApp({
           reactionsFor,
           onReact,
         ) => {
-          if (pinnedOnly) return null;
           const rq = query.trim().toLowerCase();
-          const showSeed = !rq || effReadme.toLowerCase().includes(rq);
+          const showSeed =
+            !seedGone("readme") &&
+            (!rq || effReadme.toLowerCase().includes(rq)) &&
+            (!pinnedOnly || seedPin("readme"));
           const showWelcome =
-            !!effWelcome && (!rq || effWelcome.toLowerCase().includes(rq));
+            !!effWelcome &&
+            !seedGone("welcome") &&
+            (!rq || effWelcome.toLowerCase().includes(rq)) &&
+            (!pinnedOnly || seedPin("welcome"));
           if (!showSeed && !showWelcome) return null;
           return (
             <div className="message-date-group first-message-date-group">
               <div className="sender-group-container sKXqbu2I">
                 {showSeed && (
                   <MessageBubble
-                    own={false}
+                    own
                     first
                     last={!showWelcome}
-                    showAvatarGutter
-                    sender={{ name: SEED_AUTHOR, peer: 0, admin: true }}
-                    avatar={
-                      showWelcome
-                        ? null
-                        : { name: SEED_AUTHOR, photo: SEED_AVATAR, peer: 0 }
-                    }
                     hasAppendix={!showWelcome}
-                    pinned
+                    pinned={seedPin("readme")}
+                    mid="seed:readme"
                     media={[README_SEED_PHOTO]}
                     reactions={reactionsFor(
                       "seed:readme",
@@ -557,9 +604,10 @@ export default function TelegramApp({
                       onReadonlyMenu(pos, {
                         id: "seed:readme",
                         text: effReadme,
-                        pinned: true,
+                        pinned: seedPin("readme"),
                         canModify: true,
-                        canPin: false,
+                        canPin: true,
+                        canDelete: true,
                       })
                     }
                     onOpenMedia={onOpenMedia}
@@ -567,13 +615,12 @@ export default function TelegramApp({
                 )}
                 {showWelcome && (
                   <MessageBubble
-                    own={false}
+                    own
                     first={!showSeed}
                     last
-                    showAvatarGutter
-                    sender={null}
-                    avatar={{ name: SEED_AUTHOR, photo: SEED_AVATAR, peer: 0 }}
                     hasAppendix
+                    pinned={seedPin("welcome")}
+                    mid="seed:welcome"
                     body={renderBody(effWelcome)}
                     reactions={reactionsFor("seed:welcome")}
                     onReact={(e) => onReact("seed:welcome", e)}
@@ -581,9 +628,10 @@ export default function TelegramApp({
                       onReadonlyMenu(pos, {
                         id: "seed:welcome",
                         text: effWelcome,
-                        pinned: false,
+                        pinned: seedPin("welcome"),
                         canModify: true,
-                        canPin: false,
+                        canPin: true,
+                        canDelete: true,
                       })
                     }
                   />
@@ -611,21 +659,34 @@ export default function TelegramApp({
         onVouchEdited={(id, body) =>
           setVouchEdits((prev) => ({ ...prev, [id]: body }))
         }
-        onVouchPinned={(id, pinned) =>
-          setVouchPins((prev) => ({ ...prev, [id]: pinned }))
-        }
+        onVouchPinned={onAnyPinned}
+        onVouchDeleted={onAnyDeleted}
         onSeedEdited={onSeedEdited}
         chatNoticeText={effChatNotice}
         chatNoticeOverridden={chatNoticeOverridden}
-        pinnedExtras={(byTopic[topicKey] ?? [])
-          .filter((v) => v.pinned)
-          .sort((a, b) => {
-            const ta = a.originDate ?? a.createdAt;
-            const tb = b.originDate ?? b.createdAt;
-            if (ta !== tb) return ta < tb ? -1 : 1;
-            return Number(a.id) - Number(b.id);
-          })
-          .map((v) => ({ id: `v${v.id}`, body: v.body ?? "" }))}
+        chatNoticePinned={seedPin("chat-notice")}
+        chatNoticeHidden={seedGone("chat-notice")}
+        pinnedExtras={[
+          ...(topicKey === "announcements" &&
+          seedPin("announcement") &&
+          !seedGone("announcement")
+            ? [{ id: "seed:announcement", body: effAnnouncement }]
+            : []),
+          ...(topicKey === "testimonials" &&
+          seedPin("chat-notice") &&
+          !seedGone("chat-notice")
+            ? [{ id: "seed:chat-notice", body: effChatNotice }]
+            : []),
+          ...(byTopic[topicKey] ?? [])
+            .filter((v) => v.pinned)
+            .sort((a, b) => {
+              const ta = a.originDate ?? a.createdAt;
+              const tb = b.originDate ?? b.createdAt;
+              if (ta !== tb) return ta < tb ? -1 : 1;
+              return Number(a.id) - Number(b.id);
+            })
+            .map((v) => ({ id: `v${v.id}`, body: v.body ?? "" })),
+        ]}
         history={(
           query,
           onReadonlyMenu,
@@ -647,18 +708,19 @@ export default function TelegramApp({
           ).filter((v) => !pinnedOnly || v.pinned);
           return (
             <>
-              {topicKey === "announcements" && !q && !pinnedOnly && (
+              {topicKey === "announcements" &&
+                !q &&
+                !seedGone("announcement") &&
+                (!pinnedOnly || seedPin("announcement")) && (
                 <div className="message-date-group first-message-date-group">
                   <div className="sender-group-container sKXqbu2I">
                     <MessageBubble
-                      own={false}
+                      own
                       first
                       last
-                      showAvatarGutter
-                      sender={{ name: SEED_AUTHOR, peer: 0, admin: true }}
-                      avatar={{ name: SEED_AUTHOR, photo: SEED_AVATAR, peer: 0 }}
                       hasAppendix
-                      pinned
+                      pinned={seedPin("announcement")}
+                      mid="seed:announcement"
                       media={[ANNOUNCEMENT_SEED_PHOTO]}
                       body={
                         announcementOverridden
@@ -672,9 +734,10 @@ export default function TelegramApp({
                         onReadonlyMenu(pos, {
                           id: "seed:announcement",
                           text: effAnnouncement,
-                          pinned: true,
+                          pinned: seedPin("announcement"),
                           canModify: true,
-                          canPin: false,
+                          canPin: true,
+                          canDelete: true,
                         })
                       }
                       onOpenMedia={onOpenMedia}
@@ -700,8 +763,17 @@ export default function TelegramApp({
         key="chat"
         onBack={back}
         onSeedEdited={onSeedEdited}
+        onVouchPinned={onAnyPinned}
+        onVouchDeleted={onAnyDeleted}
         chatNoticeText={effChatNotice}
         chatNoticeOverridden={chatNoticeOverridden}
+        chatNoticePinned={seedPin("chat-notice")}
+        chatNoticeHidden={seedGone("chat-notice")}
+        pinnedExtras={
+          seedPin("chat-notice") && !seedGone("chat-notice")
+            ? [{ id: "seed:chat-notice", body: effChatNotice }]
+            : []
+        }
       />
     );
   }
