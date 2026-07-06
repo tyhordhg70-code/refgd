@@ -40,6 +40,38 @@ interface PackGroup {
 // then jumped to the full packs when the fetch landed.
 let packMemoCache: PackGroup[] | null = null;
 
+/**
+ * App-open tile warm-up: fetches the full pack list and queues every tile
+ * into the background warmer WITHOUT the picker (or its Custom tab) ever
+ * being opened — so custom emoji in bubbles and the first picker open paint
+ * from cache (owner ask: emojis must load even when the tab was never
+ * tapped). Also seeds the pack memo so that first open lists packs
+ * instantly. Module-guarded: exactly one kick per page load, no matter how
+ * many chat components mount.
+ */
+let warmKickDone = false;
+export function kickstartEmojiWarm(): void {
+  if (warmKickDone || typeof window === "undefined") return;
+  warmKickDone = true;
+  void (async () => {
+    try {
+      const res = await fetch("/api/community/emoji/list");
+      const data = (await res.json()) as { ok?: boolean; groups?: PackGroup[] };
+      const groups =
+        data?.ok && Array.isArray(data.groups) ? data.groups : null;
+      if (groups && groups.length > 0) {
+        if (!packMemoCache) packMemoCache = groups;
+        warmEmojiTiles(groups.flatMap((g) => g.emoji.map((c) => c.id)));
+        return;
+      }
+      warmEmojiTiles(CUSTOM_EMOJI.map((c) => c.id));
+    } catch {
+      // List unreachable — warm the static seed set so SOMETHING is cached.
+      warmEmojiTiles(CUSTOM_EMOJI.map((c) => c.id));
+    }
+  })();
+}
+
 export default function EmojiPanel({
   onPick,
   onClose,

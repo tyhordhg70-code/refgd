@@ -104,7 +104,9 @@ function inlineHtml(text: string): string {
     best = {
       idx: lm.index,
       len: lm[0].length,
-      html: `<a href="${esc(lm[2] ?? "")}">${leafHtml(lm[1] ?? "")}</a>`,
+      // Web A's link class so the anchor is visibly styled (blue/underline)
+      // inside the edit box instead of blending into the plain text.
+      html: `<a class="text-entity-link" href="${esc(lm[2] ?? "")}">${leafHtml(lm[1] ?? "")}</a>`,
     };
   }
   if (best === null) return leafHtml(text);
@@ -163,6 +165,28 @@ export function editHtmlToBody(root: HTMLElement): string {
     // CSS text must never leak into the serialized message.
     if (tag === "STYLE" || tag === "SCRIPT" || tag === "TEMPLATE") return "";
     if (tag === "BR") return "\n";
+    // Custom emoji pasted from ANY Telegram web client: Web A wraps its
+    // ANIMATED custom emoji in a <div data-document-id> (only static ones
+    // are a plain <img>), and Web K uses <custom-emoji-element data-docid>.
+    // Recognize the document id on ANY element so pasting an animated emoji
+    // keeps its [ce:] token instead of degrading to the alt character
+    // (which rendered as a static system emoji).
+    const pastedDoc =
+      n.getAttribute("data-document-id") ??
+      n.getAttribute("data-doc-id") ??
+      n.getAttribute("data-docid");
+    if (pastedDoc && /^\d+$/.test(pastedDoc)) {
+      const rawAlt =
+        n.getAttribute("alt") ??
+        n.getAttribute("data-alt") ??
+        n.querySelector("img[alt]")?.getAttribute("alt") ??
+        n.textContent ??
+        "";
+      // "]" and newlines would break the token; an empty alt would fail the
+      // token regex — fall back to a neutral emoji character.
+      const alt = rawAlt.replace(/[\]\n]/g, "").trim() || "🙂";
+      return `[ce:${pastedDoc}:${alt}]`;
+    }
     if (tag === "IMG" || tag === "VIDEO") {
       // Custom emoji round-trip: bubble/composer emoji (img OR the animated
       // <video> stage) carry data-document-id; anything else degrades to its

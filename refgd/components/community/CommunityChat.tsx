@@ -17,7 +17,7 @@ import AdminPanel from "./AdminPanel";
 import MiddleHeader from "./tg/MiddleHeader";
 import MessageBubble from "./tg/MessageBubble";
 import Appendix from "./tg/Appendix";
-import EmojiPanel from "./tg/EmojiPanel";
+import EmojiPanel, { kickstartEmojiWarm } from "./tg/EmojiPanel";
 import TextFormatter from "./tg/TextFormatter";
 import VoiceMessage from "./tg/VoiceMessage";
 import PollBubble from "./tg/PollBubble";
@@ -35,6 +35,7 @@ import {
   IconDownload,
   IconEdit,
   IconChevronDown,
+  IconCollapse,
   IconExpand,
   IconForward,
   IconLink,
@@ -772,6 +773,16 @@ export default function CommunityChat({
     // chat.toggleFullscreen is stable; excluded to avoid re-prompting churn.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat.canFullscreen, chat.isFullscreen]);
+
+  // Warm every custom-emoji tile shortly after the app opens — WITHOUT the
+  // picker's Custom tab ever being tapped — so the first picker open (and
+  // every custom emoji in bubbles) paints from cache. Delayed so the initial
+  // message load always wins the network first; module-guarded so remounts
+  // and multiple topics kick it off exactly once per page load.
+  useEffect(() => {
+    const t = window.setTimeout(() => kickstartEmojiWarm(), 2500);
+    return () => window.clearTimeout(t);
+  }, []);
 
   // Chain a notifications prompt once per user (persisted), gated on being
   // signed in. Opens the NotificationSettings sheet.
@@ -1561,6 +1572,29 @@ export default function CommunityChat({
               >
                 <IconBell />
                 {state.hideMembers ? "Show member count" : "Hide member count"}
+              </button>
+            )}
+            {chat.canFullscreen && (
+              <button
+                type="button"
+                className="tg-menu-item"
+                onClick={() => {
+                  setMenuOpen(false);
+                  // Remember the choice so the entry prompt respects it on
+                  // the next visit — the menu IS the "changed my mind" path.
+                  try {
+                    localStorage.setItem(
+                      FS_PREF_KEY,
+                      chat.isFullscreen ? "skip" : "fs",
+                    );
+                  } catch {
+                    // storage blocked — toggle still works for this session
+                  }
+                  chat.toggleFullscreen();
+                }}
+              >
+                {chat.isFullscreen ? <IconCollapse /> : <IconExpand />}
+                {chat.isFullscreen ? "Minimize" : "Full screen"}
               </button>
             )}
             <a
@@ -2389,7 +2423,7 @@ export default function CommunityChat({
               </div>
               <div className="message-input-wrapper">
                 <div id="message-input-text">
-                  <div className="custom-scroll input-scroller">
+                  <div className="custom-scroll input-scroller" data-lenis-prevent="">
                     <div className="input-scroller-content">
                       <div
                         ref={(el) => {
@@ -2700,7 +2734,7 @@ export default function CommunityChat({
                   <i className="icon icon-smile" aria-hidden />
                 </button>
                 <div id="message-input-text">
-                  <div className="custom-scroll input-scroller">
+                  <div className="custom-scroll input-scroller" data-lenis-prevent="">
                     <div className="input-scroller-content">
                       <div
                         ref={inputRef}

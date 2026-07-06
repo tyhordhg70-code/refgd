@@ -144,11 +144,11 @@ export const README_SEED_BODY: ReactNode = (
             className="text-entity-link"
             dir="auto"
             data-entity-type="MessageEntityMention"
-            href="https://t.me/refundlawfirmbot"
+            href="https://t.me/refundgodbot"
             target="_blank"
             rel="noopener noreferrer"
           >
-            <strong data-entity-type="MessageEntityBold">@refundlawfirmbot</strong>
+            <strong data-entity-type="MessageEntityBold">@refundgodbot</strong>
           </a>
         </div>
       </blockquote>
@@ -187,7 +187,7 @@ export const README_SEED_TEXT =
   "\n" +
   "[ce:5443038326535759644:💬] Something not clear, or still have questions?\n" +
   "**Please don't hesitate to ask them to** " +
-  "[@refundlawfirmbot](https://t.me/refundlawfirmbot)";
+  "[@refundgodbot](https://t.me/refundgodbot)";
 
 /**
  * Body of the pinned clearing notice (message 18 in the saved page). The
@@ -218,7 +218,7 @@ export const CHAT_NOTICE_SEED_TEXT =
 /**
  * Markdown-lite token distillation of {@link ANNOUNCEMENT_SEED_BODY} for
  * Copy Text / Forward and for seeding the edit composer — the same blank-line
- * layout, bold highlight, custom emoji and @refundlawfirmbot links as the
+ * layout, bold highlight, custom emoji and @refundgodbot links as the
  * JSX body, so editing shows the message exactly as it renders instead of
  * one flat run-together paragraph.
  */
@@ -231,7 +231,7 @@ export const ANNOUNCEMENT_SEED_TEXT =
   "**Wait no longer, because now you can receive instant responses.**\n" +
   "\n" +
   "[ce:5443038326535759644:💬] Please from now on, ask all of your questions " +
-  "to [@refundlawfirmbot](https://t.me/refundlawfirmbot) and receive near " +
+  "to [@refundgodbot](https://t.me/refundgodbot) and receive near " +
   "instant detailed responses.\n" +
   "The bot is equipped to handle everything other than giving status updates " +
   "on live orders.\n" +
@@ -239,8 +239,8 @@ export const ANNOUNCEMENT_SEED_TEXT =
   "If for some reason the bot is unable to answer your question, please only " +
   "then reach out to us.\n" +
   "\n" +
-  "[ce:5416117059207572332:➡️] [@refundlawfirmbot](https://t.me/refundlawfirmbot)\n" +
-  "[ce:5416117059207572332:➡️] [@refundlawfirmbot](https://t.me/refundlawfirmbot)";
+  "[ce:5416117059207572332:➡️] [@refundgodbot](https://t.me/refundgodbot)\n" +
+  "[ce:5416117059207572332:➡️] [@refundgodbot](https://t.me/refundgodbot)";
 
 /**
  * The email / paper-plane illustration attached to the Announcements post
@@ -251,7 +251,7 @@ export const ANNOUNCEMENT_SEED_PHOTO = "/tg-assets/announcement-bot-photo.png";
 /**
  * The pinned Announcements post — the owner's "ask the bot" notice,
  * transcribed from the saved screenshot: bold highlight line, custom ❓ and 💬
- * emoji (doc ids supplied by the owner from the saved HTML) and @refundlawfirmbot
+ * emoji (doc ids supplied by the owner from the saved HTML) and @refundgodbot
  * mention links, blank-line layout preserved. The closing 🐺 bullets are the
  * standard Apple emoji (no custom-pack id).
  */
@@ -275,11 +275,11 @@ export const ANNOUNCEMENT_SEED_BODY: ReactNode = (
       className="text-entity-link"
       dir="auto"
       data-entity-type="MessageEntityMention"
-      href="https://t.me/refundlawfirmbot"
+      href="https://t.me/refundgodbot"
       target="_blank"
       rel="noopener noreferrer"
     >
-      @refundlawfirmbot
+      @refundgodbot
     </a>{" "}
     and receive near instant detailed responses.
     <br />
@@ -296,11 +296,11 @@ export const ANNOUNCEMENT_SEED_BODY: ReactNode = (
       className="text-entity-link"
       dir="auto"
       data-entity-type="MessageEntityMention"
-      href="https://t.me/refundlawfirmbot"
+      href="https://t.me/refundgodbot"
       target="_blank"
       rel="noopener noreferrer"
     >
-      <strong data-entity-type="MessageEntityBold">@refundlawfirmbot</strong>
+      <strong data-entity-type="MessageEntityBold">@refundgodbot</strong>
     </a>
     <br />
     <Ce id="5416117059207572332" alt="➡️" />{" "}
@@ -308,11 +308,11 @@ export const ANNOUNCEMENT_SEED_BODY: ReactNode = (
       className="text-entity-link"
       dir="auto"
       data-entity-type="MessageEntityMention"
-      href="https://t.me/refundlawfirmbot"
+      href="https://t.me/refundgodbot"
       target="_blank"
       rel="noopener noreferrer"
     >
-      <strong data-entity-type="MessageEntityBold">@refundlawfirmbot</strong>
+      <strong data-entity-type="MessageEntityBold">@refundgodbot</strong>
     </a>
   </>
 );

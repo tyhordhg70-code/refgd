@@ -2113,12 +2113,25 @@ video.tg-custom-emoji {
   overflow-y: auto;
   max-height: min(26rem, 40dvh);
   overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
+/* Links inside BOTH edit surfaces (main composer edit + the docked
+   readonly-post editor): bodyToEditHtml renders real <a> elements, but with
+   no styling they inherited the plain text color and looked as if the
+   hyperlink had vanished while editing. */
+.tg-body .composer-wrapper #editable-message-text a,
+.tg-edit-dock .tg-edit-input a {
+  color: var(--color-links, #8774e1);
+  text-decoration: underline;
+  cursor: text;
+}
+/* The dock's editable must NOT scroll on its own — its ancestor
+   .input-scroller is the (only) scroller. Two nested scrollables made touch
+   scrolling dead on mobile: the inner one swallowed the gesture while the
+   outer clipped it ("still can't scroll the edit box"). */
 .tg-edit-dock .tg-edit-input {
   min-height: 1.5rem;
-  max-height: min(26rem, 50dvh);
-  overflow-y: auto;
-  overscroll-behavior: contain;
   border: none;
   outline: none;
   background: transparent;

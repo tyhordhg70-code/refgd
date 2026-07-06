@@ -232,6 +232,55 @@ const emojiVideos = new Set<HTMLVideoElement>();
 let emojiVideoIO: IntersectionObserver | null = null;
 let emojiVideoWired = false;
 
+/**
+ * Scroll-idle gate — the remaining "emojis are lagging" lever: dozens of
+ * looping .webm decoders + Lottie renderers compete with scroll compositing
+ * on exactly the frames where jank is most visible. Telegram's clients do
+ * the same trick — heavy animations freeze while the finger/wheel is moving
+ * and resume the instant scrolling settles. One capture-phase listener
+ * (scroll doesn't bubble, but it DOES capture) hears every scroller: the
+ * message list, the picker grid, the page itself.
+ */
+let scrollGateWired = false;
+let emojiScrolling = false;
+let scrollIdleTimer: number | null = null;
+const lottieScrollHandles = new Set<{ pause(): void; resume(): void }>();
+
+function wireEmojiScrollGate(): void {
+  if (scrollGateWired || typeof window === "undefined") return;
+  scrollGateWired = true;
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (!emojiScrolling) {
+        emojiScrolling = true;
+        for (const v of emojiVideos) v.pause();
+        for (const h of lottieScrollHandles) h.pause();
+      }
+      if (scrollIdleTimer !== null) window.clearTimeout(scrollIdleTimer);
+      scrollIdleTimer = window.setTimeout(() => {
+        emojiScrolling = false;
+        scrollIdleTimer = null;
+        if (document.hidden) return;
+        // Resume only what's actually visible: re-observing forces the IO to
+        // re-report each video's intersection (same trick the
+        // visibilitychange resume below uses) instead of blind-playing all.
+        for (const v of Array.from(emojiVideos)) {
+          if (!v.isConnected) {
+            emojiVideoIO?.unobserve(v);
+            emojiVideos.delete(v);
+            continue;
+          }
+          emojiVideoIO?.unobserve(v);
+          emojiVideoIO?.observe(v);
+        }
+        for (const h of lottieScrollHandles) h.resume();
+      }, 250);
+    },
+    { capture: true, passive: true },
+  );
+}
+
 function emojiVideoPlay(v: HTMLVideoElement): void {
   v.muted = true;
   const p = v.play();
@@ -252,7 +301,8 @@ function wireEmojiVideoPlayback(): void {
             emojiVideos.delete(v);
             continue;
           }
-          if (e.isIntersecting && !document.hidden) emojiVideoPlay(v);
+          if (e.isIntersecting && !document.hidden && !emojiScrolling)
+            emojiVideoPlay(v);
           else v.pause();
         }
       },
@@ -292,9 +342,11 @@ function playCustomEmojiVideo(el: HTMLVideoElement | null) {
     return;
   }
   wireEmojiVideoPlayback();
+  wireEmojiScrollGate();
   emojiVideos.add(el);
   emojiVideoIO?.observe(el);
   if (typeof document !== "undefined" && document.hidden) return;
+  if (emojiScrolling) return; // the idle resume will re-report + play it
   emojiVideoPlay(el);
 }
 
@@ -380,6 +432,18 @@ function LottieEmoji({
     let cancelled = false;
     let anim: LottieAnim | null = null;
     let started = false;
+    let visible = false;
+    // Scroll-idle gate registration — Lottie players pause with the videos
+    // while the user is actively scrolling and resume (only the visible
+    // ones) once scrolling settles.
+    const scrollHandle = {
+      pause: () => anim?.pause(),
+      resume: () => {
+        if (visible && anim) anim.play();
+      },
+    };
+    lottieScrollHandles.add(scrollHandle);
+    wireEmojiScrollGate();
 
     const start = async () => {
       if (started) return;
@@ -408,6 +472,9 @@ function LottieEmoji({
         // Whole-frame rendering: Web A does the same — subframe interpolation
         // roughly doubles Lottie CPU for no visible gain at emoji size.
         if (typeof anim.setSubframe === "function") anim.setSubframe(false);
+        // Built mid-scroll (or after scrolling away): don't start hot — the
+        // idle resume / IO re-entry will play it when appropriate.
+        if (emojiScrolling || !visible) anim.pause();
         emojiDebugBump("ok:lottie");
         onReadyRef.current?.();
       } catch (e) {
@@ -423,10 +490,12 @@ function LottieEmoji({
       (entries) => {
         const e = entries[entries.length - 1];
         if (e.isIntersecting) {
+          visible = true;
           void start();
-          if (anim) anim.play();
-        } else if (anim) {
-          anim.pause();
+          if (anim && !emojiScrolling) anim.play();
+        } else {
+          visible = false;
+          if (anim) anim.pause();
         }
       },
       { rootMargin: "100px" },
@@ -435,6 +504,7 @@ function LottieEmoji({
 
     return () => {
       cancelled = true;
+      lottieScrollHandles.delete(scrollHandle);
       io.disconnect();
       if (anim) anim.destroy();
     };
@@ -527,18 +597,17 @@ function unobserveTile(el: Element): void {
  * immutable, 1-year), so tiles render instantly the moment they mount — and
  * on every later visit the whole picker paints from disk with zero network.
  * Low concurrency on purpose: the visible tiles' own requests always have
- * headroom (the old eager flood starved them). Pauses while the tab is
- * hidden (background tabs must not hammer the API — see the tab-visibility
- * lesson) and resumes on visibilitychange.
+ * headroom (the old eager flood starved them). Deliberately KEEPS draining
+ * while the tab is hidden (owner ask: emoji must be warm even when the app
+ * isn't the active tab) — at 4-wide against an immutable cache this is a
+ * trickle, unlike the 2.5s polling loop the tab-visibility lesson banned.
  */
 const warmQueued = new Set<string>();
 const warmPending: string[] = [];
 let warmActive = 0;
-let warmListenerWired = false;
 const WARM_CONCURRENCY = 4;
 
 function warmStep(): void {
-  if (typeof document !== "undefined" && document.hidden) return;
   while (warmActive < WARM_CONCURRENCY && warmPending.length > 0) {
     const id = warmPending.shift();
     if (!id) break;
@@ -555,12 +624,6 @@ function warmStep(): void {
 
 export function warmEmojiTiles(ids: string[]): void {
   if (typeof window === "undefined") return;
-  if (!warmListenerWired) {
-    warmListenerWired = true;
-    document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) warmStep();
-    });
-  }
   for (const id of ids) {
     if (warmQueued.has(id)) continue;
     warmQueued.add(id);
