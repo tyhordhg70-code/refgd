@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 import { readMemberSession } from "@/lib/community-auth";
-import { setVouchPinned, recordAction } from "@/lib/community";
+import { deleteVouch, recordAction } from "@/lib/community";
 import { setContentBlock } from "@/lib/content";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/community/vouch/pin — admin-only pin/unpin of a read-only history
- * post (Client Testimonials, BUY4U Vouches, Announcements). Migrated history
- * bubbles have no live message id, so pinning is persisted on the vouches row
- * instead (parity with the chat menu's admin pin). The resulting pin state is
- * echoed back so the client can patch its view without a full refetch.
+ * POST /api/community/vouch/delete — admin-only delete of a read-only history
+ * post (Client Testimonials, BUY4U Vouches, Announcements) or a constant seed
+ * bubble. Vouch rows are hard-deleted (media + reactions cascade manually);
+ * seed bubbles have no row, so "deleting" one persists a hidden flag in
+ * content_blocks (community_seed_hidden:<slot>) that the page reads back.
  */
 export async function POST(req: Request) {
   const me = await readMemberSession();
@@ -22,9 +22,9 @@ export async function POST(req: Request) {
     );
   }
 
-  let payload: { id?: unknown; pinned?: unknown };
+  let payload: { id?: unknown };
   try {
-    payload = (await req.json()) as { id?: unknown; pinned?: unknown };
+    payload = (await req.json()) as { id?: unknown };
   } catch {
     return NextResponse.json(
       { ok: false, error: "Invalid JSON" },
@@ -36,8 +36,6 @@ export async function POST(req: Request) {
     typeof payload.id === "string" || typeof payload.id === "number"
       ? String(payload.id)
       : "";
-  // A numeric vouch id, or a constant "seed" bubble (READ ME / welcome /
-  // announcement / chat notice) whose pin state persists in content_blocks.
   const seedMatch = /^seed:(readme|welcome|announcement|chat-notice)$/.exec(
     rawId,
   );
@@ -49,19 +47,11 @@ export async function POST(req: Request) {
     );
   }
 
-  if (typeof payload.pinned !== "boolean") {
-    return NextResponse.json(
-      { ok: false, error: "Missing pin state" },
-      { status: 400 },
-    );
-  }
-  const pinned = payload.pinned;
-
   if (seedMatch) {
-    await setContentBlock(`community_seed_pin:${seedMatch[1]}`, pinned ? "1" : "0");
+    await setContentBlock(`community_seed_hidden:${seedMatch[1]}`, "1");
   } else {
-    const updated = await setVouchPinned(id, pinned);
-    if (!updated) {
+    const deleted = await deleteVouch(id);
+    if (!deleted) {
       return NextResponse.json(
         { ok: false, error: "Post not found" },
         { status: 404 },
@@ -72,10 +62,10 @@ export async function POST(req: Request) {
   await recordAction({
     actorTgId: me.tid,
     actorName: me.name,
-    action: pinned ? "pin-vouch" : "unpin-vouch",
+    action: "delete-vouch",
     target: id,
     meta: { id },
   }).catch(() => undefined);
 
-  return NextResponse.json({ ok: true, id, pinned });
+  return NextResponse.json({ ok: true, id });
 }
