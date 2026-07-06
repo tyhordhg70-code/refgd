@@ -301,6 +301,33 @@ export async function setVouchPinned(
 }
 
 /**
+ * Admin hard-delete of a read-only history post (Client Testimonials, BUY4U
+ * Vouches, Announcements). Removes the vouch row, its stored media and any
+ * live reactions members added under the readonly "v<id>" key. There are no
+ * FK constraints between these tables, so the cascade is manual (same pattern
+ * as the chat sweep). Unrecoverable. Returns true when a row was deleted.
+ */
+export async function deleteVouch(vouchId: string): Promise<boolean> {
+  await initDb();
+  const { rowCount } = await getPool().query(
+    `WITH del AS (
+       DELETE FROM vouches WHERE id = $1 RETURNING id
+     ),
+     media AS (
+       DELETE FROM vouch_media
+        WHERE vouch_id IN (SELECT id FROM del)
+     ),
+     rx AS (
+       DELETE FROM message_reactions
+        WHERE message_id IN (SELECT 'v' || id::text FROM del)
+     )
+     SELECT id FROM del`,
+    [vouchId],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
+/**
  * Active ingestion section — a single global toggle the admin flips from the
  * bot (/testimonials, /buy4u, /announcements). Kept in mod_config so it
  * survives restarts and is shared across Render instances.
@@ -312,6 +339,146 @@ export async function getActiveSection(): Promise<VouchSection> {
 
 export async function setActiveSection(section: VouchSection): Promise<void> {
   await setModConfig("active_section", { section });
+}
+
+// ── pending_forwards: destination-picker queue for the ingestion bot ──
+// Forwards accumulate here until the admin taps a destination button; the
+// prompt ledger guarantees exactly ONE keyboard per outstanding batch even
+// across album parts and Render's multi-worker webhook delivery.
+
+export interface PendingForwardInput {
+  chatId: string | number;
+  batchKey: string;
+  author: string;
+  body: string;
+  fileId?: string | null;
+  fileUniqueId?: string | null;
+  mediaGroupId?: string | null;
+  originMsgId?: number | null;
+  originDate?: Date | null;
+}
+
+export interface PendingForwardRow {
+  id: string;
+  author: string;
+  body: string;
+  fileId: string | null;
+  fileUniqueId: string | null;
+  mediaGroupId: string | null;
+  originMsgId: number | null;
+  originDate: Date | null;
+}
+
+export async function enqueuePendingForward(
+  input: PendingForwardInput,
+): Promise<void> {
+  await initDb();
+  await getPool().query(
+    `INSERT INTO pending_forwards
+       (chat_id, batch_key, author, body, file_id, file_unique_id,
+        media_group_id, origin_msg_id, origin_date)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [
+      input.chatId,
+      input.batchKey,
+      input.author,
+      input.body,
+      input.fileId ?? null,
+      input.fileUniqueId ?? null,
+      input.mediaGroupId ?? null,
+      input.originMsgId ?? null,
+      input.originDate ?? null,
+    ],
+  );
+}
+
+/**
+ * Atomically claim the right to send THE destination keyboard for a batch.
+ * Returns true only for the single caller that wins the INSERT race.
+ */
+export async function claimForwardPrompt(
+  batchKey: string,
+  chatId: string | number,
+): Promise<boolean> {
+  await initDb();
+  const { rows } = await getPool().query(
+    `INSERT INTO pending_forward_prompts (batch_key, chat_id)
+     VALUES ($1, $2)
+     ON CONFLICT (batch_key) DO NOTHING
+     RETURNING batch_key`,
+    [batchKey, chatId],
+  );
+  return rows.length > 0;
+}
+
+/** Remember the prompt's Telegram message id (edited after the pick). */
+export async function setForwardPromptMsg(
+  batchKey: string,
+  msgId: number,
+): Promise<void> {
+  await initDb();
+  await getPool().query(
+    `UPDATE pending_forward_prompts SET prompt_msg_id = $2 WHERE batch_key = $1`,
+    [batchKey, msgId],
+  );
+}
+
+/**
+ * Atomically drain every queued forward for a chat (the admin picked a
+ * destination or discarded). Also clears the prompt ledger so the NEXT
+ * forward mints a fresh keyboard. DELETE … RETURNING keeps the claim safe
+ * across concurrent callback deliveries — only one caller gets the rows.
+ */
+export async function claimPendingForwards(
+  chatId: string | number,
+): Promise<PendingForwardRow[]> {
+  await initDb();
+  const { rows } = await getPool().query<{
+    id: string;
+    author: string;
+    body: string;
+    file_id: string | null;
+    file_unique_id: string | null;
+    media_group_id: string | null;
+    origin_msg_id: string | null;
+    origin_date: Date | null;
+  }>(
+    `DELETE FROM pending_forwards WHERE chat_id = $1
+     RETURNING id, author, body, file_id, file_unique_id, media_group_id,
+               origin_msg_id, origin_date`,
+    [chatId],
+  );
+  await getPool()
+    .query(`DELETE FROM pending_forward_prompts WHERE chat_id = $1`, [chatId])
+    .catch(() => undefined);
+  return rows
+    .sort((a, b) => Number(a.id) - Number(b.id))
+    .map((r) => ({
+      id: String(r.id),
+      author: r.author,
+      body: r.body,
+      fileId: r.file_id,
+      fileUniqueId: r.file_unique_id,
+      mediaGroupId: r.media_group_id,
+      originMsgId: r.origin_msg_id === null ? null : Number(r.origin_msg_id),
+      originDate: r.origin_date,
+    }));
+}
+
+/** Opportunistic 24h sweep — an abandoned queue must not post days later. */
+export async function purgeStalePendingForwards(): Promise<void> {
+  await initDb();
+  await getPool()
+    .query(
+      `DELETE FROM pending_forwards WHERE created_at < NOW() - INTERVAL '24 hours'`,
+    )
+    .catch(() => undefined);
+  await getPool()
+    .query(
+      `DELETE FROM pending_forward_prompts
+        WHERE created_at < NOW() - INTERVAL '24 hours'`,
+    )
+    .catch(() => undefined);
 }
 
 // ── recent_actions: admin audit log (3-day retention swept elsewhere) ─
@@ -389,22 +556,70 @@ export interface ChatMemberInput {
   photo: string | null;
   isAdmin: boolean;
   inviteSlug?: string | null;
+  /**
+   * Telegram @username (no @). Only the auth route passes this (it exists
+   * solely in verified initData); every other caller passes nothing and the
+   * COALESCE keeps whatever handle was last captured. Never displayed.
+   */
+  username?: string | null;
 }
 
 /** Join / refresh a chat member (called when a signed-in member loads or posts). */
 export async function upsertChatMember(m: ChatMemberInput): Promise<void> {
   await initDb();
   await getPool().query(
-    `INSERT INTO chat_members (tg_id, first_name, photo_url, is_admin, invite_slug, last_seen)
-     VALUES ($1, $2, $3, $4, $5, NOW())
+    `INSERT INTO chat_members (tg_id, first_name, photo_url, is_admin, invite_slug, username, last_seen)
+     VALUES ($1, $2, $3, $4, $5, $6, NOW())
      ON CONFLICT (tg_id) DO UPDATE
        SET first_name  = EXCLUDED.first_name,
            photo_url   = EXCLUDED.photo_url,
            is_admin    = EXCLUDED.is_admin,
            last_seen   = NOW(),
-           invite_slug = COALESCE(chat_members.invite_slug, EXCLUDED.invite_slug)`,
-    [m.tgId, m.name, m.photo, m.isAdmin, m.inviteSlug ?? null],
+           invite_slug = COALESCE(chat_members.invite_slug, EXCLUDED.invite_slug),
+           username    = COALESCE(EXCLUDED.username, chat_members.username)`,
+    [m.tgId, m.name, m.photo, m.isAdmin, m.inviteSlug ?? null, m.username ?? null],
   );
+}
+
+/**
+ * The web-app "bot" identity that authors auto-reply filter messages. tg_id 0
+ * can never collide with a real Telegram user (real ids start at 1) and is
+ * refused as a moderation target. NOT in COMMUNITY_ADMIN_TG_IDS — the bot
+ * needs no privileges; its replies are ordinary chat rows.
+ */
+export const BOT_MEMBER_TG_ID = "0";
+export const BOT_MEMBER_NAME = "RefundGod";
+
+/** Lazily (re)create the bot's member row so its bubbles get a name+avatar. */
+export async function ensureBotMember(): Promise<void> {
+  await initDb();
+  await getPool().query(
+    `INSERT INTO chat_members (tg_id, first_name, photo_url, is_admin)
+     VALUES ($1, $2, $3, FALSE)
+     ON CONFLICT (tg_id) DO NOTHING`,
+    [BOT_MEMBER_TG_ID, BOT_MEMBER_NAME, "/announcement-bot-photo.png"],
+  );
+}
+
+/**
+ * Resolve `/ban @handle` style targeting. Case-insensitive; only finds
+ * members whose handle was captured at sign-in (initData) — admins fall back
+ * to reply-targeting or numeric ids for anyone else.
+ */
+export async function findMemberByUsername(
+  handle: string,
+): Promise<{ tgId: string; name: string } | null> {
+  await initDb();
+  const { rows } = await getPool().query<{ tg_id: string; first_name: string }>(
+    `SELECT tg_id::text AS tg_id, first_name
+       FROM chat_members
+      WHERE LOWER(username) = LOWER($1)
+      LIMIT 1`,
+    [handle.replace(/^@/, "")],
+  );
+  return rows[0]
+    ? { tgId: rows[0].tg_id, name: rows[0].first_name || rows[0].tg_id }
+    : null;
 }
 
 export async function countChatMembers(): Promise<number> {
@@ -1215,6 +1430,65 @@ export async function matchBlocklist(text: string): Promise<string | null> {
   const hay = text.toLowerCase();
   for (const w of words) {
     if (w && hay.includes(w)) return w;
+  }
+  return null;
+}
+
+// ── Auto-reply filters (Rose-style /filter <trigger> <reply>) ─────────
+export interface ModFilter {
+  trigger: string;
+  response: string;
+}
+
+/** Save (or overwrite) an auto-reply filter. Triggers are case-insensitive. */
+export async function addFilter(
+  trigger: string,
+  response: string,
+): Promise<void> {
+  await initDb();
+  await getPool().query(
+    `INSERT INTO mod_filters (trigger, response) VALUES ($1, $2)
+     ON CONFLICT (trigger) DO UPDATE SET response = EXCLUDED.response`,
+    [trigger.toLowerCase(), response],
+  );
+}
+
+export async function removeFilter(trigger: string): Promise<boolean> {
+  await initDb();
+  const res = await getPool().query(`DELETE FROM mod_filters WHERE trigger = $1`, [
+    trigger.toLowerCase(),
+  ]);
+  return (res.rowCount ?? 0) > 0;
+}
+
+export async function listFilters(): Promise<ModFilter[]> {
+  await initDb();
+  const { rows } = await getPool().query<{ trigger: string; response: string }>(
+    `SELECT trigger, response FROM mod_filters ORDER BY trigger`,
+  );
+  return rows.map((r) => ({ trigger: r.trigger, response: r.response }));
+}
+
+/**
+ * First filter whose trigger appears in the text as a whole word (Rose
+ * semantics: "hi" fires on "hi there" but not on "this"), case-insensitive.
+ * Multi-word triggers match as a substring on word boundaries.
+ */
+export async function matchFilter(text: string): Promise<ModFilter | null> {
+  const filters = await listFilters();
+  if (filters.length === 0) return null;
+  const hay = text.toLowerCase();
+  for (const f of filters) {
+    const t = f.trigger;
+    if (!t) continue;
+    const idx = hay.indexOf(t);
+    if (idx < 0) continue;
+    const before = idx === 0 ? "" : hay[idx - 1];
+    const after = idx + t.length >= hay.length ? "" : hay[idx + t.length];
+    const isWordChar = (c: string) => /[a-z0-9_]/.test(c);
+    if ((before === "" || !isWordChar(before)) && (after === "" || !isWordChar(after))) {
+      return f;
+    }
   }
   return null;
 }

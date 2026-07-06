@@ -56,6 +56,7 @@ import {
   parseVoiceToken,
   peerIdx,
   renderBody,
+  applyWelcomePlaceholders,
   tokenPreview,
 } from "./tg/format";
 import {
@@ -629,18 +630,23 @@ export default function CommunityChat({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, pinned }),
     })
-      .then((r) => r.json().catch(() => null))
-      .then(
-        (data: { ok?: boolean; pinned?: boolean; error?: string } | null) => {
-          if (data?.ok) {
-            onVouchPinned?.(id, data.pinned ?? pinned);
-            showToast(pinned ? "Post pinned" : "Post unpinned");
-          } else {
-            showToast(data?.error || "Couldn't update pin");
-          }
-        },
-      )
-      .catch(() => showToast("Couldn't update pin"));
+      .then(async (r) => {
+        const data = (await r.json().catch(() => null)) as {
+          ok?: boolean;
+          pinned?: boolean;
+          error?: string;
+        } | null;
+        if (data?.ok) {
+          onVouchPinned?.(id, data.pinned ?? pinned);
+          showToast(pinned ? "Post pinned" : "Post unpinned");
+        } else if (r.status === 404) {
+          // The running build predates this endpoint — redeploy, don't debug.
+          showToast("Pin API not on this build yet — redeploy the site");
+        } else {
+          showToast(data?.error || `Couldn't update pin (HTTP ${r.status})`);
+        }
+      })
+      .catch(() => showToast("Couldn't update pin — network error"));
   };
   // Admin delete of a read-only history post or seed bubble. Vouch rows are
   // hard-deleted server-side; seed bubbles persist a hidden flag. Either way
@@ -651,16 +657,22 @@ export default function CommunityChat({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     })
-      .then((r) => r.json().catch(() => null))
-      .then((data: { ok?: boolean; error?: string } | null) => {
+      .then(async (r) => {
+        const data = (await r.json().catch(() => null)) as {
+          ok?: boolean;
+          error?: string;
+        } | null;
         if (data?.ok) {
           onVouchDeleted?.(id);
           showToast("Post deleted");
+        } else if (r.status === 404) {
+          // The running build predates this endpoint — redeploy, don't debug.
+          showToast("Delete API not on this build yet — redeploy the site");
         } else {
-          showToast(data?.error || "Couldn't delete");
+          showToast(data?.error || `Couldn't delete (HTTP ${r.status})`);
         }
       })
-      .catch(() => showToast("Couldn't delete"));
+      .catch(() => showToast("Couldn't delete — network error"));
   };
   // Jump-target highlight: Web A adds `focused` to the .Message row, which
   // lights the vendored full-width `.Message.focused:before` overlay (instant
@@ -2020,7 +2032,9 @@ export default function CommunityChat({
                   <>
                     {isGroupChat && state.welcome && !query && (
                       <div className="tg-service-card">
-                        {renderBody(state.welcome)}
+                        {renderBody(
+                          applyWelcomePlaceholders(state.welcome, me?.name),
+                        )}
                       </div>
                     )}
                     {/* Read-only migrated history (vouch topics). */}

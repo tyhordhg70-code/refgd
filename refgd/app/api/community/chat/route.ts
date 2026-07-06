@@ -11,6 +11,10 @@ import {
   secondsSinceLastMessage,
   getModConfig,
   matchBlocklist,
+  matchFilter,
+  ensureBotMember,
+  BOT_MEMBER_TG_ID,
+  BOT_MEMBER_NAME,
   recordAction,
   sweepExpiredMessages,
   claimNotifySlot,
@@ -496,6 +500,33 @@ export async function POST(req: Request) {
   // A send always ends the sender's "typing…" state immediately (fail-soft).
   void clearTyping(topic, me.tid).catch(() => undefined);
 
+  // Rose-style auto-reply filters (/filter <trigger> <reply>) — live group
+  // chat only, plain-text messages only (a photo caption or voice note never
+  // triggers). The bot's reply is an ordinary message row authored by the
+  // reserved bot member, replying to the triggering message, with the same
+  // TTL policy as any other group-chat message. Fail-soft: a filter error
+  // must never break the send.
+  let extraMessages: NonNullable<typeof message>[] = [];
+  if (message && topic === "chat" && text && !photo && !voice) {
+    try {
+      const hit = await matchFilter(text);
+      if (hit) {
+        await ensureBotMember();
+        const botReply = await createChatMessage({
+          tgId: BOT_MEMBER_TG_ID,
+          authorName: BOT_MEMBER_NAME,
+          body: hit.response,
+          replyTo: message.id,
+          expiresAt,
+          topic,
+        });
+        if (botReply) extraMessages = [botReply];
+      }
+    } catch {
+      // never let the auto-reply break the member's own send
+    }
+  }
+
   // Throttled chat notification: at most one fan-out per window across all
   // workers (atomic claim on mod_config), fail-soft so it can never break the
   // send. Subscribers opted into "chat" get "there's activity", not a ping
@@ -519,5 +550,5 @@ export async function POST(req: Request) {
       .catch(() => undefined);
   }
 
-  return NextResponse.json({ ok: true, message });
+  return NextResponse.json({ ok: true, message, extra: extraMessages });
 }

@@ -1062,7 +1062,107 @@ export function tokenPreview(body: string): string {
   if (POLL_TOKEN_RE.test(b)) return "📊 Poll";
   const single = isSingleCustomEmoji(b);
   if (single) return `${single.alt} Sticker`;
-  return body;
+  // Rose-style buttonurl tokens collapse to their label in previews.
+  return body.replace(BUTTON_URL_RE, "$1").trim();
+}
+
+/* ── Rose-style `[LABEL](buttonurl://url)` inline buttons ────────────
+ * Telegram bots (Rose, etc.) attach URL buttons under a message with this
+ * exact markdown-ish token. We render them the way Telegram Web A renders
+ * bot inline keyboards: full-width rounded buttons UNDER the text, one per
+ * row, with `:same` appending a button to the previous row.
+ */
+const BUTTON_URL_RE =
+  /\[([^\]\n]{1,64})\]\(buttonurl:\/\/([^\s)]+?)(:same)?\)/g;
+
+interface BodyButton {
+  label: string;
+  url: string;
+  sameRow: boolean;
+}
+
+/** Pull buttonurl tokens out of a body; returns leftover text + buttons. */
+function extractBodyButtons(body: string): {
+  text: string;
+  buttons: BodyButton[];
+} {
+  const buttons: BodyButton[] = [];
+  BUTTON_URL_RE.lastIndex = 0;
+  const text = body
+    .replace(BUTTON_URL_RE, (_all, label: string, url: string, same) => {
+      buttons.push({
+        label: label.trim(),
+        url: url.trim(),
+        sameRow: Boolean(same),
+      });
+      return "";
+    })
+    // Collapse the blank lines the removed tokens leave behind.
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return { text, buttons };
+}
+
+/** buttonurl target → safe href. Bare hosts get https://; local paths pass. */
+function buttonHref(url: string): { href: string; external: boolean } {
+  if (/^https?:\/\//i.test(url)) return { href: url, external: true };
+  // Protocol-relative `//evil.com` would otherwise pass the `/` internal
+  // check below and render as a trusted same-tab link — force it external.
+  if (url.startsWith("//")) {
+    return { href: `https:${url}`, external: true };
+  }
+  if (url.startsWith("/") || url.startsWith("#")) {
+    return { href: url, external: false };
+  }
+  return { href: `https://${url}`, external: true };
+}
+
+function renderButtonRows(buttons: BodyButton[]): ReactNode {
+  const rows: BodyButton[][] = [];
+  for (const b of buttons) {
+    if (b.sameRow && rows.length > 0) rows[rows.length - 1].push(b);
+    else rows.push([b]);
+  }
+  return (
+    <div className="tg-btn-rows" key="tg-btns">
+      {rows.map((row, ri) => (
+        <div className="tg-btn-row" key={`r${ri}`}>
+          {row.map((b, bi) => {
+            const { href, external } = buttonHref(b.url);
+            return (
+              <a
+                key={`b${bi}`}
+                className="Button tiny primary has-ripple no-upper-case tg-msg-btn"
+                href={href}
+                {...(external
+                  ? { target: "_blank", rel: "noopener noreferrer" }
+                  : {})}
+              >
+                <span className="tg-btn-label">
+                  {renderTextWithEmoji(b.label, `btn${ri}-${bi}`)}
+                </span>
+              </a>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Welcome-message placeholders (Rose parity): {first} → the viewer's first
+ * name, {chatname} → the community's display name. Case-insensitive.
+ */
+export function applyWelcomePlaceholders(
+  body: string,
+  firstName?: string | null,
+): string {
+  const first = (firstName ?? "").trim().split(/\s+/)[0] || "friend";
+  return body
+    .replace(/\{first\}/gi, first)
+    .replace(/\{chatname\}/gi, "RefundGod Community");
 }
 
 /**
@@ -1071,21 +1171,26 @@ export function tokenPreview(body: string): string {
  */
 export function renderBody(body: string): ReactNode {
   if (!body) return null;
+  // Rose-style buttonurl pre-pass: pull the button tokens out first so the
+  // inline [text](url) rule never sees them, then append Web-A-style button
+  // rows under the remaining text.
+  const { text: bodyText, buttons } = extractBodyButtons(body);
   const out: ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
   CE_RE.lastIndex = 0;
   let k = 0;
-  while ((match = CE_RE.exec(body)) !== null) {
+  while ((match = CE_RE.exec(bodyText)) !== null) {
     if (match.index > last) {
-      out.push(...renderInline(body.slice(last, match.index), `c${k}`));
+      out.push(...renderInline(bodyText.slice(last, match.index), `c${k}`));
     }
     out.push(<CustomEmojiImg key={`ce${k}`} id={match[1]} alt={match[2]} />);
     last = match.index + match[0].length;
     k += 1;
   }
-  if (last < body.length) {
-    out.push(...renderInline(body.slice(last), `c${k}`));
+  if (last < bodyText.length) {
+    out.push(...renderInline(bodyText.slice(last), `c${k}`));
   }
+  if (buttons.length > 0) out.push(renderButtonRows(buttons));
   return out;
 }

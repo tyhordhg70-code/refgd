@@ -192,6 +192,44 @@
           last_seen   TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
 
+        -- @username targeting for moderation commands (/ban @user …). The
+        -- handle is captured at Telegram sign-in (initData) and NEVER shown in
+        -- the UI (owner rule: display names only). NULL until the member next
+        -- opens the community while signed in. Idempotent migration.
+        ALTER TABLE chat_members
+          ADD COLUMN IF NOT EXISTS username TEXT;
+
+        -- Forwards queued by the ingestion bot until the admin picks a
+        -- destination via the inline keyboard (one prompt per forward batch).
+        -- file_ids are Telegram photo file_ids — bytes are only downloaded
+        -- when the batch is actually posted.
+        CREATE TABLE IF NOT EXISTS pending_forwards (
+          id             BIGSERIAL PRIMARY KEY,
+          chat_id        BIGINT NOT NULL,
+          batch_key      TEXT NOT NULL,
+          author         TEXT NOT NULL DEFAULT 'Anonymous',
+          body           TEXT NOT NULL DEFAULT '',
+          file_id        TEXT,
+          file_unique_id TEXT,
+          media_group_id TEXT,
+          origin_msg_id  BIGINT,
+          origin_date    TIMESTAMPTZ,
+          created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS pending_forwards_chat_idx
+          ON pending_forwards (chat_id, id);
+
+        -- One-prompt-per-batch ledger: the webhook instance that wins the
+        -- INSERT ... ON CONFLICT DO NOTHING race sends the destination
+        -- keyboard; album siblings (and Render's multi-worker webhook
+        -- delivery) stay silent.
+        CREATE TABLE IF NOT EXISTS pending_forward_prompts (
+          batch_key     TEXT PRIMARY KEY,
+          chat_id       BIGINT NOT NULL,
+          prompt_msg_id BIGINT,
+          created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
         CREATE TABLE IF NOT EXISTS chat_media (
           id         BIGSERIAL PRIMARY KEY,
           bytes      BYTEA NOT NULL,

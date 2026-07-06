@@ -14,7 +14,11 @@ import {
   getCommunityBotUsername,
   getBotIdentityFromToken,
 } from "@/lib/community-bot";
-import { isValidInviteSlug, recordInviteJoin } from "@/lib/community";
+import {
+  isValidInviteSlug,
+  recordInviteJoin,
+  upsertChatMember,
+} from "@/lib/community";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -161,6 +165,18 @@ export async function POST(req: Request) {
   }
 
   await createMemberSession(member);
+
+  // Persist the member row NOW — including their @username, which only
+  // exists in the verified initData (the session JWT never carries it). This
+  // is what lets admins target `/ban @user` even before the member posts.
+  // Fail-soft: presence writes must never break sign-in.
+  await upsertChatMember({
+    tgId: member.tid,
+    name: member.name,
+    photo: member.photo,
+    isAdmin: member.admin,
+    username: member.username ?? null,
+  }).catch(() => undefined);
 
   // Attribute a join to the invite link that brought them in (if any), then
   // clear the cookie so re-signing-in doesn't re-attribute. De-duped per

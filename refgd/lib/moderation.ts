@@ -7,9 +7,11 @@
  * feedback instead of posting it. All state is DB-backed (lib/community) so it
  * holds across Render instances. Every mutating action is audited.
  *
- * Target resolution (no @usernames are ever exposed): a command acts on the
- * message it replies to (author → tg_id), or on an explicit numeric tg_id
- * argument. Name matching is intentionally unsupported (ambiguous).
+ * Target resolution: a command acts on the message it replies to (author →
+ * tg_id), an @username argument (matched against the handle captured at
+ * Telegram sign-in — usernames are stored for targeting only and NEVER
+ * displayed), or an explicit numeric tg_id argument. Free-form name matching
+ * is intentionally unsupported (ambiguous).
  */
 import type { CommunityMember } from "./community-auth";
 import { isCommunityAdmin } from "./community-bot";
@@ -23,6 +25,11 @@ import {
   addBlocklist,
   removeBlocklist,
   listBlocklist,
+  addFilter,
+  removeFilter,
+  listFilters,
+  findMemberByUsername,
+  BOT_MEMBER_TG_ID,
   setMessagePinned,
   unpinAll,
   deleteSingleMessage,
@@ -81,15 +88,34 @@ function parseDurationMs(s: string): number | null {
   return n * mult;
 }
 
-/** Resolve the target member + remaining args from a reply or a numeric id. */
+/**
+ * Resolve the target member + remaining args from a reply, an @username or a
+ * numeric id. Returns an `error` string (instead of a target) when the input
+ * looked like a target but couldn't be resolved, so the actor gets a precise
+ * message rather than the generic usage hint.
+ */
 async function resolveTarget(
   rest: string,
   replyToId: string | null,
-): Promise<{ tgId: string; name: string; args: string } | null> {
+): Promise<
+  | { tgId: string; name: string; args: string }
+  | { error: string }
+  | null
+> {
   if (replyToId) {
     const a = await getMessageAuthor(replyToId);
     if (a) return { tgId: a.tgId, name: a.authorName, args: rest };
-    return null;
+    return { error: "Couldn't find the message you replied to." };
+  }
+  const um = rest.match(/^@([A-Za-z0-9_]{3,32})\b\s*([\s\S]*)$/);
+  if (um) {
+    const found = await findMemberByUsername(um[1]);
+    if (!found) {
+      return {
+        error: `No member with the username @${um[1]} has opened the community yet — reply to one of their messages or use their numeric ID instead.`,
+      };
+    }
+    return { tgId: found.tgId, name: found.name, args: (um[2] ?? "").trim() };
   }
   const m = rest.match(/^(\d{4,})\b\s*([\s\S]*)$/);
   if (m) {
@@ -102,10 +128,11 @@ async function resolveTarget(
 }
 
 const HELP_TEXT = [
-  "Admin commands (reply to a message to target its author, or pass a numeric Telegram ID):",
+  "Admin commands (reply to a message to target its author, or pass @username or a numeric Telegram ID):",
   ...COMMAND_SPECS.filter((c) => c.admin).map(
     (c) => `/${c.cmd}${c.args ? ` ${c.args}` : ""} — ${c.desc}`,
   ),
+  "/filters — anyone can list the auto-reply filters",
   "/rules — anyone can view the rules",
 ].join("\n");
 
@@ -136,7 +163,20 @@ export async function executeModCommand(opts: {
     return {
       handled: true,
       ok: true,
-      system: me.admin ? HELP_TEXT : "Type /rules to see the group rules.",
+      system: me.admin
+        ? HELP_TEXT
+        : "Type /rules to see the group rules, or /filters to list the auto-replies.",
+    };
+  }
+  if (cmd === "filters") {
+    const filters = await listFilters();
+    return {
+      handled: true,
+      ok: true,
+      system: filters.length
+        ? `Auto-reply filters:\n${filters.map((f) => `• ${f.trigger}`).join("\n")}`
+        : "No auto-reply filters are set." +
+          (me.admin ? " Add one with /filter <trigger> <reply>." : ""),
     };
   }
 
@@ -161,11 +201,17 @@ export async function executeModCommand(opts: {
         return {
           handled: true,
           ok: false,
-          system: "Reply to a message, or pass a numeric Telegram ID.",
+          system: "Reply to a message, or pass @username or a numeric Telegram ID.",
         };
+      }
+      if ("error" in target) {
+        return { handled: true, ok: false, system: target.error };
       }
       if (target.tgId === me.tid) {
         return { handled: true, ok: false, system: "You can't target yourself." };
+      }
+      if (target.tgId === BOT_MEMBER_TG_ID) {
+        return { handled: true, ok: false, system: "You can't moderate the bot." };
       }
       const undoing = cmd === "unban" || cmd === "unmute" || cmd === "unwarn";
       if (isCommunityAdmin(target.tgId) && !undoing) {
@@ -254,29 +300,73 @@ export async function executeModCommand(opts: {
     }
 
     case "filter": {
-      const word = rest.trim().toLowerCase();
-      if (!word) return { handled: true, ok: false, system: "Usage: /filter <word>" };
-      await addBlocklist(word);
-      await audit("filter-add", word);
-      return { handled: true, ok: true, system: `Added "${word}" to the blocklist.` };
+      // Rose-style auto-reply: /filter <trigger> <reply…>. A multi-word
+      // trigger goes in quotes: /filter "how to order" Check the pinned post.
+      const m =
+        rest.match(/^"([^"]+)"\s+([\s\S]+)$/) ?? rest.match(/^(\S+)\s+([\s\S]+)$/);
+      if (!m) {
+        return {
+          handled: true,
+          ok: false,
+          system:
+            'Usage: /filter <trigger> <reply> — e.g. /filter refund Check the pinned post. Use quotes for a multi-word trigger: /filter "how to order" …',
+        };
+      }
+      const trigger = m[1].trim().toLowerCase();
+      const response = m[2].trim();
+      await addFilter(trigger, response);
+      await audit("filter-add", trigger, { response });
+      return {
+        handled: true,
+        ok: true,
+        system: `Saved — I'll reply whenever someone says "${trigger}". Remove it with /stop ${trigger.includes(" ") ? `"${trigger}"` : trigger}.`,
+      };
     }
     case "stop": {
-      const word = rest.trim().toLowerCase();
-      if (!word) return { handled: true, ok: false, system: "Usage: /stop <word>" };
-      const removed = await removeBlocklist(word);
-      await audit("filter-remove", word);
+      const qm = rest.trim().match(/^"([^"]+)"$/);
+      const trigger = (qm ? qm[1] : rest).trim().toLowerCase();
+      if (!trigger) return { handled: true, ok: false, system: "Usage: /stop <trigger>" };
+      const removed = await removeFilter(trigger);
+      await audit("filter-remove", trigger);
       return {
         handled: true,
         ok: removed,
-        system: removed ? `Removed "${word}" from the blocklist.` : `"${word}" was not blocklisted.`,
+        system: removed
+          ? `Filter "${trigger}" removed.`
+          : `No filter named "${trigger}" — type /filters to list them.`,
       };
     }
+    case "addblacklist": {
+      const word = rest.trim().toLowerCase();
+      if (!word)
+        return { handled: true, ok: false, system: "Usage: /addblacklist <word>" };
+      await addBlocklist(word);
+      await audit("blacklist-add", word);
+      return { handled: true, ok: true, system: `Added "${word}" to the blacklist.` };
+    }
+    case "rmblacklist": {
+      const word = rest.trim().toLowerCase();
+      if (!word)
+        return { handled: true, ok: false, system: "Usage: /rmblacklist <word>" };
+      const removed = await removeBlocklist(word);
+      await audit("blacklist-remove", word);
+      return {
+        handled: true,
+        ok: removed,
+        system: removed
+          ? `Removed "${word}" from the blacklist.`
+          : `"${word}" was not blacklisted.`,
+      };
+    }
+    case "blacklist":
     case "blocklist": {
       const words = await listBlocklist();
       return {
         handled: true,
         ok: true,
-        system: words.length ? `Blocklisted words: ${words.join(", ")}` : "The blocklist is empty.",
+        system: words.length
+          ? `Blacklisted words: ${words.join(", ")}`
+          : "The blacklist is empty.",
       };
     }
 
@@ -320,13 +410,16 @@ export async function executeModCommand(opts: {
       };
     }
 
-    case "welcome": {
+    case "welcome":
+    case "setwelcome": {
       await setModConfig("welcome", rest);
       await audit("set-welcome", null);
       return {
         handled: true,
         ok: true,
-        system: rest ? "Welcome message updated." : "Welcome message cleared.",
+        system: rest
+          ? "Welcome message updated. {first} becomes the viewer's first name and {chatname} the community name."
+          : "Welcome message cleared.",
       };
     }
     case "setrules": {

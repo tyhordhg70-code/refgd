@@ -2,18 +2,23 @@ import { NextResponse } from "next/server";
 import {
   isCommunityAdmin,
   sendCommunityTelegram,
+  sendCommunityKeyboard,
+  answerCallbackQuery,
+  editCommunityMessage,
   downloadTelegramFile,
   sha256Hex,
 } from "@/lib/community-bot";
 import {
   createVouch,
   addVouchMedia,
-  findVouchByMediaGroup,
-  updateVouchBodyIfEmpty,
-  getActiveSection,
-  setActiveSection,
   countVouches,
   recordAction,
+  enqueuePendingForward,
+  claimForwardPrompt,
+  setForwardPromptMsg,
+  claimPendingForwards,
+  purgeStalePendingForwards,
+  type PendingForwardRow,
   type VouchSection,
 } from "@/lib/community";
 import { notifyCategory } from "@/lib/community-notify";
@@ -38,11 +43,12 @@ function communityBase(): string {
  * POST /api/community/webhook
  *
  * The community ingestion bot. An admin (COMMUNITY_ADMIN_TG_IDS) DMs/forwards
- * to the bot; the message is auto-posted to the currently-active section
- * (Client Testimonials / BUY4U Vouches / Announcements) preserving the
- * original author's name and photo. All content is stored permanently in
- * Postgres — the bot holds no state. Non-admins get a friendly pointer to the
- * group. The webhook is protected by COMMUNITY_WEBHOOK_SECRET.
+ * to the bot; forwards are QUEUED and the bot asks once per batch where to
+ * post them (Client Testimonials / BUY4U Vouches / Announcements) via an
+ * inline keyboard — tap a destination and the whole batch posts there,
+ * preserving each original author's name and photo. All content is stored
+ * permanently in Postgres — the bot holds no state. Non-admins get a friendly
+ * pointer to the group. The webhook is protected by COMMUNITY_WEBHOOK_SECRET.
  */
 
 type TgPhotoSize = {
@@ -70,7 +76,17 @@ type TgMessage = {
   forward_from?: { first_name?: string; last_name?: string };
   forward_sender_name?: string;
 };
-type TgUpdate = { update_id?: number; message?: TgMessage };
+type TgCallbackQuery = {
+  id: string;
+  from?: { id?: number | string; first_name?: string; last_name?: string };
+  message?: { message_id: number; chat?: { id?: number | string } };
+  data?: string;
+};
+type TgUpdate = {
+  update_id?: number;
+  message?: TgMessage;
+  callback_query?: TgCallbackQuery;
+};
 
 function fullName(f?: string, l?: string): string | null {
   const s = [f, l].filter(Boolean).join(" ").trim();
@@ -106,14 +122,83 @@ function helpText(): string {
   return [
     "🤖 <b>RefundGod community bot</b>",
     "",
-    "Pick where forwards should post, then forward the messages:",
-    "/testimonials — Client Testimonials",
-    "/buy4u — BUY4U Vouches",
-    "/announcements — Announcements",
+    "Forward messages to me — I'll queue them, then ask where the batch",
+    "should post. Tap a button and everything queued posts there at once.",
     "",
-    "/status — show the active section and post counts",
+    "You can also pick with a command after forwarding:",
+    "/testimonials — post the queued batch to Client Testimonials",
+    "/buy4u — post the queued batch to BUY4U Vouches",
+    "/announcements — post the queued batch to Announcements",
+    "",
+    "/status — show post counts",
   ].join("\n");
 }
+
+/**
+ * Post a claimed batch of queued forwards to a section. Album parts (same
+ * media_group_id) collapse back into ONE post with all photos; everything
+ * else posts individually. Returns the number of posts created (duplicates
+ * are silently skipped by the vouch dedupe hash).
+ */
+async function postForwardBatch(
+  rows: PendingForwardRow[],
+  section: VouchSection,
+  chatId: string | number,
+): Promise<number> {
+  const groups = new Map<string, PendingForwardRow[]>();
+  for (const r of rows) {
+    const key = r.mediaGroupId ? `mg|${r.mediaGroupId}` : `one|${r.id}`;
+    const g = groups.get(key);
+    if (g) g.push(r);
+    else groups.set(key, [r]);
+  }
+  let posted = 0;
+  for (const parts of groups.values()) {
+    const first = parts[0];
+    const body = parts.map((p) => p.body).find((b) => b.trim()) ?? "";
+    // Section is part of BOTH hashes: posting the same album/message to a
+    // second section must not be silently swallowed by the vouches dedupe
+    // index (it also shields late album stragglers from colliding with an
+    // already-posted batch in a different section).
+    const dedupe = first.mediaGroupId
+      ? sha256Hex(`mg|${chatId}|${first.mediaGroupId}|${section}`)
+      : sha256Hex(
+          `${section}|${first.author}|${body}|${first.fileUniqueId ?? ""}`,
+        );
+    const vouchId = await createVouch({
+      section,
+      authorName: first.author,
+      body,
+      originChatId: chatId,
+      originMsgId: first.originMsgId,
+      mediaGroupId: first.mediaGroupId,
+      dedupeHash: dedupe,
+      originDate: first.originDate,
+    });
+    if (!vouchId) continue; // dedupe hit — identical post already exists
+    for (const p of parts) {
+      if (!p.fileId) continue;
+      const file = await downloadTelegramFile(p.fileId);
+      if (file) {
+        await addVouchMedia(
+          vouchId,
+          file.bytes,
+          file.mime,
+          sha256Hex(file.bytes),
+        );
+      }
+    }
+    posted++;
+  }
+  return posted;
+}
+
+const FWD_KEYBOARD = [
+  [{ text: "💬 Client Testimonials", callbackData: "fwd:post:testimonials" }],
+  [{ text: "🛍 BUY4U Vouches", callbackData: "fwd:post:buy4u" }],
+  [{ text: "📣 Announcements", callbackData: "fwd:post:announcements" }],
+  [{ text: "🗑 Discard batch", callbackData: "fwd:clear" }],
+];
 
 export async function POST(req: Request) {
   const secret = process.env.COMMUNITY_WEBHOOK_SECRET;
@@ -122,6 +207,87 @@ export async function POST(req: Request) {
   }
 
   const update = (await req.json().catch(() => null)) as TgUpdate | null;
+
+  // ── destination-picker callbacks ─────────────────────────────────────
+  const cb = update?.callback_query;
+  if (cb) {
+    if (!isCommunityAdmin(cb.from?.id)) {
+      await answerCallbackQuery(cb.id, "Admins only.");
+      return NextResponse.json({ ok: true });
+    }
+    const cbChatId = cb.message?.chat?.id;
+    if (cbChatId === undefined || cbChatId === null) {
+      await answerCallbackQuery(cb.id);
+      return NextResponse.json({ ok: true });
+    }
+    const data = cb.data ?? "";
+    if (data === "fwd:clear") {
+      const rows = await claimPendingForwards(cbChatId);
+      await answerCallbackQuery(
+        cb.id,
+        rows.length ? `Discarded ${rows.length}.` : "Nothing queued.",
+      );
+      if (cb.message?.message_id) {
+        await editCommunityMessage(
+          cbChatId,
+          cb.message.message_id,
+          `🗑 Discarded <b>${rows.length}</b> queued forward${rows.length === 1 ? "" : "s"}.`,
+        );
+      }
+      return NextResponse.json({ ok: true });
+    }
+    const pick = /^fwd:post:(testimonials|buy4u|announcements)$/.exec(data);
+    if (pick) {
+      const section = pick[1] as VouchSection;
+      const rows = await claimPendingForwards(cbChatId);
+      if (rows.length === 0) {
+        // Double-tap or a second admin device — the batch was already drained.
+        await answerCallbackQuery(cb.id, "Nothing queued — already handled.");
+        if (cb.message?.message_id) {
+          await editCommunityMessage(
+            cbChatId,
+            cb.message.message_id,
+            "Nothing left to post — this batch was already handled.",
+          );
+        }
+        return NextResponse.json({ ok: true });
+      }
+      const posted = await postForwardBatch(rows, section, cbChatId);
+      await answerCallbackQuery(
+        cb.id,
+        `Posted ${posted} to ${sectionLabel(section)}.`,
+      );
+      if (cb.message?.message_id) {
+        await editCommunityMessage(
+          cbChatId,
+          cb.message.message_id,
+          `✅ Posted <b>${posted}</b> post${posted === 1 ? "" : "s"} to <b>${sectionLabel(section)}</b>.`,
+        );
+      }
+      await recordAction({
+        actorTgId: cb.from?.id !== undefined && cb.from?.id !== null ? String(cb.from.id) : null,
+        actorName: fullName(cb.from?.first_name, cb.from?.last_name) ?? "Admin",
+        action: "vouch_ingested",
+        target: section,
+        meta: { count: posted },
+      }).catch(() => undefined);
+      if (posted > 0) {
+        // Fan out to opted-in subscribers (fail-soft — must never fail the 200).
+        await notifyCategory(section, {
+          title: `New ${sectionLabel(section)}`,
+          body:
+            posted === 1
+              ? "A new post is up on the community."
+              : `${posted} new posts are up on the community.`,
+          url: "/community",
+        }).catch(() => undefined);
+      }
+      return NextResponse.json({ ok: true });
+    }
+    await answerCallbackQuery(cb.id);
+    return NextResponse.json({ ok: true });
+  }
+
   const msg = update?.message;
   if (!msg) return NextResponse.json({ ok: true });
 
@@ -163,21 +329,48 @@ export async function POST(req: Request) {
       cmd === "/announcements" ||
       cmd === "/announce"
     ) {
+      // Command fallback for the destination keyboard: posts whatever is
+      // queued right now to the named section.
       const section: VouchSection =
         cmd === "/buy4u"
           ? "buy4u"
           : cmd === "/announcements" || cmd === "/announce"
             ? "announcements"
             : "testimonials";
-      await setActiveSection(section);
+      const rows = await claimPendingForwards(chatId);
+      if (rows.length === 0) {
+        await sendCommunityTelegram(
+          chatId,
+          `Nothing queued. Forward messages first — I'll ask where to post them (or send /${section === "testimonials" ? "testimonials" : section} right after forwarding).`,
+        );
+        return NextResponse.json({ ok: true });
+      }
+      const posted = await postForwardBatch(rows, section, chatId);
       await sendCommunityTelegram(
         chatId,
-        `✅ Active section set to <b>${sectionLabel(section)}</b>. Forward messages now and they'll post there.`,
+        `✅ Posted <b>${posted}</b> post${posted === 1 ? "" : "s"} to <b>${sectionLabel(section)}</b>.`,
       );
+      await recordAction({
+        actorTgId:
+          fromId !== undefined && fromId !== null ? String(fromId) : null,
+        actorName: fullName(msg.from?.first_name, msg.from?.last_name) ?? "Admin",
+        action: "vouch_ingested",
+        target: section,
+        meta: { count: posted },
+      }).catch(() => undefined);
+      if (posted > 0) {
+        await notifyCategory(section, {
+          title: `New ${sectionLabel(section)}`,
+          body:
+            posted === 1
+              ? "A new post is up on the community."
+              : `${posted} new posts are up on the community.`,
+          url: "/community",
+        }).catch(() => undefined);
+      }
       return NextResponse.json({ ok: true });
     }
     if (cmd === "/status") {
-      const section = await getActiveSection();
       const [t, b, a] = await Promise.all([
         countVouches("testimonials"),
         countVouches("buy4u"),
@@ -185,7 +378,7 @@ export async function POST(req: Request) {
       ]);
       await sendCommunityTelegram(
         chatId,
-        `📊 Active: <b>${sectionLabel(section)}</b>\nClient Testimonials: ${t}\nBUY4U Vouches: ${b}\nAnnouncements: ${a}`,
+        `📊 Client Testimonials: ${t}\nBUY4U Vouches: ${b}\nAnnouncements: ${a}`,
       );
       return NextResponse.json({ ok: true });
     }
@@ -193,12 +386,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  // ── content ingestion ─────────────────────────────────────────────────
+  // ── content ingestion → queue + destination keyboard ─────────────────
   const body = (msg.text ?? msg.caption ?? "").trim();
   const photos = msg.photo ?? [];
   if (!body && photos.length === 0) return NextResponse.json({ ok: true });
 
-  const section = await getActiveSection();
+  // An abandoned queue must never post days later by surprise.
+  await purgeStalePendingForwards().catch(() => undefined);
+
   const author =
     authorFromForward(msg) ??
     fullName(msg.from?.first_name, msg.from?.last_name) ??
@@ -207,61 +402,34 @@ export async function POST(req: Request) {
   const mediaGroupId = msg.media_group_id ?? null;
   const largest = photos.length ? photos[photos.length - 1] : null;
 
-  let vouchId: string | null = null;
-  if (mediaGroupId) {
-    vouchId = await findVouchByMediaGroup(chatId, mediaGroupId);
-  }
+  // One outstanding batch per chat: everything forwarded before a destination
+  // is picked belongs to the same batch (that's what makes bulk forwards a
+  // single prompt + single tap).
+  const batchKey = `chat:${chatId}`;
+  await enqueuePendingForward({
+    chatId,
+    batchKey,
+    author,
+    body,
+    fileId: largest?.file_id ?? null,
+    fileUniqueId: largest?.file_unique_id ?? null,
+    mediaGroupId,
+    originMsgId: msg.message_id,
+    originDate,
+  });
 
-  if (!vouchId) {
-    const dedupe = mediaGroupId
-      ? sha256Hex(`mg|${chatId}|${mediaGroupId}`)
-      : sha256Hex(
-          `${section}|${author}|${body}|${largest?.file_unique_id ?? ""}`,
-        );
-    vouchId = await createVouch({
-      section,
-      authorName: author,
-      body,
-      originChatId: chatId,
-      originMsgId: msg.message_id,
-      mediaGroupId,
-      dedupeHash: dedupe,
-      originDate,
-    });
-    // A concurrent album part may have created the row first.
-    if (!vouchId && mediaGroupId) {
-      vouchId = await findVouchByMediaGroup(chatId, mediaGroupId);
-    }
-  } else if (body) {
-    await updateVouchBodyIfEmpty(vouchId, body);
-  }
-
-  if (vouchId && largest) {
-    const file = await downloadTelegramFile(largest.file_id);
-    if (file) {
-      await addVouchMedia(vouchId, file.bytes, file.mime, sha256Hex(file.bytes));
-    }
-  }
-
-  // Confirm once per logical post (not per album part) to avoid chat spam.
-  if (vouchId && !mediaGroupId) {
-    await recordAction({
-      actorTgId: fromId !== undefined && fromId !== null ? String(fromId) : null,
-      actorName: author,
-      action: "vouch_ingested",
-      target: section,
-    });
-    await sendCommunityTelegram(
+  // Exactly ONE keyboard per outstanding batch — album parts and bulk
+  // forwards race here, and only the ledger winner prompts.
+  const winner = await claimForwardPrompt(batchKey, chatId);
+  if (winner) {
+    const sent = await sendCommunityKeyboard(
       chatId,
-      `✅ Posted to <b>${sectionLabel(section)}</b>${largest ? " (with photo)" : ""}.`,
+      "📥 Queued. Where should this batch post? Keep forwarding — everything queued posts together when you pick.",
+      FWD_KEYBOARD,
     );
-    // Fan out to opted-in subscribers for this section (fail-soft — must
-    // never delay or fail the webhook's 200).
-    await notifyCategory(section, {
-      title: `New ${sectionLabel(section)}`,
-      body: body ? body.slice(0, 140) : "A new post is up on the community.",
-      url: "/community",
-    }).catch(() => undefined);
+    if (sent.ok && sent.messageId) {
+      await setForwardPromptMsg(batchKey, sent.messageId).catch(() => undefined);
+    }
   }
 
   return NextResponse.json({ ok: true });

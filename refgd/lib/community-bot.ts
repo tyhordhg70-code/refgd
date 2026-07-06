@@ -91,6 +91,91 @@ export async function sendCommunityTelegram(
   }
 }
 
+/**
+ * Send a message with a callback-button inline keyboard (the forward
+ * destination picker). Returns the sent message_id so the caller can edit
+ * the prompt after the admin picks.
+ */
+export async function sendCommunityKeyboard(
+  chatId: string | number,
+  text: string,
+  keyboard: { text: string; callbackData: string }[][],
+): Promise<SendResult & { messageId?: number }> {
+  const token = communityBotToken();
+  if (!token) return { ok: false, error: "COMMUNITY_BOT_TOKEN not set" };
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+        reply_markup: {
+          inline_keyboard: keyboard.map((row) =>
+            row.map((b) => ({ text: b.text, callback_data: b.callbackData })),
+          ),
+        },
+      }),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: `Telegram ${res.status}: ${(await res.text()).slice(0, 200)}`,
+      };
+    }
+    const data = (await res.json().catch(() => null)) as {
+      result?: { message_id?: number };
+    } | null;
+    return { ok: true, messageId: data?.result?.message_id };
+  } catch (e) {
+    return { ok: false, error: `Telegram request failed: ${String(e)}` };
+  }
+}
+
+/** Acknowledge a callback query (dismisses Telegram's loading spinner). */
+export async function answerCallbackQuery(
+  callbackQueryId: string,
+  text?: string,
+): Promise<void> {
+  const token = communityBotToken();
+  if (!token) return;
+  await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      callback_query_id: callbackQueryId,
+      ...(text ? { text } : {}),
+    }),
+    cache: "no-store",
+  }).catch(() => undefined);
+}
+
+/** Edit a previously-sent bot message (used to finalize the picker prompt). */
+export async function editCommunityMessage(
+  chatId: string | number,
+  messageId: number,
+  text: string,
+): Promise<void> {
+  const token = communityBotToken();
+  if (!token) return;
+  await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      parse_mode: "HTML",
+      // Editing away the keyboard: an empty reply_markup removes the buttons.
+      reply_markup: { inline_keyboard: [] },
+    }),
+    cache: "no-store",
+  }).catch(() => undefined);
+}
+
 declare global {
   // eslint-disable-next-line no-var
   var _communityBotUsername: string | undefined;

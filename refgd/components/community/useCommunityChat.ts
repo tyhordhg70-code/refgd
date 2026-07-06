@@ -790,6 +790,8 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
         ok: boolean;
         error?: string;
         message?: ChatMessage;
+        /** Bot auto-replies (filter hits) created alongside the message. */
+        extra?: ChatMessage[];
         system?: string;
       };
       // A slash-command returns `system` feedback instead of a chat message.
@@ -798,6 +800,10 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
         if (data.ok) {
           setText("");
           setReplyTo(null);
+          // A successful command may have deleted/purged/pinned messages —
+          // refetch so the feed reflects it immediately instead of waiting
+          // for the next poll.
+          void loadInitial();
         }
         return;
       }
@@ -809,7 +815,11 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
       setReplyTo(null);
       setAttachment(null);
       atBottomRef.current = true;
-      if (data.message) mergeMessages([data.message]);
+      const incoming = [
+        ...(data.message ? [data.message] : []),
+        ...(data.extra ?? []),
+      ];
+      if (incoming.length) mergeMessages(incoming);
     } catch {
       setError("Couldn't send your message");
     } finally {
@@ -824,6 +834,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     ttlSeconds,
     me,
     mergeMessages,
+    loadInitial,
     topic,
     editing,
     editMessage,

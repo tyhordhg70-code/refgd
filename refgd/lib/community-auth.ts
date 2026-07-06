@@ -50,6 +50,13 @@ export interface CommunityMember {
   photo: string | null;
   /** Resolved server-side from COMMUNITY_ADMIN_TG_IDS — never from the client. */
   admin: boolean;
+  /**
+   * Telegram @username (without the @), present ONLY at verification time so
+   * the auth route can store it for admin `/ban @user` targeting. It is NOT
+   * carried in the session JWT and is NEVER displayed anywhere (owner rule:
+   * display names only).
+   */
+  username?: string | null;
 }
 
 interface TgUser {
@@ -101,7 +108,11 @@ function toMember(u: TgUser | null | undefined): CommunityMember | null {
       .trim() || `User ${tid}`;
   const photo =
     typeof u.photo_url === "string" && u.photo_url.length > 0 ? u.photo_url : null;
-  return { tid, name, photo, admin: isCommunityAdmin(tid) };
+  const username =
+    typeof u.username === "string" && /^[A-Za-z0-9_]{3,32}$/.test(u.username)
+      ? u.username
+      : null;
+  return { tid, name, photo, admin: isCommunityAdmin(tid), username };
 }
 
 /**

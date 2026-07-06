@@ -235,6 +235,21 @@ export default function TelegramApp({
     };
   }, []);
 
+  // `/community#<topic>` deep link (e.g. a buttonurl or the READ ME rules
+  // link pointing at /community#readme): open that topic on mount and on any
+  // later hash change. `#msg-<id>` hashes are CommunityChat scroll targets,
+  // not topic keys — the key check ignores them.
+  useEffect(() => {
+    const applyHash = () => {
+      const h = window.location.hash.replace(/^#/, "").toLowerCase();
+      const hit = TOPICS.find((t) => t.key === h);
+      if (hit) setActive(hit.key);
+    };
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, []);
+
   // Admin edits + pins to read-only posts are applied client-side over the
   // server-fetched vouches so the bubble updates instantly without a refetch
   // (which would flicker the whole topic). Keyed by vouch id.
