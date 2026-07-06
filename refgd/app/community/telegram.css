@@ -486,27 +486,6 @@
 .tg-emoji-panel.is-expanded .tg-emoji-expand svg {
   transform: rotate(180deg);
 }
-/* the compact reaction-picker popover is size-clamped by JS; the expand toggle
-   there could push it past the viewport, so hide it (grid still scrolls). */
-.tg-reaction-pop .tg-emoji-expand {
-  display: none;
-}
-/* Reaction picker: the same panel floated as a fixed popover near the
-   long-pressed / right-clicked bubble (portaled outside the shifted
-   #MiddleColumn) instead of anchored to the composer. */
-.tg-reaction-pop {
-  position: fixed;
-  z-index: 40;
-  width: 22rem;
-  max-width: calc(100vw - 1rem);
-}
-.tg-reaction-pop .tg-emoji-panel {
-  position: static;
-  bottom: auto;
-  left: auto;
-  width: 100%;
-  max-width: 100%;
-}
 .tg-emoji-tabs {
   display: flex;
   gap: 0.25rem;

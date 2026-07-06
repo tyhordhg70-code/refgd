@@ -12,9 +12,14 @@ import {
 import { useRouter } from "next/navigation";
 import CommunityChat from "../CommunityChat";
 import NotificationSettings from "../NotificationSettings";
-import { ADMIN_TG, ensureTelegramReady } from "../useCommunityChat";
+import {
+  ADMIN_TG,
+  FS_PREF_KEY,
+  ensureTelegramReady,
+  useTelegramFullscreen,
+} from "../useCommunityChat";
 import { parseStartParam, readStartParam } from "./deeplink";
-import { IconBell, IconChat } from "./TgIcons";
+import { IconBell, IconChat, IconCollapse, IconExpand } from "./TgIcons";
 import MiddleHeader from "./MiddleHeader";
 import MessageBubble from "./MessageBubble";
 import VouchHistory from "./VouchTopic";
@@ -168,6 +173,9 @@ export default function TelegramApp({
   const [active, setActive] = useState<TopicKey | null>(null);
   const [inTg, setInTg] = useState(false);
   const [listMenuOpen, setListMenuOpen] = useState(false);
+  // Telegram Mini-App fullscreen toggle for the topic-list ⋮ menu.
+  const { canFullscreen, isFullscreen, toggleFullscreen } =
+    useTelegramFullscreen();
   // Topic-list search: null = closed, string = open with that query.
   const [listSearch, setListSearch] = useState<string | null>(null);
   const [showNotif, setShowNotif] = useState(false);
@@ -900,6 +908,29 @@ export default function TelegramApp({
                         aria-label="Close menu"
                       />
                       <div className="tg-menu" role="menu">
+                        {canFullscreen && (
+                          <button
+                            type="button"
+                            className="tg-menu-item"
+                            onClick={() => {
+                              setListMenuOpen(false);
+                              // Remember the explicit choice so the chat's
+                              // entry prompt doesn't re-ask / undo it.
+                              try {
+                                localStorage.setItem(
+                                  FS_PREF_KEY,
+                                  isFullscreen ? "skip" : "fs",
+                                );
+                              } catch {
+                                /* private mode — non-fatal */
+                              }
+                              toggleFullscreen();
+                            }}
+                          >
+                            {isFullscreen ? <IconCollapse /> : <IconExpand />}
+                            {isFullscreen ? "Exit full screen" : "Full screen"}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="tg-menu-item"

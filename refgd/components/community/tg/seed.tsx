@@ -185,8 +185,8 @@ export const README_SEED_TEXT =
   "[ce:5271604874419647061:🔗] " +
   "[CLICK ME TO LEARN](https://telegra.ph/NAVIGATION-MENU-08-06)\n" +
   "\n" +
-  "[ce:5443038326535759644:💬] Something not clear, or still have questions?\n" +
-  "**Please don't hesitate to ask them to** " +
+  "> [ce:5443038326535759644:💬] Something not clear, or still have questions?\n" +
+  "> **Please don't hesitate to ask them to** " +
   "[@refundgodbot](https://t.me/refundgodbot)";
 
 /**

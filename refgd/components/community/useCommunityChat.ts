@@ -18,6 +18,63 @@ export const POLL_MS = 2500;
 export const REFRESH_MS = 30000;
 export const ADMIN_TG = "https://t.me/refundgod";
 export const REACTIONS = ["👍", "❤️", "🔥", "😂", "😮", "🙏", "💯", "🎉"];
+/** Remembered fullscreen choice ("fs" | "skip") from the entry prompt. */
+export const FS_PREF_KEY = "rg_fs_pref";
+
+/**
+ * Standalone Telegram Mini-App fullscreen state/toggle for surfaces OUTSIDE
+ * the per-topic chat hook (e.g. the topic-list header menu). Mirrors the
+ * fullscreen wiring inside useCommunityChat: requestFullscreen needs Bot API
+ * 8.0+, fullscreenChanged/fullscreenFailed keep local state honest, and the
+ * toggle degrades to expand() on older clients.
+ */
+export function useTelegramFullscreen(): {
+  canFullscreen: boolean;
+  isFullscreen: boolean;
+  toggleFullscreen: () => void;
+} {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [canFullscreen, setCanFullscreen] = useState(false);
+  useEffect(() => {
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void (async () => {
+      const inside = await ensureTelegramReady();
+      if (disposed || !inside) return;
+      const wa = window.Telegram?.WebApp;
+      if (!wa) return;
+      setCanFullscreen(
+        typeof wa.requestFullscreen === "function" &&
+          (wa.isVersionAtLeast?.("8.0") ?? true),
+      );
+      setIsFullscreen(Boolean(wa.isFullscreen));
+      if (!wa.onEvent) return;
+      const sync = () => setIsFullscreen(Boolean(wa.isFullscreen));
+      wa.onEvent("fullscreenChanged", sync);
+      wa.onEvent("fullscreenFailed", sync);
+      cleanup = () => {
+        wa.offEvent?.("fullscreenChanged", sync);
+        wa.offEvent?.("fullscreenFailed", sync);
+      };
+    })();
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    const wa = window.Telegram?.WebApp;
+    if (!wa) return;
+    try {
+      if (wa.isFullscreen) wa.exitFullscreen?.();
+      else if (wa.requestFullscreen) wa.requestFullscreen();
+      else wa.expand?.();
+    } catch {
+      wa.expand?.();
+    }
+  }, []);
+  return { canFullscreen, isFullscreen, toggleFullscreen };
+}
 
 export interface Reaction {
   emoji: string;

@@ -120,7 +120,37 @@ function inlineHtml(text: string): string {
 
 /** Markdown-lite body → HTML for seeding the edit contentEditable. */
 export function bodyToEditHtml(body: string): string {
-  return inlineHtml(body);
+  // `> `-prefixed line groups become a real <blockquote> in the composer so
+  // the highlight is visible while editing (vendored bare-`blockquote`
+  // element rules in tg-webapp.css style it in every surface);
+  // editHtmlToBody's BLOCKQUOTE branch reverses this exactly.
+  let html = "";
+  let text: string[] = [];
+  let quote: string[] = [];
+  const flushText = () => {
+    if (text.length === 0) return;
+    html += inlineHtml(text.join("\n"));
+    text = [];
+  };
+  const flushQuote = () => {
+    if (quote.length === 0) return;
+    html += `<blockquote class="tg-quote">${inlineHtml(quote.join("\n"))}</blockquote>`;
+    quote = [];
+  };
+  for (const line of body.split("\n")) {
+    // Must mirror renderBody's quote-line rule exactly: "> foo" or bare ">".
+    const m = /^>(?: (.*))?$/.exec(line);
+    if (m) {
+      flushText();
+      quote.push(m[1] ?? "");
+    } else {
+      flushQuote();
+      text.push(line);
+    }
+  }
+  flushText();
+  flushQuote();
+  return html;
 }
 
 /**
@@ -268,6 +298,21 @@ export function editHtmlToBody(root: HTMLElement): string {
       // <br> is an empty line — the <br> itself already IS that newline.
       if (inner === "\n") inner = "";
       return `\n${inner}`;
+    }
+    if (tag === "BLOCKQUOTE") {
+      // Web-A highlighted quote → markdown-lite `> ` line group. Surrounding
+      // newlines keep it its own block (a bare text node right after the
+      // quote must not merge into its last line); inner is trimmed so nested
+      // <div>/<br> markup can't produce empty leading/trailing quote lines.
+      const q = inner.replace(/^\n+/, "").replace(/\n+$/, "");
+      // Empty quote lines serialize as a bare ">" (no trailing space —
+      // renderBody's button pre-pass strips trailing spaces before \n, which
+      // would otherwise orphan the marker).
+      const quoted = q
+        .split("\n")
+        .map((l) => (l ? `> ${l}` : ">"))
+        .join("\n");
+      return `\n${quoted}\n`;
     }
     // Don't wrap empty/whitespace-only runs in markers (renderBody's
     // token regexes need non-empty content anyway).

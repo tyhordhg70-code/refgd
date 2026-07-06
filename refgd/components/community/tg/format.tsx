@@ -1143,8 +1143,12 @@ export function tokenPreview(body: string): string {
   if (POLL_TOKEN_RE.test(b)) return "📊 Poll";
   const single = isSingleCustomEmoji(b);
   if (single) return `${single.alt} Sticker`;
-  // Rose-style buttonurl tokens collapse to their label in previews.
-  return body.replace(BUTTON_URL_RE, "$1").trim();
+  // Rose-style buttonurl tokens collapse to their label in previews;
+  // blockquote `> ` markers are highlight styling, not preview text.
+  return body
+    .replace(BUTTON_URL_RE, "$1")
+    .replace(/^>(?: |$)/gm, "")
+    .trim();
 }
 
 /* ── Rose-style `[LABEL](buttonurl://url)` inline buttons ────────────
@@ -1256,6 +1260,52 @@ export function renderBody(body: string): ReactNode {
   // inline [text](url) rule never sees them, then append Web-A-style button
   // rows under the remaining text.
   const { text: bodyText, buttons } = extractBodyButtons(body);
+  // Blockquote pre-pass: consecutive `> `-prefixed lines become a Web-A-style
+  // highlighted quote block (vendored bare-`blockquote` element rules in
+  // tg-webapp.css supply the accent box). Everything else flows through the
+  // usual custom-emoji + inline pipeline unchanged.
+  const out: ReactNode[] = [];
+  const lines = bodyText.split("\n");
+  let text: string[] = [];
+  let quote: string[] = [];
+  let seg = 0;
+  const flushText = () => {
+    if (text.length === 0) return;
+    out.push(...renderRich(text.join("\n"), `s${seg}`));
+    seg += 1;
+    text = [];
+  };
+  const flushQuote = () => {
+    if (quote.length === 0) return;
+    out.push(
+      <blockquote key={`q${seg}`} className="tg-quote">
+        {renderRich(quote.join("\n"), `q${seg}`)}
+      </blockquote>,
+    );
+    seg += 1;
+    quote = [];
+  };
+  for (const line of lines) {
+    // "> foo" or a bare ">" (empty quote line — trailing spaces get stripped
+    // upstream). A ">"-prefix WITHOUT the space must not match, or historical
+    // emoticon lines like ">.<" would be restyled as quotes.
+    const m = /^>(?: (.*))?$/.exec(line);
+    if (m) {
+      flushText();
+      quote.push(m[1] ?? "");
+    } else {
+      flushQuote();
+      text.push(line);
+    }
+  }
+  flushText();
+  flushQuote();
+  if (buttons.length > 0) out.push(renderButtonRows(buttons));
+  return out;
+}
+
+/** Custom-emoji tokens + inline markdown for one text segment. */
+function renderRich(bodyText: string, keyPrefix: string): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
@@ -1263,15 +1313,18 @@ export function renderBody(body: string): ReactNode {
   let k = 0;
   while ((match = CE_RE.exec(bodyText)) !== null) {
     if (match.index > last) {
-      out.push(...renderInline(bodyText.slice(last, match.index), `c${k}`));
+      out.push(
+        ...renderInline(bodyText.slice(last, match.index), `${keyPrefix}c${k}`),
+      );
     }
-    out.push(<CustomEmojiImg key={`ce${k}`} id={match[1]} alt={match[2]} />);
+    out.push(
+      <CustomEmojiImg key={`${keyPrefix}ce${k}`} id={match[1]} alt={match[2]} />,
+    );
     last = match.index + match[0].length;
     k += 1;
   }
   if (last < bodyText.length) {
-    out.push(...renderInline(bodyText.slice(last), `c${k}`));
+    out.push(...renderInline(bodyText.slice(last), `${keyPrefix}c${k}`));
   }
-  if (buttons.length > 0) out.push(renderButtonRows(buttons));
   return out;
 }

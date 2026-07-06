@@ -62,12 +62,14 @@ import {
 } from "./tg/format";
 import {
   ADMIN_TG,
+  FS_PREF_KEY,
   REACTIONS,
   prepareChatImage,
   useCommunityChat,
   type ChatMessage,
   type Reaction,
 } from "./useCommunityChat";
+import { EMOJI_CATEGORIES } from "./tg/emoji-data";
 import { useExtraReactions } from "./useExtraReactions";
 import { buildMiniAppLink, buildStartParam } from "./tg/deeplink";
 import {
@@ -169,8 +171,27 @@ const FORWARD_TARGETS: { topic: ChatTopic; title: string }[] = [
 ];
 
 const FS_PROMPT_KEY = "rg_fs_prompted";
-const FS_PREF_KEY = "rg_fs_pref";
 const NOTIF_PROMPT_KEY = "rg_notif_prompted";
+
+/**
+ * Every static emoji the expanded quick-reaction grid offers: the 8 quick
+ * reactions first (familiar order), then the full picker catalog. The server
+ * react route accepts any single plain-unicode emoji, so the whole set is
+ * valid. Deduped because the quick set also appears in the catalog.
+ */
+const ALL_REACTION_EMOJIS: string[] = (() => {
+  const seen = new Set<string>(REACTIONS);
+  const out: string[] = [...REACTIONS];
+  for (const cat of EMOJI_CATEGORIES) {
+    for (const e of cat.emojis) {
+      if (!seen.has(e)) {
+        seen.add(e);
+        out.push(e);
+      }
+    }
+  }
+  return out;
+})();
 
 export default function CommunityChat({
   onBack,
@@ -384,14 +405,6 @@ export default function CommunityChat({
     };
   }, []);
   const [emojiOpen, setEmojiOpen] = useState(false);
-  // Message id whose reaction picker (full emoji set) is open, opened from the
-  // context-menu reaction row's "show more" chevron. null = closed.
-  // The message being reacted to via the "more reactions" picker, plus the
-  // pointer position so the picker floats as a popover near the bubble (portaled
-  // outside the shifted #MiddleColumn) rather than being pinned to the composer.
-  const [reactTarget, setReactTarget] = useState<
-    { id: string; x: number; y: number } | null
-  >(null);
   // Fullscreen photo viewer (click a message photo to expand it).
   const [lightbox, setLightbox] = useState<string | null>(null);
   // Center-screen transient toast shown after every message action; the nonce
@@ -1200,7 +1213,7 @@ export default function CommunityChat({
             }
             data-lenis-prevent=""
           >
-            {REACTIONS.map((e) => (
+            {(reactionsExpanded ? ALL_REACTION_EMOJIS : REACTIONS).map((e) => (
               <button
                 key={e}
                 type="button"
@@ -1215,6 +1228,7 @@ export default function CommunityChat({
                   src={emojiSrc(e)}
                   alt={e}
                   className="emoji"
+                  loading="lazy"
                   draggable={false}
                 />
               </button>
@@ -1223,15 +1237,10 @@ export default function CommunityChat({
           <button
             type="button"
             className="Button ReactionSelector__show-more default translucent"
-            aria-label="Show more reactions"
-            onClick={() => {
-              if (!reactionsExpanded) {
-                setReactionsExpanded(true);
-                return;
-              }
-              setReactTarget({ id: targetKey, x, y });
-              setCtxMenu(null);
-            }}
+            aria-label={
+              reactionsExpanded ? "Show fewer reactions" : "Show more reactions"
+            }
+            onClick={() => setReactionsExpanded((v) => !v)}
           >
             <IconChevronDown />
           </button>
@@ -1959,38 +1968,6 @@ export default function CommunityChat({
             )}
           </div>
         </>,
-          overlayEl,
-        )}
-
-      {reactTarget &&
-        overlayEl &&
-        createPortal(
-          (() => {
-            const rt = reactTarget;
-            const W = 352;
-            const H = 420;
-            const m = 8;
-            const vw =
-              typeof window !== "undefined" ? window.innerWidth : W + 2 * m;
-            const vh =
-              typeof window !== "undefined" ? window.innerHeight : H + 2 * m;
-            const left = Math.max(m, Math.min(rt.x, vw - W - m));
-            const top = Math.max(m, Math.min(rt.y, vh - H - m));
-            return (
-              <div className="tg-reaction-pop" style={{ left, top }}>
-                <EmojiPanel
-                  onPick={(snippet) => {
-                    // Only plain-unicode emoji are valid reactions; skip custom
-                    // pack tokens ([ce:…]) the reaction chips can't render.
-                    if (!snippet.startsWith("[ce:")) reactAny(rt.id, snippet);
-                    setReactTarget(null);
-                  }}
-                  onClose={() => setReactTarget(null)}
-                  isAdmin={!!me?.admin}
-                />
-              </div>
-            );
-          })(),
           overlayEl,
         )}
 
