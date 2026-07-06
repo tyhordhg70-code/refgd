@@ -9,7 +9,9 @@
  * swappable ingestion/launcher/notifier on top of these tables.
  */
 import { getPool, initDb } from "./db";
-import { isCommunityAdmin } from "./community-bot";
+import { isCommunityAdmin, communityBotToken } from "./community-bot";
+import { getStickersBatch, fetchStickerArt } from "./emoji-fetch";
+import { CUSTOM_EMOJI_IDS, EMOJI_CACHE_VERSION } from "./custom-emoji";
 
 export type VouchSection = "testimonials" | "buy4u" | "announcements";
 
@@ -1064,6 +1066,78 @@ export async function isPackEmoji(id: string): Promise<boolean> {
     [id],
   );
   return rows.length > 0;
+}
+
+/** Does a cached artwork row already exist under this exact cache key? */
+async function hasCustomEmojiRow(key: string): Promise<boolean> {
+  await initDb();
+  const { rows } = await getPool().query<{ one: number }>(
+    `SELECT 1 AS one FROM custom_emoji WHERE id = $1`,
+    [key],
+  );
+  return rows.length > 0;
+}
+
+/** `[ce:<docId>:<alt>]` ids referenced by a message body (format.tsx token). */
+const BODY_CE_RE = /\[ce:(\d{1,32}):[^\]\n]+\]/g;
+
+/**
+ * Send/edit-time discovery for PASTED custom emoji: ids referenced by an
+ * incoming message body that are neither seed-pack nor picker-pack ids get
+ * validated against getCustomEmojiStickers and their ORIGINAL artwork cached
+ * under the current versioned key. The unauthenticated serve route is
+ * CACHE-FIRST, so those tiles then render (and animate) WITHOUT widening its
+ * allowlist: hand-typed junk ids still die here because Telegram simply
+ * returns no sticker for them, and nothing gets cached. Bounded on purpose —
+ * runs only for authed message writes, max 5 new ids per message, fail-soft
+ * (the message always still posts; a miss just keeps the alt fallback).
+ */
+export async function discoverMessageEmoji(body: string): Promise<void> {
+  try {
+    if (!body.includes("[ce:")) return;
+    const token = communityBotToken();
+    if (!token) return;
+    const ids: string[] = [];
+    BODY_CE_RE.lastIndex = 0;
+    for (const m of body.matchAll(BODY_CE_RE)) {
+      const id = m[1] ?? "";
+      if (id && !ids.includes(id)) ids.push(id);
+    }
+    const fresh: string[] = [];
+    for (const id of ids) {
+      if (fresh.length >= 5) break;
+      if (CUSTOM_EMOJI_IDS.has(id)) continue;
+      if (await isPackEmoji(id)) continue;
+      if (await hasCustomEmojiRow(`${id}:v${EMOJI_CACHE_VERSION}`)) continue;
+      fresh.push(id);
+    }
+    if (fresh.length === 0) return;
+    const { ok, stickers } = await getStickersBatch(token, fresh);
+    for (const id of fresh) {
+      const sticker = stickers.get(id);
+      if (!sticker) {
+        // Telegram ANSWERED and doesn't know this id (deleted/junk token):
+        // negative-cache a sub-floor poison row so repeat posts of the same
+        // id never re-hit the Bot API (the serve route 404s sub-floor rows).
+        // ok=false means the batch call itself failed — conclude nothing.
+        if (ok) {
+          await saveCustomEmoji(
+            `${id}:v${EMOJI_CACHE_VERSION}`,
+            Buffer.from([0]),
+            "application/octet-stream",
+          );
+        }
+        continue;
+      }
+      const art = await fetchStickerArt(token, sticker);
+      if (!art) continue;
+      // Sub-floor (blank thumbnail) bytes are still saved: they double as the
+      // poison marker the serve route already understands (it 404s those).
+      await saveCustomEmoji(`${id}:v${EMOJI_CACHE_VERSION}`, art.bytes, art.mime);
+    }
+  } catch {
+    // Fail-soft: emoji discovery must never block or break a message write.
+  }
 }
 
 /** Every discovered pack emoji, ordered by pack then insert order. */

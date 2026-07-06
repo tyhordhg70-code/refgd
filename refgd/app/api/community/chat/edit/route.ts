@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readMemberSession } from "@/lib/community-auth";
 import {
+  discoverMessageEmoji,
   editChatMessage,
   getMessageEditInfo,
   getChatMemberModState,
@@ -130,6 +131,10 @@ export async function POST(req: Request) {
       );
     }
   }
+
+  // An edit can paste in new foreign-pack custom emoji too — same discovery
+  // as the send path (fail-soft, cache-first serve route).
+  await discoverMessageEmoji(body);
 
   const message = await editChatMessage(id, body, me.tid);
   if (!message) {

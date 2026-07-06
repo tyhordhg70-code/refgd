@@ -74,6 +74,7 @@ import {
   bodyToEditHtml,
   editHtmlToBody,
   pasteHtmlToTokens,
+  wireEditCeAnimations,
   wireEditCeFallback,
 } from "./tg/editHtml";
 import type { ChatTopic } from "@/lib/community";
@@ -520,7 +521,12 @@ export default function CommunityChat({
   // and re-uploads any attached photo.
   const forwardOne = (m: ChatMessage, dest: { topic: ChatTopic; title: string }) => {
     const src = parseForward(m.body ?? "");
-    const origin = src.name || m.authorName || "a member";
+    // Strip a leading @ at token CREATION too (the banner render also strips
+    // it defensively): the origin must be the member's exact display name,
+    // never a @username-looking string.
+    const origin =
+      (src.name || m.authorName || "a member").replace(/^@+\s*/, "").trim() ||
+      "a member";
     // Voice/poll tokens are server-composed only — the chat POST strips them,
     // so forwarding one raw would land as an empty banner. Forward the text
     // preview ("🎤 Voice message" / "📊 Poll") instead.
@@ -1382,6 +1388,7 @@ export default function CommunityChat({
     // instead of raw ** __ markers.
     el.innerHTML = bodyToEditHtml(editingBody);
     wireEditCeFallback(el);
+    wireEditCeAnimations(el);
     el.focus();
     const sel = window.getSelection();
     sel?.selectAllChildren(el);
@@ -1559,19 +1566,6 @@ export default function CommunityChat({
               >
                 <IconSettings />
                 Admin panel
-              </button>
-            )}
-            {me?.admin && state && (
-              <button
-                type="button"
-                className="tg-menu-item"
-                onClick={() => {
-                  setMenuOpen(false);
-                  void chat.toggleHideMembers();
-                }}
-              >
-                <IconBell />
-                {state.hideMembers ? "Show member count" : "Hide member count"}
               </button>
             )}
             {chat.canFullscreen && (
@@ -2439,6 +2433,7 @@ export default function CommunityChat({
                             el.dataset.seededFor = editPost.id;
                             el.innerHTML = bodyToEditHtml(editPost.body);
                             wireEditCeFallback(el);
+                            wireEditCeAnimations(el);
                             el.focus();
                             const sel = window.getSelection();
                             sel?.selectAllChildren(el);

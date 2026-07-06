@@ -746,6 +746,24 @@ function onEmojiKinds(cb: () => void): () => void {
 }
 
 /**
+ * Public kind resolver for the EDIT surfaces (editHtml.ts): reports whether
+ * an id is a known video (.webm) / Lottie (.tgs) pack emoji once the kinds
+ * manifest loads (immediately when already cached). Ids missing from the
+ * manifest resolve as "img" — the edit-box error cascade still upgrades
+ * those the slow way.
+ */
+export function resolveEmojiKind(
+  id: string,
+  cb: (kind: "img" | "video" | "lottie") => void,
+): void {
+  ensureEmojiKinds();
+  onEmojiKinds(() => {
+    const s = emojiKindStage(id) ?? 0;
+    cb(s === 2 ? "video" : s === 3 ? "lottie" : "img");
+  });
+}
+
+/**
  * Custom (premium pack) emoji sticker rendered from the Telegram document id.
  *
  * ORIGINALS ONLY — NEVER SUBSTITUTE: the tile always shows the real pack

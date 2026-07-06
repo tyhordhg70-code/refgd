@@ -72,13 +72,17 @@ export default function TextFormatter({
       setPos(null);
       return;
     }
-    setPos({ left: rect.left + rect.width / 2, top: rect.top });
+    // STATIC placement (owner request): capture the position once when the
+    // toolbar first appears and keep it there — it must NOT chase the
+    // selection while the user is still dragging/extending it. It only
+    // re-anchors after being dismissed (collapse / outside pointer-down).
+    setPos((prev) => prev ?? { left: rect.left + rect.width / 2, top: rect.top });
   }, [inputRef, linkMode]);
 
   useEffect(() => {
     document.addEventListener("selectionchange", update);
-    // the fixed-position toolbar must track the selection when the input
-    // scroller or the (mobile) keyboard viewport shifts.
+    // resize/scroll only re-validate the selection (hide when it collapses
+    // or leaves the input) — the shown toolbar itself stays put.
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
     return () => {

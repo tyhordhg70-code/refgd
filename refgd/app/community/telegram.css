@@ -420,12 +420,25 @@
    can't know about: the icon↔label gap and the origin-name spacing. */
 .tg-forward-title .forward-title-container {
   gap: 0.25rem;
+  flex-shrink: 0;
 }
 /* One clean gap between "Forwarded from" and the origin name (the old inline
    letter-avatar — which painted a stray "@" for @-prefixed origins — is gone,
    so the name spacing is set here instead of by avatar flex gaps). */
 .tg-forward-title .message-title-name {
   margin-inline-start: 0.25rem;
+  min-width: 0;
+  flex-shrink: 1;
+}
+/* The vendored sheet lets the name container WRAP (`flex-wrap: wrap`) — in a
+   narrow bubble the origin name dropped onto a second row that the
+   overflow-hidden `.interactive` container then clipped, leaving "Forwarded
+   from" trailed by a big empty gap and NO visible name. Keep the whole
+   banner on ONE line and ellipsize the name instead (full vendored
+   specificity so this actually beats the wrap rule). */
+.tg-body .message-content .message-title.tg-forward-title .message-title-name-container {
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 /* ── composer emoji panel (Web A symbol-menu replica) ────────────── */
@@ -2161,7 +2174,10 @@ video.tg-custom-emoji {
 }
 /* Formatted content rendered INSIDE the contentEditable (custom-emoji imgs +
    markdown-lite spans; serialized back to tokens on input). */
-.tg-edit-dock .tg-edit-input img.tg-edit-ce {
+/* Both edit surfaces (dock + modal share .tg-edit-input); the video variant
+   is the animated (.webm) pack-emoji stage editHtml.ts upgrades to. */
+.tg-edit-input img.tg-edit-ce,
+.tg-edit-input video.tg-edit-ce {
   display: inline-block;
   width: 1.25rem;
   height: 1.25rem;

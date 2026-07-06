@@ -18,6 +18,7 @@
  */
 
 import { EMOJI_CACHE_VERSION } from "@/lib/custom-emoji";
+import { resolveEmojiKind } from "./format";
 
 const ESC: Record<string, string> = {
   "&": "&amp;",
@@ -123,9 +124,47 @@ export function bodyToEditHtml(body: string): string {
 }
 
 /**
+ * Swap a custom-emoji <img> for an autoplaying looped <video> (Web A renders
+ * animated pack emoji inside its editable composer exactly this way). The
+ * data-document-id / data-alt attributes keep the [ce:] token round-tripping
+ * through editHtmlToBody's VIDEO branch; contenteditable=false keeps the
+ * element atomic for the caret. If the bytes turn out not to be video after
+ * all (Lottie JSON / missing artwork) it degrades to a token-preserving
+ * <span> showing the alt character — same visual as the old broken-img alt.
+ */
+function ceVideo(img: HTMLImageElement, id: string): void {
+  const alt = img.getAttribute("alt") ?? "";
+  const v = document.createElement("video");
+  v.className = "tg-edit-ce";
+  v.setAttribute("data-document-id", id);
+  v.setAttribute("data-alt", alt);
+  v.muted = true;
+  v.autoplay = true;
+  v.loop = true;
+  v.playsInline = true;
+  v.setAttribute("contenteditable", "false");
+  v.addEventListener(
+    "error",
+    () => {
+      const s = document.createElement("span");
+      s.setAttribute("data-document-id", id);
+      s.setAttribute("data-alt", alt);
+      s.textContent = alt || "🙂";
+      v.replaceWith(s);
+    },
+    { once: true },
+  );
+  v.src = `/api/community/emoji/${id}?v=${EMOJI_CACHE_VERSION}`;
+  img.replaceWith(v);
+  void v.play().catch(() => {});
+}
+
+/**
  * One-time capture-phase error listener: a failed self-hosted custom-emoji
- * <img> retries once via the API route; if that also fails the browser shows
- * the alt emoji text (the token itself stays intact for serialization).
+ * <img> retries once via the API route; if THAT fails too the bytes exist
+ * but don't decode as an image — an animated (.webm) pack emoji — so the
+ * final stage swaps it for an autoplaying <video> (ceVideo above handles the
+ * not-actually-video degrade, keeping the token intact either way).
  */
 export function wireEditCeFallback(el: HTMLElement): void {
   if (el.dataset.ceWired) return;
@@ -134,17 +173,45 @@ export function wireEditCeFallback(el: HTMLElement): void {
     "error",
     (ev) => {
       const t = ev.target;
-      if (
-        t instanceof HTMLImageElement &&
-        t.dataset.documentId &&
-        t.dataset.stage !== "api"
-      ) {
+      if (!(t instanceof HTMLImageElement) || !t.dataset.documentId) return;
+      if (t.dataset.stage !== "api") {
         t.dataset.stage = "api";
         t.src = `/api/community/emoji/${t.dataset.documentId}?v=${EMOJI_CACHE_VERSION}`;
+      } else {
+        ceVideo(t, t.dataset.documentId);
       }
     },
     true,
   );
+}
+
+/**
+ * Manifest fast-path for animated custom emoji in the edit surfaces: ids the
+ * kinds manifest (format.tsx) already knows are video (.webm) packs mount as
+ * an autoplaying <video> immediately instead of churning through the img
+ * error cascade. A MutationObserver re-runs the pass so pasted / re-seeded
+ * emoji get upgraded no matter how they were inserted (innerHTML seed,
+ * execCommand insertHTML paste, …). Lottie (.tgs) ids keep the static still
+ * — the vendored Lottie player is bubble-only.
+ */
+export function wireEditCeAnimations(el: HTMLElement): void {
+  if (el.dataset.ceAnimWired) return;
+  el.dataset.ceAnimWired = "1";
+  const pass = () => {
+    const imgs = el.querySelectorAll<HTMLImageElement>(
+      "img.tg-edit-ce[data-document-id]",
+    );
+    for (const img of imgs) {
+      if (img.dataset.kindChecked) continue;
+      img.dataset.kindChecked = "1";
+      const id = img.dataset.documentId ?? "";
+      resolveEmojiKind(id, (kind) => {
+        if (kind === "video" && img.isConnected) ceVideo(img, id);
+      });
+    }
+  };
+  pass();
+  new MutationObserver(pass).observe(el, { childList: true, subtree: true });
 }
 
 /**

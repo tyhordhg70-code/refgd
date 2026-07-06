@@ -4,6 +4,7 @@ import { getCommunityBotUsername } from "@/lib/community-bot";
 import {
   listChatMessages,
   createChatMessage,
+  discoverMessageEmoji,
   saveChatMedia,
   upsertChatMember,
   countChatMembers,
@@ -486,6 +487,11 @@ export async function POST(req: Request) {
     }
     text = `[voice:${voiceMediaId}:${voice.duration}:${voice.waveform}]`;
   }
+
+  // Pasted foreign-pack custom emoji: validate + cache their artwork BEFORE
+  // the message lands so its bubble can animate on first render (the emoji
+  // serve route is cache-first — see discoverMessageEmoji).
+  await discoverMessageEmoji(text);
 
   const message = await createChatMessage({
     tgId: me.tid,

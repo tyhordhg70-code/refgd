@@ -104,8 +104,12 @@ export async function GET(
   // from the picker (community_emoji_pack) never blanks that pack's emoji in
   // EXISTING messages. The allowlist gate below protects only the expensive
   // paths (Telegram fetch / new cache rows) — same security intent (no
-  // unbounded DB growth, no fetch amplification via hand-typed tokens), since
-  // cached rows can only exist for ids that were allowlisted at fetch time.
+  // unbounded DB growth, no fetch amplification via hand-typed tokens). Cache
+  // rows exist for ids that were allowlisted at fetch time OR that an AUTHED
+  // member actually posted/pasted (discoverMessageEmoji validates those
+  // against Telegram at message-write time, capped per message, and
+  // negative-caches unknown ids) — this unauthenticated route still never
+  // fetches or creates rows for arbitrary hand-typed ids.
   const cached = await getCustomEmoji(cacheKey);
   if (cached) {
     // A sub-floor row is a known-blank poison marker (see MIN_STICKER_BYTES):
