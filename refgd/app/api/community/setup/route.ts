@@ -28,7 +28,9 @@ export async function GET(req: Request) {
   const webhookUrl = `${base}/api/community/webhook`;
   const body: Record<string, unknown> = {
     url: webhookUrl,
-    allowed_updates: ["message"],
+    // callback_query MUST be included or the forward destination-picker
+    // buttons silently do nothing (Telegram only delivers listed updates).
+    allowed_updates: ["message", "callback_query"],
   };
   if (process.env.COMMUNITY_WEBHOOK_SECRET) {
     body.secret_token = process.env.COMMUNITY_WEBHOOK_SECRET;
@@ -67,7 +69,7 @@ export async function GET(req: Request) {
           { command: "testimonials", description: "Post forwards to Client Testimonials" },
           { command: "buy4u", description: "Post forwards to BUY4U Vouches" },
           { command: "announcements", description: "Post forwards to Announcements" },
-          { command: "status", description: "Show active section and post counts" },
+          { command: "status", description: "Show queued forwards and post counts" },
         ],
       }),
       cache: "no-store",
