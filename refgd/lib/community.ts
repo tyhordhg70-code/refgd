@@ -11,7 +11,11 @@
 import { createHash } from "node:crypto";
 import { getPool, initDb } from "./db";
 import { probeImageDims } from "./image-dims";
-import { isCommunityAdmin, communityBotToken } from "./community-bot";
+import {
+  isCommunityAdmin,
+  communityBotToken,
+  getStickerSet,
+} from "./community-bot";
 import { getStickersBatch, fetchStickerArt } from "./emoji-fetch";
 import { CUSTOM_EMOJI_IDS, EMOJI_CACHE_VERSION } from "./custom-emoji";
 
@@ -1168,6 +1172,39 @@ export async function discoverMessageEmoji(body: string): Promise<void> {
     }
     if (fresh.length === 0) return;
     const { ok, stickers } = await getStickersBatch(token, fresh);
+    // Owner rule (2026-07-07): a pasted emoji from an UNKNOWN pack pulls the
+    // WHOLE pack into the library — getStickerSet(set_name) → upsert into
+    // community_emoji_pack, so every emoji in it becomes picker-visible AND
+    // allowlisted on the unauthenticated serve route (isPackEmoji). Bounded
+    // (max 2 new sets per message) and fail-soft like the rest of discovery;
+    // junk ids never reach here because Telegram returns no sticker for them.
+    const newSets: string[] = [];
+    for (const id of fresh) {
+      const name = (stickers.get(id)?.set_name ?? "").trim();
+      if (!name || newSets.includes(name)) continue;
+      if (newSets.length >= 2) break;
+      const { rows: setRows } = await getPool().query<{ x: number }>(
+        `SELECT 1 AS x FROM community_emoji_pack WHERE set_name = $1 LIMIT 1`,
+        [name],
+      );
+      if (setRows.length === 0) newSets.push(name);
+    }
+    for (const name of newSets) {
+      const set = await getStickerSet(name);
+      if (!set) continue;
+      const packRows: PackEmoji[] = [];
+      for (const st of set.stickers) {
+        const cid = st.custom_emoji_id;
+        if (!cid) continue;
+        packRows.push({
+          id: cid,
+          alt: st.emoji ?? "",
+          setName: set.name,
+          title: set.title,
+        });
+      }
+      if (packRows.length > 0) await upsertPackEmoji(packRows);
+    }
     for (const id of fresh) {
       const sticker = stickers.get(id);
       if (!sticker) {
@@ -1245,20 +1282,30 @@ export async function toggleReaction(
   messageId: string,
   tgId: string,
   emoji: string,
-): Promise<ChatReaction[]> {
+): Promise<{ reactions: ChatReaction[]; limited: boolean }> {
   await initDb();
-  const ins = await getPool().query(
-    `INSERT INTO message_reactions (message_id, tg_id, emoji)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (message_id, tg_id, emoji) DO NOTHING`,
+  // Toggle OFF first: removals are always allowed, and running the DELETE
+  // before the capped INSERT means the 2-reaction limit can never block an
+  // un-react.
+  const del = await getPool().query(
+    `DELETE FROM message_reactions
+      WHERE message_id = $1 AND tg_id = $2 AND emoji = $3`,
     [messageId, tgId, emoji],
   );
-  if (ins.rowCount === 0) {
-    await getPool().query(
-      `DELETE FROM message_reactions
-        WHERE message_id = $1 AND tg_id = $2 AND emoji = $3`,
+  let limited = false;
+  if (del.rowCount === 0) {
+    // Adding a NEW reaction — capped at 2 distinct emoji per user per post
+    // (owner rule 2026-07-07). The count guard lives inside the INSERT so
+    // check + insert stay a single statement.
+    const ins = await getPool().query(
+      `INSERT INTO message_reactions (message_id, tg_id, emoji)
+       SELECT $1, $2, $3
+        WHERE (SELECT COUNT(DISTINCT emoji) FROM message_reactions
+                WHERE message_id = $1 AND tg_id = $2) < 2
+       ON CONFLICT (message_id, tg_id, emoji) DO NOTHING`,
       [messageId, tgId, emoji],
     );
+    limited = ins.rowCount === 0;
   }
   const { rows } = await getPool().query<{
     emoji: string;
@@ -1272,7 +1319,14 @@ export async function toggleReaction(
       ORDER BY emoji`,
     [messageId, tgId],
   );
-  return rows.map((r) => ({ emoji: r.emoji, count: r.n, mine: Boolean(r.mine) }));
+  return {
+    reactions: rows.map((r) => ({
+      emoji: r.emoji,
+      count: r.n,
+      mine: Boolean(r.mine),
+    })),
+    limited,
+  };
 }
 
 export async function chatMessageExists(id: string): Promise<boolean> {

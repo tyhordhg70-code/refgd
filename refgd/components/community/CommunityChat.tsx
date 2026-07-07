@@ -48,7 +48,9 @@ import {
   CustomEmojiImg,
   LocalTime,
   dateKey,
+  dateKeyLocal,
   dateLabel,
+  useLocalDates,
   emojiSrc,
   isSingleCustomEmoji,
   isSingleStandardEmoji,
@@ -104,11 +106,16 @@ interface DateGroup {
   runs: ChatMessage[][];
 }
 
-function buildGroups(messages: ChatMessage[]): DateGroup[] {
-  const todayYear = new Date().getUTCFullYear();
+function buildGroups(
+  messages: ChatMessage[],
+  localDates: boolean,
+): DateGroup[] {
+  const todayYear = localDates
+    ? new Date().getFullYear()
+    : new Date().getUTCFullYear();
   const groups: DateGroup[] = [];
   for (const m of messages) {
-    const key = dateKey(m.createdAt);
+    const key = (localDates ? dateKeyLocal : dateKey)(m.createdAt);
     let group = groups[groups.length - 1];
     if (!group || group.key !== key) {
       group = { key, label: dateLabel(key, todayYear), runs: [] };
@@ -720,6 +727,16 @@ export default function CommunityChat({
     }, 1400);
   };
 
+  // Land TALL posts (photo + long caption) with their TOP in view so the
+  // viewer reads DOWN through the text (owner rule 2026-07-07); short
+  // bubbles keep the Web A centered focus.
+  const scrollBubbleIntoView = (el: HTMLElement) => {
+    chat.releaseScrollAnchor();
+    const root = chat.scrollRef.current;
+    const tall = root ? el.offsetHeight > root.clientHeight * 0.6 : false;
+    el.scrollIntoView({ behavior: "smooth", block: tall ? "start" : "center" });
+  };
+
   // Jump to a quoted message when its reply preview is tapped, briefly
   // highlighting the target the way the real client does.
   const scrollToMessage = (id: string) => {
@@ -729,7 +746,7 @@ export default function CommunityChat({
       `[data-mid="${CSS.escape(id)}"]`,
     );
     if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    scrollBubbleIntoView(el);
     focusMessage(el);
   };
 
@@ -928,8 +945,10 @@ export default function CommunityChat({
   // Reactions on readonly bubbles (imported vouches + seed posts) live in
   // their own TEXT key space ("v<id>" / "seed:<key>"); live chat messages
   // keep the useCommunityChat flow. reactAny routes by key shape.
-  const extraReactions = useExtraReactions(!!me, () =>
-    showToast("Sign in with Telegram to react"),
+  const extraReactions = useExtraReactions(
+    !!me,
+    () => showToast("Sign in with Telegram to react"),
+    (msg) => showToast(msg),
   );
   const reactAny = (targetId: string, emoji: string) => {
     if (/^\d+$/.test(targetId)) void chat.react(targetId, emoji);
@@ -1284,6 +1303,7 @@ export default function CommunityChat({
   );
 
   const query = (search ?? "").trim().toLowerCase();
+  const localDates = useLocalDates();
   const groups = useMemo(() => {
     const all = state?.messages ?? [];
     const shown = pinnedOnly
@@ -1295,8 +1315,8 @@ export default function CommunityChat({
               m.authorName.toLowerCase().includes(query),
           )
         : all;
-    return buildGroups(shown);
-  }, [state?.messages, query, pinnedOnly]);
+    return buildGroups(shown, localDates);
+  }, [state?.messages, query, pinnedOnly, localDates]);
 
   // Paint the active search term inside the filtered results (CSS Custom
   // Highlight API — highlights text WITHOUT rewriting the DOM, so custom
@@ -1385,7 +1405,7 @@ export default function CommunityChat({
         `[data-mid="${CSS.escape(id)}"]`,
       );
       if (!el) return;
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      scrollBubbleIntoView(el);
       focusMessage(el);
     }, 80);
     return () => window.clearTimeout(t);

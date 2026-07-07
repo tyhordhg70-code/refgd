@@ -3,7 +3,14 @@
 import { useMemo } from "react";
 import MessageBubble, { type BubbleReaction } from "./MessageBubble";
 import type { VouchView } from "./types";
-import { LocalTime, dateKey, dateLabel, renderBody } from "./format";
+import {
+  LocalTime,
+  dateKey,
+  dateKeyLocal,
+  dateLabel,
+  renderBody,
+  useLocalDates,
+} from "./format";
 
 /**
  * Read-only vouch history (Client Testimonials, BUY4U Vouches, Announcements)
@@ -20,17 +27,21 @@ interface DateGroup {
   runs: VouchView[][];
 }
 
-function buildGroups(vouches: VouchView[]): DateGroup[] {
+function buildGroups(vouches: VouchView[], localDates: boolean): DateGroup[] {
   const sorted = [...vouches].sort((a, b) => {
     const ta = a.originDate ?? a.createdAt;
     const tb = b.originDate ?? b.createdAt;
     if (ta !== tb) return ta < tb ? -1 : 1;
     return Number(a.id) - Number(b.id);
   });
-  const todayYear = new Date().getUTCFullYear();
+  const todayYear = localDates
+    ? new Date().getFullYear()
+    : new Date().getUTCFullYear();
   const groups: DateGroup[] = [];
   for (const v of sorted) {
-    const key = dateKey(v.originDate ?? v.createdAt);
+    const key = (localDates ? dateKeyLocal : dateKey)(
+      v.originDate ?? v.createdAt,
+    );
     let group = groups[groups.length - 1];
     if (!group || group.key !== key) {
       group = { key, label: dateLabel(key, todayYear), runs: [] };
@@ -71,7 +82,11 @@ export default function VouchHistory({
   /** Toggle the viewer's reaction on a vouch bubble (key `v<id>`). */
   onReact?: (id: string, emoji: string) => void;
 }) {
-  const groups = useMemo(() => buildGroups(vouches), [vouches]);
+  const localDates = useLocalDates();
+  const groups = useMemo(
+    () => buildGroups(vouches, localDates),
+    [vouches, localDates],
+  );
 
   return (
     <>

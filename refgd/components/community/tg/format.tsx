@@ -55,6 +55,30 @@ export function dateKey(iso: string): string {
   return m ? m[1] : iso;
 }
 
+/**
+ * Local-timezone date key (used for date-pill grouping AFTER hydration —
+ * the UTC `dateKey` keeps SSR deterministic; see `useLocalDates`).
+ */
+export function dateKeyLocal(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return dateKey(iso);
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mo}-${da}`;
+}
+
+/**
+ * True once hydrated: gates date-group math onto the DEVICE's timezone
+ * (same SSR-safe pattern as LocalTime — server renders UTC groups, the
+ * client re-groups to local right after mount so a 23:30 message lands under
+ * the viewer's own calendar day).
+ */
+export function useLocalDates(): boolean {
+  const [local, setLocal] = useState(false);
+  useEffect(() => setLocal(true), []);
+  return local;
+}
+
 /** Telegram-style date label: "June 8" (same year) / "June 8, 2025". */
 export function dateLabel(key: string, todayYear: number): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(key);

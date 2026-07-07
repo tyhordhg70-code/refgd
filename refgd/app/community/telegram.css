@@ -3114,7 +3114,7 @@ span.tg-edit-ce-lottie svg {
     transparent 64%
   );
   will-change: transform;
-  animation: tg-aura-drift 19s ease-in-out infinite alternate;
+  animation: tg-aura-drift 12s ease-in-out infinite alternate;
 }
 /* Diamond-star halftone field (owner reference 2026-07-07): 4-pointed
    concave-diamond sparkles on a staggered grid, largest at the bottom and
@@ -3137,16 +3137,22 @@ span.tg-edit-ce-lottie svg {
   height: auto;
   aspect-ratio: 1024 / 340;
   max-height: 100%;
+  /* REAL multi-hue gradient (owner 2026-07-07: the old two-tone band read as
+     "just static colors"): all four palette hues sit in view at once
+     (300% backdrop ≈ a full hue-cycle across the visible band) and the pan
+     is fast + wide enough to visibly sweep color through the stars. */
   background: linear-gradient(
     100deg,
-    var(--aura-dot) 0%,
-    var(--aura-c) 28%,
-    var(--aura-dot) 55%,
-    var(--aura-c) 80%,
+    var(--aura-a) 0%,
+    var(--aura-c) 16%,
+    var(--aura-dot) 32%,
+    var(--aura-b) 48%,
+    var(--aura-c) 64%,
+    var(--aura-a) 80%,
     var(--aura-dot) 100%
   );
-  background-size: 250% 100%;
-  animation: tg-aura-shift 16s ease-in-out infinite alternate;
+  background-size: 300% 100%;
+  animation: tg-aura-shift 9s ease-in-out infinite alternate;
   -webkit-mask-image: url("/community-aura-stars.svg");
   -webkit-mask-repeat: no-repeat;
   -webkit-mask-position: bottom center;
@@ -3193,10 +3199,10 @@ span.tg-edit-ce-lottie svg {
 }
 @keyframes tg-aura-drift {
   0% {
-    transform: translateX(-3.5%);
+    transform: translateX(-7%);
   }
   100% {
-    transform: translateX(3.5%);
+    transform: translateX(7%);
   }
 }
 /* Respect reduced-motion: fade in once and hold — no pulsing/shifting. */

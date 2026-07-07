@@ -694,6 +694,36 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
   // is lost otherwise); "bottom" (or nothing saved) keeps the default
   // scroll-to-latest behaviour.
   const didRestoreRef = useRef(false);
+  // Restored-spot anchor: media (photos, custom emoji) finishing ABOVE the
+  // restored position grows the content and silently shifts a raw scrollTop
+  // restore. Saving the topmost visible bubble's data-mid + offset and
+  // RE-PINNING to it while late media settles (until the user actually
+  // scrolls, or a short window elapses) keeps the exact post under the
+  // viewer's eyes.
+  const restoreAnchorRef = useRef<{
+    mid: string;
+    off: number;
+    until: number;
+  } | null>(null);
+  const applyAnchor = useCallback(
+    (el: HTMLElement, mid: string, off: number): boolean => {
+      const node = el.querySelector<HTMLElement>(
+        `[data-mid="${CSS.escape(mid)}"]`,
+      );
+      if (!node) return false;
+      const cRect = el.getBoundingClientRect();
+      const nRect = node.getBoundingClientRect();
+      el.scrollTop += nRect.top - cRect.top - off;
+      return true;
+    },
+    [],
+  );
+  // Programmatic jumps (reply-preview taps, hash deep links) must drop the
+  // settle-window anchor too, or a late media resize yanks the view away
+  // from the just-focused bubble.
+  const releaseScrollAnchor = useCallback(() => {
+    restoreAnchorRef.current = null;
+  }, []);
   useEffect(() => {
     const el = scrollRef.current;
     // Gate on the initial fetch finishing (NOT on live messages existing) so
@@ -708,6 +738,35 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
       /* storage unavailable */
     }
     if (saved && saved !== "bottom") {
+      // Preferred format: JSON anchor {m: data-mid, o: offset, t: scrollTop}.
+      if (saved.startsWith("{")) {
+        try {
+          const spot = JSON.parse(saved) as {
+            m?: string;
+            o?: number;
+            t?: number;
+          };
+          if (spot && typeof spot.m === "string") {
+            atBottomRef.current = false;
+            // Rough position first (collapses the distance the anchor fix
+            // has to cover), then snap exactly to the anchored bubble.
+            if (typeof spot.t === "number" && spot.t >= 0)
+              el.scrollTop = spot.t;
+            const off = typeof spot.o === "number" ? spot.o : 0;
+            if (applyAnchor(el, spot.m, off)) {
+              restoreAnchorRef.current = {
+                mid: spot.m,
+                off,
+                until: Date.now() + 4000,
+              };
+            }
+            return;
+          }
+        } catch {
+          /* fall through to legacy handling */
+        }
+      }
+      // Legacy format: bare scrollTop number.
       const top = Number(saved);
       if (Number.isFinite(top) && top >= 0) {
         atBottomRef.current = false;
@@ -715,7 +774,32 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
         return;
       }
     }
+    // Default / "bottom": jump to the latest message — but if the newest
+    // post is TALLER than the view (announcement photo + long caption), back
+    // up so the POST'S TOP greets the viewer and they read DOWN through it
+    // (owner rule 2026-07-07). Short posts keep the plain bottom landing.
     el.scrollTop = el.scrollHeight;
+    const bubbles = el.querySelectorAll<HTMLElement>("[data-mid]");
+    const last = bubbles.length ? bubbles[bubbles.length - 1] : null;
+    if (last) {
+      const cRect = el.getBoundingClientRect();
+      const r = last.getBoundingClientRect();
+      // Only back up when it moves the view MORE than the 80px "at bottom"
+      // threshold — a barely-taller post would immediately re-register as
+      // at-bottom in onScroll and get re-pinned down anyway.
+      const delta = cRect.top + 8 - r.top;
+      if (delta >= 88) {
+        el.scrollTop -= delta;
+        atBottomRef.current = false;
+        const mid = last.getAttribute("data-mid");
+        if (mid)
+          restoreAnchorRef.current = {
+            mid,
+            off: 8,
+            until: Date.now() + 4000,
+          };
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state === null, topic]);
   useEffect(() => {
@@ -726,16 +810,41 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
 
   // While the viewer is at the bottom, KEEP them fully at the bottom as the
   // content grows after the fact (photos/custom emoji finishing loading used
-  // to leave the view landing slightly above the last message).
+  // to leave the view landing slightly above the last message). Away from
+  // the bottom, re-pin the restored anchor bubble for the same reason —
+  // until the user takes over (wheel/touch) or the settle window expires.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || state === null || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(() => {
-      if (atBottomRef.current) el.scrollTop = el.scrollHeight;
+      if (atBottomRef.current) {
+        el.scrollTop = el.scrollHeight;
+        return;
+      }
+      const a = restoreAnchorRef.current;
+      if (!a) return;
+      if (Date.now() > a.until) {
+        restoreAnchorRef.current = null;
+        return;
+      }
+      applyAnchor(el, a.mid, a.off);
     });
     ro.observe(el);
     if (el.firstElementChild) ro.observe(el.firstElementChild);
-    return () => ro.disconnect();
+    // Real user intent releases the anchor immediately (programmatic
+    // scrollTop writes fire "scroll" but never wheel/pointer events).
+    const releaseAnchor = () => {
+      restoreAnchorRef.current = null;
+    };
+    el.addEventListener("wheel", releaseAnchor, { passive: true });
+    el.addEventListener("touchstart", releaseAnchor, { passive: true });
+    el.addEventListener("pointerdown", releaseAnchor, { passive: true });
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("wheel", releaseAnchor);
+      el.removeEventListener("touchstart", releaseAnchor);
+      el.removeEventListener("pointerdown", releaseAnchor);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state === null]);
 
@@ -746,20 +855,46 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
   // Last observed scroll snapshot — read in the unmount cleanup, where React
   // has ALREADY detached scrollRef (DOM refs null out before passive-effect
   // cleanups run on unmount).
-  const scrollSnapRef = useRef<{ top: number; atBottom: boolean } | null>(
-    null,
-  );
+  const scrollSnapRef = useRef<{
+    top: number;
+    atBottom: boolean;
+    mid?: string;
+    off?: number;
+  } | null>(null);
   const saveScrollSpot = useCallback(() => {
     const el = scrollRef.current;
-    const snap = el
-      ? { top: Math.round(el.scrollTop), atBottom: atBottomRef.current }
-      : scrollSnapRef.current;
+    let snap = scrollSnapRef.current;
+    if (el) {
+      // Anchor the topmost visible bubble: a raw scrollTop drifts when media
+      // above it finishes loading on the next visit; the bubble id doesn't.
+      snap = { top: Math.round(el.scrollTop), atBottom: atBottomRef.current };
+      if (!snap.atBottom) {
+        const cRect = el.getBoundingClientRect();
+        for (const node of el.querySelectorAll<HTMLElement>("[data-mid]")) {
+          const r = node.getBoundingClientRect();
+          if (r.bottom > cRect.top + 8) {
+            const mid = node.getAttribute("data-mid");
+            if (mid) {
+              snap.mid = mid;
+              snap.off = Math.round(r.top - cRect.top);
+            }
+            break;
+          }
+        }
+      }
+      // Keep the full snapshot (anchor included) for the unmount save, where
+      // scrollRef has already detached — otherwise every topic switch would
+      // downgrade the stored spot back to a drift-prone bare scrollTop.
+      scrollSnapRef.current = snap;
+    }
     if (!snap) return;
+    const value = snap.atBottom
+      ? "bottom"
+      : snap.mid
+        ? JSON.stringify({ m: snap.mid, o: snap.off ?? 0, t: snap.top })
+        : String(snap.top);
     try {
-      localStorage.setItem(
-        `rg_scroll_${topic}`,
-        snap.atBottom ? "bottom" : String(snap.top),
-      );
+      localStorage.setItem(`rg_scroll_${topic}`, value);
     } catch {
       /* storage unavailable */
     }
@@ -779,7 +914,11 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     if (!el) return;
     atBottomRef.current =
       el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    // Carry the last computed anchor forward (it's refreshed on every
+    // throttled save) so an unmount right after a scroll event still has an
+    // anchor — a ≤250ms-stale bubble id beats a drift-prone bare scrollTop.
     scrollSnapRef.current = {
+      ...(scrollSnapRef.current ?? {}),
       top: Math.round(el.scrollTop),
       atBottom: atBottomRef.current,
     };
@@ -1063,8 +1202,12 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
         const data = (await res.json()) as {
           ok: boolean;
           reactions?: Reaction[];
+          error?: string;
         };
-        if (!res.ok || !data.ok || !data.reactions) return;
+        // The 2-reactions-per-post cap comes back as a 409 WITH the current
+        // chips — show the reason but still sync the authoritative state.
+        if ((!res.ok || !data.ok) && data.error) setError(data.error);
+        if (!data.reactions) return;
         setState((prev) =>
           prev
             ? {
@@ -1184,6 +1327,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     toggleFullscreen,
     scrollRef,
     atBottomRef,
+    releaseScrollAnchor,
     onScroll,
     send,
     sendVoice,

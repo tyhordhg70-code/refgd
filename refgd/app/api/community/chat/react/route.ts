@@ -72,6 +72,19 @@ export async function POST(req: Request) {
     );
   }
 
-  const reactions = await toggleReaction(messageId, me.tid, emoji);
+  const { reactions, limited } = await toggleReaction(messageId, me.tid, emoji);
+  if (limited) {
+    // Cap hit (2 distinct emoji per user per post): report why AND return
+    // the current chips so the client stays in sync.
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "You can only add 2 reactions per post",
+        messageId,
+        reactions,
+      },
+      { status: 409 },
+    );
+  }
   return NextResponse.json({ ok: true, messageId, reactions });
 }

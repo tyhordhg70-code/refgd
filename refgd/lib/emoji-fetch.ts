@@ -39,6 +39,9 @@ export const FIRST_ORIGINALS_VERSION = 4;
 export interface TgSticker {
   custom_emoji_id?: string;
   file_id?: string;
+  /** Owning pack slug — Telegram sends it; discovery uses it to pull the whole pack. */
+  set_name?: string;
+  emoji?: string;
   is_animated?: boolean;
   is_video?: boolean;
   thumbnail?: { file_id?: string };

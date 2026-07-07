@@ -26,6 +26,7 @@ export interface ExtraReactions {
 export function useExtraReactions(
   signedIn: boolean,
   onRequireSignIn?: () => void,
+  onNotice?: (msg: string) => void,
 ): ExtraReactions {
   const [map, setMap] = useState<Record<string, Reaction[]>>({});
   const known = useRef<Set<string>>(new Set());
@@ -34,6 +35,8 @@ export function useExtraReactions(
   const mounted = useRef(true);
   const requireSignIn = useRef(onRequireSignIn);
   requireSignIn.current = onRequireSignIn;
+  const notice = useRef(onNotice);
+  notice.current = onNotice;
 
   useEffect(() => {
     mounted.current = true;
@@ -110,8 +113,14 @@ export function useExtraReactions(
         const data = (await res.json()) as {
           ok?: boolean;
           reactions?: Reaction[];
+          error?: string;
         };
-        if (!res.ok || !data.ok || !data.reactions) return;
+        // The 2-reactions-per-post cap comes back as a 409 WITH the current
+        // chips — surface the notice and still sync state.
+        if (!res.ok || !data.ok) {
+          if (data.error && mounted.current) notice.current?.(data.error);
+        }
+        if (!data.reactions) return;
         known.current.add(id);
         if (mounted.current)
           setMap((prev) => ({ ...prev, [id]: data.reactions as Reaction[] }));
