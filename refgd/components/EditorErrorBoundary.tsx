@@ -46,6 +46,34 @@ type State = {
 const MAX_RECOVERIES = 2;
 const QUIET_RESET_MS = 5000;
 
+// Fire-and-forget crash report — inside webviews (Telegram Mini App, in-app
+// browsers) there is no console to read, so the caught error is shipped to
+// /api/client-error where it can be inspected server-side. Hard-capped per
+// page load so a render loop can't spam the endpoint.
+let reportsSent = 0;
+const MAX_REPORTS = 3;
+function reportCrash(payload: {
+  message: string;
+  stack: string;
+  site: string;
+  path: string;
+}): void {
+  if (reportsSent >= MAX_REPORTS) return;
+  reportsSent += 1;
+  try {
+    void fetch("/api/client-error", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }).catch(() => {
+      /* diagnostics only — never surface */
+    });
+  } catch {
+    /* diagnostics only — never surface */
+  }
+}
+
 export default class EditorErrorBoundary extends React.Component<
   {
     children: React.ReactNode;
@@ -96,6 +124,21 @@ export default class EditorErrorBoundary extends React.Component<
       .slice(0, 3)
       .join(" \u2190 ");
     this.setState({ site, at: new Date().toLocaleTimeString() });
+
+    reportCrash({
+      message:
+        err instanceof Error
+          ? `${err.name}: ${err.message}`
+          : typeof err === "string"
+            ? err
+            : "Unknown error",
+      stack: err instanceof Error ? (err.stack ?? "").slice(0, 2000) : "",
+      site: (info?.componentStack ?? "").slice(0, 2000),
+      path:
+        typeof window !== "undefined"
+          ? window.location.pathname + window.location.search
+          : "",
+    });
 
     const next = this.state.recoveries + 1;
     if (next > MAX_RECOVERIES) {
