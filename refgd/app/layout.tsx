@@ -176,7 +176,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <BackgroundPrefetcher />
         </SiteChrome>
         <EditProvider initialAdmin={initialAdmin} initialContent={initialContent}>
-        <EditorErrorBoundary>
+        <EditorErrorBoundary showDetail={initialAdmin}>
           <SiteChrome>
             {/* Site-wide continuous WebGL galaxy field — every page scrolls
                 over the same scene so transitions feel like one journey. */}

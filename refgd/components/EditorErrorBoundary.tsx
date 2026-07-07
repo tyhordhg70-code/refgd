@@ -43,7 +43,11 @@ const MAX_RECOVERIES = 2;
 const QUIET_RESET_MS = 5000;
 
 export default class EditorErrorBoundary extends React.Component<
-  { children: React.ReactNode },
+  {
+    children: React.ReactNode;
+    /** Show the caught error's message in the fallback (admins only). */
+    showDetail?: boolean;
+  },
   State
 > {
   state: State = { hasError: false, key: 0, recoveries: 0, message: "" };
@@ -56,9 +60,16 @@ export default class EditorErrorBoundary extends React.Component<
     return { hasError: true, message };
   }
 
-  componentDidCatch(err: unknown) {
+  componentDidCatch(err: unknown, info?: React.ErrorInfo) {
+    // console.error (not warn) with the component stack so the crash site is
+    // findable from a screenshot / remote log — the fallback text alone says
+    // nothing about WHAT broke.
     // eslint-disable-next-line no-console
-    console.warn("[editor] caught runtime error:", err);
+    console.error(
+      "[editor] caught runtime error:",
+      err,
+      info?.componentStack ?? "",
+    );
 
     const next = this.state.recoveries + 1;
     if (next > MAX_RECOVERIES) {
@@ -124,6 +135,23 @@ export default class EditorErrorBoundary extends React.Component<
           <div style={{ opacity: 0.8, marginBottom: "0.75rem" }}>
             The page is otherwise fine. Try refreshing, or click below to retry the editor.
           </div>
+          {this.props.showDetail && this.state.message ? (
+            <div
+              style={{
+                marginBottom: "0.75rem",
+                padding: "0.5rem 0.75rem",
+                borderRadius: "0.5rem",
+                background: "rgba(0, 0, 0, 0.35)",
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                fontSize: "0.75rem",
+                opacity: 0.75,
+                overflowWrap: "break-word",
+                textAlign: "left",
+              }}
+            >
+              {this.state.message}
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={this.handleReset}
