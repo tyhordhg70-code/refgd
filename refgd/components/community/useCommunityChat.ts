@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatTopic } from "@/lib/community";
+import { getDeviceSignals } from "./device-fp";
 
 /**
  * All state + behaviour for the live community chat, extracted from the old
@@ -96,6 +97,9 @@ export interface ChatMessage {
   body: string;
   /** Attached photo (chat_media id) served via /api/community/chat-media/[id]. */
   mediaId: string | null;
+  /** Intrinsic pixel size of the photo (layout reserved before load). */
+  mediaW?: number | null;
+  mediaH?: number | null;
   isAdmin: boolean;
   pinned: boolean;
   createdAt: string;
@@ -137,6 +141,8 @@ interface TelegramWebApp {
   platform?: string;
   version?: string;
   isFullscreen?: boolean;
+  /** Height of the VISIBLE Mini App area (compact mode < window.innerHeight). */
+  viewportStableHeight?: number;
   safeAreaInset?: TelegramSafeAreaInset;
   contentSafeAreaInset?: TelegramSafeAreaInset;
   ready?: () => void;
@@ -276,9 +282,17 @@ const MAX_IMAGE_EDGE = 1600;
  * 3 MB server cap is practically never hit. Small GIFs pass through as-is —
  * a canvas re-encode would freeze the animation.
  */
-export async function prepareChatImage(file: Blob): Promise<Blob | null> {
+export interface PreparedChatImage {
+  blob: Blob;
+  /** Intrinsic pixel size of the (possibly downscaled) upload. */
+  w: number;
+  h: number;
+}
+
+export async function prepareChatImage(
+  file: Blob,
+): Promise<PreparedChatImage | null> {
   if (!file.type.startsWith("image/")) return null;
-  if (file.type === "image/gif" && file.size <= 3 * 1024 * 1024) return file;
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -289,6 +303,12 @@ export async function prepareChatImage(file: Blob): Promise<Blob | null> {
     });
     const longest = Math.max(img.naturalWidth, img.naturalHeight);
     if (!longest) return null;
+    // Small GIFs pass through untouched (a canvas re-encode would freeze the
+    // animation) — but their intrinsic size is still measured above so the
+    // bubble can reserve layout space before the image loads.
+    if (file.type === "image/gif" && file.size <= 3 * 1024 * 1024) {
+      return { blob: file, w: img.naturalWidth, h: img.naturalHeight };
+    }
     const scale = Math.min(1, MAX_IMAGE_EDGE / longest);
     const w = Math.max(1, Math.round(img.naturalWidth * scale));
     const h = Math.max(1, Math.round(img.naturalHeight * scale));
@@ -298,9 +318,10 @@ export async function prepareChatImage(file: Blob): Promise<Blob | null> {
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
     ctx.drawImage(img, 0, 0, w, h);
-    return await new Promise<Blob | null>((resolve) =>
+    const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, "image/jpeg", 0.85),
     );
+    return blob ? { blob, w, h } : null;
   } catch {
     return null;
   } finally {
@@ -331,16 +352,25 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
   const [attachment, setAttachmentState] = useState<{
     blob: Blob;
     previewUrl: string;
+    w: number | null;
+    h: number | null;
   } | null>(null);
   const [inTelegram, setInTelegram] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   // Who is typing right now (from the server heartbeat table, via GET).
   const [typing, setTyping] = useState<string[]>([]);
 
-  const setAttachment = useCallback((blob: Blob | null) => {
+  const setAttachment = useCallback((img: PreparedChatImage | null) => {
     setAttachmentState((prev) => {
       if (prev) URL.revokeObjectURL(prev.previewUrl);
-      return blob ? { blob, previewUrl: URL.createObjectURL(blob) } : null;
+      return img
+        ? {
+            blob: img.blob,
+            previewUrl: URL.createObjectURL(img.blob),
+            w: img.w > 0 ? img.w : null,
+            h: img.h > 0 ? img.h : null,
+          }
+        : null;
     });
   }, []);
 
@@ -391,7 +421,27 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
       const kept = prev.messages.filter(
         (m) => Number(m.id) < minId || Number(m.id) > maxId,
       );
-      const messages = [...kept, ...incoming].sort(
+      // Reuse the PREVIOUS object for any message the snapshot didn't
+      // actually change (cheap JSON compare — the window is ≤60 small
+      // objects). Fresh-but-identical objects every 30s forced every bubble
+      // in the window to re-render for nothing; stable references let the
+      // tree skip untouched messages.
+      const prevById = new Map(prev.messages.map((m) => [m.id, m]));
+      let changed = false;
+      const fresh = incoming.map((m) => {
+        const old = prevById.get(m.id);
+        if (old && JSON.stringify(old) === JSON.stringify(m)) return old;
+        changed = true;
+        return m;
+      });
+      // Every snapshot message matched an existing object and nothing was
+      // pruned (kept + window sizes add back up to the previous list, and
+      // ids are unique) — the reconciled list would be identical, so keep
+      // the previous state reference and skip the re-render entirely.
+      if (!changed && kept.length + fresh.length === prev.messages.length) {
+        return prev;
+      }
+      const messages = [...kept, ...fresh].sort(
         (a, b) => Number(a.id) - Number(b.id),
       );
       lastIdRef.current = messages.reduce(
@@ -433,18 +483,38 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
       );
       if (!res.ok) return;
       const data = (await res.json()) as ChatState;
-      setState((prev) =>
-        prev
-          ? {
-              ...prev,
-              me: data.me,
-              memberCount: data.memberCount,
-              hideMembers: data.hideMembers,
-              botUsername: data.botUsername ?? prev.botUsername,
-            }
-          : prev,
-      );
-      setTyping(Array.isArray(data.typing) ? data.typing : []);
+      // No-change guards: this poll runs every 2.5s, and an unconditional
+      // setState (fresh object/array identity each tick) re-rendered the
+      // ENTIRE message tree — every rich bubble re-parsing its markdown,
+      // emoji, media — even when nothing changed. That constant churn is
+      // what made the whole app feel laggy. Return the previous reference
+      // when the payload is identical so React bails out of the re-render.
+      setState((prev) => {
+        if (!prev) return prev;
+        const botUsername = data.botUsername ?? prev.botUsername;
+        if (
+          prev.memberCount === data.memberCount &&
+          prev.hideMembers === data.hideMembers &&
+          prev.botUsername === botUsername &&
+          JSON.stringify(prev.me) === JSON.stringify(data.me)
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          me: data.me,
+          memberCount: data.memberCount,
+          hideMembers: data.hideMembers,
+          botUsername,
+        };
+      });
+      setTyping((prev) => {
+        const next = Array.isArray(data.typing) ? data.typing : [];
+        return prev.length === next.length &&
+          prev.every((v, i) => v === next[i])
+          ? prev
+          : next;
+      });
       mergeMessages(data.messages);
     } catch {
       /* transient — next tick retries */
@@ -474,10 +544,20 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
       if (initData && !authTriedRef.current) {
         authTriedRef.current = true;
         try {
+          // Device signals for ban enforcement — hashed server-side, never
+          // stored raw. Fail-soft: sign-in proceeds even if collection fails.
+          const signals = await getDeviceSignals().catch(() => ({
+            fp: null,
+            did: null,
+          }));
           const res = await fetch("/api/community/auth", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ initData }),
+            body: JSON.stringify({
+              initData,
+              fp: signals.fp,
+              did: signals.did,
+            }),
           });
           const data = (await res.json().catch(() => null)) as {
             ok?: boolean;
@@ -823,6 +903,10 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
         // Photo (with optional caption) → multipart; ONE bubble server-side.
         const form = new FormData();
         form.append("photo", attachment.blob, "photo.jpg");
+        if (attachment.w && attachment.h) {
+          form.append("mediaW", String(attachment.w));
+          form.append("mediaH", String(attachment.h));
+        }
         form.append("text", body);
         if (replyTo?.id) form.append("replyTo", replyTo.id);
         form.append("ttlSeconds", String(me?.admin ? ttlSeconds : 0));

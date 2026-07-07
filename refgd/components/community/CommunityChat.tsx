@@ -17,7 +17,7 @@ import AdminPanel from "./AdminPanel";
 import MiddleHeader from "./tg/MiddleHeader";
 import MessageBubble from "./tg/MessageBubble";
 import Appendix from "./tg/Appendix";
-import EmojiPanel, { kickstartEmojiWarm } from "./tg/EmojiPanel";
+import EmojiPanel, { kickstartEmojiWarm, ceAltToId } from "./tg/EmojiPanel";
 import TextFormatter from "./tg/TextFormatter";
 import VoiceMessage from "./tg/VoiceMessage";
 import PollBubble from "./tg/PollBubble";
@@ -76,6 +76,7 @@ import {
   bodyToEditHtml,
   editHtmlToBody,
   pasteHtmlToTokens,
+  upgradePlainEmojiTokens,
   wireEditCeAnimations,
   wireEditCeFallback,
 } from "./tg/editHtml";
@@ -282,9 +283,10 @@ export default function CommunityChat({
 }) {
   const chat = useCommunityChat(topic);
   const isGroupChat = topic === "chat";
-  // READ ME is a locked, admin-authored topic: admins get a normal composer,
-  // everyone else sees the "Topic locked" footer instead of the input.
-  const lockedForMembers = topic === "readme";
+  // Every topic except the group chat is locked and admin-authored: admins
+  // get a normal composer, everyone else sees the "Topic locked" footer
+  // instead of the input. (Server enforces the same gate in the POST route.)
+  const lockedForMembers = !isGroupChat;
   const [menuOpen, setMenuOpen] = useState(false);
   // In-chat search: null = closed, string = open with that query.
   const [search, setSearch] = useState<string | null>(null);
@@ -750,6 +752,45 @@ export default function CommunityChat({
     }
   };
 
+  // ── Per-topic composer drafts (Telegram-style) ────────────────────
+  // Unsent text survives leaving the topic and shows as "Draft: …" in the
+  // topic list (TelegramApp reads the same tg_draft:* keys). Restore seeds
+  // rich nodes like seedComposer but WITHOUT stealing focus (no keyboard
+  // pop on open); if the composer mounts later (session still loading) the
+  // chat.text↔DOM sync effect below seeds it instead.
+  useEffect(() => {
+    let draft = "";
+    try {
+      draft = localStorage.getItem(`tg_draft:${topic}`) ?? "";
+    } catch {
+      return;
+    }
+    if (!draft.trim() || chat.text || chat.editing) return;
+    chat.setText(draft);
+    const el = inputRef.current;
+    if (el) {
+      el.innerHTML = bodyToEditHtml(draft);
+      wireEditCeFallback(el);
+      wireEditCeAnimations(el);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topic]);
+  // Persist as the user types; send/cancel reset chat.text to "" which
+  // clears the draft. Editing an EXISTING post never overwrites the draft.
+  useEffect(() => {
+    if (chat.editing) return;
+    try {
+      if (chat.text.trim()) {
+        localStorage.setItem(`tg_draft:${topic}`, chat.text);
+      } else {
+        localStorage.removeItem(`tg_draft:${topic}`);
+      }
+    } catch {
+      /* storage unavailable — drafts just don't persist */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat.text, chat.editing, topic]);
+
   // Append an emoji character / custom-emoji token to the composer text and
   // keep the contenteditable + caret in sync.
   const insertAtComposer = (snippet: string) => {
@@ -972,6 +1013,58 @@ export default function CommunityChat({
     setUnread(0);
     setShowFab(false);
   };
+
+  // READ ME / Announcements fit-one-view (owner ask): long admin posts must
+  // fit the screen without scrolling, in fullscreen AND compact. CSS `zoom`
+  // on .messages-container reflows the whole content block to the available
+  // height (min 0.5× so extreme posts stay legible and just scroll). The
+  // header-clearance padding-top is divided back out so the zoomed content
+  // never tucks under the absolute MiddleHeader. Deterministic settle: apply
+  // resets → measures natural size → writes; the ResizeObserver refire then
+  // recomputes the exact same values and stops.
+  const fitTopic = topic === "readme" || topic === "announcements";
+  const fitRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!fitTopic) return;
+    const scroller = chat.scrollRef.current;
+    const inner = fitRef.current;
+    if (!scroller || !inner) return;
+    let raf = 0;
+    const apply = () => {
+      raf = 0;
+      inner.style.zoom = "";
+      inner.style.paddingTop = "";
+      const padTop = parseFloat(getComputedStyle(inner).paddingTop) || 0;
+      const avail = scroller.clientHeight;
+      const need = inner.scrollHeight;
+      if (need > avail && avail > 0) {
+        const z = Math.max(
+          0.5,
+          (avail - padTop) / Math.max(1, need - padTop),
+        );
+        if (z < 1) {
+          inner.style.zoom = z.toFixed(3);
+          inner.style.paddingTop = `${(padTop / z).toFixed(1)}px`;
+        }
+      }
+    };
+    const queue = () => {
+      if (!raf) raf = requestAnimationFrame(apply);
+    };
+    queue();
+    const ro = new ResizeObserver(queue);
+    ro.observe(scroller);
+    ro.observe(inner);
+    window.addEventListener("resize", queue);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", queue);
+      if (raf) cancelAnimationFrame(raf);
+      inner.style.zoom = "";
+      inner.style.paddingTop = "";
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitTopic]);
 
   // Drives the vendored Web A sticky-date CSS: the stylesheet already ships
   // the sticky/fade rules but expects the CLIENT to toggle three classes —
@@ -2017,6 +2110,7 @@ export default function CommunityChat({
           >
             <div className="Transition_slide Transition_slide-active">
               <div
+                ref={fitRef}
                 className="messages-container"
                 style={{
                   // Header + pinned-pill clearance both come from CSS
@@ -2174,6 +2268,7 @@ export default function CommunityChat({
                                           name: m.authorName,
                                           peer,
                                           admin: m.isAdmin,
+                                          bot: m.tgId === "0",
                                         }
                                       : null
                                   }
@@ -2203,6 +2298,11 @@ export default function CommunityChat({
                                       ? [
                                           `/api/community/chat-media/${m.mediaId}`,
                                         ]
+                                      : undefined
+                                  }
+                                  mediaSize={
+                                    m.mediaW && m.mediaH
+                                      ? { w: m.mediaW, h: m.mediaH }
                                       : undefined
                                   }
                                   time={<LocalTime iso={m.createdAt} />}
@@ -2451,7 +2551,19 @@ export default function CommunityChat({
                           // serializer only partially understands.
                           e.preventDefault();
                           const html = e.clipboardData.getData("text/html");
-                          const tokens = html ? pasteHtmlToTokens(html) : "";
+                          let tokens = upgradePlainEmojiTokens(
+                            html ? pasteHtmlToTokens(html) : "",
+                            ceAltToId,
+                          );
+                          if (!tokens) {
+                            const plain =
+                              e.clipboardData.getData("text/plain");
+                            const up = upgradePlainEmojiTokens(
+                              plain,
+                              ceAltToId,
+                            );
+                            if (up !== plain) tokens = up;
+                          }
                           if (tokens) {
                             document.execCommand(
                               "insertHTML",
@@ -2776,8 +2888,25 @@ export default function CommunityChat({
                           // token text while composing showed literal `> `
                           // markers and static [ce:] alt characters instead
                           // of the highlight + animated emoji.
+                          // Native Telegram apps (every paste inside the Mini
+                          // App) copy custom emoji as PLAIN characters — no
+                          // data-document-id html like Web A/K — so pack
+                          // emoji are upgraded back to [ce:] tokens in both
+                          // the html-derived tokens AND plain-text pastes.
                           const html = e.clipboardData.getData("text/html");
-                          const tokens = html ? pasteHtmlToTokens(html) : "";
+                          let tokens = upgradePlainEmojiTokens(
+                            html ? pasteHtmlToTokens(html) : "",
+                            ceAltToId,
+                          );
+                          if (!tokens) {
+                            const plain =
+                              e.clipboardData.getData("text/plain");
+                            const up = upgradePlainEmojiTokens(
+                              plain,
+                              ceAltToId,
+                            );
+                            if (up !== plain) tokens = up;
+                          }
                           if (tokens) {
                             document.execCommand(
                               "insertHTML",

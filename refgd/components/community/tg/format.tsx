@@ -795,7 +795,22 @@ export function resolveEmojiKind(
  * itself 404s known-blank alpha-only thumbnails so a "successful" load can no
  * longer paint an invisible image.
  */
-export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
+export function CustomEmojiImg({
+  id,
+  alt,
+  preferAnimated,
+}: {
+  id: string;
+  alt: string;
+  /**
+   * Skip the self-hosted static webp (stage 0) and resolve the REAL pack
+   * document via the API cascade instead. Some animated pack emoji have a
+   * static still that is genuinely DIFFERENT artwork (the Duck-pack ✈️
+   * still is a plain plane; the duck only appears in the animation), so
+   * surfaces like topic icons opt in to the animated original.
+   */
+  preferAnimated?: boolean;
+}) {
   // Near-viewport latch (see observeTile above): render an empty box and
   // download NOTHING until this tile approaches the viewport — exactly how
   // Telegram Web A survives multi-thousand-tile pickers.
@@ -855,12 +870,15 @@ export function CustomEmojiImg({ id, alt }: { id: string; alt: string }) {
     setAttempt(0);
     ensureEmojiKinds();
     const known = emojiKindStage(id);
-    setIdx(Math.max(recallStage(id), known ?? 0));
+    // preferAnimated floors the cascade at the API stages — the self-hosted
+    // static still (stage 0) is never shown even when the file exists.
+    const floor = preferAnimated ? 1 : 0;
+    setIdx(Math.max(recallStage(id), known ?? 0, floor));
     if (known !== null) return;
     return onEmojiKinds(() =>
       setIdx((i) => Math.max(i, emojiKindStage(id) ?? 0)),
     );
-  }, [id, alt]);
+  }, [id, alt, preferAnimated]);
 
   useEffect(
     () => () => {

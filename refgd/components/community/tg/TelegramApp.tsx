@@ -57,10 +57,20 @@ import {
 
 /**
  * Topics in the saved topic list's order, with each icon's real
- * custom-emoji document id (Group Chat uses the # forum icon).
+ * custom-emoji document id. Group Chat uses the official Telegram "Topics"
+ * forum-icon pack's animated 💬 bubble (owner swapped it in for the old #
+ * glyph); BUY4U keeps the Duck-pack ✈️ but ANIMATED — its static still is a
+ * plain plane, the duck riding it only exists in the animation.
  */
 const TOPICS: TopicDef[] = [
-  { key: "chat", title: "Group Chat", emoji: "💬", peer: 4 },
+  {
+    key: "chat",
+    title: "Group Chat",
+    emoji: "💬",
+    docId: "5417915203100613993",
+    animated: true,
+    peer: 4,
+  },
   {
     key: "readme",
     title: "READ ME",
@@ -80,6 +90,7 @@ const TOPICS: TopicDef[] = [
     title: "BUY4U Vouches",
     emoji: "✈️",
     docId: "5231361378748472914",
+    animated: true,
     peer: 5,
   },
   {
@@ -107,7 +118,11 @@ function TopicIcon({ def }: { def: TopicDef }) {
       data-alt={def.emoji}
       aria-hidden
     >
-      <CustomEmojiImg id={def.docId} alt={def.emoji} />
+      <CustomEmojiImg
+        id={def.docId}
+        alt={def.emoji}
+        preferAnimated={def.animated}
+      />
     </div>
   );
 }
@@ -125,6 +140,8 @@ interface RowMeta {
   sender: string | null;
   summary: string;
   time: string;
+  /** True when the row shows an unsent composer draft (red "Draft:" prefix). */
+  draft?: boolean;
 }
 
 function latest(vouches: VouchView[]): VouchView | undefined {
@@ -179,6 +196,71 @@ export default function TelegramApp({
   // Topic-list search: null = closed, string = open with that query.
   const [listSearch, setListSearch] = useState<string | null>(null);
   const [showNotif, setShowNotif] = useState(false);
+  // Live topic-list meta: the page is server-rendered ONCE, then the Mini
+  // App lives for minutes/hours — without a refresher the "N members" label
+  // and the Group Chat preview stay frozen at load time (owner saw "1
+  // member" while 2 were in). Polls the session-free ?meta=1 endpoint
+  // (5s-memoized server side) and re-ticks on visibility + topic close.
+  const [liveMeta, setLiveMeta] = useState<{
+    memberLabel: string;
+    chatPreview: ChatPreview | null;
+  } | null>(null);
+  useEffect(() => {
+    let stop = false;
+    const tick = async () => {
+      if (document.hidden) return;
+      try {
+        const res = await fetch("/api/community/chat?meta=1");
+        if (!res.ok || stop) return;
+        const data = (await res.json()) as {
+          memberCount: number | null;
+          lastMessage: ChatPreview | null;
+        };
+        if (stop) return;
+        setLiveMeta({
+          memberLabel:
+            typeof data.memberCount === "number" && data.memberCount > 0
+              ? `${data.memberCount} member${
+                  data.memberCount === 1 ? "" : "s"
+                }`
+              : "public group",
+          chatPreview: data.lastMessage,
+        });
+      } catch {
+        /* transient — keep last known values */
+      }
+    };
+    void tick();
+    const timer = window.setInterval(tick, 15_000);
+    const onVis = () => {
+      if (!document.hidden) void tick();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [active]);
+  const effMemberLabel = liveMeta?.memberLabel ?? memberLabel;
+  const effChatPreview = liveMeta ? liveMeta.chatPreview : chatPreview;
+  // Unsent composer drafts per topic (written by CommunityChat under the
+  // same tg_draft:* keys) — re-read every time the user lands back on the
+  // topic list so the red "Draft:" preview is always current.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (active !== null) return;
+    const next: Record<string, string> = {};
+    try {
+      for (const t of TOPICS) {
+        const v = localStorage.getItem(`tg_draft:${t.key}`);
+        if (v && v.trim()) next[t.key] = v;
+      }
+    } catch {
+      return;
+    }
+    setDrafts(next);
+  }, [active]);
   // Desktop-only (≥768px): collapse the persistent topic-list pane. Read the
   // saved preference in an effect so the SSR markup matches the first paint.
   const [listCollapsed, setListCollapsed] = useState(false);
@@ -207,14 +289,32 @@ export default function TelegramApp({
 
   // Web A sizes everything against --vh (set from window.innerHeight) so the
   // layout tracks mobile browser chrome exactly like the real client.
+  // COMPACT Mini App mode: the webview can be TALLER than the visible sheet,
+  // so window.innerHeight measures past the fold and the bottom-anchored
+  // footer (composer / "Topic locked" pill) rendered clipped. Telegram
+  // exposes the VISIBLE height as viewportStableHeight — prefer the smaller
+  // of the two, and re-sync on the bridge's viewportChanged event (sheet
+  // drag / expand), which fires without a window resize.
   useEffect(() => {
     const el = htmlRef.current;
     if (!el) return;
-    const set = () =>
-      el.style.setProperty("--vh", `${window.innerHeight * 0.01}px`);
+    const set = () => {
+      const wa = window.Telegram?.WebApp;
+      const tg =
+        typeof wa?.viewportStableHeight === "number"
+          ? wa.viewportStableHeight
+          : 0;
+      const h = tg > 0 ? Math.min(tg, window.innerHeight) : window.innerHeight;
+      el.style.setProperty("--vh", `${h * 0.01}px`);
+    };
     set();
     window.addEventListener("resize", set);
-    return () => window.removeEventListener("resize", set);
+    const wa = window.Telegram?.WebApp;
+    wa?.onEvent?.("viewportChanged", set);
+    return () => {
+      window.removeEventListener("resize", set);
+      wa?.offEvent?.("viewportChanged", set);
+    };
   }, []);
 
   // Inside the Telegram Mini App webview, the client shows an opaque loading
@@ -332,7 +432,7 @@ export default function TelegramApp({
     announcements: applyEdits(announcements),
   };
 
-  const rowMeta = (key: TopicKey): RowMeta => {
+  const rowMetaBase = (key: TopicKey): RowMeta => {
     if (key === "readme") {
       const text = effWelcome.replace(/\s+/g, " ").trim();
       return {
@@ -344,14 +444,16 @@ export default function TelegramApp({
       };
     }
     if (key === "chat") {
-      if (!chatPreview) {
+      if (!effChatPreview) {
         return { sender: null, summary: "Talk to the community", time: "" };
       }
-      const text = tokenPreview(chatPreview.body).replace(/\s+/g, " ").trim();
+      const text = tokenPreview(effChatPreview.body)
+        .replace(/\s+/g, " ")
+        .trim();
       return {
-        sender: chatPreview.authorName,
+        sender: effChatPreview.authorName,
         summary: text || "Photo",
-        time: shortDateLabel(chatPreview.createdAt),
+        time: shortDateLabel(effChatPreview.createdAt),
       };
     }
     const last = latest(byTopic[key] ?? []);
@@ -373,6 +475,20 @@ export default function TelegramApp({
       sender: last.authorName,
       summary: text || (last.mediaIds.length > 0 ? "Photo" : ""),
       time: shortDateLabel(last.originDate ?? last.createdAt),
+    };
+  };
+  // Telegram-style draft preview: an unsent composer draft REPLACES the
+  // row's sender+summary (red "Draft:" prefix) but keeps the last-message
+  // timestamp, exactly like the real client.
+  const rowMeta = (key: TopicKey): RowMeta => {
+    const base = rowMetaBase(key);
+    const draft = drafts[key];
+    if (!draft) return base;
+    return {
+      ...base,
+      sender: null,
+      summary: tokenPreview(draft).replace(/\s+/g, " ").trim(),
+      draft: true,
     };
   };
 
@@ -840,7 +956,9 @@ export default function TelegramApp({
                             </h3>
                           </div>
                           <span className="status">
-                            <span className="group-status">{memberLabel}</span>
+                            <span className="group-status">
+                              {effMemberLabel}
+                            </span>
                           </span>
                         </div>
                       </div>
@@ -1006,13 +1124,19 @@ export default function TelegramApp({
                                   className="last-message shared-canvas-container"
                                   dir="ltr"
                                 >
-                                  {meta.sender && (
-                                    <>
-                                      <span className="sender-name">
-                                        {meta.sender}
-                                      </span>
-                                      <span className="colon">:</span>
-                                    </>
+                                  {meta.draft ? (
+                                    <span className="tg-draft-label">
+                                      Draft:
+                                    </span>
+                                  ) : (
+                                    meta.sender && (
+                                      <>
+                                        <span className="sender-name">
+                                          {meta.sender}
+                                        </span>
+                                        <span className="colon">:</span>
+                                      </>
+                                    )
                                   )}
                                   <span
                                     className="last-message-summary"

@@ -18,6 +18,11 @@ import {
   isValidInviteSlug,
   recordInviteJoin,
   upsertChatMember,
+  hashDeviceSignal,
+  ipFromRequest,
+  recordMemberDevice,
+  checkDeviceBan,
+  setMemberBan,
 } from "@/lib/community";
 
 export const runtime = "nodejs";
@@ -36,9 +41,9 @@ export async function GET() {
  * read-only). On success sets the rg_member cookie and returns the member.
  */
 export async function POST(req: Request) {
-  let body: { initData?: unknown };
+  let body: { initData?: unknown; fp?: unknown; did?: unknown };
   try {
-    body = (await req.json()) as { initData?: unknown };
+    body = (await req.json()) as { initData?: unknown; fp?: unknown; did?: unknown };
   } catch {
     return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
   }
@@ -177,6 +182,31 @@ export async function POST(req: Request) {
     isAdmin: member.admin,
     username: member.username ?? null,
   }).catch(() => undefined);
+
+  // IP + device-fingerprint ban enforcement (owner ask). Record this
+  // sign-in's SALTED HASHES (raw signals never stored), then — silently —
+  // re-flag the account if any hash matches a banned device. The sign-in
+  // itself still succeeds (nothing is disclosed here); the member simply
+  // finds themselves banned when they try to post. Admins are exempt so a
+  // shared office/household IP can never lock an admin out (false-positive
+  // guard). Fail-soft: fingerprinting must never break sign-in.
+  try {
+    const ip = ipFromRequest(req);
+    const fp = typeof body.fp === "string" ? body.fp.slice(0, 128) : null;
+    const did = typeof body.did === "string" ? body.did.slice(0, 128) : null;
+    const sig = {
+      ipHash: ip ? hashDeviceSignal("ip", ip) : null,
+      fpHash: fp ? hashDeviceSignal("fp", fp) : null,
+      didHash: did ? hashDeviceSignal("did", did) : null,
+    };
+    await recordMemberDevice(member.tid, sig);
+    if (!member.admin) {
+      const hit = await checkDeviceBan(member.tid, sig);
+      if (hit !== "none") await setMemberBan(member.tid, true);
+    }
+  } catch {
+    // device-signal capture is best-effort only
+  }
 
   // Attribute a join to the invite link that brought them in (if any), then
   // clear the cookie so re-signing-in doesn't re-attribute. De-duped per

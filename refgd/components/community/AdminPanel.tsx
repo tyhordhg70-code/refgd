@@ -30,6 +30,8 @@ interface ActionRow {
 interface RosterMember {
   tgId: string;
   name: string;
+  /** Telegram @username without the @ (null when the member has none). */
+  username?: string | null;
   photo: string | null;
   isAdmin: boolean;
   isBanned: boolean;
@@ -299,6 +301,7 @@ export default function AdminPanel({ onClose }: { onClose: () => void }) {
                     if (!q) return true;
                     return (
                       (m.name || "").toLowerCase().includes(q) ||
+                      (m.username || "").toLowerCase().includes(q) ||
                       m.tgId.toLowerCase().includes(q)
                     );
                   })
@@ -327,7 +330,9 @@ export default function AdminPanel({ onClose }: { onClose: () => void }) {
                             </span>
                           )}
                         </p>
-                        <p className="tg-row-sub">ID {m.tgId}</p>
+                        <p className="tg-row-sub">
+                          {m.username ? `@${m.username} · ` : ""}ID {m.tgId}
+                        </p>
                       </div>
                       <button
                         type="button"

@@ -76,7 +76,23 @@ export default function TextFormatter({
     // toolbar first appears and keep it there — it must NOT chase the
     // selection while the user is still dragging/extending it. It only
     // re-anchors after being dismissed (collapse / outside pointer-down).
-    setPos((prev) => prev ?? { left: rect.left + rect.width / 2, top: rect.top });
+    // Clamp inside the visible viewport: the bar renders 3.25rem ABOVE the
+    // anchor (translate -50%,-3.25rem), which in the short COMPACT Mini App
+    // viewport pushed it under Telegram's header with the icons clipped.
+    const safeTop =
+      parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue(
+          "--tg-content-safe-area-inset-top",
+        ),
+      ) || 0;
+    const minTop = safeTop + 60; // 3.25rem lift + breathing room
+    const half = 160; // ≈ half the button row width
+    const vw = window.innerWidth;
+    const left = Math.min(
+      Math.max(rect.left + rect.width / 2, half),
+      Math.max(vw - half, half),
+    );
+    setPos((prev) => prev ?? { left, top: Math.max(rect.top, minTop) });
   }, [inputRef, linkMode]);
 
   useEffect(() => {
@@ -113,20 +129,45 @@ export default function TextFormatter({
     savedRange.current = null;
   };
 
-  const insert = (text: string) => {
+  // The composer is a RICH contentEditable (it serializes back to
+  // markdown-lite via editHtmlToBody on input), so formatting is applied as
+  // REAL rendered nodes — the selection instantly turns bold/italic/… instead
+  // of showing literal **markers**. The wrapper tags/classes mirror exactly
+  // what bodyToEditHtml emits (and what editHtmlToBody serializes back), so
+  // the round-trip to markdown-lite on send is unchanged. cloneContents (not
+  // toString) preserves anything rich already inside the selection — custom
+  // emoji imgs, nested formatting — instead of flattening it to plain text.
+  const insertHtml = (html: string) => {
     const el = inputRef.current;
     if (!el) return;
     el.focus();
-    // execCommand fires a native input event → composer onInput syncs chat.text
-    // (same mechanism the composer already relies on for pasted text).
-    document.execCommand("insertText", false, text);
+    // execCommand fires a native input event → composer onInput syncs
+    // chat.text (same mechanism the composer already relies on for pastes).
+    document.execCommand("insertHTML", false, html);
     reset();
   };
 
-  const wrap = (marker: string) => {
+  const selectionHtml = (): string | null => {
+    const el = inputRef.current;
     const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-    insert(`${marker}${sel.toString()}${marker}`);
+    if (
+      !el ||
+      !sel ||
+      sel.rangeCount === 0 ||
+      sel.isCollapsed ||
+      !el.contains(sel.getRangeAt(0).commonAncestorContainer)
+    ) {
+      return null;
+    }
+    const tmp = document.createElement("div");
+    tmp.appendChild(sel.getRangeAt(0).cloneContents());
+    return tmp.innerHTML || null;
+  };
+
+  const wrap = (open: string, close: string) => {
+    const inner = selectionHtml();
+    if (!inner) return;
+    insertHtml(`${open}${inner}${close}`);
   };
 
   const openLink = () => {
@@ -142,12 +183,19 @@ export default function TextFormatter({
     const url = linkUrl.trim();
     if (!el || !range || !url) return;
     const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-    const text = range.toString();
     el.focus();
     const sel = window.getSelection();
     sel?.removeAllRanges();
     sel?.addRange(range);
-    insert(`[${text}](${href})`);
+    const inner = selectionHtml();
+    if (!inner) return;
+    // Same anchor markup bodyToEditHtml emits, so the link is visibly styled
+    // (blue) in the composer and serializes back to [text](url) on send.
+    const attr = href
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;");
+    insertHtml(`<a class="text-entity-link" href="${attr}">${inner}</a>`);
   };
 
   if (!pos) return null;
@@ -189,13 +237,21 @@ export default function TextFormatter({
       }
     >
       <div className="TextFormatter-buttons">
-        {fmtBtn("Spoiler text", <IconEyeCrossed />, () => wrap("||"))}
+        {fmtBtn("Spoiler text", <IconEyeCrossed />, () =>
+          wrap('<span class="tg-spoiler">', "</span>"),
+        )}
         <div className="TextFormatter-divider" />
-        {fmtBtn("Bold text", <IconBold />, () => wrap("**"))}
-        {fmtBtn("Italic text", <IconItalic />, () => wrap("__"))}
-        {fmtBtn("Underlined text", <IconUnderline />, () => wrap("++"))}
-        {fmtBtn("Strikethrough text", <IconStrikethrough />, () => wrap("~~"))}
-        {fmtBtn("Monospace text", <IconMono />, () => wrap("`"))}
+        {fmtBtn("Bold text", <IconBold />, () => wrap("<strong>", "</strong>"))}
+        {fmtBtn("Italic text", <IconItalic />, () => wrap("<em>", "</em>"))}
+        {fmtBtn("Underlined text", <IconUnderline />, () =>
+          wrap("<u>", "</u>"),
+        )}
+        {fmtBtn("Strikethrough text", <IconStrikethrough />, () =>
+          wrap("<s>", "</s>"),
+        )}
+        {fmtBtn("Monospace text", <IconMono />, () =>
+          wrap('<code class="tg-mono">', "</code>"),
+        )}
         <div className="TextFormatter-divider" />
         {fmtBtn("Add Link", <IconLink />, openLink)}
       </div>

@@ -8,6 +8,7 @@
  * The DB is the single source of truth; the Telegram bot is a thin,
  * swappable ingestion/launcher/notifier on top of these tables.
  */
+import { createHash } from "node:crypto";
 import { getPool, initDb } from "./db";
 import { isCommunityAdmin, communityBotToken } from "./community-bot";
 import { getStickersBatch, fetchStickerArt } from "./emoji-fetch";
@@ -590,16 +591,23 @@ export async function upsertChatMember(m: ChatMemberInput): Promise<void> {
  * needs no privileges; its replies are ordinary chat rows.
  */
 export const BOT_MEMBER_TG_ID = "0";
-export const BOT_MEMBER_NAME = "RefundGod";
+export const BOT_MEMBER_NAME = "Rose";
+/** Rose's real profile photo (owner ask: authentic avatar), self-hosted. */
+export const BOT_MEMBER_PHOTO = "/rose-bot-photo.jpg";
 
-/** Lazily (re)create the bot's member row so its bubbles get a name+avatar. */
+/**
+ * Lazily (re)create the bot's member row so its bubbles get a name+avatar.
+ * DO UPDATE (not DO NOTHING) so an existing prod row is migrated to the Rose
+ * identity on the first command after a deploy — no manual DB step needed.
+ */
 export async function ensureBotMember(): Promise<void> {
   await initDb();
   await getPool().query(
     `INSERT INTO chat_members (tg_id, first_name, photo_url, is_admin)
      VALUES ($1, $2, $3, FALSE)
-     ON CONFLICT (tg_id) DO NOTHING`,
-    [BOT_MEMBER_TG_ID, BOT_MEMBER_NAME, "/announcement-bot-photo.png"],
+     ON CONFLICT (tg_id) DO UPDATE
+       SET first_name = EXCLUDED.first_name, photo_url = EXCLUDED.photo_url`,
+    [BOT_MEMBER_TG_ID, BOT_MEMBER_NAME, BOT_MEMBER_PHOTO],
   );
 }
 
@@ -674,6 +682,9 @@ export interface ChatMessage {
   body: string;
   /** Attached photo (chat_media id), served via /api/community/chat-media/[id]. */
   mediaId: string | null;
+  /** Intrinsic pixel size of the photo, if measured at upload time. */
+  mediaW: number | null;
+  mediaH: number | null;
   isAdmin: boolean;
   pinned: boolean;
   createdAt: string;
@@ -691,6 +702,8 @@ interface ChatMsgRow {
   author_name: string;
   body: string;
   media_id: string | null;
+  media_w: number | null;
+  media_h: number | null;
   pinned: boolean;
   created_at: string;
   edited_at: string | null;
@@ -715,6 +728,8 @@ async function attachReactions(
     authorPhoto: r.photo_url,
     body: r.body,
     mediaId: r.media_id ? String(r.media_id) : null,
+    mediaW: r.media_w ?? null,
+    mediaH: r.media_h ?? null,
     isAdmin: isCommunityAdmin(r.tg_id),
     pinned: r.pinned,
     createdAt: isoTs(r.created_at),
@@ -756,9 +771,10 @@ async function attachReactions(
 }
 
 /**
- * Forum topics served by the chat GET/POST route. Members can post in every
- * topic EXCEPT "readme", which is admin-authored: everyone can read it, but
- * only admins may post (the per-topic write gate lives in the chat POST route).
+ * Forum topics served by the chat GET/POST route. Members can post ONLY in
+ * "chat" (the group chat); every other topic is admin-authored: everyone can
+ * read them, but only admins may post (the per-topic write gate lives in the
+ * chat POST route).
  */
 export const CHAT_TOPICS = [
   "chat",
@@ -792,12 +808,14 @@ export async function listChatMessages(
   let rows: ChatMsgRow[];
   if (opts.afterId && /^\d+$/.test(opts.afterId)) {
     const res = await getPool().query<ChatMsgRow>(
-      `SELECT m.id, m.tg_id, m.author_name, m.body, m.media_id, m.pinned, m.created_at,
+      `SELECT m.id, m.tg_id, m.author_name, m.body, m.media_id,
+              md.w AS media_w, md.h AS media_h, m.pinned, m.created_at,
               m.edited_at, m.expires_at, cm.photo_url,
               m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body
          FROM chat_messages m
          LEFT JOIN chat_members cm ON cm.tg_id = m.tg_id
          LEFT JOIN chat_messages rm ON rm.id = m.reply_to
+         LEFT JOIN chat_media md ON md.id = m.media_id
         WHERE m.deleted = FALSE
           AND (m.expires_at IS NULL OR m.expires_at > NOW())
           AND m.topic = $3
@@ -809,12 +827,14 @@ export async function listChatMessages(
     rows = res.rows;
   } else {
     const res = await getPool().query<ChatMsgRow>(
-      `SELECT m.id, m.tg_id, m.author_name, m.body, m.media_id, m.pinned, m.created_at,
+      `SELECT m.id, m.tg_id, m.author_name, m.body, m.media_id,
+              md.w AS media_w, md.h AS media_h, m.pinned, m.created_at,
               m.edited_at, m.expires_at, cm.photo_url,
               m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body
          FROM chat_messages m
          LEFT JOIN chat_members cm ON cm.tg_id = m.tg_id
          LEFT JOIN chat_messages rm ON rm.id = m.reply_to
+         LEFT JOIN chat_media md ON md.id = m.media_id
         WHERE m.deleted = FALSE
           AND (m.expires_at IS NULL OR m.expires_at > NOW())
           AND m.topic = $2
@@ -898,6 +918,8 @@ export async function createChatMessage(
     `INSERT INTO chat_messages (tg_id, author_name, body, expires_at, reply_to, topic, media_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING id, tg_id, author_name, body, media_id, pinned, created_at, edited_at, expires_at, reply_to,
+               (SELECT w FROM chat_media cmed WHERE cmed.id = $7) AS media_w,
+               (SELECT h FROM chat_media cmed WHERE cmed.id = $7) AS media_h,
                (SELECT photo_url FROM chat_members WHERE tg_id = $1) AS photo_url,
                (SELECT author_name FROM chat_messages r WHERE r.id = $5) AS reply_author,
                (SELECT body FROM chat_messages r WHERE r.id = $5) AS reply_body`,
@@ -920,11 +942,13 @@ export async function createChatMessage(
 export async function saveChatMedia(
   bytes: Buffer,
   mime: string,
+  w: number | null = null,
+  h: number | null = null,
 ): Promise<string> {
   await initDb();
   const { rows } = await getPool().query<{ id: string }>(
-    `INSERT INTO chat_media (bytes, mime) VALUES ($1, $2) RETURNING id`,
-    [bytes, mime],
+    `INSERT INTO chat_media (bytes, mime, w, h) VALUES ($1, $2, $3, $4) RETURNING id`,
+    [bytes, mime, w, h],
   );
   return String(rows[0].id);
 }
@@ -1347,6 +1371,99 @@ export async function setMemberBan(
     tgId,
     banned,
   ]);
+  // IP/device ban (owner ask): banning a member also bans every device signal
+  // hash ever recorded for them; unbanning clears those entries again. Both
+  // are exact-hash operations — nothing range-based, nothing disclosed.
+  if (banned) {
+    await getPool().query(
+      `INSERT INTO banned_devices (hash, kind, tg_id)
+       SELECT hash, kind, tg_id FROM member_devices WHERE tg_id = $1
+       ON CONFLICT (hash) DO NOTHING`,
+      [tgId],
+    );
+  } else {
+    await getPool().query(`DELETE FROM banned_devices WHERE tg_id = $1`, [tgId]);
+  }
+}
+
+/* ── IP + device-fingerprint ban enforcement (owner ask) ──────────────────
+   Raw signals are NEVER stored — only salted SHA-256 hashes, so an IP ban is
+   undisclosable even from the DB. Matching is exact-hash-only: a block fires
+   only when the very same IP or the very same device signal re-appears, which
+   keeps false positives out by construction. The 'did' signal (random UUID
+   minted once per browser in localStorage) is collision-free; 'fp' is a rich
+   multi-attribute fingerprint that survives storage clearing and VPNs. */
+
+const DEVICE_PEPPER =
+  process.env.SESSION_SECRET || "refgd-device-ban-pepper-v1";
+
+/** Salted hash of one device signal. kind ∈ 'ip' | 'fp' | 'did'. */
+export function hashDeviceSignal(kind: string, value: string): string {
+  return createHash("sha256")
+    .update(`${kind}:${DEVICE_PEPPER}:${value}`)
+    .digest("hex");
+}
+
+/** Best-effort client IP behind Render's proxy (first x-forwarded-for hop). */
+export function ipFromRequest(req: Request): string | null {
+  const xff = req.headers.get("x-forwarded-for");
+  const first = xff?.split(",")[0]?.trim();
+  if (first) return first;
+  return req.headers.get("x-real-ip")?.trim() || null;
+}
+
+export interface DeviceSignalHashes {
+  ipHash?: string | null;
+  fpHash?: string | null;
+  didHash?: string | null;
+}
+
+/** Record (upsert) a member's current device-signal hashes. Fail-soft. */
+export async function recordMemberDevice(
+  tgId: string,
+  sig: DeviceSignalHashes,
+): Promise<void> {
+  await initDb();
+  const rows: Array<[string, string]> = [];
+  if (sig.ipHash) rows.push(["ip", sig.ipHash]);
+  if (sig.fpHash) rows.push(["fp", sig.fpHash]);
+  if (sig.didHash) rows.push(["did", sig.didHash]);
+  for (const [kind, hash] of rows) {
+    await getPool().query(
+      `INSERT INTO member_devices (tg_id, kind, hash)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (tg_id, kind, hash) DO UPDATE SET last_seen = NOW()`,
+      [tgId, kind, hash],
+    );
+  }
+}
+
+/**
+ * Does this member (or the signals on this request) match a banned device?
+ * Returns 'device' when a fingerprint/device-id hash matches (→ the
+ * "previously banned" message), 'ip' when only the IP hash matches (→ the
+ * generic ban message — IP bans are never disclosed), or 'none'.
+ * Checks BOTH the fresh request signals and every signal ever recorded for
+ * this tg_id (so a banned device caught once stays caught).
+ */
+export async function checkDeviceBan(
+  tgId: string,
+  sig: DeviceSignalHashes,
+): Promise<"none" | "ip" | "device"> {
+  await initDb();
+  const fresh = [sig.ipHash, sig.fpHash, sig.didHash].filter(
+    (h): h is string => Boolean(h),
+  );
+  const { rows } = await getPool().query<{ kind: string }>(
+    `SELECT DISTINCT bd.kind
+       FROM banned_devices bd
+      WHERE bd.hash = ANY($2::text[])
+         OR bd.hash IN (SELECT md.hash FROM member_devices md WHERE md.tg_id = $1)`,
+    [tgId, fresh],
+  );
+  if (rows.some((r) => r.kind === "fp" || r.kind === "did")) return "device";
+  if (rows.some((r) => r.kind === "ip")) return "ip";
+  return "none";
 }
 
 /** until = a future Date for a timed mute, or null to unmute. */
@@ -1420,6 +1537,8 @@ export async function getMemberName(tgId: string): Promise<string> {
 export interface RosterMember {
   tgId: string;
   name: string;
+  /** Telegram @username without the @ (null when the member has none). */
+  username: string | null;
   photo: string | null;
   isAdmin: boolean;
   isBanned: boolean;
@@ -1440,6 +1559,7 @@ export async function listMembers(limit = 1000): Promise<RosterMember[]> {
   const { rows } = await getPool().query<{
     tg_id: string;
     first_name: string | null;
+    username: string | null;
     photo_url: string | null;
     is_admin: boolean;
     is_banned: boolean;
@@ -1447,7 +1567,7 @@ export async function listMembers(limit = 1000): Promise<RosterMember[]> {
     warn_count: number;
     last_seen: string | null;
   }>(
-    `SELECT tg_id, first_name, photo_url, is_admin, is_banned,
+    `SELECT tg_id, first_name, username, photo_url, is_admin, is_banned,
             muted_until, warn_count, last_seen
        FROM chat_members
       WHERE tg_id IS NOT NULL
@@ -1458,6 +1578,7 @@ export async function listMembers(limit = 1000): Promise<RosterMember[]> {
   return rows.map((r) => ({
     tgId: String(r.tg_id),
     name: r.first_name ?? "",
+    username: r.username,
     photo: r.photo_url,
     isAdmin: r.is_admin,
     isBanned: r.is_banned,

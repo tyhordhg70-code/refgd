@@ -40,6 +40,32 @@ interface PackGroup {
 // then jumped to the full packs when the fetch landed.
 let packMemoCache: PackGroup[] | null = null;
 
+/* alt character → document id lookup built from the discovered packs, so a
+ * PLAIN emoji character pasted from the native Telegram app (whose clipboard
+ * carries no data-document-id html, unlike the Web A/K clients) can be
+ * upgraded back into the community's animated pack emoji token. Keyed by the
+ * exact alt AND its FE0F-stripped form (pack alts are inconsistent about the
+ * variation selector); the first pack wins on collisions so the upgrade is
+ * deterministic. */
+let ceAltMap: Map<string, string> = new Map();
+function rebuildCeAltMap(groups: PackGroup[] | null): void {
+  const next = new Map<string, string>();
+  for (const g of groups ?? []) {
+    for (const c of g.emoji) {
+      if (!c.alt || !/^\d+$/.test(c.id)) continue;
+      if (!next.has(c.alt)) next.set(c.alt, c.id);
+      const bare = c.alt.replace(/\uFE0F/g, "");
+      if (bare && !next.has(bare)) next.set(bare, c.id);
+    }
+  }
+  ceAltMap = next;
+}
+
+/** Pack lookup for the paste-upgrade path (null = not a known pack emoji). */
+export function ceAltToId(alt: string): string | null {
+  return ceAltMap.get(alt) ?? ceAltMap.get(alt.replace(/\uFE0F/g, "")) ?? null;
+}
+
 /**
  * App-open tile warm-up: fetches the full pack list and queues every tile
  * into the background warmer WITHOUT the picker (or its Custom tab) ever
@@ -61,6 +87,7 @@ export function kickstartEmojiWarm(): void {
         data?.ok && Array.isArray(data.groups) ? data.groups : null;
       if (groups && groups.length > 0) {
         if (!packMemoCache) packMemoCache = groups;
+        rebuildCeAltMap(groups);
         warmEmojiTiles(groups.flatMap((g) => g.emoji.map((c) => c.id)));
         return;
       }
@@ -214,6 +241,7 @@ export default function EmojiPanel({
           const changed =
             JSON.stringify(groups) !== JSON.stringify(packMemoCache);
           packMemoCache = groups;
+          rebuildCeAltMap(groups);
           if (changed) {
             setPacks(groups);
             setActivePack(groups[0].setName || groups[0].title || "0");
@@ -223,6 +251,7 @@ export default function EmojiPanel({
           // drop the memo + any list it seeded so the seed fallback shows
           // instead of a stale pack list that no longer exists.
           packMemoCache = null;
+          rebuildCeAltMap(null);
           setPacks(null);
         }
         setPacksLoaded(true);

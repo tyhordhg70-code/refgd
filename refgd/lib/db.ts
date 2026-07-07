@@ -199,6 +199,31 @@
         ALTER TABLE chat_members
           ADD COLUMN IF NOT EXISTS username TEXT;
 
+        -- IP + device-fingerprint ban enforcement (owner ask). Every sign-in
+        -- records SALTED SHA-256 HASHES of the member's device signals — the
+        -- raw IP / fingerprint is never stored, so nothing sensitive can leak
+        -- from the DB. kind: 'ip' (request IP), 'fp' (attribute fingerprint),
+        -- 'did' (random per-device id minted in localStorage — collision-free).
+        CREATE TABLE IF NOT EXISTS member_devices (
+          tg_id     BIGINT NOT NULL,
+          kind      TEXT   NOT NULL,
+          hash      TEXT   NOT NULL,
+          last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (tg_id, kind, hash)
+        );
+        CREATE INDEX IF NOT EXISTS member_devices_hash_idx
+          ON member_devices (hash);
+
+        -- Hashes belonging to banned members. Seeded from member_devices when
+        -- a ban lands; cleared on /unban. Matched EXACTLY (no ranges) so a
+        -- block never fires on a merely-similar device.
+        CREATE TABLE IF NOT EXISTS banned_devices (
+          hash       TEXT PRIMARY KEY,
+          kind       TEXT NOT NULL,
+          tg_id      BIGINT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
         -- Forwards queued by the ingestion bot until the admin picks a
         -- destination via the inline keyboard (one prompt per forward batch).
         -- file_ids are Telegram photo file_ids — bytes are only downloaded
@@ -234,8 +259,14 @@
           id         BIGSERIAL PRIMARY KEY,
           bytes      BYTEA NOT NULL,
           mime       TEXT NOT NULL DEFAULT 'image/jpeg',
+          -- Intrinsic pixel size (measured client-side at upload) so chat
+          -- bubbles can reserve the image's layout box before it loads.
+          w          INTEGER,
+          h          INTEGER,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        ALTER TABLE chat_media ADD COLUMN IF NOT EXISTS w INTEGER;
+        ALTER TABLE chat_media ADD COLUMN IF NOT EXISTS h INTEGER;
 
         -- Custom (premium pack) emoji stickers cached from the Telegram Bot
         -- API by document id, so the composer's custom-emoji tab renders the

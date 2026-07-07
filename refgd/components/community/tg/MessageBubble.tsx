@@ -34,6 +34,8 @@ export interface BubbleSender {
   name: string;
   peer: number;
   admin?: boolean;
+  /** true → the reserved bot member (Rose); renders a "bot" tag by the name. */
+  bot?: boolean;
 }
 
 const AVATAR_SIZE = { "--_size": "2.125rem" } as CSSProperties;
@@ -49,6 +51,7 @@ export default function MessageBubble({
   pinned,
   reply,
   media,
+  mediaSize,
   body,
   time,
   ticks,
@@ -83,6 +86,12 @@ export default function MessageBubble({
   pinned?: boolean;
   reply?: { id?: string; authorName: string; body: string } | null;
   media?: string[];
+  /**
+   * Intrinsic pixel size of the (single) attached photo — lets the bubble
+   * reserve the final layout box before the image bytes arrive, so the text
+   * and the image "load at once" instead of the image popping in later.
+   */
+  mediaSize?: { w: number; h: number };
   body?: ReactNode;
   time?: ReactNode;
   ticks?: boolean;
@@ -413,7 +422,12 @@ export default function MessageBubble({
                     {sender.name}
                   </span>
                 </span>
-                {sender.admin && (
+                {sender.bot && (
+                  <span className="bot-title-badge" dir="auto">
+                    bot
+                  </span>
+                )}
+                {sender.admin && !sender.bot && (
                   <span className="admin-title-badge" dir="auto">
                     Admin
                   </span>
@@ -455,6 +469,9 @@ export default function MessageBubble({
                     src={src}
                     alt=""
                     loading="lazy"
+                    decoding="async"
+                    width={mediaSize?.w}
+                    height={mediaSize?.h}
                     className={onOpenMedia ? "tg-media-clickable" : undefined}
                     onClick={
                       onOpenMedia

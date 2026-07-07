@@ -23,6 +23,10 @@ import {
   isNotifCategory,
   listTyping,
   clearTyping,
+  hashDeviceSignal,
+  ipFromRequest,
+  checkDeviceBan,
+  setMemberBan,
   type ChatTopic,
 } from "@/lib/community";
 import { notifyCategory } from "@/lib/community-notify";
@@ -33,6 +37,35 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_BODY = 2000;
+
+/**
+ * Commands whose successful confirmation is announced publicly in-chat as a
+ * Rose bot message (owner ask: "all action commands should be from Rose bot").
+ * Informational/list commands (help, filters, rules, blacklist) stay ephemeral.
+ * Includes the hidden aliases (setflood, welcome, blocklist → mutating ones).
+ */
+const ROSE_ANNOUNCE_CMDS = new Set([
+  "ban",
+  "unban",
+  "mute",
+  "unmute",
+  "warn",
+  "unwarn",
+  "kick",
+  "filter",
+  "stop",
+  "addblacklist",
+  "rmblacklist",
+  "antiflood",
+  "setflood",
+  "pin",
+  "unpin",
+  "del",
+  "purge",
+  "setwelcome",
+  "welcome",
+  "setrules",
+]);
 /** Minimum gap (seconds) between one member's messages — basic flood guard. */
 const MIN_POST_GAP_S = 2;
 /** Hard cap on an uploaded chat photo (client downscales to ≤1600px JPEG). */
@@ -141,6 +174,35 @@ async function buildChatState(
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
+
+  // ?meta=1 — lightweight topic-LIST refresher (member count + group-chat
+  // last-message preview). The list page is server-rendered once and the
+  // Mini App then lives for minutes/hours, so without this the "N members"
+  // label and chat preview stay frozen at whatever they were on load.
+  // Session-free and served from one shared memo (bounded key space, no
+  // per-viewer reads) — same Neon-quota posture as the anon snapshot below.
+  if (url.searchParams.get("meta") === "1") {
+    const payload = await memoTtl("community:listMeta", 5_000, async () => {
+      const [memberCount, hideMembers, lastMessages] = await Promise.all([
+        countChatMembers(),
+        getModConfig<boolean>("chat_hide_members", false),
+        listChatMessages({ limit: 1 }),
+      ]);
+      const last = lastMessages[lastMessages.length - 1];
+      return {
+        memberCount: hideMembers ? null : memberCount,
+        lastMessage: last
+          ? {
+              authorName: last.authorName,
+              body: last.body,
+              createdAt: last.createdAt,
+            }
+          : null,
+      };
+    });
+    return NextResponse.json(payload);
+  }
+
   const after = url.searchParams.get("after");
   const topicRaw = url.searchParams.get("topic");
   const topic: ChatTopic = isChatTopic(topicRaw) ? topicRaw : "chat";
@@ -220,7 +282,12 @@ export async function POST(req: Request) {
     ttlSeconds?: unknown;
     topic?: unknown;
   };
-  let photo: { bytes: Buffer; mime: string } | null = null;
+  let photo: {
+    bytes: Buffer;
+    mime: string;
+    w: number | null;
+    h: number | null;
+  } | null = null;
   // Recorded voice note (multipart `voice` field). The [voice:…] body token
   // is composed SERVER-side after all gates pass — the client never sends it,
   // so the blocklist can't randomly trip on waveform characters.
@@ -298,7 +365,24 @@ export async function POST(req: Request) {
           { status: 415 },
         );
       }
-      photo = { bytes, mime };
+      // Intrinsic pixel size measured client-side during the downscale —
+      // stored with the blob so bubbles can reserve layout space before the
+      // image loads (no text-then-image pop-in). Bounds-checked, fail-soft.
+      const wRaw = Number(form.get("mediaW"));
+      const hRaw = Number(form.get("mediaH"));
+      const dimsOk =
+        Number.isInteger(wRaw) &&
+        Number.isInteger(hRaw) &&
+        wRaw > 0 &&
+        hRaw > 0 &&
+        wRaw <= 10000 &&
+        hRaw <= 10000;
+      photo = {
+        bytes,
+        mime,
+        w: dimsOk ? wRaw : null,
+        h: dimsOk ? hRaw : null,
+      };
     } else {
       return NextResponse.json(
         { ok: false, error: "No file attached" },
@@ -323,11 +407,11 @@ export async function POST(req: Request) {
 
   const topic: ChatTopic = isChatTopic(payload.topic) ? payload.topic : "chat";
 
-  // READ ME is a locked, admin-authored topic: everyone can read it (GET), but
-  // only admins may post. isChatTopic() alone would let any member write here,
-  // and the client hiding the composer is not an access control — gate it on
-  // the server.
-  if (topic === "readme" && !me.admin) {
+  // Every topic EXCEPT the group chat is admin-authored (owner ask): everyone
+  // can read them (GET), but only admins may post. isChatTopic() alone would
+  // let any member write here, and the client hiding the composer is not an
+  // access control — gate it on the server.
+  if (topic !== "chat" && !me.admin) {
     return NextResponse.json(
       { ok: false, error: "This topic is read-only." },
       { status: 403 },
@@ -401,6 +485,37 @@ export async function POST(req: Request) {
     );
   }
 
+  // IP + device-fingerprint ban (owner ask): a member whose current IP or any
+  // recorded device signal matches a banned device is blocked even though
+  // this tg_id was never itself banned (fresh account, VPN, …). Device match
+  // → "previously banned" (owner-specified wording); IP-only match → the same
+  // generic message as a normal ban so the IP ban is never disclosed. The
+  // account is auto-flagged so the block sticks. Exact-hash matching only, and
+  // admins are exempt (false-positive guard). Fail-soft on lookup errors.
+  if (!me.admin) {
+    try {
+      const ip = ipFromRequest(req);
+      const hit = await checkDeviceBan(me.tid, {
+        ipHash: ip ? hashDeviceSignal("ip", ip) : null,
+      });
+      if (hit !== "none") {
+        await setMemberBan(me.tid, true).catch(() => undefined);
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              hit === "device"
+                ? "You have been previously banned."
+                : "You are banned from the chat",
+          },
+          { status: 403 },
+        );
+      }
+    } catch {
+      // never let the device-ban check break a legitimate send
+    }
+  }
+
   // Slash-commands are intercepted BEFORE the mute/flood/blocklist gates so an
   // admin can always moderate, and any member can read the rules. A command
   // never becomes a chat message — it returns ephemeral `system` feedback.
@@ -413,6 +528,36 @@ export async function POST(req: Request) {
       rest: command.rest,
       replyToId: replyTo,
     });
+    // Rose persona (owner ask): successful ACTION commands announce their
+    // confirmation publicly as a Rose message (bot tag + authentic avatar),
+    // exactly like @MissRose_bot in a real group — replying to the targeted
+    // message where one exists. Informational commands (/help, /filters,
+    // /rules, list views) and every error stay ephemeral to the actor.
+    // Fail-soft: the announcement must never break the command result.
+    if (
+      result.handled &&
+      result.ok !== false &&
+      result.system &&
+      ROSE_ANNOUNCE_CMDS.has(command.cmd)
+    ) {
+      try {
+        await ensureBotMember();
+        // /del + /purge destroy the replied-to message — a reply ref to a
+        // deleted row would render an empty preview, so drop it there.
+        const keepReply =
+          replyTo && command.cmd !== "del" && command.cmd !== "purge";
+        await createChatMessage({
+          tgId: BOT_MEMBER_TG_ID,
+          authorName: BOT_MEMBER_NAME,
+          body: result.system,
+          replyTo: keepReply ? replyTo : null,
+          expiresAt,
+          topic,
+        });
+      } catch {
+        // announcement is best-effort only
+      }
+    }
     return NextResponse.json({ ok: result.ok !== false, system: result.system ?? "" });
   }
 
@@ -464,7 +609,7 @@ export async function POST(req: Request) {
   let mediaId: string | null = null;
   if (photo) {
     try {
-      mediaId = await saveChatMedia(photo.bytes, photo.mime);
+      mediaId = await saveChatMedia(photo.bytes, photo.mime, photo.w, photo.h);
     } catch {
       return NextResponse.json(
         { ok: false, error: "Couldn't save the image — try again" },

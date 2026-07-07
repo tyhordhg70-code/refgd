@@ -424,3 +424,66 @@ export function pasteHtmlToTokens(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
   return editHtmlToBody(doc.body).replace(/\n+$/, "");
 }
+
+/* Existing bracket tokens must never be rewritten by the plain-emoji upgrade:
+ * a [ce:] token's alt part, a [label](url) link label or a Rose buttonurl
+ * label could contain emoji characters, and injecting a nested [ce:] token
+ * there would break their regexes at render time. */
+const UPGRADE_SKIP_RE =
+  /\[ce:\d+:[^\]]+\]|\[[^\]\n]+\]\((?:https?|buttonurl):\/\/[^)\s]*\)/g;
+
+/**
+ * Upgrade PLAIN emoji characters to `[ce:<id>:<alt>]` tokens wherever the
+ * community's discovered packs contain that character. Native Telegram apps
+ * (Android/iOS — i.e. every paste inside the Mini App) copy custom emoji as
+ * bare unicode characters with no data-document-id markup, so without this
+ * a pasted pack emoji silently degraded to the static system glyph. Only
+ * characters that exist in a pack are touched; everything else (and every
+ * existing bracket token) passes through byte-identical.
+ */
+export function upgradePlainEmojiTokens(
+  text: string,
+  lookup: (alt: string) => string | null,
+): string {
+  if (!text) return text;
+  // Fast path: no pictographic characters at all, or no Segmenter (very old
+  // webviews) — leave the paste untouched.
+  if (
+    typeof Intl === "undefined" ||
+    typeof Intl.Segmenter !== "function" ||
+    !/\p{Extended_Pictographic}/u.test(text)
+  ) {
+    return text;
+  }
+  const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+  const upgrade = (chunk: string): string => {
+    if (!/\p{Extended_Pictographic}/u.test(chunk)) return chunk;
+    let out = "";
+    for (const { segment } of seg.segment(chunk)) {
+      if (/\p{Extended_Pictographic}/u.test(segment)) {
+        const id = lookup(segment);
+        if (id) {
+          // "]"/newline would break the token — cannot occur in a single
+          // grapheme, but keep the token regex's invariant explicit.
+          const alt = segment.replace(/[\]\n]/g, "");
+          if (alt) {
+            out += `[ce:${id}:${alt}]`;
+            continue;
+          }
+        }
+      }
+      out += segment;
+    }
+    return out;
+  };
+  let out = "";
+  let last = 0;
+  UPGRADE_SKIP_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = UPGRADE_SKIP_RE.exec(text)) !== null) {
+    out += upgrade(text.slice(last, m.index)) + m[0];
+    last = m.index + m[0].length;
+  }
+  out += upgrade(text.slice(last));
+  return out;
+}
