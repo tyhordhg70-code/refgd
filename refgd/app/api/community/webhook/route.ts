@@ -85,6 +85,51 @@ type TgMessage = {
   forward_from?: { first_name?: string; last_name?: string };
   forward_sender_name?: string;
 };
+/**
+ * Splice `[ce:<documentId>:<alt>]` tokens into a message's text wherever a
+ * custom_emoji entity covers it. Without this the ingestion queue stored only
+ * bare unicode (msg.text drops entities), so an owner's premium animated
+ * emoji — the whole reason a message looks alive in Telegram — arrived on
+ * the site as static standard glyphs. Telegram entity offsets/lengths are
+ * UTF-16 code units, which is exactly what JS string indices are, so a
+ * straight slice works; entities are applied right-to-left so earlier
+ * offsets stay valid, with an overlap guard for malformed payloads.
+ */
+function spliceCustomEmojiTokens(
+  text: string,
+  entities: TgEntity[] | undefined,
+): string {
+  if (!text || !entities?.length) return text;
+  const ce = entities
+    .filter(
+      (e) =>
+        e.type === "custom_emoji" &&
+        typeof e.custom_emoji_id === "string" &&
+        /^\d{1,32}$/.test(e.custom_emoji_id) &&
+        Number.isInteger(e.offset) &&
+        Number.isInteger(e.length) &&
+        e.offset >= 0 &&
+        e.length > 0 &&
+        e.offset + e.length <= text.length,
+    )
+    .sort((a, b) => b.offset - a.offset);
+  let out = text;
+  let prevStart = Infinity;
+  for (const e of ce) {
+    if (e.offset + e.length > prevStart) continue;
+    const alt = text.slice(e.offset, e.offset + e.length);
+    // The token grammar reserves "]" as the alt terminator; a covered run
+    // containing one (never a real emoji) would produce an unparseable token.
+    if (!alt || alt.includes("]")) continue;
+    out =
+      out.slice(0, e.offset) +
+      `[ce:${e.custom_emoji_id}:${alt}]` +
+      out.slice(e.offset + e.length);
+    prevStart = e.offset;
+  }
+  return out;
+}
+
 type TgCallbackQuery = {
   id: string;
   from?: { id?: number | string; first_name?: string; last_name?: string };
@@ -446,7 +491,14 @@ export async function POST(req: Request) {
   }
 
   // ── content ingestion → queue + destination keyboard ─────────────────
-  const body = (msg.text ?? msg.caption ?? "").trim();
+  // Preserve premium custom emoji as [ce:] tokens (entities are the ONLY
+  // place their document ids travel); the pack-teaching block above has
+  // already cached the artwork for these very ids.
+  const body = (
+    msg.text != null
+      ? spliceCustomEmojiTokens(msg.text, msg.entities)
+      : spliceCustomEmojiTokens(msg.caption ?? "", msg.caption_entities)
+  ).trim();
   const photos = msg.photo ?? [];
   if (!body && photos.length === 0) return NextResponse.json({ ok: true });
 

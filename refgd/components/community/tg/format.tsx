@@ -156,8 +156,17 @@ export function emojiSrc(seq: string): string {
 /**
  * Plain text → React nodes with Web A Apple-emoji imgs and <br> line breaks
  * (the real client emits <br> between lines, not pre-wrap text).
+ *
+ * `animated` (message-bubble surfaces only): render each standard emoji via
+ * <AnimatedEmoji> — Telegram's official animated artwork with an automatic
+ * same-glyph static-sprite fallback — instead of the static Apple sprite.
+ * Previews, picker chrome and button labels stay static (matches Web A).
  */
-export function renderTextWithEmoji(text: string, keyPrefix = "t"): ReactNode[] {
+export function renderTextWithEmoji(
+  text: string,
+  keyPrefix = "t",
+  animated = false,
+): ReactNode[] {
   const out: ReactNode[] = [];
   const lines = text.split("\n");
   lines.forEach((line, li) => {
@@ -169,15 +178,19 @@ export function renderTextWithEmoji(text: string, keyPrefix = "t"): ReactNode[] 
     while ((m = EMOJI_RE.exec(line)) !== null) {
       if (m.index > last) out.push(line.slice(last, m.index));
       out.push(
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={`${keyPrefix}-e${li}-${k}`}
-          src={emojiSrc(m[0])}
-          className="emoji emoji-small"
-          alt={m[0]}
-          draggable={false}
-          loading="lazy"
-        />,
+        animated ? (
+          <AnimatedEmoji key={`${keyPrefix}-e${li}-${k}`} ch={m[0]} />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={`${keyPrefix}-e${li}-${k}`}
+            src={emojiSrc(m[0])}
+            className="emoji emoji-small"
+            alt={m[0]}
+            draggable={false}
+            loading="lazy"
+          />
+        ),
       );
       k += 1;
       last = m.index + m[0].length;
@@ -1071,7 +1084,11 @@ export function CustomEmojiImg({
 }
 
 /** Text segment with URLs linkified + Apple emoji (no custom-emoji tokens). */
-function renderLinkified(body: string, keyPrefix: string): ReactNode[] {
+function renderLinkified(
+  body: string,
+  keyPrefix: string,
+  animated = false,
+): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
@@ -1083,6 +1100,7 @@ function renderLinkified(body: string, keyPrefix: string): ReactNode[] {
         ...renderTextWithEmoji(
           body.slice(last, match.index),
           `${keyPrefix}s${k}`,
+          animated,
         ),
       );
     }
@@ -1102,7 +1120,9 @@ function renderLinkified(body: string, keyPrefix: string): ReactNode[] {
     k += 1;
   }
   if (last < body.length) {
-    out.push(...renderTextWithEmoji(body.slice(last), `${keyPrefix}s${k}`));
+    out.push(
+      ...renderTextWithEmoji(body.slice(last), `${keyPrefix}s${k}`, animated),
+    );
   }
   return out;
 }
@@ -1175,28 +1195,34 @@ const INLINE_RULES: InlineRule[] = [
  * Parse a text segment for inline markdown-lite tokens, falling back to
  * URL-linkified + emoji text for the runs between tokens.
  */
-function renderInline(text: string, keyPrefix: string): ReactNode[] {
+function renderInline(
+  text: string,
+  keyPrefix: string,
+  animated = false,
+): ReactNode[] {
   let best: { rule: InlineRule; m: RegExpExecArray } | null = null;
   for (const rule of INLINE_RULES) {
     const m = new RegExp(rule.re.source).exec(text);
     if (m && (best === null || m.index < best.m.index)) best = { rule, m };
   }
-  if (best === null) return renderLinkified(text, keyPrefix);
+  if (best === null) return renderLinkified(text, keyPrefix, animated);
   const { rule, m } = best;
   const out: ReactNode[] = [];
   if (m.index > 0) {
-    out.push(...renderLinkified(text.slice(0, m.index), `${keyPrefix}p`));
+    out.push(
+      ...renderLinkified(text.slice(0, m.index), `${keyPrefix}p`, animated),
+    );
   }
   const inner = m[1];
   const kids: ReactNode =
     rule.mode === "recurse"
-      ? renderInline(inner, `${keyPrefix}i`)
+      ? renderInline(inner, `${keyPrefix}i`, animated)
       : rule.mode === "emoji"
-        ? renderTextWithEmoji(inner, `${keyPrefix}i`)
+        ? renderTextWithEmoji(inner, `${keyPrefix}i`, animated)
         : inner;
   out.push(rule.wrap(`${keyPrefix}t`, kids, m));
   const rest = text.slice(m.index + m[0].length);
-  if (rest) out.push(...renderInline(rest, `${keyPrefix}r`));
+  if (rest) out.push(...renderInline(rest, `${keyPrefix}r`, animated));
   return out;
 }
 
@@ -1404,7 +1430,12 @@ export function renderBody(body: string): ReactNode {
   return out;
 }
 
-/** Custom-emoji tokens + inline markdown for one text segment. */
+/** Custom-emoji tokens + inline markdown for one text segment.
+ *  Every renderBody surface is a message bubble (chat, vouches, seeds), so
+ *  bare standard emoji render ANIMATED here — Telegram's official artwork
+ *  with a same-glyph static-sprite fallback. This is also the only cure for
+ *  historical messages whose premium-emoji entities were lost at ingestion:
+ *  their bare 🛒/🌟/📝 now animate instead of sitting as static sprites. */
 function renderRich(bodyText: string, keyPrefix: string): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
@@ -1414,7 +1445,11 @@ function renderRich(bodyText: string, keyPrefix: string): ReactNode[] {
   while ((match = CE_RE.exec(bodyText)) !== null) {
     if (match.index > last) {
       out.push(
-        ...renderInline(bodyText.slice(last, match.index), `${keyPrefix}c${k}`),
+        ...renderInline(
+          bodyText.slice(last, match.index),
+          `${keyPrefix}c${k}`,
+          true,
+        ),
       );
     }
     out.push(
@@ -1424,7 +1459,7 @@ function renderRich(bodyText: string, keyPrefix: string): ReactNode[] {
     k += 1;
   }
   if (last < bodyText.length) {
-    out.push(...renderInline(bodyText.slice(last), `${keyPrefix}c${k}`));
+    out.push(...renderInline(bodyText.slice(last), `${keyPrefix}c${k}`, true));
   }
   return out;
 }

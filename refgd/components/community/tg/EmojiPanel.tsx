@@ -45,18 +45,45 @@ let packMemoCache: PackGroup[] | null = null;
  * carries no data-document-id html, unlike the Web A/K clients) can be
  * upgraded back into the community's animated pack emoji token. Keyed by the
  * exact alt AND its FE0F-stripped form (pack alts are inconsistent about the
- * variation selector); the first pack wins on collisions so the upgrade is
- * deterministic. */
+ * variation selector). Collision policy: Telegram's official "Animated
+ * Emoji" set always wins (same glyph, canonical artwork); otherwise an alt
+ * upgrades ONLY when exactly one artwork claims it. "First pack wins" was
+ * the wrong-artwork generator — a pasted ➡️ upgraded into a random
+ * decoration pack's GREEN arrow because that pack happened to sort first. */
 let ceAltMap: Map<string, string> = new Map();
+
+/** Telegram's official animated versions of the standard emoji set. */
+function isOfficialPack(g: PackGroup): boolean {
+  return g.setName === "RestrictedEmoji" || g.title === "Animated Emoji";
+}
 function rebuildCeAltMap(groups: PackGroup[] | null): void {
-  const next = new Map<string, string>();
+  const claims = new Map<
+    string,
+    { id: string; official: boolean; ids: Set<string> }
+  >();
   for (const g of groups ?? []) {
+    const official = isOfficialPack(g);
     for (const c of g.emoji) {
       if (!c.alt || !/^\d+$/.test(c.id)) continue;
-      if (!next.has(c.alt)) next.set(c.alt, c.id);
       const bare = c.alt.replace(/\uFE0F/g, "");
-      if (bare && !next.has(bare)) next.set(bare, c.id);
+      for (const key of new Set([c.alt, bare])) {
+        if (!key) continue;
+        const cl = claims.get(key);
+        if (!cl) {
+          claims.set(key, { id: c.id, official, ids: new Set([c.id]) });
+        } else {
+          cl.ids.add(c.id);
+          if (official && !cl.official) {
+            cl.id = c.id;
+            cl.official = true;
+          }
+        }
+      }
     }
+  }
+  const next = new Map<string, string>();
+  for (const [key, cl] of claims) {
+    if (cl.official || cl.ids.size === 1) next.set(key, cl.id);
   }
   ceAltMap = next;
 }
