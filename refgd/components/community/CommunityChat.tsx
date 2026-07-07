@@ -1014,58 +1014,6 @@ export default function CommunityChat({
     setShowFab(false);
   };
 
-  // READ ME / Announcements fit-one-view (owner ask): long admin posts must
-  // fit the screen without scrolling, in fullscreen AND compact. CSS `zoom`
-  // on .messages-container reflows the whole content block to the available
-  // height (min 0.5× so extreme posts stay legible and just scroll). The
-  // header-clearance padding-top is divided back out so the zoomed content
-  // never tucks under the absolute MiddleHeader. Deterministic settle: apply
-  // resets → measures natural size → writes; the ResizeObserver refire then
-  // recomputes the exact same values and stops.
-  const fitTopic = topic === "readme" || topic === "announcements";
-  const fitRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    if (!fitTopic) return;
-    const scroller = chat.scrollRef.current;
-    const inner = fitRef.current;
-    if (!scroller || !inner) return;
-    let raf = 0;
-    const apply = () => {
-      raf = 0;
-      inner.style.zoom = "";
-      inner.style.paddingTop = "";
-      const padTop = parseFloat(getComputedStyle(inner).paddingTop) || 0;
-      const avail = scroller.clientHeight;
-      const need = inner.scrollHeight;
-      if (need > avail && avail > 0) {
-        const z = Math.max(
-          0.5,
-          (avail - padTop) / Math.max(1, need - padTop),
-        );
-        if (z < 1) {
-          inner.style.zoom = z.toFixed(3);
-          inner.style.paddingTop = `${(padTop / z).toFixed(1)}px`;
-        }
-      }
-    };
-    const queue = () => {
-      if (!raf) raf = requestAnimationFrame(apply);
-    };
-    queue();
-    const ro = new ResizeObserver(queue);
-    ro.observe(scroller);
-    ro.observe(inner);
-    window.addEventListener("resize", queue);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", queue);
-      if (raf) cancelAnimationFrame(raf);
-      inner.style.zoom = "";
-      inner.style.paddingTop = "";
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fitTopic]);
-
   // Drives the vendored Web A sticky-date CSS: the stylesheet already ships
   // the sticky/fade rules but expects the CLIENT to toggle three classes —
   // `scrolled` on the MessageList (enables position:sticky),
@@ -2110,7 +2058,6 @@ export default function CommunityChat({
           >
             <div className="Transition_slide Transition_slide-active">
               <div
-                ref={fitRef}
                 className="messages-container"
                 style={{
                   // Header + pinned-pill clearance both come from CSS
