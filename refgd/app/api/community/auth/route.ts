@@ -41,9 +41,14 @@ export async function GET() {
  * read-only). On success sets the rg_member cookie and returns the member.
  */
 export async function POST(req: Request) {
-  let body: { initData?: unknown; fp?: unknown; did?: unknown };
+  let body: { initData?: unknown; fp?: unknown; did?: unknown; signals?: unknown };
   try {
-    body = (await req.json()) as { initData?: unknown; fp?: unknown; did?: unknown };
+    body = (await req.json()) as {
+      initData?: unknown;
+      fp?: unknown;
+      did?: unknown;
+      signals?: unknown;
+    };
   } catch {
     return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
   }
@@ -194,11 +199,29 @@ export async function POST(req: Request) {
     const ip = ipFromRequest(req);
     const fp = typeof body.fp === "string" ? body.fp.slice(0, 128) : null;
     const did = typeof body.did === "string" ? body.did.slice(0, 128) : null;
-    const sig = {
-      ipHash: ip ? hashDeviceSignal("ip", ip) : null,
-      fpHash: fp ? hashDeviceSignal("fp", fp) : null,
-      didHash: did ? hashDeviceSignal("did", did) : null,
+    const sig: Record<string, string | null> = {
+      ip: ip ? hashDeviceSignal("ip", ip) : null,
+      fp: fp ? hashDeviceSignal("fp", fp) : null,
+      did: did ? hashDeviceSignal("did", did) : null,
     };
+    // Independent component signals for score-based matching — the client sends
+    // them pre-hashed; re-salt server-side. Strict allowlist + length bound so a
+    // crafted payload can't inject arbitrary kinds or oversized values, keeping
+    // the scoring semantics controlled.
+    const ALLOWED_SIGNAL_KINDS = new Set(["canvas", "webgl", "audio", "hw", "ua"]);
+    if (body.signals && typeof body.signals === "object" && !Array.isArray(body.signals)) {
+      for (const [kind, value] of Object.entries(
+        body.signals as Record<string, unknown>,
+      )) {
+        if (
+          ALLOWED_SIGNAL_KINDS.has(kind) &&
+          typeof value === "string" &&
+          value
+        ) {
+          sig[kind] = hashDeviceSignal(kind, value.slice(0, 128));
+        }
+      }
+    }
     await recordMemberDevice(member.tid, sig);
     if (!member.admin) {
       const hit = await checkDeviceBan(member.tid, sig);

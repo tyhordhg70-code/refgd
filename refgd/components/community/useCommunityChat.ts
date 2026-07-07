@@ -549,6 +549,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
           const signals = await getDeviceSignals().catch(() => ({
             fp: null,
             did: null,
+            signals: {} as Record<string, string>,
           }));
           const res = await fetch("/api/community/auth", {
             method: "POST",
@@ -557,6 +558,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
               initData,
               fp: signals.fp,
               did: signals.did,
+              signals: signals.signals,
             }),
           });
           const data = (await res.json().catch(() => null)) as {

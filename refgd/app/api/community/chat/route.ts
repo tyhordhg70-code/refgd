@@ -496,7 +496,7 @@ export async function POST(req: Request) {
     try {
       const ip = ipFromRequest(req);
       const hit = await checkDeviceBan(me.tid, {
-        ipHash: ip ? hashDeviceSignal("ip", ip) : null,
+        ip: ip ? hashDeviceSignal("ip", ip) : null,
       });
       if (hit !== "none") {
         await setMemberBan(me.tid, true).catch(() => undefined);

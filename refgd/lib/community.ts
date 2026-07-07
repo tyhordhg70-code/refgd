@@ -1387,36 +1387,80 @@ export async function setMemberBan(
 }
 
 /* ── IP + device-fingerprint ban enforcement (owner ask) ──────────────────
-   Raw signals are NEVER stored — only salted SHA-256 hashes, so an IP ban is
-   undisclosable even from the DB. Matching is exact-hash-only: a block fires
-   only when the very same IP or the very same device signal re-appears, which
-   keeps false positives out by construction. The 'did' signal (random UUID
-   minted once per browser in localStorage) is collision-free; 'fp' is a rich
-   multi-attribute fingerprint that survives storage clearing and VPNs. */
+   Built the way large commercial sites approach it: MANY independent signals,
+   scored TOGETHER, instead of one brittle combined hash.
+
+   • Raw signals are NEVER stored — only salted SHA-256 hashes, so a ban is
+     undisclosable even from the DB.
+   • Each signal (canvas, webgl, audio, hardware profile, ua, self-healing
+     device id, ip) is hashed and matched on its OWN. A partial match — e.g.
+     the same GPU + audio stack + device-id after a browser reinstall — still
+     accrues score toward a block, while no single weak signal false-positives
+     alone. This is what survives VPNs (device signals stay) and storage
+     clearing (the self-healing id + hardware/gpu signals stay).
+   • Signals carry per-kind WEIGHTS; a block fires when either a strong unique
+     signal (device id) matches, or the summed weight of matched signals crosses
+     a threshold. IP alone is weak (shared NATs/CGNAT) and never discloses.  */
 
 const DEVICE_PEPPER =
   process.env.SESSION_SECRET || "refgd-device-ban-pepper-v1";
 
-/** Salted hash of one device signal. kind ∈ 'ip' | 'fp' | 'did'. */
+/** Per-signal match weight. Higher = more uniquely identifying. */
+const SIGNAL_WEIGHT: Record<string, number> = {
+  did: 100, // self-healing device id — effectively unique on its own
+  fp: 100, // legacy combined fingerprint — unique on its own
+  canvas: 45, // gpu/driver/font render — high entropy
+  webgl: 45, // unmasked gpu vendor/renderer — high entropy
+  audio: 40, // audio stack float profile — high entropy
+  ua: 20, // user-agent — medium (changes on browser update)
+  hw: 20, // coarse hardware/locale profile — groups similar devices
+  ip: 15, // network address — weak (shared/CGNAT), never disclosed
+};
+
+/** Summed weight at/above which independent signals constitute a device match. */
+const DEVICE_MATCH_THRESHOLD = 80;
+
+/**
+ * Kinds that, matched alone, mean "same physical device". ONLY the effectively
+ * unique signals qualify: the self-healing device id and the legacy combined
+ * fingerprint. Individually-high-entropy but NON-unique component signals
+ * (canvas/webgl/audio) deliberately do NOT short-circuit — they must combine
+ * (e.g. canvas 45 + webgl 45 = 90 ≥ threshold) so one coincidental GPU/model
+ * collision can't autoban a legitimate user.
+ */
+const STRONG_DEVICE_KINDS = new Set(["did", "fp"]);
+
+/** Salted hash of one device signal. */
 export function hashDeviceSignal(kind: string, value: string): string {
   return createHash("sha256")
     .update(`${kind}:${DEVICE_PEPPER}:${value}`)
     .digest("hex");
 }
 
-/** Best-effort client IP behind Render's proxy (first x-forwarded-for hop). */
+/**
+ * Trusted client IP behind Render's proxy. Render appends the real client IP as
+ * the LAST x-forwarded-for hop (client-supplied hops are prepended and thus
+ * spoofable), so we take the rightmost entry rather than the first. Falls back
+ * to x-real-ip, which Render sets to the same trusted value.
+ */
 export function ipFromRequest(req: Request): string | null {
   const xff = req.headers.get("x-forwarded-for");
-  const first = xff?.split(",")[0]?.trim();
-  if (first) return first;
+  if (xff) {
+    const hops = xff
+      .split(",")
+      .map((h) => h.trim())
+      .filter(Boolean);
+    const last = hops[hops.length - 1];
+    if (last) return last;
+  }
   return req.headers.get("x-real-ip")?.trim() || null;
 }
 
-export interface DeviceSignalHashes {
-  ipHash?: string | null;
-  fpHash?: string | null;
-  didHash?: string | null;
-}
+/**
+ * Map of signal kind → salted hash. Includes the legacy `ip`/`fp`/`did` fields
+ * plus the independent component signals (canvas/webgl/audio/hw/ua).
+ */
+export type DeviceSignalHashes = Record<string, string | null | undefined>;
 
 /** Record (upsert) a member's current device-signal hashes. Fail-soft. */
 export async function recordMemberDevice(
@@ -1424,11 +1468,8 @@ export async function recordMemberDevice(
   sig: DeviceSignalHashes,
 ): Promise<void> {
   await initDb();
-  const rows: Array<[string, string]> = [];
-  if (sig.ipHash) rows.push(["ip", sig.ipHash]);
-  if (sig.fpHash) rows.push(["fp", sig.fpHash]);
-  if (sig.didHash) rows.push(["did", sig.didHash]);
-  for (const [kind, hash] of rows) {
+  for (const [kind, hash] of Object.entries(sig)) {
+    if (!hash) continue;
     await getPool().query(
       `INSERT INTO member_devices (tg_id, kind, hash)
        VALUES ($1, $2, $3)
@@ -1440,20 +1481,22 @@ export async function recordMemberDevice(
 
 /**
  * Does this member (or the signals on this request) match a banned device?
- * Returns 'device' when a fingerprint/device-id hash matches (→ the
- * "previously banned" message), 'ip' when only the IP hash matches (→ the
- * generic ban message — IP bans are never disclosed), or 'none'.
- * Checks BOTH the fresh request signals and every signal ever recorded for
- * this tg_id (so a banned device caught once stays caught).
+ *
+ * Score-based: every signal kind that matches a banned hash adds its weight.
+ * Returns 'device' when a strong signal matches OR the summed weight of
+ * matched NON-ip signals crosses DEVICE_MATCH_THRESHOLD (→ the "previously
+ * banned" message). Returns 'ip' when only the IP matched (→ the generic ban
+ * message; IP bans are never disclosed). Otherwise 'none'.
+ *
+ * Checks BOTH the fresh request signals AND every signal ever recorded for
+ * this tg_id (so a device caught once stays caught).
  */
 export async function checkDeviceBan(
   tgId: string,
   sig: DeviceSignalHashes,
 ): Promise<"none" | "ip" | "device"> {
   await initDb();
-  const fresh = [sig.ipHash, sig.fpHash, sig.didHash].filter(
-    (h): h is string => Boolean(h),
-  );
+  const fresh = Object.values(sig).filter((h): h is string => Boolean(h));
   const { rows } = await getPool().query<{ kind: string }>(
     `SELECT DISTINCT bd.kind
        FROM banned_devices bd
@@ -1461,9 +1504,24 @@ export async function checkDeviceBan(
          OR bd.hash IN (SELECT md.hash FROM member_devices md WHERE md.tg_id = $1)`,
     [tgId, fresh],
   );
-  if (rows.some((r) => r.kind === "fp" || r.kind === "did")) return "device";
-  if (rows.some((r) => r.kind === "ip")) return "ip";
-  return "none";
+
+  const matchedKinds = new Set(rows.map((r) => r.kind));
+  if (matchedKinds.size === 0) return "none";
+
+  // Any strong signal alone = same physical device.
+  for (const k of matchedKinds) {
+    if (STRONG_DEVICE_KINDS.has(k)) return "device";
+  }
+
+  // Otherwise sum the weight of matched non-ip signals against the threshold.
+  let score = 0;
+  for (const k of matchedKinds) {
+    if (k === "ip") continue;
+    score += SIGNAL_WEIGHT[k] ?? 0;
+  }
+  if (score >= DEVICE_MATCH_THRESHOLD) return "device";
+
+  return matchedKinds.has("ip") ? "ip" : "none";
 }
 
 /** until = a future Date for a timed mute, or null to unmute. */

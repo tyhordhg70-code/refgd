@@ -202,8 +202,10 @@
         -- IP + device-fingerprint ban enforcement (owner ask). Every sign-in
         -- records SALTED SHA-256 HASHES of the member's device signals — the
         -- raw IP / fingerprint is never stored, so nothing sensitive can leak
-        -- from the DB. kind: 'ip' (request IP), 'fp' (attribute fingerprint),
-        -- 'did' (random per-device id minted in localStorage — collision-free).
+        -- from the DB. kind is an open string: 'ip' (request IP), 'did'
+        -- (self-healing per-device id), 'fp' (legacy combined fingerprint), plus
+        -- independent component signals 'canvas'/'webgl'/'audio'/'hw'/'ua' that
+        -- are matched and SCORED individually for retail-grade fuzzy matching.
         CREATE TABLE IF NOT EXISTS member_devices (
           tg_id     BIGINT NOT NULL,
           kind      TEXT   NOT NULL,
