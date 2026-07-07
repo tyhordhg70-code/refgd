@@ -161,14 +161,27 @@ async function buildChatState(
 
   const showCount = !hideMembers || Boolean(me?.admin);
 
+  // Ban gate (defense-in-depth): a banned non-admin member must see nothing.
+  // Only checked on the FULL load (after === null) to avoid a per-poll DB read
+  // — the shell blocks banned users up front, so a poll never runs for them.
+  let banned = false;
+  if (me && !me.admin && after === null) {
+    try {
+      banned = (await getChatMemberModState(me.tid)).isBanned;
+    } catch {
+      banned = false;
+    }
+  }
+
   return {
     me,
-    messages,
+    messages: banned ? [] : messages,
     memberCount: showCount ? memberCount : null,
     hideMembers,
     botUsername,
     welcome,
     typing,
+    banned,
   };
 }
 

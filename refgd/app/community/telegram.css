@@ -3007,3 +3007,170 @@ span.tg-edit-ce-lottie svg {
   color: var(--color-error, #e53935);
   margin-inline-end: 0.25rem;
 }
+
+/* ── Ban gate ─────────────────────────────────────────────────────────
+   A banned member (or a device-evading ban) must see NOTHING at all — not
+   even the topic list. TelegramApp renders this blank themed screen instead
+   of the whole app while the ban check runs and permanently once blocked. */
+.tg-access-block {
+  position: absolute;
+  inset: 0;
+  background: var(--color-background, #fff);
+}
+
+/* ── Topic-list entrance aura ─────────────────────────────────────────
+   A decorative halftone-dot color wash that breathes a couple of times then
+   fades out, echoing the marketing gradient. Purely cosmetic:
+   pointer-events:none so it never blocks a topic tap; absolutely scoped to
+   the topic-list panel (.m2EjaIDq — a positioned element on both the mobile
+   single-pane and desktop two-pane layouts) so it tracks the panel bounds and
+   never leaks over the chat pane or hits the #MiddleColumn transform anchor.
+   TelegramApp picks one of the ten palettes per visit and remounts this (via
+   key) each time the user returns to the list to replay the animation. */
+.tg-app .tg-html .m2EjaIDq .tg-topic-aura {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0;
+  will-change: opacity, transform;
+  animation: tg-aura-breathe 5.2s ease-in-out forwards;
+}
+.tg-topic-aura::before,
+.tg-topic-aura::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+/* soft base color glow rising from the bottom (clear at the top like the
+   reference image, so the header/topmost rows stay legible) */
+.tg-topic-aura::before {
+  background: radial-gradient(
+    125% 82% at 50% 122%,
+    var(--aura-a) 0%,
+    var(--aura-b) 40%,
+    transparent 72%
+  );
+}
+/* halftone dot field, masked to fade out toward the top */
+.tg-topic-aura::after {
+  background-image: radial-gradient(var(--aura-dot) 28%, transparent 29%);
+  background-size: 15px 15px;
+  background-position: 0 0;
+  opacity: 0.85;
+  -webkit-mask-image: linear-gradient(
+    to top,
+    #000 0%,
+    rgba(0, 0, 0, 0.6) 34%,
+    transparent 78%
+  );
+  mask-image: linear-gradient(
+    to top,
+    #000 0%,
+    rgba(0, 0, 0, 0.6) 34%,
+    transparent 78%
+  );
+}
+@keyframes tg-aura-breathe {
+  0% {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  14% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  32% {
+    opacity: 0.42;
+    transform: scale(1.03);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+  68% {
+    opacity: 0.46;
+    transform: scale(1.02);
+  }
+  82% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.05);
+  }
+}
+/* Respect reduced-motion: no breathing/scale, just a gentle fade. */
+@media (prefers-reduced-motion: reduce) {
+  .tg-app .tg-html .m2EjaIDq .tg-topic-aura {
+    animation: tg-aura-fade 3s ease-out forwards;
+  }
+}
+@keyframes tg-aura-fade {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.5;
+  }
+  70% {
+    opacity: 0.42;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+/* Ten palettes: --aura-a = lower glow core, --aura-b = mid glow,
+   --aura-dot = halftone dot color. Palette 0 matches the green reference. */
+.tg-topic-aura-0 {
+  --aura-a: rgba(132, 204, 22, 0.55);
+  --aura-b: rgba(163, 230, 53, 0.3);
+  --aura-dot: rgba(132, 204, 22, 0.55);
+}
+.tg-topic-aura-1 {
+  --aura-a: rgba(59, 130, 246, 0.55);
+  --aura-b: rgba(96, 165, 250, 0.3);
+  --aura-dot: rgba(59, 130, 246, 0.55);
+}
+.tg-topic-aura-2 {
+  --aura-a: rgba(168, 85, 247, 0.55);
+  --aura-b: rgba(192, 132, 252, 0.3);
+  --aura-dot: rgba(168, 85, 247, 0.55);
+}
+.tg-topic-aura-3 {
+  --aura-a: rgba(236, 72, 153, 0.55);
+  --aura-b: rgba(244, 114, 182, 0.3);
+  --aura-dot: rgba(236, 72, 153, 0.55);
+}
+.tg-topic-aura-4 {
+  --aura-a: rgba(249, 115, 22, 0.55);
+  --aura-b: rgba(251, 146, 60, 0.3);
+  --aura-dot: rgba(249, 115, 22, 0.55);
+}
+.tg-topic-aura-5 {
+  --aura-a: rgba(20, 184, 166, 0.55);
+  --aura-b: rgba(45, 212, 191, 0.3);
+  --aura-dot: rgba(20, 184, 166, 0.55);
+}
+.tg-topic-aura-6 {
+  --aura-a: rgba(244, 63, 94, 0.55);
+  --aura-b: rgba(251, 113, 133, 0.3);
+  --aura-dot: rgba(244, 63, 94, 0.55);
+}
+.tg-topic-aura-7 {
+  --aura-a: rgba(6, 182, 212, 0.55);
+  --aura-b: rgba(34, 211, 238, 0.3);
+  --aura-dot: rgba(6, 182, 212, 0.55);
+}
+.tg-topic-aura-8 {
+  --aura-a: rgba(234, 179, 8, 0.55);
+  --aura-b: rgba(250, 204, 21, 0.3);
+  --aura-dot: rgba(234, 179, 8, 0.55);
+}
+.tg-topic-aura-9 {
+  --aura-a: rgba(99, 102, 241, 0.55);
+  --aura-b: rgba(129, 140, 248, 0.3);
+  --aura-dot: rgba(99, 102, 241, 0.55);
+}

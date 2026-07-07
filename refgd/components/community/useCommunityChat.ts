@@ -127,6 +127,8 @@ export interface ChatState {
   welcome: string;
   /** Names of members typing right now (excludes the viewer, max 3). */
   typing?: string[];
+  /** True when the signed-in member is banned — the client must show nothing. */
+  banned?: boolean;
 }
 
 interface TelegramSafeAreaInset {
@@ -1156,6 +1158,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
   return {
     state,
     me,
+    banned: state?.banned ?? false,
     text,
     setText,
     sending,

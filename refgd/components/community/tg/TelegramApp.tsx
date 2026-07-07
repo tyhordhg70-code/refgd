@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -18,6 +19,7 @@ import {
   ensureTelegramReady,
   useTelegramFullscreen,
 } from "../useCommunityChat";
+import { getDeviceSignals } from "../device-fp";
 import { parseStartParam, readStartParam } from "./deeplink";
 import { IconBell, IconChat, IconCollapse, IconExpand } from "./TgIcons";
 import MiddleHeader from "./MiddleHeader";
@@ -129,6 +131,8 @@ function TopicIcon({ def }: { def: TopicDef }) {
 
 const ROW_HEIGHT = 65;
 const MAIN_STYLE = { "--pattern-color": "#4A8E3A8C" } as CSSProperties;
+/** Number of topic-list aura palettes (see `.tg-topic-aura-*` in telegram.css). */
+const AURA_COUNT = 10;
 
 export interface ChatPreview {
   authorName: string;
@@ -189,6 +193,15 @@ export default function TelegramApp({
   const router = useRouter();
   const [active, setActive] = useState<TopicKey | null>(null);
   const [inTg, setInTg] = useState(false);
+  // Ban gate: a banned member must see NOTHING at all when opening the Mini
+  // App — not even the topic list. "checking" (transient) and "blocked"
+  // (permanent) both render a blank themed screen. Web/non-banned = "ok".
+  const [gate, setGate] = useState<"ok" | "checking" | "blocked">("ok");
+  // Topic-list entrance aura: a decorative halftone color wash chosen once per
+  // visit (rotates on consecutive visits) that replays whenever the user
+  // returns to the list. `auraGrad` = palette 0..9; `auraKey` remounts it.
+  const [auraGrad, setAuraGrad] = useState(0);
+  const [auraKey, setAuraKey] = useState(0);
   const [listMenuOpen, setListMenuOpen] = useState(false);
   // Telegram Mini-App fullscreen toggle for the topic-list ⋮ menu.
   const { canFullscreen, isFullscreen, toggleFullscreen } =
@@ -317,16 +330,45 @@ export default function TelegramApp({
     };
   }, []);
 
+  // Pre-paint: if we're inside a Telegram Mini App, hide EVERYTHING until the
+  // ban check below resolves, so a banned member never even glimpses the topic
+  // list. Runs synchronously before the first paint (layout effect) and only
+  // when a Telegram launch is detected — web visitors are never gated, and the
+  // initial client render matches SSR ("ok") so there is no hydration mismatch.
+  useLayoutEffect(() => {
+    try {
+      // The Telegram bridge (window.Telegram) is injected ASYNCHRONOUSLY by
+      // loadTelegramBridge(), so on a fresh launch it isn't there yet at
+      // pre-paint. Telegram, however, puts the launch params in the URL up
+      // front (#tgWebAppData=… / ?tgWebApp…) — that fragment is present before
+      // any script runs, so it's the reliable synchronous "inside Telegram"
+      // signal. Fall back to the bridge for later client-side remounts.
+      const launched =
+        window.location.hash.includes("tgWebApp") ||
+        window.location.search.includes("tgWebApp");
+      if (launched || window.Telegram?.WebApp?.initData) setGate("checking");
+    } catch {
+      /* no Telegram bridge — leave "ok" */
+    }
+  }, []);
+
   // Inside the Telegram Mini App webview, the client shows an opaque loading
   // placeholder (black screen) until WebApp.ready() fires — ensureTelegramReady()
-  // signals that at SHELL mount (idempotent). Open on the TOPIC LIST
-  // (active = null), matching the real Telegram forum/folder view, instead of
-  // jumping straight into Group Chat.
+  // signals that at SHELL mount (idempotent). We also sign in here with device
+  // signals so a banned member (or a device-evading ban) is BLOCKED from the
+  // whole app, not just from posting. Open on the TOPIC LIST (active = null).
   useEffect(() => {
     let cancelled = false;
-    void ensureTelegramReady().then((inside) => {
+    void (async () => {
+      const inside = await ensureTelegramReady();
       if (cancelled) return;
-      if (inside) setInTg(true);
+      if (inside) {
+        setInTg(true);
+        // Backstop the pre-paint gate: keep everything hidden while we
+        // fingerprint + auth, in case the launch fragment was already consumed
+        // (e.g. a client-side remount) and the layout effect missed it.
+        setGate("checking");
+      }
       // Launch deep link: a `?startapp=m_<topic>_<id>` (from Copy Link /
       // Forward) opens the Mini App straight into that topic; the message id is
       // handed to CommunityChat via the `#msg-<id>` hash it already scrolls to.
@@ -337,11 +379,62 @@ export default function TelegramApp({
           window.history.replaceState(null, "", `#msg-${target.messageId}`);
         }
       }
-    });
+      const initData = window.Telegram?.WebApp?.initData;
+      if (!inside || !initData) {
+        if (!cancelled) setGate("ok");
+        return;
+      }
+      try {
+        const signals = await getDeviceSignals().catch(() => ({
+          fp: null,
+          did: null,
+          signals: {} as Record<string, string>,
+        }));
+        const res = await fetch("/api/community/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            initData,
+            fp: signals.fp,
+            did: signals.did,
+            signals: signals.signals,
+          }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          banned?: boolean;
+        } | null;
+        if (!cancelled) setGate(data?.banned ? "blocked" : "ok");
+      } catch {
+        // Fail OPEN: a network hiccup must not lock out a legitimate member.
+        if (!cancelled) setGate("ok");
+      }
+    })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // Pick this visit's aura palette once, rotating from the last visit so
+  // consecutive opens never repeat, then remount the aura whenever we return
+  // to the topic list (active === null) to replay the breathe-then-fade.
+  useEffect(() => {
+    let idx = Math.floor(Math.random() * AURA_COUNT);
+    try {
+      const raw = window.localStorage.getItem("tg_grad_last");
+      const last = raw === null ? NaN : Number(raw);
+      if (Number.isFinite(last) && last >= 0 && last < AURA_COUNT) {
+        idx = (last + 1 + Math.floor(Math.random() * (AURA_COUNT - 1))) % AURA_COUNT;
+      }
+      window.localStorage.setItem("tg_grad_last", String(idx));
+    } catch {
+      /* private mode — fall back to the random pick */
+    }
+    setAuraGrad(idx);
+  }, []);
+  useEffect(() => {
+    if (active === null) setAuraKey((k) => k + 1);
+  }, [active]);
 
   // `/community#<topic>` deep link (e.g. a buttonurl or the READ ME rules
   // link pointing at /community#readme): open that topic on mount and on any
@@ -542,6 +635,25 @@ export default function TelegramApp({
     root.addEventListener("click", onClick);
     return () => root.removeEventListener("click", onClick);
   }, [inTg]);
+
+  // Ban gate: while checking, and permanently once blocked, render a blank
+  // themed screen so a banned member sees nothing at all — no topic list, no
+  // chat. (All hooks above run unconditionally, so this early return is safe.)
+  if (gate !== "ok") {
+    return (
+      <div className="tg-app">
+        <div
+          ref={htmlRef}
+          className="tg-html theme-light"
+          data-message-text-size="15"
+        >
+          <div className="tg-body Y7owXZmb is-pointer-env">
+            <div className="tg-access-block" aria-hidden />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const back = () => setActive(null);
 
@@ -1156,6 +1268,11 @@ export default function TelegramApp({
                     })}
                   </div>
                 </div>
+                <div
+                  key={auraKey}
+                  className={`tg-topic-aura tg-topic-aura-${auraGrad}`}
+                  aria-hidden
+                />
               </div>
             </div>
 

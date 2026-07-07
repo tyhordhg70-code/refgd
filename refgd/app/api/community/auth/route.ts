@@ -23,6 +23,7 @@ import {
   recordMemberDevice,
   checkDeviceBan,
   setMemberBan,
+  getChatMemberModState,
 } from "@/lib/community";
 
 export const runtime = "nodejs";
@@ -231,10 +232,22 @@ export async function POST(req: Request) {
     // device-signal capture is best-effort only
   }
 
+  // Resolve the member's CURRENT ban status (reflects a just-applied device
+  // ban above) so the shell can block a banned member from seeing anything at
+  // all. Admins are never banned.
+  let banned = false;
+  if (!member.admin) {
+    try {
+      banned = (await getChatMemberModState(member.tid)).isBanned;
+    } catch {
+      banned = false;
+    }
+  }
+
   // Attribute a join to the invite link that brought them in (if any), then
   // clear the cookie so re-signing-in doesn't re-attribute. De-duped per
   // tg_id in recordInviteJoin, so this is safe even if the cookie lingers.
-  const res = NextResponse.json({ ok: true, member });
+  const res = NextResponse.json({ ok: true, member, banned });
   try {
     const jar = await cookies();
     const slug = jar.get("rg_invite")?.value;
