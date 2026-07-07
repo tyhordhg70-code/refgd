@@ -3067,15 +3067,18 @@ span.tg-edit-ce-lottie svg {
   color: var(--color-text, #000);
 }
 
-/* ── Topic-list entrance aura ─────────────────────────────────────────
-   A decorative halftone-dot color wash that breathes a couple of times then
-   fades out, echoing the marketing gradient. Purely cosmetic:
+/* ── Topic-list aura ──────────────────────────────────────────────────
+   A decorative halftone-dot color wash hugging the bottom of the list that
+   fades in once, then keeps a SLOW continuous breath (opacity only — no
+   transforms, cheap to composite). Owner direction 2026-07-07: sparse dots
+   kept LOW (they were "stars extending too high"), and a slow breathable
+   pulse instead of the old fast multi-flicker fade-out. Purely cosmetic:
    pointer-events:none so it never blocks a topic tap; absolutely scoped to
    the topic-list panel (.m2EjaIDq — a positioned element on both the mobile
    single-pane and desktop two-pane layouts) so it tracks the panel bounds and
    never leaks over the chat pane or hits the #MiddleColumn transform anchor.
    TelegramApp picks one of the ten palettes per visit and remounts this (via
-   key) each time the user returns to the list to replay the animation. */
+   key) each time the user returns to the list to replay the fade-in. */
 .tg-app .tg-html .m2EjaIDq .tg-topic-aura {
   position: absolute;
   inset: 0;
@@ -3083,8 +3086,10 @@ span.tg-edit-ce-lottie svg {
   pointer-events: none;
   overflow: hidden;
   opacity: 0;
-  will-change: opacity, transform;
-  animation: tg-aura-breathe 5.2s ease-in-out forwards;
+  will-change: opacity;
+  animation:
+    tg-aura-in 2.4s ease-out forwards,
+    tg-aura-pulse 9s ease-in-out 2.4s infinite;
 }
 .tg-topic-aura::before,
 .tg-topic-aura::after {
@@ -3092,83 +3097,58 @@ span.tg-edit-ce-lottie svg {
   position: absolute;
   inset: 0;
 }
-/* soft base color glow rising from the bottom (clear at the top like the
-   reference image, so the header/topmost rows stay legible) */
+/* soft base color glow rising from the bottom — kept low so the header and
+   upper rows stay clean */
 .tg-topic-aura::before {
   background: radial-gradient(
-    125% 82% at 50% 122%,
+    120% 70% at 50% 124%,
     var(--aura-a) 0%,
-    var(--aura-b) 40%,
-    transparent 72%
+    var(--aura-b) 38%,
+    transparent 64%
   );
 }
-/* halftone dot field, masked to fade out toward the top */
+/* sparse halftone dot field, masked to die out well below the mid-line */
 .tg-topic-aura::after {
-  background-image: radial-gradient(var(--aura-dot) 28%, transparent 29%);
-  background-size: 15px 15px;
+  background-image: radial-gradient(var(--aura-dot) 16%, transparent 17%);
+  background-size: 26px 26px;
   background-position: 0 0;
-  opacity: 0.85;
+  opacity: 0.5;
   -webkit-mask-image: linear-gradient(
     to top,
     #000 0%,
-    rgba(0, 0, 0, 0.6) 34%,
-    transparent 78%
+    rgba(0, 0, 0, 0.5) 22%,
+    transparent 46%
   );
   mask-image: linear-gradient(
     to top,
     #000 0%,
-    rgba(0, 0, 0, 0.6) 34%,
-    transparent 78%
+    rgba(0, 0, 0, 0.5) 22%,
+    transparent 46%
   );
 }
-@keyframes tg-aura-breathe {
+@keyframes tg-aura-in {
   0% {
     opacity: 0;
-    transform: scale(1.04);
   }
-  14% {
-    opacity: 0.7;
-    transform: scale(1);
+  100% {
+    opacity: 0.52;
   }
-  32% {
-    opacity: 0.42;
-    transform: scale(1.03);
+}
+@keyframes tg-aura-pulse {
+  0% {
+    opacity: 0.52;
   }
   50% {
-    opacity: 0.72;
-    transform: scale(1);
-  }
-  68% {
-    opacity: 0.46;
-    transform: scale(1.02);
-  }
-  82% {
-    opacity: 0.6;
-    transform: scale(1);
+    opacity: 0.34;
   }
   100% {
-    opacity: 0;
-    transform: scale(1.05);
+    opacity: 0.52;
   }
 }
-/* Respect reduced-motion: no breathing/scale, just a gentle fade. */
+/* Respect reduced-motion: fade in once and hold — no pulsing. */
 @media (prefers-reduced-motion: reduce) {
   .tg-app .tg-html .m2EjaIDq .tg-topic-aura {
-    animation: tg-aura-fade 3s ease-out forwards;
-  }
-}
-@keyframes tg-aura-fade {
-  0% {
-    opacity: 0;
-  }
-  25% {
-    opacity: 0.5;
-  }
-  70% {
-    opacity: 0.42;
-  }
-  100% {
-    opacity: 0;
+    animation: tg-aura-in 3s ease-out forwards;
   }
 }
 /* Ten palettes: --aura-a = lower glow core, --aura-b = mid glow,

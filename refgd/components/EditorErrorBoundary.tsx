@@ -140,6 +140,36 @@ export default class EditorErrorBoundary extends React.Component<
           : "",
     });
 
+    // Mid-deploy chunk failures (the served HTML references a JS chunk that
+    // times out / 404s while Render swaps instances) are transient — a fresh
+    // load fixes them. Reload once instead of stranding the user on a dead
+    // half-page (SSR markup visible, nothing clickable, spinners forever).
+    // The sessionStorage stamp stops a reload loop if the chunk is truly gone.
+    const msgText =
+      err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    if (
+      typeof window !== "undefined" &&
+      /ChunkLoadError|Loading chunk .+ failed|dynamically imported module|module script failed/i.test(
+        msgText,
+      )
+    ) {
+      let last = 0;
+      try {
+        last = Number(window.sessionStorage.getItem("rg-chunk-reload") ?? 0);
+      } catch {
+        /* storage blocked — fall through to normal recovery */
+      }
+      if (Date.now() - last > 60_000) {
+        try {
+          window.sessionStorage.setItem("rg-chunk-reload", String(Date.now()));
+          window.location.reload();
+          return;
+        } catch {
+          /* storage blocked — never risk a reload loop without the guard */
+        }
+      }
+    }
+
     const next = this.state.recoveries + 1;
     if (next > MAX_RECOVERIES) {
       // Give up auto-recovery — render the fallback so React stops
