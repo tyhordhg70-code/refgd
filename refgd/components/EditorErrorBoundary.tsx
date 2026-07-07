@@ -37,6 +37,10 @@ type State = {
   recoveries: number;
   /** Last error message — shown in admin fallback only. */
   message: string;
+  /** Crash site (top componentStack frames) — shown in admin fallback only. */
+  site: string;
+  /** When the crash was caught (local time) — shown in admin fallback only. */
+  at: string;
 };
 
 const MAX_RECOVERIES = 2;
@@ -50,13 +54,24 @@ export default class EditorErrorBoundary extends React.Component<
   },
   State
 > {
-  state: State = { hasError: false, key: 0, recoveries: 0, message: "" };
+  state: State = {
+    hasError: false,
+    key: 0,
+    recoveries: 0,
+    message: "",
+    site: "",
+    at: "",
+  };
 
   private quietTimer: ReturnType<typeof setTimeout> | null = null;
 
   static getDerivedStateFromError(err: unknown): Partial<State> {
     const message =
-      err instanceof Error ? err.message : typeof err === "string" ? err : "Unknown error";
+      err instanceof Error
+        ? `${err.name}: ${err.message}`
+        : typeof err === "string"
+          ? err
+          : "Unknown error";
     return { hasError: true, message };
   }
 
@@ -70,6 +85,17 @@ export default class EditorErrorBoundary extends React.Component<
       err,
       info?.componentStack ?? "",
     );
+
+    // Capture WHERE it threw for the admin detail box: the top frames of the
+    // component stack name the crashing component directly, which the bare
+    // error message ("Cannot read properties of undefined…") never does.
+    const site = (info?.componentStack ?? "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(" \u2190 ");
+    this.setState({ site, at: new Date().toLocaleTimeString() });
 
     const next = this.state.recoveries + 1;
     if (next > MAX_RECOVERIES) {
@@ -103,6 +129,8 @@ export default class EditorErrorBoundary extends React.Component<
       key: s.key + 1,
       recoveries: 0,
       message: "",
+      site: "",
+      at: "",
     }));
   };
 
@@ -149,7 +177,16 @@ export default class EditorErrorBoundary extends React.Component<
                 textAlign: "left",
               }}
             >
-              {this.state.message}
+              <div>{this.state.message}</div>
+              {this.state.site ? (
+                <div style={{ marginTop: "0.35rem", opacity: 0.8 }}>
+                  in {this.state.site}
+                </div>
+              ) : null}
+              <div style={{ marginTop: "0.35rem", opacity: 0.6 }}>
+                {typeof window !== "undefined" ? window.location.pathname : ""}
+                {this.state.at ? ` \u00b7 ${this.state.at}` : ""}
+              </div>
             </div>
           ) : null}
           <button
