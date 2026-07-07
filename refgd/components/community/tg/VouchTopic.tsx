@@ -102,6 +102,7 @@ export default function VouchHistory({
                     media={v.mediaIds.map(
                       (id) => `/api/community/media/${id}`,
                     )}
+                    mediaSizes={v.mediaDims}
                     body={v.body ? renderBody(v.body) : undefined}
                     time={<LocalTime iso={v.originDate ?? v.createdAt} />}
                     reactions={reactionsFor?.(`v${v.id}`)}

@@ -10,6 +10,7 @@
  */
 import { createHash } from "node:crypto";
 import { getPool, initDb } from "./db";
+import { probeImageDims } from "./image-dims";
 import { isCommunityAdmin, communityBotToken } from "./community-bot";
 import { getStickersBatch, fetchStickerArt } from "./emoji-fetch";
 import { CUSTOM_EMOJI_IDS, EMOJI_CACHE_VERSION } from "./custom-emoji";
@@ -35,6 +36,8 @@ export interface Vouch {
   authorName: string;
   body: string;
   mediaIds: string[];
+  /** Intrinsic pixel size per media id (same order); null when unknown. */
+  mediaDims: ({ w: number; h: number } | null)[];
   pinned: boolean;
   createdAt: string;
   originDate: string | null;
@@ -49,6 +52,8 @@ interface VouchRow {
   created_at: string;
   origin_date: string | null;
   media_ids: string[];
+  media_ws: (number | null)[] | null;
+  media_hs: (number | null)[] | null;
 }
 
 /**
@@ -67,6 +72,13 @@ function mapVouch(r: VouchRow): Vouch {
     authorName: r.author_name,
     body: r.body,
     mediaIds: (r.media_ids ?? []).map((x) => String(x)),
+    mediaDims: (r.media_ids ?? []).map((_, i) => {
+      const w = r.media_ws?.[i];
+      const h = r.media_hs?.[i];
+      return typeof w === "number" && typeof h === "number" && w > 0 && h > 0
+        ? { w, h }
+        : null;
+    }),
     pinned: r.pinned,
     createdAt: isoTs(r.created_at),
     originDate: r.origin_date === null ? null : isoTs(r.origin_date),
@@ -96,7 +108,15 @@ export async function listVouches(
             COALESCE(
               array_agg(m.id ORDER BY m.id) FILTER (WHERE m.id IS NOT NULL),
               ARRAY[]::bigint[]
-            ) AS media_ids
+            ) AS media_ids,
+            COALESCE(
+              array_agg(m.w ORDER BY m.id) FILTER (WHERE m.id IS NOT NULL),
+              ARRAY[]::integer[]
+            ) AS media_ws,
+            COALESCE(
+              array_agg(m.h ORDER BY m.id) FILTER (WHERE m.id IS NOT NULL),
+              ARRAY[]::integer[]
+            ) AS media_hs
        FROM vouches v
        LEFT JOIN vouch_media m ON m.vouch_id = v.id
        ${where}
@@ -184,16 +204,19 @@ export async function addVouchMedia(
   await initDb();
   // Guard against re-ingesting the same photo (Telegram retries the webhook,
   // and album parts can race) by content hash within a vouch. Returns null
-  // when the identical image is already attached.
+  // when the identical image is already attached. Intrinsic dimensions are
+  // probed from the bytes so bubbles can reserve the aspect-ratio box before
+  // the photo loads (fixes image pop-in on READ ME/Announcements).
+  const dims = probeImageDims(bytes);
   const { rows } = await getPool().query<{ id: string }>(
-    `INSERT INTO vouch_media (vouch_id, bytes, mime, sha256)
-     SELECT $1, $2, $3, $4
+    `INSERT INTO vouch_media (vouch_id, bytes, mime, sha256, w, h)
+     SELECT $1, $2, $3, $4, $5, $6
       WHERE $4::text IS NULL
          OR NOT EXISTS (
            SELECT 1 FROM vouch_media WHERE vouch_id = $1 AND sha256 = $4
          )
      RETURNING id`,
-    [vouchId, bytes, mime, sha256 ?? null],
+    [vouchId, bytes, mime, sha256 ?? null, dims?.w ?? null, dims?.h ?? null],
   );
   return rows[0] ? String(rows[0].id) : null;
 }

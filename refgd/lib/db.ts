@@ -177,6 +177,10 @@
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         CREATE INDEX IF NOT EXISTS vouch_media_vouch_idx ON vouch_media (vouch_id);
+        -- Intrinsic pixel size, probed at ingest so bubbles reserve the
+        -- exact aspect-ratio box before the photo loads (no layout pop-in).
+        ALTER TABLE vouch_media ADD COLUMN IF NOT EXISTS w INTEGER;
+        ALTER TABLE vouch_media ADD COLUMN IF NOT EXISTS h INTEGER;
 
         CREATE TABLE IF NOT EXISTS chat_members (
           tg_id       BIGINT PRIMARY KEY,

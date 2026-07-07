@@ -682,6 +682,10 @@ button.tg-reply-embed:focus-visible {
   width: 100%;
   max-height: 26rem;
   object-fit: cover;
+  /* Subtle placeholder while the photo streams in: the width/height attrs
+     reserve the exact aspect-ratio box, this tint keeps it from reading as
+     a hole in the bubble. */
+  background: rgba(120, 130, 150, 0.14);
 }
 .message-content.is-media-only .tg-media {
   margin-bottom: -0.375rem;
@@ -3098,14 +3102,19 @@ span.tg-edit-ce-lottie svg {
   inset: 0;
 }
 /* soft base color glow rising from the bottom — kept low so the header and
-   upper rows stay clean */
+   upper rows stay clean. Slightly over-wide + a slow horizontal drift
+   (compositor-only transform) gives the Gemini-style "shifting gradient"
+   motion without repainting. */
 .tg-topic-aura::before {
+  inset: 0 -18%;
   background: radial-gradient(
     120% 70% at 50% 124%,
     var(--aura-a) 0%,
     var(--aura-b) 38%,
     transparent 64%
   );
+  will-change: transform;
+  animation: tg-aura-drift 19s ease-in-out infinite alternate;
 }
 /* Diamond-star halftone field (owner reference 2026-07-07): 4-pointed
    concave-diamond sparkles on a staggered grid, largest at the bottom and
@@ -3117,11 +3126,22 @@ span.tg-edit-ce-lottie svg {
    mask-repeat MUST stay explicit — the initial value is `repeat`, which
    would tile stars up the whole panel. */
 .tg-topic-aura::after {
+  /* Bottom band only (the mask never reaches higher) — keeps the animated
+     gradient repaint area small. Two-hue horizontal gradient, oversized and
+     slowly panned, so the star colors smoothly shift like the Gemini
+     reference instead of sitting static. */
+  inset: auto 0 0 0;
+  height: 46%;
   background: linear-gradient(
-    to top,
+    100deg,
     var(--aura-dot) 0%,
-    var(--aura-b) 92%
+    var(--aura-c) 28%,
+    var(--aura-dot) 55%,
+    var(--aura-c) 80%,
+    var(--aura-dot) 100%
   );
+  background-size: 250% 100%;
+  animation: tg-aura-shift 16s ease-in-out infinite alternate;
   -webkit-mask-image: url("/community-aura-stars.svg");
   -webkit-mask-repeat: no-repeat;
   -webkit-mask-position: bottom center;
@@ -3136,75 +3156,115 @@ span.tg-edit-ce-lottie svg {
     opacity: 0;
   }
   100% {
-    opacity: 0.52;
+    opacity: 0.55;
   }
 }
+/* Gentle heartbeat: soft swell up, ease back down, rest — reads as a slow
+   pulse rather than a flat fade. */
 @keyframes tg-aura-pulse {
   0% {
-    opacity: 0.52;
+    opacity: 0.55;
   }
-  50% {
-    opacity: 0.34;
+  18% {
+    opacity: 0.72;
+  }
+  42% {
+    opacity: 0.42;
+  }
+  70% {
+    opacity: 0.6;
   }
   100% {
-    opacity: 0.52;
+    opacity: 0.55;
   }
 }
-/* Respect reduced-motion: fade in once and hold — no pulsing. */
+@keyframes tg-aura-shift {
+  0% {
+    background-position: 0% 0;
+  }
+  100% {
+    background-position: 100% 0;
+  }
+}
+@keyframes tg-aura-drift {
+  0% {
+    transform: translateX(-3.5%);
+  }
+  100% {
+    transform: translateX(3.5%);
+  }
+}
+/* Respect reduced-motion: fade in once and hold — no pulsing/shifting. */
 @media (prefers-reduced-motion: reduce) {
   .tg-app .tg-html .m2EjaIDq .tg-topic-aura {
     animation: tg-aura-in 3s ease-out forwards;
   }
+  .tg-topic-aura::before,
+  .tg-topic-aura::after {
+    animation: none;
+  }
 }
 /* Ten palettes: --aura-a = lower glow core, --aura-b = mid glow,
-   --aura-dot = halftone dot color. Palette 0 matches the green reference. */
+   --aura-dot = halftone dot color, --aura-c = companion hue the shifting
+   gradient blends toward (Gemini-style two-tone drift). Palette 0 matches
+   the green reference. */
 .tg-topic-aura-0 {
   --aura-a: rgba(132, 204, 22, 0.55);
   --aura-b: rgba(163, 230, 53, 0.3);
   --aura-dot: rgba(132, 204, 22, 0.55);
+  --aura-c: rgba(45, 212, 191, 0.5);
 }
 .tg-topic-aura-1 {
   --aura-a: rgba(59, 130, 246, 0.55);
   --aura-b: rgba(96, 165, 250, 0.3);
   --aura-dot: rgba(59, 130, 246, 0.55);
+  --aura-c: rgba(167, 139, 250, 0.5);
 }
 .tg-topic-aura-2 {
   --aura-a: rgba(168, 85, 247, 0.55);
   --aura-b: rgba(192, 132, 252, 0.3);
   --aura-dot: rgba(168, 85, 247, 0.55);
+  --aura-c: rgba(244, 114, 182, 0.5);
 }
 .tg-topic-aura-3 {
   --aura-a: rgba(236, 72, 153, 0.55);
   --aura-b: rgba(244, 114, 182, 0.3);
   --aura-dot: rgba(236, 72, 153, 0.55);
+  --aura-c: rgba(167, 139, 250, 0.5);
 }
 .tg-topic-aura-4 {
   --aura-a: rgba(249, 115, 22, 0.55);
   --aura-b: rgba(251, 146, 60, 0.3);
   --aura-dot: rgba(249, 115, 22, 0.55);
+  --aura-c: rgba(250, 204, 21, 0.5);
 }
 .tg-topic-aura-5 {
   --aura-a: rgba(20, 184, 166, 0.55);
   --aura-b: rgba(45, 212, 191, 0.3);
   --aura-dot: rgba(20, 184, 166, 0.55);
+  --aura-c: rgba(56, 189, 248, 0.5);
 }
 .tg-topic-aura-6 {
   --aura-a: rgba(244, 63, 94, 0.55);
   --aura-b: rgba(251, 113, 133, 0.3);
   --aura-dot: rgba(244, 63, 94, 0.55);
+  --aura-c: rgba(251, 146, 60, 0.5);
 }
 .tg-topic-aura-7 {
   --aura-a: rgba(6, 182, 212, 0.55);
   --aura-b: rgba(34, 211, 238, 0.3);
   --aura-dot: rgba(6, 182, 212, 0.55);
+  --aura-c: rgba(129, 140, 248, 0.5);
 }
 .tg-topic-aura-8 {
   --aura-a: rgba(234, 179, 8, 0.55);
   --aura-b: rgba(250, 204, 21, 0.3);
   --aura-dot: rgba(234, 179, 8, 0.55);
+  --aura-c: rgba(251, 146, 60, 0.5);
 }
 .tg-topic-aura-9 {
   --aura-a: rgba(99, 102, 241, 0.55);
   --aura-b: rgba(129, 140, 248, 0.3);
   --aura-dot: rgba(99, 102, 241, 0.55);
+  --aura-c: rgba(232, 121, 249, 0.5);
 }

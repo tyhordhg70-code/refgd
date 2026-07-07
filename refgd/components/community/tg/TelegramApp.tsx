@@ -877,6 +877,7 @@ export default function TelegramApp({
                     pinned={seedPin("readme")}
                     mid="seed:readme"
                     media={[README_SEED_PHOTO]}
+                    mediaSize={{ w: 639, h: 450 }}
                     reactions={reactionsFor(
                       "seed:readme",
                       README_SEED_REACTIONS,

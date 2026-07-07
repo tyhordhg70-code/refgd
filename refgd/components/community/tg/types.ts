@@ -5,6 +5,8 @@ export interface VouchView {
   authorName: string;
   body: string;
   mediaIds: string[];
+  /** Intrinsic pixel size per media id (same order); null/absent = unknown. */
+  mediaDims?: ({ w: number; h: number } | null)[];
   pinned: boolean;
   createdAt: string;
   originDate: string | null;

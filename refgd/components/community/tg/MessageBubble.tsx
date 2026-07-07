@@ -52,6 +52,7 @@ export default function MessageBubble({
   reply,
   media,
   mediaSize,
+  mediaSizes,
   body,
   time,
   ticks,
@@ -92,6 +93,8 @@ export default function MessageBubble({
    * and the image "load at once" instead of the image popping in later.
    */
   mediaSize?: { w: number; h: number };
+  /** Per-image intrinsic sizes aligned with `media`; overrides mediaSize. */
+  mediaSizes?: ({ w: number; h: number } | null)[];
   body?: ReactNode;
   time?: ReactNode;
   ticks?: boolean;
@@ -462,7 +465,7 @@ export default function MessageBubble({
 
             {mediaList.length > 0 && (
               <div className={`tg-media${mediaFlush ? "" : " is-inset"}`}>
-                {mediaList.map((src) => (
+                {mediaList.map((src, mi) => (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     key={src}
@@ -470,8 +473,8 @@ export default function MessageBubble({
                     alt=""
                     loading="lazy"
                     decoding="async"
-                    width={mediaSize?.w}
-                    height={mediaSize?.h}
+                    width={(mediaSizes?.[mi] ?? mediaSize)?.w}
+                    height={(mediaSizes?.[mi] ?? mediaSize)?.h}
                     className={onOpenMedia ? "tg-media-clickable" : undefined}
                     onClick={
                       onOpenMedia
