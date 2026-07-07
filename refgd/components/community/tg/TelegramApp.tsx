@@ -644,10 +644,22 @@ export default function TelegramApp({
     return () => root.removeEventListener("click", onClick);
   }, [inTg]);
 
+  // Swipe-back refs — declared HERE (not next to their handlers below) because
+  // they are hooks and the ban-gate early return follows. Rendering them after
+  // the return crashed the Mini App with React #300 ("Rendered fewer hooks
+  // than expected") the moment the gate flipped ok → checking after hydration.
+  const middleRef = useRef<HTMLDivElement | null>(null);
+  const backSwipe = useRef<{
+    x: number;
+    y: number;
+    dragging: boolean;
+    dead: boolean;
+  } | null>(null);
+
   // Ban gate: while checking this stays a blank themed screen; once BLOCKED it
   // shows a Rose-style "You have been banned" notice with the reason the admin
   // typed after /ban right beside it (when one was given). No topic list, no
-  // chat. (All hooks above run unconditionally, so this early return is safe.)
+  // chat. ALL hooks must live above this line — see the swipe-back refs note.
   if (gate !== "ok") {
     return (
       <div className="tg-app">
@@ -710,13 +722,7 @@ export default function TelegramApp({
   // slides it away and returns to the topic list. The drag writes an inline
   // transform on #MiddleColumn directly so no re-renders happen per move.
   // MessageBubble ignores edge-started touches for its swipe-to-reply.
-  const middleRef = useRef<HTMLDivElement | null>(null);
-  const backSwipe = useRef<{
-    x: number;
-    y: number;
-    dragging: boolean;
-    dead: boolean;
-  } | null>(null);
+  // (middleRef/backSwipe are declared above the ban-gate early return.)
   const onMiddleTouchStart = (e: ReactTouchEvent<HTMLDivElement>) => {
     if (active === null || e.touches.length > 1) return;
     if (!window.matchMedia("(max-width: 767px)").matches) return;
