@@ -149,7 +149,7 @@ export default class EditorErrorBoundary extends React.Component<
       err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     if (
       typeof window !== "undefined" &&
-      /ChunkLoadError|Loading chunk .+ failed|dynamically imported module|module script failed/i.test(
+      /ChunkLoadError|Loading (CSS )?chunk .+ failed|dynamically imported module|module script failed/i.test(
         msgText,
       )
     ) {
