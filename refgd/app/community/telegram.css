@@ -3107,24 +3107,29 @@ span.tg-edit-ce-lottie svg {
     transparent 64%
   );
 }
-/* sparse halftone dot field, masked to die out well below the mid-line */
+/* Diamond-star halftone field (owner reference 2026-07-07): 4-pointed
+   concave-diamond sparkles on a staggered grid, largest at the bottom and
+   shrinking upward under a wavy envelope — generated as a single SVG
+   (public/community-aura-stars.svg, black fill) and applied as a MASK so the
+   palette CSS vars keep controlling the color. mask-size 100% auto +
+   position bottom scales the whole field to the panel width, keeping the
+   reference's proportions (field height ≈ 1/3 of the panel width).
+   mask-repeat MUST stay explicit — the initial value is `repeat`, which
+   would tile stars up the whole panel. */
 .tg-topic-aura::after {
-  background-image: radial-gradient(var(--aura-dot) 16%, transparent 17%);
-  background-size: 26px 26px;
-  background-position: 0 0;
-  opacity: 0.5;
-  -webkit-mask-image: linear-gradient(
+  background: linear-gradient(
     to top,
-    #000 0%,
-    rgba(0, 0, 0, 0.5) 22%,
-    transparent 46%
+    var(--aura-dot) 0%,
+    var(--aura-b) 92%
   );
-  mask-image: linear-gradient(
-    to top,
-    #000 0%,
-    rgba(0, 0, 0, 0.5) 22%,
-    transparent 46%
-  );
+  -webkit-mask-image: url("/community-aura-stars.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: bottom center;
+  -webkit-mask-size: 100% auto;
+  mask-image: url("/community-aura-stars.svg");
+  mask-repeat: no-repeat;
+  mask-position: bottom center;
+  mask-size: 100% auto;
 }
 @keyframes tg-aura-in {
   0% {
