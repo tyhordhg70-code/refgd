@@ -739,7 +739,7 @@ const emojiKindsWaiters = new Set<() => void>();
 function ensureEmojiKinds(): void {
   if (emojiKindsStarted || typeof window === "undefined") return;
   emojiKindsStarted = true;
-  fetch("/tg-emoji/kinds-v1.json")
+  fetch("/tg-emoji/kinds-v2.json")
     .then((r) => (r.ok ? (r.json() as Promise<unknown>) : null))
     .then((j) => {
       const m = new Map<string, number>();
@@ -779,12 +779,46 @@ function onEmojiKinds(cb: () => void): () => void {
   return () => emojiKindsWaiters.delete(cb);
 }
 
+/* Content-type probe for ids the BUILD-TIME manifest doesn't know — packs
+ * taught (bot DM / paste discovery) AFTER the last deploy. One GET against
+ * the immutable serve route classifies the document by mime; the bytes land
+ * in the browser HTTP cache, so the follow-up ceLottie fetch / <video> load
+ * is free. The verdict is written into emojiKinds so every later resolve —
+ * and every later-mounted bubble tile — jumps straight to the right
+ * renderer. Fail-soft: a miss/error answers "img" WITHOUT caching the
+ * probe, so a rate-limit blip never pins a fresh animated pack static. */
+const emojiKindProbes = new Map<string, Promise<number>>();
+function probeEmojiKind(id: string): Promise<number> {
+  let p = emojiKindProbes.get(id);
+  if (!p) {
+    p = fetch(`/api/community/emoji/${id}?v=${EMOJI_CACHE_VERSION}`)
+      .then((r) => {
+        if (!r.ok) {
+          emojiKindProbes.delete(id);
+          return 0;
+        }
+        const ct = r.headers.get("content-type") ?? "";
+        const stage = ct.includes("video") ? 2 : ct.includes("json") ? 3 : 1;
+        emojiKinds?.set(id, stage);
+        return stage;
+      })
+      .catch(() => {
+        emojiKindProbes.delete(id);
+        return 0;
+      });
+    emojiKindProbes.set(id, p);
+  }
+  return p;
+}
+
 /**
  * Public kind resolver for the EDIT surfaces (editHtml.ts): reports whether
  * an id is a known video (.webm) / Lottie (.tgs) pack emoji once the kinds
  * manifest loads (immediately when already cached). Ids missing from the
- * manifest resolve as "img" — the edit-box error cascade still upgrades
- * those the slow way.
+ * manifest (freshly taught packs) are resolved by a one-shot content-type
+ * probe against the serve route — without it, a pack imported after the
+ * last deploy rendered as the static alt glyph in the composer until the
+ * next manifest regeneration.
  */
 export function resolveEmojiKind(
   id: string,
@@ -793,6 +827,12 @@ export function resolveEmojiKind(
   ensureEmojiKinds();
   onEmojiKinds(() => {
     const s = emojiKindStage(id) ?? 0;
+    if (s === 0 && /^\d{1,32}$/.test(id)) {
+      void probeEmojiKind(id).then((p) =>
+        cb(p === 2 ? "video" : p === 3 ? "lottie" : "img"),
+      );
+      return;
+    }
     cb(s === 2 ? "video" : s === 3 ? "lottie" : "img");
   });
 }

@@ -63,7 +63,16 @@ function rebuildCeAltMap(groups: PackGroup[] | null): void {
 
 /** Pack lookup for the paste-upgrade path (null = not a known pack emoji). */
 export function ceAltToId(alt: string): string | null {
-  return ceAltMap.get(alt) ?? ceAltMap.get(alt.replace(/\uFE0F/g, "")) ?? null;
+  const bare = alt.replace(/\uFE0F/g, "");
+  return (
+    ceAltMap.get(alt) ??
+    ceAltMap.get(bare) ??
+    // Skin-tone fallback: packs publish only base-tone alts, so a toned
+    // paste (👍🏽) otherwise never upgrades — strip the modifier and serve
+    // the base artwork, the same substitution Telegram itself makes.
+    ceAltMap.get(bare.replace(/[\u{1F3FB}-\u{1F3FF}]/gu, "")) ??
+    null
+  );
 }
 
 /**
