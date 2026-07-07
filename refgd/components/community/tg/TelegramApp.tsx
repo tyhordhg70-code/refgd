@@ -1007,6 +1007,7 @@ export default function TelegramApp({
                       pinned={seedPin("announcement")}
                       mid="seed:announcement"
                       media={[ANNOUNCEMENT_SEED_PHOTO]}
+                      mediaSize={{ w: 1280, h: 549 }}
                       body={
                         announcementOverridden
                           ? renderBody(effAnnouncement)

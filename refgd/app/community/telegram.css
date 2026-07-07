@@ -3129,9 +3129,14 @@ span.tg-edit-ce-lottie svg {
   /* Bottom band only (the mask never reaches higher) — keeps the animated
      gradient repaint area small. Two-hue horizontal gradient, oversized and
      slowly panned, so the star colors smoothly shift like the Gemini
-     reference instead of sitting static. */
+     reference instead of sitting static. Band height derives from the panel
+     WIDTH via aspect-ratio (matching the mask's 1024x340 scale at
+     mask-size 100% auto) so short+wide layouts (landscape phones) never
+     hard-clip the wavy envelope; max-height caps it at the panel. */
   inset: auto 0 0 0;
-  height: 46%;
+  height: auto;
+  aspect-ratio: 1024 / 340;
+  max-height: 100%;
   background: linear-gradient(
     100deg,
     var(--aura-dot) 0%,
