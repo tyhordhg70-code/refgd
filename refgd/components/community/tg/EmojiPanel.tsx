@@ -67,6 +67,33 @@ export function ceAltToId(alt: string): string | null {
 }
 
 /**
+ * Background alt-map refresh for the paste-upgrade path: the map is built
+ * once per page load, so packs taught to the bot (or auto-downloaded by a
+ * doc-id paste) mid-session are invisible to it until reload. When a paste
+ * leaves plain pictographs un-upgraded, the composer calls this — the list
+ * refetches and the NEXT paste of the same emoji upgrades without a reload.
+ * Throttled so paste spam can't hammer the list endpoint.
+ */
+let ceAltRefreshAt = 0;
+export function refreshCeAltMap(): void {
+  if (typeof window === "undefined") return;
+  const now = Date.now();
+  if (now - ceAltRefreshAt < 15_000) return;
+  ceAltRefreshAt = now;
+  void fetch("/api/community/emoji/list")
+    .then((r) => r.json() as Promise<{ ok?: boolean; groups?: PackGroup[] }>)
+    .then((data) => {
+      const groups =
+        data?.ok && Array.isArray(data.groups) ? data.groups : null;
+      if (groups && groups.length > 0) {
+        packMemoCache = groups;
+        rebuildCeAltMap(groups);
+      }
+    })
+    .catch(() => undefined);
+}
+
+/**
  * App-open tile warm-up: fetches the full pack list and queues every tile
  * into the background warmer WITHOUT the picker (or its Custom tab) ever
  * being opened — so custom emoji in bubbles and the first picker open paint

@@ -17,7 +17,11 @@ import AdminPanel from "./AdminPanel";
 import MiddleHeader from "./tg/MiddleHeader";
 import MessageBubble from "./tg/MessageBubble";
 import Appendix from "./tg/Appendix";
-import EmojiPanel, { kickstartEmojiWarm, ceAltToId } from "./tg/EmojiPanel";
+import EmojiPanel, {
+  kickstartEmojiWarm,
+  ceAltToId,
+  refreshCeAltMap,
+} from "./tg/EmojiPanel";
 import TextFormatter from "./tg/TextFormatter";
 import VoiceMessage from "./tg/VoiceMessage";
 import PollBubble from "./tg/PollBubble";
@@ -141,6 +145,18 @@ const MAX_LEN = 2000;
 // Forwarded messages carry their origin inline as a leading [fwd:NAME] token so
 // no schema/DB change is needed: the origin name is parsed back out at render
 // time and shown as a Telegram-style "Forwarded from" banner (see MessageBubble).
+/**
+ * A pictograph that survived the paste upgrade (outside any [ce:] token)
+ * means an UNKNOWN pack — kick a background pack-list refresh so a re-paste
+ * (after the bot taught the pack, or a doc-id paste auto-downloaded it)
+ * upgrades without a full page reload.
+ */
+function hasUnupgradedEmoji(s: string): boolean {
+  return (
+    !!s && /\p{Extended_Pictographic}/u.test(s.replace(/\[ce:\d+:[^\]]+\]/g, ""))
+  );
+}
+
 const FWD_RE = /^\[fwd:([^\]\n]{1,64})\]\n?/;
 function parseForward(body: string): { name: string | null; rest: string } {
   const m = FWD_RE.exec(body);
@@ -2531,6 +2547,14 @@ export default function CommunityChat({
                             );
                             if (up !== plain) tokens = up;
                           }
+                          if (
+                            hasUnupgradedEmoji(
+                              tokens ||
+                                e.clipboardData.getData("text/plain"),
+                            )
+                          ) {
+                            refreshCeAltMap();
+                          }
                           if (tokens) {
                             document.execCommand(
                               "insertHTML",
@@ -2873,6 +2897,14 @@ export default function CommunityChat({
                               ceAltToId,
                             );
                             if (up !== plain) tokens = up;
+                          }
+                          if (
+                            hasUnupgradedEmoji(
+                              tokens ||
+                                e.clipboardData.getData("text/plain"),
+                            )
+                          ) {
+                            refreshCeAltMap();
                           }
                           if (tokens) {
                             document.execCommand(

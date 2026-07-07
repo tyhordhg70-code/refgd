@@ -18,6 +18,7 @@ import {
   setForwardPromptMsg,
   claimPendingForwards,
   purgeStalePendingForwards,
+  learnEmojiPacksFromIds,
   type PendingForwardRow,
   type VouchSection,
 } from "@/lib/community";
@@ -63,6 +64,12 @@ type TgForwardOrigin =
   | { type: "hidden_user"; sender_user_name: string }
   | { type: "chat"; sender_chat: { title?: string } }
   | { type: "channel"; chat: { title?: string } };
+type TgEntity = {
+  type: string;
+  offset: number;
+  length: number;
+  custom_emoji_id?: string;
+};
 type TgMessage = {
   message_id: number;
   date?: number;
@@ -72,6 +79,8 @@ type TgMessage = {
   chat?: { id?: number | string };
   from?: { id?: number | string; first_name?: string; last_name?: string };
   photo?: TgPhotoSize[];
+  entities?: TgEntity[];
+  caption_entities?: TgEntity[];
   forward_origin?: TgForwardOrigin;
   forward_from?: { first_name?: string; last_name?: string };
   forward_sender_name?: string;
@@ -131,6 +140,9 @@ function helpText(): string {
     "/announcements — post the queued batch to Announcements",
     "",
     "/status — show post counts",
+    "",
+    "🧩 New emoji pack? Send me any message containing its custom emoji",
+    "and I'll add the whole pack to the site.",
   ].join("\n");
 }
 
@@ -312,6 +324,53 @@ export async function POST(req: Request) {
   }
 
   const text = (msg.text ?? "").trim();
+
+  // ── emoji-pack teaching ──────────────────────────────────────────────
+  // Native Telegram apps copy custom emoji as BARE unicode, so a pasted
+  // unknown-pack emoji can never be resolved on the website. The one place
+  // the document ids still travel is a Telegram message's entities — so any
+  // admin message/forward containing custom emoji teaches the library its
+  // packs right here. Forwards keep flowing into the ingestion queue below;
+  // a message that is ONLY custom emoji (the deliberate "teach this" DM) is
+  // answered and consumed so it never becomes a queued vouch by accident.
+  const ceIds = [
+    ...(msg.entities ?? []),
+    ...(msg.caption_entities ?? []),
+  ]
+    .filter((e) => e.type === "custom_emoji" && e.custom_emoji_id)
+    .map((e) => e.custom_emoji_id as string);
+  if (ceIds.length > 0) {
+    const titles = await learnEmojiPacksFromIds(ceIds);
+    if (titles.length > 0) {
+      await sendCommunityTelegram(
+        chatId,
+        `🧩 Added emoji pack${titles.length === 1 ? "" : "s"}: <b>${titles
+          .map((t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;"))
+          .join("</b>, <b>")}</b> — the whole pack now works on the site (picker + pastes).`,
+      );
+    }
+    const emojiOnly =
+      !msg.caption &&
+      (msg.photo ?? []).length === 0 &&
+      !msg.forward_origin &&
+      !msg.forward_from &&
+      !msg.forward_sender_name &&
+      text
+        .replace(/[0-9#*]\uFE0F?\u20E3/gu, "")
+        .replace(
+          /\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|\s|\uFE0F|\u200D/gu,
+          "",
+        ) === "";
+    if (emojiOnly) {
+      if (titles.length === 0) {
+        await sendCommunityTelegram(
+          chatId,
+          "✅ Every emoji in that message is already in the site's library. If one still shows as a plain emoji on the site, reopen the community (fresh load) and paste again.",
+        );
+      }
+      return NextResponse.json({ ok: true });
+    }
+  }
 
   // ── slash commands ───────────────────────────────────────────────────
   if (text.startsWith("/")) {

@@ -16,7 +16,11 @@ import {
   communityBotToken,
   getStickerSet,
 } from "./community-bot";
-import { getStickersBatch, fetchStickerArt } from "./emoji-fetch";
+import {
+  getStickersBatch,
+  fetchStickerArt,
+  type TgSticker,
+} from "./emoji-fetch";
 import { CUSTOM_EMOJI_IDS, EMOJI_CACHE_VERSION } from "./custom-emoji";
 
 export type VouchSection = "testimonials" | "buy4u" | "announcements";
@@ -1173,38 +1177,10 @@ export async function discoverMessageEmoji(body: string): Promise<void> {
     if (fresh.length === 0) return;
     const { ok, stickers } = await getStickersBatch(token, fresh);
     // Owner rule (2026-07-07): a pasted emoji from an UNKNOWN pack pulls the
-    // WHOLE pack into the library — getStickerSet(set_name) → upsert into
-    // community_emoji_pack, so every emoji in it becomes picker-visible AND
-    // allowlisted on the unauthenticated serve route (isPackEmoji). Bounded
-    // (max 2 new sets per message) and fail-soft like the rest of discovery;
-    // junk ids never reach here because Telegram returns no sticker for them.
-    const newSets: string[] = [];
-    for (const id of fresh) {
-      const name = (stickers.get(id)?.set_name ?? "").trim();
-      if (!name || newSets.includes(name)) continue;
-      if (newSets.length >= 2) break;
-      const { rows: setRows } = await getPool().query<{ x: number }>(
-        `SELECT 1 AS x FROM community_emoji_pack WHERE set_name = $1 LIMIT 1`,
-        [name],
-      );
-      if (setRows.length === 0) newSets.push(name);
-    }
-    for (const name of newSets) {
-      const set = await getStickerSet(name);
-      if (!set) continue;
-      const packRows: PackEmoji[] = [];
-      for (const st of set.stickers) {
-        const cid = st.custom_emoji_id;
-        if (!cid) continue;
-        packRows.push({
-          id: cid,
-          alt: st.emoji ?? "",
-          setName: set.name,
-          title: set.title,
-        });
-      }
-      if (packRows.length > 0) await upsertPackEmoji(packRows);
-    }
+    // WHOLE pack into the library (max 2 new sets per message, fail-soft;
+    // junk ids never reach here because Telegram returns no sticker for
+    // them). Shared with the bot's DM teach path — see importSetsFromStickers.
+    await importSetsFromStickers(stickers, fresh, 2);
     for (const id of fresh) {
       const sticker = stickers.get(id);
       if (!sticker) {
@@ -1229,6 +1205,84 @@ export async function discoverMessageEmoji(body: string): Promise<void> {
     }
   } catch {
     // Fail-soft: emoji discovery must never block or break a message write.
+  }
+}
+
+/**
+ * Import every UNKNOWN pack (set_name) referenced by these resolved stickers
+ * into community_emoji_pack. Admin-removed packs (EMOJI_PACK_DENYLIST_KEY)
+ * are skipped so auto-discovery can never silently resurrect a curated-out
+ * pack — only the explicit admin discover route may do that. Returns the
+ * titles of the packs actually imported (for user-facing confirmations).
+ */
+async function importSetsFromStickers(
+  stickers: Map<string, TgSticker>,
+  ids: string[],
+  maxSets: number,
+): Promise<string[]> {
+  const denyRaw = await getModConfig<string[]>(EMOJI_PACK_DENYLIST_KEY, []);
+  const denylist = new Set(Array.isArray(denyRaw) ? denyRaw : []);
+  const newSets: string[] = [];
+  for (const id of ids) {
+    const name = (stickers.get(id)?.set_name ?? "").trim();
+    if (!name || denylist.has(name) || newSets.includes(name)) continue;
+    if (newSets.length >= maxSets) break;
+    const { rows: setRows } = await getPool().query<{ x: number }>(
+      `SELECT 1 AS x FROM community_emoji_pack WHERE set_name = $1 LIMIT 1`,
+      [name],
+    );
+    if (setRows.length === 0) newSets.push(name);
+  }
+  const titles: string[] = [];
+  for (const name of newSets) {
+    const set = await getStickerSet(name);
+    if (!set) continue;
+    const packRows: PackEmoji[] = [];
+    for (const st of set.stickers) {
+      const cid = st.custom_emoji_id;
+      if (!cid) continue;
+      packRows.push({
+        id: cid,
+        alt: st.emoji ?? "",
+        setName: set.name,
+        title: set.title,
+      });
+    }
+    if (packRows.length > 0) {
+      await upsertPackEmoji(packRows);
+      titles.push(set.title || set.name);
+    }
+  }
+  return titles;
+}
+
+/**
+ * Teach the library new packs from explicit custom-emoji document ids — the
+ * community bot's DM path. Native Telegram apps copy custom emoji as BARE
+ * unicode (no document id), so a pasted unknown-pack emoji can never be
+ * resolved website-side; the one channel that still carries the ids is a
+ * Telegram message's entities, which the ingestion bot sees. An admin
+ * DMs/forwards any message containing the emoji and every unknown pack in it
+ * gets imported (picker-visible + serve-route allowlisted). Returns imported
+ * pack titles; [] when everything was already known (or on any failure —
+ * teaching must never break the webhook).
+ */
+export async function learnEmojiPacksFromIds(
+  rawIds: string[],
+): Promise<string[]> {
+  try {
+    const token = communityBotToken();
+    if (!token) return [];
+    const ids = [...new Set(rawIds.filter((s) => /^\d{1,32}$/.test(s)))].slice(
+      0,
+      20,
+    );
+    if (ids.length === 0) return [];
+    await initDb();
+    const { stickers } = await getStickersBatch(token, ids);
+    return await importSetsFromStickers(stickers, ids, 5);
+  } catch {
+    return [];
   }
 }
 
