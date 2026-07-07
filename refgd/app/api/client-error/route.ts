@@ -46,8 +46,38 @@ function cut(v: unknown, max: number): string {
   return typeof v === "string" ? v.slice(0, max) : "";
 }
 
+// Per-IP throttle: crash reports are rare by nature (the client caps itself
+// at 3 per page load), so anything chattier is a flood — drop it before it
+// reaches the pool. In-memory is fine per worker; the cap just needs to be
+// rough, not exact.
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX = 10;
+const rateHits = new Map<string, number[]>();
+function rateLimited(ip: string): boolean {
+  const now = Date.now();
+  const hits = (rateHits.get(ip) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+  if (hits.length >= RATE_MAX) {
+    rateHits.set(ip, hits);
+    return true;
+  }
+  hits.push(now);
+  rateHits.set(ip, hits);
+  // Keep the map bounded under address churn.
+  if (rateHits.size > 500) {
+    for (const [k, v] of rateHits) {
+      if (v.every((t) => now - t >= RATE_WINDOW_MS)) rateHits.delete(k);
+    }
+  }
+  return false;
+}
+
 export async function POST(req: Request) {
   try {
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    if (rateLimited(ip)) {
+      return NextResponse.json({ ok: false }, { status: 429 });
+    }
     const body = (await req.json().catch(() => null)) as Record<
       string,
       unknown
