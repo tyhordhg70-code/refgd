@@ -3009,13 +3009,62 @@ span.tg-edit-ce-lottie svg {
 }
 
 /* ── Ban gate ─────────────────────────────────────────────────────────
-   A banned member (or a device-evading ban) must see NOTHING at all — not
-   even the topic list. TelegramApp renders this blank themed screen instead
-   of the whole app while the ban check runs and permanently once blocked. */
+   A banned member (or a device-evading ban) must not see the community at
+   all — no topic list, no chat. TelegramApp renders this themed screen
+   instead of the whole app: blank while the ban check runs, then a
+   Rose-style "You have been banned" notice (with the /ban reason right
+   beside it, when one was given) once blocked. */
 .tg-access-block {
   position: absolute;
   inset: 0;
   background: var(--color-background, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.tg-banned-note {
+  max-width: 20rem;
+  text-align: center;
+  color: var(--color-text, #000);
+  animation: tg-banned-in 0.35s ease-out both;
+}
+
+@keyframes tg-banned-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.tg-banned-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+  margin-bottom: 0.75rem;
+}
+
+.tg-banned-title {
+  font-size: 1.125rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.tg-banned-reason {
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: var(--color-text-secondary, #707579);
+  overflow-wrap: break-word;
+}
+
+.tg-banned-reason-label {
+  font-weight: 500;
+  color: var(--color-text, #000);
 }
 
 /* ── Topic-list entrance aura ─────────────────────────────────────────

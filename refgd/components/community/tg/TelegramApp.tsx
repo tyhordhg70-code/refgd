@@ -193,10 +193,14 @@ export default function TelegramApp({
   const router = useRouter();
   const [active, setActive] = useState<TopicKey | null>(null);
   const [inTg, setInTg] = useState(false);
-  // Ban gate: a banned member must see NOTHING at all when opening the Mini
-  // App — not even the topic list. "checking" (transient) and "blocked"
-  // (permanent) both render a blank themed screen. Web/non-banned = "ok".
+  // Ban gate: a banned member must not see the community when opening the
+  // Mini App — not even the topic list. "checking" (transient) renders a blank
+  // themed screen; "blocked" (permanent) shows the Rose-style banned notice
+  // (+ reason, when one was given with /ban). Web/non-banned = "ok".
   const [gate, setGate] = useState<"ok" | "checking" | "blocked">("ok");
+  // Rose-style ban reason (whatever the admin typed after /ban <user>), shown
+  // beside the "You have been banned" notice when present.
+  const [banReason, setBanReason] = useState<string | null>(null);
   // Topic-list entrance aura: a decorative halftone color wash chosen once per
   // visit (rotates on consecutive visits) that replays whenever the user
   // returns to the list. `auraGrad` = palette 0..9; `auraKey` remounts it.
@@ -403,8 +407,12 @@ export default function TelegramApp({
         const data = (await res.json().catch(() => null)) as {
           ok?: boolean;
           banned?: boolean;
+          banReason?: string | null;
         } | null;
-        if (!cancelled) setGate(data?.banned ? "blocked" : "ok");
+        if (!cancelled) {
+          setBanReason(data?.banned ? (data?.banReason ?? null) : null);
+          setGate(data?.banned ? "blocked" : "ok");
+        }
       } catch {
         // Fail OPEN: a network hiccup must not lock out a legitimate member.
         if (!cancelled) setGate("ok");
@@ -636,8 +644,9 @@ export default function TelegramApp({
     return () => root.removeEventListener("click", onClick);
   }, [inTg]);
 
-  // Ban gate: while checking, and permanently once blocked, render a blank
-  // themed screen so a banned member sees nothing at all — no topic list, no
+  // Ban gate: while checking this stays a blank themed screen; once BLOCKED it
+  // shows a Rose-style "You have been banned" notice with the reason the admin
+  // typed after /ban right beside it (when one was given). No topic list, no
   // chat. (All hooks above run unconditionally, so this early return is safe.)
   if (gate !== "ok") {
     return (
@@ -648,7 +657,25 @@ export default function TelegramApp({
           data-message-text-size="15"
         >
           <div className="tg-body Y7owXZmb is-pointer-env">
-            <div className="tg-access-block" aria-hidden />
+            <div
+              className="tg-access-block"
+              aria-hidden={gate !== "blocked"}
+            >
+              {gate === "blocked" && (
+                <div className="tg-banned-note" role="alert">
+                  <div className="tg-banned-icon" aria-hidden>
+                    🚫
+                  </div>
+                  <div className="tg-banned-title">You have been banned</div>
+                  {banReason ? (
+                    <div className="tg-banned-reason">
+                      <span className="tg-banned-reason-label">Reason:</span>{" "}
+                      {banReason}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

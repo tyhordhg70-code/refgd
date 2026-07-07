@@ -165,9 +165,12 @@ async function buildChatState(
   // Only checked on the FULL load (after === null) to avoid a per-poll DB read
   // — the shell blocks banned users up front, so a poll never runs for them.
   let banned = false;
+  let banReason: string | null = null;
   if (me && !me.admin && after === null) {
     try {
-      banned = (await getChatMemberModState(me.tid)).isBanned;
+      const mod = await getChatMemberModState(me.tid);
+      banned = mod.isBanned;
+      banReason = mod.isBanned ? mod.banReason : null;
     } catch {
       banned = false;
     }
@@ -182,6 +185,7 @@ async function buildChatState(
     welcome,
     typing,
     banned,
+    banReason,
   };
 }
 

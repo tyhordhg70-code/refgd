@@ -225,9 +225,17 @@ export async function executeModCommand(opts: {
 
       switch (cmd) {
         case "ban": {
-          await setMemberBan(target.tgId, true);
-          await audit("ban", target.tgId, { reason: target.args });
-          return { handled: true, ok: true, system: `Banned ${who}.` };
+          // Rose-style: whatever trails "/ban <user>" is the ban reason — it
+          // is stored with the ban (shown on the member's blocked screen) and
+          // echoed right beside the confirmation, like Rose does.
+          const reason = target.args?.trim() || null;
+          await setMemberBan(target.tgId, true, reason);
+          await audit("ban", target.tgId, { reason });
+          return {
+            handled: true,
+            ok: true,
+            system: reason ? `Banned ${who}.\nReason: ${reason}` : `Banned ${who}.`,
+          };
         }
         case "unban": {
           await setMemberBan(target.tgId, false);
@@ -271,7 +279,11 @@ export async function executeModCommand(opts: {
             );
             await resetWarns(target.tgId);
             if (act.type === "ban") {
-              await setMemberBan(target.tgId, true);
+              await setMemberBan(
+                target.tgId,
+                true,
+                `Warn limit reached (${count}/${limit})`,
+              );
               await audit("auto-ban", target.tgId, { afterWarns: count });
               return {
                 handled: true,

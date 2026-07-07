@@ -643,6 +643,8 @@ export async function countChatMembers(): Promise<number> {
 export interface ChatMemberModState {
   exists: boolean;
   isBanned: boolean;
+  /** Reason the admin typed after "/ban <user>", if any (Rose-style). */
+  banReason: string | null;
   mutedUntil: string | null;
 }
 
@@ -652,12 +654,18 @@ export async function getChatMemberModState(
   await initDb();
   const { rows } = await getPool().query<{
     is_banned: boolean;
+    ban_reason: string | null;
     muted_until: string | null;
-  }>(`SELECT is_banned, muted_until FROM chat_members WHERE tg_id = $1`, [tgId]);
-  if (!rows[0]) return { exists: false, isBanned: false, mutedUntil: null };
+  }>(
+    `SELECT is_banned, ban_reason, muted_until FROM chat_members WHERE tg_id = $1`,
+    [tgId],
+  );
+  if (!rows[0])
+    return { exists: false, isBanned: false, banReason: null, mutedUntil: null };
   return {
     exists: true,
     isBanned: rows[0].is_banned,
+    banReason: rows[0].ban_reason,
     mutedUntil: rows[0].muted_until,
   };
 }
@@ -1364,13 +1372,24 @@ export async function ensureMemberStub(
 export async function setMemberBan(
   tgId: string,
   banned: boolean,
+  reason?: string | null,
 ): Promise<void> {
   await initDb();
   await ensureMemberStub(tgId);
-  await getPool().query(`UPDATE chat_members SET is_banned = $2 WHERE tg_id = $1`, [
-    tgId,
-    banned,
-  ]);
+  // Banning: keep any existing reason unless a new one is supplied (the
+  // device-evasion re-flag calls this without a reason and must not wipe the
+  // one the admin typed). Unbanning always clears the reason.
+  await getPool().query(
+    banned
+      ? `UPDATE chat_members
+            SET is_banned = TRUE,
+                ban_reason = COALESCE($2, ban_reason)
+          WHERE tg_id = $1`
+      : `UPDATE chat_members
+            SET is_banned = FALSE, ban_reason = NULL
+          WHERE tg_id = $1`,
+    banned ? [tgId, reason?.trim() || null] : [tgId],
+  );
   // IP/device ban (owner ask): banning a member also bans every device signal
   // hash ever recorded for them; unbanning clears those entries again. Both
   // are exact-hash operations — nothing range-based, nothing disclosed.

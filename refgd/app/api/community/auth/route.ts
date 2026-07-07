@@ -236,9 +236,12 @@ export async function POST(req: Request) {
   // ban above) so the shell can block a banned member from seeing anything at
   // all. Admins are never banned.
   let banned = false;
+  let banReason: string | null = null;
   if (!member.admin) {
     try {
-      banned = (await getChatMemberModState(member.tid)).isBanned;
+      const mod = await getChatMemberModState(member.tid);
+      banned = mod.isBanned;
+      banReason = mod.isBanned ? mod.banReason : null;
     } catch {
       banned = false;
     }
@@ -247,7 +250,7 @@ export async function POST(req: Request) {
   // Attribute a join to the invite link that brought them in (if any), then
   // clear the cookie so re-signing-in doesn't re-attribute. De-duped per
   // tg_id in recordInviteJoin, so this is safe even if the cookie lingers.
-  const res = NextResponse.json({ ok: true, member, banned });
+  const res = NextResponse.json({ ok: true, member, banned, banReason });
   try {
     const jar = await cookies();
     const slug = jar.get("rg_invite")?.value;

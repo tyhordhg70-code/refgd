@@ -199,6 +199,13 @@
         ALTER TABLE chat_members
           ADD COLUMN IF NOT EXISTS username TEXT;
 
+        -- Rose-style ban reason: whatever the admin typed after "/ban <user>"
+        -- is stored with the ban and shown to the banned member on their
+        -- blocked screen ("You have been banned — Reason: …"). NULL when no
+        -- reason was given; cleared again on /unban. Idempotent migration.
+        ALTER TABLE chat_members
+          ADD COLUMN IF NOT EXISTS ban_reason TEXT;
+
         -- IP + device-fingerprint ban enforcement (owner ask). Every sign-in
         -- records SALTED SHA-256 HASHES of the member's device signals — the
         -- raw IP / fingerprint is never stored, so nothing sensitive can leak

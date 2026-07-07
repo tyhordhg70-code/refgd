@@ -129,6 +129,8 @@ export interface ChatState {
   typing?: string[];
   /** True when the signed-in member is banned — the client must show nothing. */
   banned?: boolean;
+  /** Reason the admin gave with /ban, shown on the blocked screen (Rose-style). */
+  banReason?: string | null;
 }
 
 interface TelegramSafeAreaInset {
@@ -1159,6 +1161,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     state,
     me,
     banned: state?.banned ?? false,
+    banReason: state?.banReason ?? null,
     text,
     setText,
     sending,
