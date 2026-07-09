@@ -56,6 +56,24 @@ let ceAltMap: Map<string, string> = new Map();
 function isOfficialPack(g: PackGroup): boolean {
   return g.setName === "RestrictedEmoji" || g.title === "Animated Emoji";
 }
+
+/* Curated picks for alts the official pack does NOT cover and that several
+ * taught packs claim with visually DIFFERENT artwork (the unique-only rule
+ * above keeps those static). Each entry was chosen by inspecting every
+ * candidate's actual frames — never resurrect "first pack wins" here.
+ * An override applies only while its id is still present in a taught pack
+ * (removed pack → entry silently deactivates → static fallback, no 404 art).
+ * Official artwork, if it ever appears for one of these, still wins. */
+const CE_ALT_OVERRIDES: Record<string, string> = {
+  // Blue chevron arrow (DecorationEmojiPack .webm) — the pack carries 15
+  // arrow variants (green/red/pink/gold/…); this is the blue one matching
+  // the plain ➡️ glyph's blue. Verified frame-by-frame.
+  "➡️": "5213092589326052262",
+  // Classic gold/blue scales of justice (FinanceEmoji .tgs) — the TONEmoji
+  // alternative is TON-branded artwork, wrong for a plain ⚖️ paste.
+  "⚖️": "5400250414929041085",
+};
+
 function rebuildCeAltMap(groups: PackGroup[] | null): void {
   const claims = new Map<
     string,
@@ -82,8 +100,19 @@ function rebuildCeAltMap(groups: PackGroup[] | null): void {
     }
   }
   const next = new Map<string, string>();
+  const allIds = new Set<string>();
   for (const [key, cl] of claims) {
     if (cl.official || cl.ids.size === 1) next.set(key, cl.id);
+    for (const id of cl.ids) allIds.add(id);
+  }
+  for (const [alt, id] of Object.entries(CE_ALT_OVERRIDES)) {
+    if (!allIds.has(id)) continue; // pack no longer taught — deactivate
+    const bare = alt.replace(/\uFE0F/g, "");
+    for (const key of new Set([alt, bare])) {
+      if (!key) continue;
+      if (claims.get(key)?.official) continue; // canonical artwork wins
+      next.set(key, id);
+    }
   }
   ceAltMap = next;
 }
