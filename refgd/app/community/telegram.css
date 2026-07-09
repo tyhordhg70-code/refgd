@@ -3286,3 +3286,154 @@ span.tg-edit-ce-lottie svg {
   --aura-dot: rgba(99, 102, 241, 0.55);
   --aura-c: rgba(232, 121, 249, 0.5);
 }
+
+/* ── Chat wallpaper ("Customize background") ───────────────────────────
+   Full-bleed layer inside #MiddleColumn, replicating the t.me/bg preview
+   stack 1:1: TWallpaper canvas gradient (vendored Telegram engine) + the
+   pattern SVG tiled at 420px with mix-blend-mode:overlay. Negative
+   intensity = Telegram's dark style: black backdrop, the pattern MASKS
+   the gradient through it. Photo wallpapers are a plain cover-fit JPEG.
+   Absolute inset:0 resolves against #MiddleColumn's padding BOX, so the
+   layer stays full-bleed above the safe-area padding-top (by design). */
+.tg-app .tg-chat-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #fff;
+}
+.tg-app .tg-chat-bg.is-dark {
+  background: #000;
+}
+.tg-app .tg-chat-bg-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.tg-app .tg-chat-bg-pattern {
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: overlay;
+  background: center repeat;
+  background-size: 420px auto;
+  background-image: var(--pattern-url, none);
+  opacity: var(--pattern-intensity, 1);
+}
+.tg-app .tg-chat-bg.is-dark .tg-chat-bg-canvas {
+  -webkit-mask: center repeat;
+  -webkit-mask-size: 420px auto;
+  -webkit-mask-image: var(--pattern-url, none);
+  mask: center repeat;
+  mask-size: 420px auto;
+  mask-image: var(--pattern-url, none);
+  opacity: var(--pattern-intensity, 1);
+}
+.tg-app .tg-chat-bg.is-dark .tg-chat-bg-pattern {
+  display: none;
+}
+.tg-app .tg-chat-bg-image {
+  position: absolute;
+  inset: 0;
+  background: center no-repeat;
+  background-size: cover;
+}
+/* The vendored Web A skin paints the chat pane opaque white — make it
+   transparent so the wallpaper layer underneath shows through. */
+.tg-app .messages-layout {
+  background: transparent;
+}
+
+/* ── Wallpaper picker modal ───────────────────────────────────────────── */
+.tg-bgpick-modal {
+  max-width: 33.75rem;
+}
+.tg-bgpick-body {
+  padding-top: 0.25rem;
+  overscroll-behavior: contain;
+}
+.tg-bgpick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+  gap: 0.5rem;
+}
+.tg-bgpick-tile {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  border: 0;
+  padding: 0;
+  border-radius: 0.625rem;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--color-chat-hover, #f4f4f5);
+}
+.tg-bgpick-tile:focus-visible {
+  outline: 2px solid var(--color-primary, #3390ec);
+  outline-offset: 2px;
+}
+.tg-bgpick-tile.is-selected::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--color-primary, #3390ec);
+  border-radius: 0.625rem;
+  pointer-events: none;
+}
+.tg-bgpick-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* Pattern tile: static CSS gradient of the same palette (the canvas engine
+   is a singleton, so thumbnails can't each run it) + the real pattern SVG
+   tiled smaller to read at tile scale. */
+.tg-bgpick-pattern {
+  position: absolute;
+  inset: 0;
+  background: var(--pv-gradient);
+}
+.tg-bgpick-pattern::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: overlay;
+  background: center repeat;
+  background-size: 10rem auto;
+  background-image: var(--pattern-url, none);
+  opacity: var(--pattern-intensity, 1);
+}
+.tg-bgpick-pattern.is-dark {
+  background: #000;
+}
+.tg-bgpick-pattern.is-dark::after {
+  mix-blend-mode: normal;
+  background: var(--pv-gradient) center repeat;
+  -webkit-mask: center repeat;
+  -webkit-mask-size: 10rem auto;
+  -webkit-mask-image: var(--pattern-url, none);
+  mask: center repeat;
+  mask-size: 10rem auto;
+  mask-image: var(--pattern-url, none);
+}
+.tg-bgpick-check {
+  position: absolute;
+  right: 0.375rem;
+  bottom: 0.375rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary, #3390ec);
+  color: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
+}
+.tg-bgpick-check svg {
+  width: 1rem;
+  height: 1rem;
+}

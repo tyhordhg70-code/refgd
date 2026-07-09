@@ -22,6 +22,7 @@ import {
 import { getDeviceSignals } from "../device-fp";
 import { parseStartParam, readStartParam } from "./deeplink";
 import { IconBell, IconChat, IconCollapse, IconExpand } from "./TgIcons";
+import ChatBackground from "./ChatBackground";
 import MiddleHeader from "./MiddleHeader";
 import MessageBubble from "./MessageBubble";
 import VouchHistory from "./VouchTopic";
@@ -1321,6 +1322,9 @@ export default function TelegramApp({
               onTouchCancel={onMiddleTouchEnd}
             >
               <div className="resize-handle" />
+              {/* Wallpaper layer — first positioned child so every later
+                  sibling (header, portals, .messages-layout) paints above. */}
+              <ChatBackground />
               <div id="middle-column-portals" />
               <button
                 type="button"

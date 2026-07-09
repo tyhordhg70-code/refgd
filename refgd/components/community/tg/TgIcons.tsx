@@ -83,6 +83,17 @@ export function IconSettings() {
   );
 }
 
+export function IconWallpaper() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm0 16H5V5h14v14ZM8.75 11a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5ZM6.5 17l3.22-4.14 2.3 2.96 3.21-4.14L18.5 17h-12Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export function IconExpand() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden>

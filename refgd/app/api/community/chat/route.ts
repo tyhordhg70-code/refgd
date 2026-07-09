@@ -60,8 +60,8 @@ const ROSE_ANNOUNCE_CMDS = new Set([
   "setflood",
   "pin",
   "unpin",
-  "del",
-  "purge",
+  // "del"/"purge" intentionally NOT announced: Telegram never posts a chat
+  // message for deletions — the client shows a fading center toast instead.
   "setwelcome",
   "welcome",
   "setrules",

@@ -14,6 +14,7 @@ import {
 import { createPortal } from "react-dom";
 import NotificationSettings from "./NotificationSettings";
 import AdminPanel from "./AdminPanel";
+import ChatBackgroundPicker from "./ChatBackgroundPicker";
 import MiddleHeader from "./tg/MiddleHeader";
 import MessageBubble from "./tg/MessageBubble";
 import Appendix from "./tg/Appendix";
@@ -47,6 +48,7 @@ import {
   IconReply,
   IconSelect,
   IconSettings,
+  IconWallpaper,
 } from "./tg/TgIcons";
 import {
   CustomEmojiImg,
@@ -311,6 +313,9 @@ export default function CommunityChat({
   // instead of the input. (Server enforces the same gate in the POST route.)
   const lockedForMembers = !isGroupChat;
   const [menuOpen, setMenuOpen] = useState(false);
+  // "Customize background" — a per-device client preference (localStorage),
+  // so the picker is available to everyone, signed-in or not.
+  const [showBgPicker, setShowBgPicker] = useState(false);
   // In-chat search: null = closed, string = open with that query.
   const [search, setSearch] = useState<string | null>(null);
   // Pinned-messages panel: when true the list shows ONLY pinned messages.
@@ -1673,6 +1678,17 @@ export default function CommunityChat({
                 {chat.isFullscreen ? "Minimize" : "Full screen"}
               </button>
             )}
+            <button
+              type="button"
+              className="tg-menu-item"
+              onClick={() => {
+                setMenuOpen(false);
+                setShowBgPicker(true);
+              }}
+            >
+              <IconWallpaper />
+              Customize background
+            </button>
             <a
               className="tg-menu-item"
               href={ADMIN_TG}
@@ -1689,6 +1705,14 @@ export default function CommunityChat({
 
       {showNotif && <NotificationSettings onClose={() => setShowNotif(false)} />}
       {showAdmin && me?.admin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+      {/* Portaled: #MiddleColumn's transform would re-anchor this fixed
+          backdrop to the shifted pane on desktop (overlay-portal rule). */}
+      {showBgPicker &&
+        overlayEl &&
+        createPortal(
+          <ChatBackgroundPicker onClose={() => setShowBgPicker(false)} />,
+          overlayEl,
+        )}
 
       {/* Fullscreen entry prompt — asked once per session, or remembered. */}
       {fsPrompt && (
