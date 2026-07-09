@@ -2248,7 +2248,14 @@ export default function CommunityChat({
                                   sender={
                                     first
                                       ? {
-                                          name: m.authorName,
+                                          // The reserved service account
+                                          // (tgId "0") ALWAYS renders as Rose,
+                                          // even if a stale/imported row
+                                          // carries another author name.
+                                          name:
+                                            m.tgId === "0"
+                                              ? "Rose"
+                                              : m.authorName,
                                           peer,
                                           admin: m.isAdmin,
                                           bot: m.tgId === "0",
@@ -2258,8 +2265,14 @@ export default function CommunityChat({
                                   avatar={
                                     last
                                       ? {
-                                          name: m.authorName,
-                                          photo: m.authorPhoto,
+                                          name:
+                                            m.tgId === "0"
+                                              ? "Rose"
+                                              : m.authorName,
+                                          photo:
+                                            m.tgId === "0"
+                                              ? "/rose-bot-photo.jpg"
+                                              : m.authorPhoto,
                                           peer,
                                         }
                                       : null

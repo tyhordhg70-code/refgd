@@ -1761,10 +1761,11 @@ video.tg-custom-emoji {
   border-radius: 0.625rem;
   white-space: nowrap;
 }
-/* "bot" tag beside the reserved bot member's (Rose) name — Telegram-style,
-   sits right next to the name (NOT pushed to the far edge like Admin). */
+/* "bot" tag on the reserved bot member's (Rose) bubbles — pushed to the far
+   end of the title row, mirroring the Admin badge (owner ask: tags sit at
+   the end of the bubble like Telegram's group badges). */
 .tg-app .bot-title-badge {
-  margin-inline-start: 0.375rem;
+  margin-inline-start: auto;
   padding: 0.0625rem 0.4375rem;
   font-size: 0.75rem;
   font-weight: 500;
@@ -2082,6 +2083,12 @@ video.tg-custom-emoji {
   scrollbar-width: none;
   padding: 0.25rem 0.375rem;
   border-bottom: 1px solid var(--color-borders, rgba(0, 0, 0, 0.08));
+  /* Horizontal swipes must reach THIS strip: the page's Lenis smooth-scroll
+     eats touchmove (data-lenis-prevent on the element opts out) and without
+     an explicit touch-action the browser can hand the gesture to vertical
+     panning of an ancestor instead of scrolling the strip. */
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
 }
 .tg-emoji-cats::-webkit-scrollbar {
   display: none;

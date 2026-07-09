@@ -392,6 +392,137 @@ type EmojiStage =
   | { kind: "video"; src: string }
   | { kind: "lottie"; src: string };
 
+/* ── Persistent emoji media cache (Cache Storage + blob URLs) ─────────────
+ * The serve route is immutable/1-year, but that alone never made repeats
+ * fast: `<video>` elements go through the browser's MEDIA cache (Range
+ * requests), which routinely bypasses the HTTP cache the warmer filled — so
+ * every animated tile re-downloaded on every panel open/visit. This layer
+ * stores the raw bytes in Cache Storage (survives reloads, unlike blob URLs)
+ * and hands `<video>`/Lottie a same-session blob URL rebuilt from those
+ * bytes: zero network, no Range games. Cache name embeds the emoji cache
+ * version, so a `?v` bump auto-purges every stale entry. */
+const EMOJI_MEDIA_CACHE = `refgd-emoji-${EMOJI_CACHE_VERSION}`;
+let emojiCachePromise: Promise<Cache | null> | null = null;
+
+function openEmojiCache(): Promise<Cache | null> {
+  if (typeof window === "undefined" || typeof caches === "undefined") {
+    return Promise.resolve(null);
+  }
+  if (!emojiCachePromise) {
+    emojiCachePromise = caches
+      .open(EMOJI_MEDIA_CACHE)
+      .then((cache) => {
+        // Sweep caches from older EMOJI_CACHE_VERSIONs in the background.
+        void caches
+          .keys()
+          .then((keys) => {
+            for (const k of keys) {
+              if (k.startsWith("refgd-emoji-") && k !== EMOJI_MEDIA_CACHE) {
+                void caches.delete(k);
+              }
+            }
+          })
+          .catch(() => undefined);
+        return cache;
+      })
+      .catch(() => null);
+  }
+  return emojiCachePromise;
+}
+
+/** Fetch through the persistent cache: Cache Storage hit → no network;
+ *  miss → network, and an OK response is stored for every later visit.
+ *  Returns null on any failure (caller falls back / cascades). */
+async function cachedEmojiFetch(url: string): Promise<Response | null> {
+  const cache = await openEmojiCache();
+  if (cache) {
+    try {
+      const hit = await cache.match(url);
+      if (hit) return hit;
+    } catch {
+      /* ignore — fall through to network */
+    }
+  }
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    if (cache) {
+      try {
+        await cache.put(url, res.clone());
+      } catch {
+        /* quota/opaque — serve without persisting */
+      }
+    }
+    return res;
+  } catch {
+    return null;
+  }
+}
+
+/* Session blob-URL memo on top of the byte cache: one object URL per source
+ * URL, created only for media that actually mounts near the viewport (the
+ * warmer deliberately does NOT create blob URLs — thousands of them would
+ * pin all pack artwork in memory). */
+const emojiBlobUrls = new Map<string, string>();
+const emojiBlobPending = new Map<string, Promise<string | null>>();
+
+function emojiBlobUrl(url: string): Promise<string | null> {
+  const memo = emojiBlobUrls.get(url);
+  if (memo) return Promise.resolve(memo);
+  let p = emojiBlobPending.get(url);
+  if (!p) {
+    p = (async () => {
+      const res = await cachedEmojiFetch(url);
+      if (!res) return null;
+      try {
+        const blob = await res.blob();
+        if (blob.size === 0) return null;
+        const existing = emojiBlobUrls.get(url);
+        if (existing) return existing;
+        const u = URL.createObjectURL(blob);
+        emojiBlobUrls.set(url, u);
+        return u;
+      } catch {
+        return null;
+      }
+    })().finally(() => emojiBlobPending.delete(url));
+    emojiBlobPending.set(url, p);
+  }
+  return p;
+}
+
+/**
+ * Blob src for a `<video>` emoji stage. Returns the ready object URL
+ * (instantly on repeat mounts via the memo), null while the bytes load, or
+ * the ORIGINAL url when the cache path fails — direct network playback is
+ * the fallback, and its onError still advances the cascade.
+ */
+function useEmojiVideoSrc(url: string | null): string | null {
+  const [src, setSrc] = useState<string | null>(() =>
+    url ? (emojiBlobUrls.get(url) ?? null) : null,
+  );
+  useEffect(() => {
+    if (!url) {
+      setSrc(null);
+      return undefined;
+    }
+    const memo = emojiBlobUrls.get(url);
+    if (memo) {
+      setSrc(memo);
+      return undefined;
+    }
+    setSrc(null);
+    let alive = true;
+    void emojiBlobUrl(url).then((u) => {
+      if (alive) setSrc(u ?? url);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [url]);
+  return src;
+}
+
 /** Bounded retry backoff for custom-emoji artwork (spreads Bot API stampedes). */
 const EMOJI_RETRY_DELAYS_MS = [2000, 5000, 12000];
 
@@ -490,8 +621,10 @@ function LottieEmoji({
       started = true;
       try {
         emojiDebugBump("lottie:start");
-        const res = await fetch(src);
-        if (!res.ok) throw new Error(`http ${res.status}`);
+        // Persistent-cache path: repeat visits parse the JSON straight from
+        // Cache Storage instead of re-downloading it.
+        const res = await cachedEmojiFetch(src);
+        if (!res) throw new Error("fetch failed");
         const ct = res.headers.get("content-type") ?? "";
         if (!ct.includes("json")) throw new Error(`ct ${ct}`);
         emojiDebugBump("lottie:fetch-ok");
@@ -659,8 +792,11 @@ function warmStep(): void {
     const id = warmPending.shift();
     if (!id) break;
     warmActive++;
-    fetch(`/api/community/emoji/${id}?v=${EMOJI_CACHE_VERSION}`)
-      .then((r) => (r.ok ? r.blob() : null))
+    // Warm into the PERSISTENT Cache Storage layer (cachedEmojiFetch skips
+    // the network entirely for already-cached ids, so re-warms are free);
+    // draining the body finishes the write without keeping anything around.
+    cachedEmojiFetch(`/api/community/emoji/${id}?v=${EMOJI_CACHE_VERSION}`)
+      .then((r) => (r ? r.blob().catch(() => null) : null))
       .catch(() => null)
       .then(() => {
         warmActive--;
@@ -997,6 +1133,14 @@ export function CustomEmojiImg({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, attempt]);
 
+  // Resolved BEFORE the early returns so the video blob hook below runs on
+  // every render (hooks rule); it's a no-op (null url) until the tile is
+  // near and its cascade sits at the video stage.
+  const stage = near ? (stages[idx] as EmojiStage | undefined) : undefined;
+  const videoSrc = useEmojiVideoSrc(
+    stage?.kind === "video" ? stage.src : null,
+  );
+
   // Both placeholder spans carry data-document-id/data-alt so copying a
   // bubble mid-load still round-trips the [ce:] token (same reason as the
   // LottieEmoji span — the serializer matches the id on any element).
@@ -1012,7 +1156,6 @@ export function CustomEmojiImg({
       />
     );
   }
-  const stage = stages[idx] as EmojiStage | undefined;
   if (!stage) {
     // Waiting for a retry (or exhausted): hold the emoji's box, show nothing —
     // never a substitute glyph.
@@ -1038,10 +1181,22 @@ export function CustomEmojiImg({
     );
   }
   if (stage.kind === "video") {
+    if (!videoSrc) {
+      // Blob still building from Cache Storage / network — hold the box.
+      return (
+        <span
+          className="emoji emoji-small tg-custom-emoji"
+          role="img"
+          aria-label={alt}
+          data-document-id={id}
+          data-alt={alt}
+        />
+      );
+    }
     return (
       <video
         ref={playCustomEmojiVideo}
-        src={stage.src}
+        src={videoSrc}
         className="emoji emoji-small tg-custom-emoji"
         data-document-id={id}
         data-alt={alt}

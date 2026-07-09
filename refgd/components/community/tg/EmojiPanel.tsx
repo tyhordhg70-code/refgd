@@ -206,6 +206,41 @@ export default function EmojiPanel({
   const [activeCat, setActiveCat] = useState(EMOJI_CATEGORIES[0].key);
   const sectionRefs = useRef(new Map<string, HTMLDivElement>());
 
+  // Fit-above-the-composer cap: the panel is anchored to the composer's top
+  // edge, so a tall composer (multi-line draft) pushes it up — with only the
+  // static CSS max-height it kept its full height and its TOP got clipped by
+  // the viewport. Measure the anchor's viewport top (getBoundingClientRect is
+  // viewport-relative even inside #MiddleColumn's transform — never switch to
+  // position:fixed here, the transform re-anchors fixed elements) and cap the
+  // panel to the space actually available above it. Re-measured whenever the
+  // composer resizes (typing) or the viewport changes (mobile keyboard).
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [maxH, setMaxH] = useState<number | null>(null);
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el) return undefined;
+    const host = (el.offsetParent as HTMLElement | null) ?? el.parentElement;
+    const measure = () => {
+      const anchor = host ?? el;
+      const top = anchor.getBoundingClientRect().top;
+      // 0.5rem gap above the composer + 0.5rem breathing room below the
+      // viewport top; never collapse below a usable minimum.
+      setMaxH(Math.max(160, Math.floor(top - 16)));
+    };
+    measure();
+    const ro =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    if (ro && host) ro.observe(host);
+    window.addEventListener("resize", measure);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", measure);
+      vv?.removeEventListener("resize", measure);
+    };
+  }, []);
+
   // Discovered custom packs (seeded from the module memo when this isn't the
   // first open; falls back to static only after a load confirms none exist).
   const [packs, setPacks] = useState<PackGroup[] | null>(packMemoCache);
@@ -264,14 +299,69 @@ export default function EmojiPanel({
   // Guards the one-shot admin auto-discovery so it can never loop.
   const autoTriedRef = useRef(false);
 
+  // Grid-scroll → active-tab sync (Web A behavior). Tab CLICKS also scroll
+  // the grid, so the resulting scroll events must not fight the clicked
+  // selection — suppress the sync briefly after a programmatic jump.
+  const suppressSyncUntilRef = useRef(0);
+  const catsBarRef = useRef<HTMLDivElement | null>(null);
+
   const scrollToCat = (key: string) => {
+    suppressSyncUntilRef.current = Date.now() + 500;
     setActiveCat(key);
     sectionRefs.current.get(key)?.scrollIntoView({ block: "start" });
   };
   const scrollToPack = (key: string) => {
+    suppressSyncUntilRef.current = Date.now() + 500;
     setActivePack(key);
     packRefs.current.get(key)?.scrollIntoView({ block: "start" });
   };
+
+  // The LAST section header at (or above) the grid's top edge is the section
+  // the user is looking at. Map iteration follows insertion (render) order,
+  // but compare by measured position anyway so a re-registered ref can't
+  // reorder the result.
+  const syncActiveFromGrid = (
+    grid: HTMLElement,
+    refs: Map<string, HTMLDivElement>,
+    set: (k: string) => void,
+  ) => {
+    if (Date.now() < suppressSyncUntilRef.current) return;
+    const gridTop = grid.getBoundingClientRect().top;
+    let bestKey: string | null = null;
+    let bestTop = -Infinity;
+    let firstKey: string | null = null;
+    let firstTop = Infinity;
+    for (const [key, el] of refs) {
+      const top = el.getBoundingClientRect().top - gridTop;
+      if (top < firstTop) {
+        firstTop = top;
+        firstKey = key;
+      }
+      if (top <= 12 && top > bestTop) {
+        bestTop = top;
+        bestKey = key;
+      }
+    }
+    const next = bestKey ?? firstKey;
+    if (next) set(next);
+  };
+
+  // Keep the active tab visible in the category bar as the sync moves it.
+  // Manual scrollLeft nudge (NOT scrollIntoView — that can also scroll the
+  // panel/page ancestors).
+  useEffect(() => {
+    const bar = catsBarRef.current;
+    if (!bar) return;
+    const btn = bar.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!btn) return;
+    const barRect = bar.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    if (btnRect.left < barRect.left + 4) {
+      bar.scrollLeft += btnRect.left - barRect.left - 4;
+    } else if (btnRect.right > barRect.right - 4) {
+      bar.scrollLeft += btnRect.right - barRect.right + 4;
+    }
+  }, [activeCat, activePack, tab]);
 
   useEffect(() => {
     if (tab !== "custom" || packsLoaded) return;
@@ -528,7 +618,19 @@ export default function EmojiPanel({
         onClick={onClose}
         aria-label="Close emoji panel"
       />
-      <div className={`tg-emoji-panel${expanded ? " is-expanded" : ""}`}>
+      <div
+        ref={panelRef}
+        className={`tg-emoji-panel${expanded ? " is-expanded" : ""}`}
+        style={
+          maxH !== null
+            ? {
+                maxHeight: expanded
+                  ? `min(${maxH}px, 88vh, 42rem)`
+                  : `min(${maxH}px, 70vh, 26rem)`,
+              }
+            : undefined
+        }
+      >
         <div className="tg-emoji-tabs" role="tablist">
           <button
             type="button"
@@ -615,7 +717,12 @@ export default function EmojiPanel({
         )}
         {tab === "standard" ? (
           <>
-            <div className="tg-emoji-cats" role="tablist">
+            <div
+              ref={catsBarRef}
+              className="tg-emoji-cats"
+              role="tablist"
+              data-lenis-prevent
+            >
               {EMOJI_CATEGORIES.map((cat) => (
                 <button
                   key={cat.key}
@@ -639,7 +746,17 @@ export default function EmojiPanel({
                 </button>
               ))}
             </div>
-            <div className="tg-emoji-grid custom-scroll" data-lenis-prevent>
+            <div
+              className="tg-emoji-grid custom-scroll"
+              data-lenis-prevent
+              onScroll={(e) =>
+                syncActiveFromGrid(
+                  e.currentTarget,
+                  sectionRefs.current,
+                  setActiveCat,
+                )
+              }
+            >
               {EMOJI_CATEGORIES.map((cat) => (
                 <Fragment key={cat.key}>
                   <div
@@ -731,7 +848,12 @@ export default function EmojiPanel({
             {packs && packs.length > 0 ? (
               <>
             {packs.length > 1 && (
-              <div className="tg-emoji-cats" role="tablist">
+              <div
+                ref={catsBarRef}
+                className="tg-emoji-cats"
+                role="tablist"
+                data-lenis-prevent
+              >
                 {packs.map((g, i) => {
                   const key = packKey(g, i);
                   const icon = g.emoji[0];
@@ -757,7 +879,17 @@ export default function EmojiPanel({
                 })}
               </div>
             )}
-            <div className="tg-emoji-grid custom-scroll" data-lenis-prevent>
+            <div
+              className="tg-emoji-grid custom-scroll"
+              data-lenis-prevent
+              onScroll={(e) =>
+                syncActiveFromGrid(
+                  e.currentTarget,
+                  packRefs.current,
+                  setActivePack,
+                )
+              }
+            >
               {packs.map((g, i) => {
                 const key = packKey(g, i);
                 return (

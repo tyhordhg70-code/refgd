@@ -174,7 +174,7 @@ function sectionLabel(s: VouchSection): string {
 
 function helpText(): string {
   return [
-    "🤖 <b>RefundGod community bot</b>",
+    "🤖 <b>Rose — community bot</b>",
     "",
     "Forward messages to me — I'll queue them, then ask where the batch",
     "should post. Tap a button and everything queued posts there at once.",
