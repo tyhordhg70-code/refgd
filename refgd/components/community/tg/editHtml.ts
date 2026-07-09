@@ -223,17 +223,45 @@ function trackEditLottie(el: HTMLElement, destroy: () => void): void {
  * leaves the static still exactly as it was.
  */
 function ceLottie(img: HTMLImageElement, id: string): void {
+  // Claim the img SYNCHRONOUSLY: the error cascade (wireEditCeFallback) must
+  // not advance a lottie-bound img to its destructive <video> stage while
+  // the JSON + renderer are still loading — it would replace the node and
+  // this mount would find img.isConnected === false and silently give up
+  // (the "pasted animated emoji stays static except the cache-warm one" bug).
+  img.dataset.ceKind = "l";
   const alt = img.getAttribute("alt") ?? "";
+  // Mount failed (rate limit, bad bytes, lib unavailable): release the claim
+  // and — when the img has already exhausted its error cascade and paints as
+  // a broken image — degrade to the same token-preserving alt span ceVideo
+  // uses, so a failure never looks worse than the pre-claim behaviour.
+  const degrade = () => {
+    delete img.dataset.ceKind;
+    if (
+      img.isConnected &&
+      img.dataset.stage === "api" &&
+      img.complete &&
+      img.naturalWidth === 0
+    ) {
+      const s = document.createElement("span");
+      s.setAttribute("data-document-id", id);
+      s.setAttribute("data-alt", alt);
+      s.textContent = alt || "🙂";
+      img.replaceWith(s);
+    }
+  };
   void (async () => {
     try {
       const res = await fetch(
         `/api/community/emoji/${id}?v=${EMOJI_CACHE_VERSION}`,
       );
-      if (!res.ok) return;
-      if (!(res.headers.get("content-type") ?? "").includes("json")) return;
+      if (!res.ok) return degrade();
+      if (!(res.headers.get("content-type") ?? "").includes("json")) {
+        return degrade();
+      }
       const data = sanitizeLottieData(await res.json());
       const lottie = await loadLottieLib();
-      if (!lottie || !img.isConnected) return;
+      if (!lottie) return degrade();
+      if (!img.isConnected) return;
       const s = document.createElement("span");
       s.className = "tg-edit-ce tg-edit-ce-lottie";
       s.setAttribute("data-document-id", id);
@@ -251,7 +279,9 @@ function ceLottie(img: HTMLImageElement, id: string): void {
       anim.setSubframe?.(false);
       trackEditLottie(s, () => anim.destroy());
     } catch {
-      /* keep the static still — the token round-trips either way */
+      // Release the claim so the token-preserving alt degrade still runs —
+      // the token round-trips either way.
+      degrade();
     }
   })();
 }
@@ -274,7 +304,12 @@ export function wireEditCeFallback(el: HTMLElement): void {
       if (t.dataset.stage !== "api") {
         t.dataset.stage = "api";
         t.src = `/api/community/emoji/${t.dataset.documentId}?v=${EMOJI_CACHE_VERSION}`;
-      } else {
+      } else if (t.dataset.ceKind !== "l" && t.dataset.ceKind !== "p") {
+        // Lottie JSON served to an <img> always "errors" — that is NOT a
+        // missing-artwork signal. When the kinds resolver owns this img
+        // (claimed lottie, or verdict still pending), mounting a <video>
+        // here would destroy the node ceLottie is about to replace; the
+        // resolver's callback delivers the correct renderer instead.
         ceVideo(t, t.dataset.documentId);
       }
     },
@@ -301,11 +336,27 @@ export function wireEditCeAnimations(el: HTMLElement): void {
     for (const img of imgs) {
       if (img.dataset.kindChecked) continue;
       img.dataset.kindChecked = "1";
+      // "p" (pending) pauses the error cascade's video/degrade stage until
+      // the manifest/probe verdict lands — set BEFORE resolveEmojiKind so
+      // even a synchronous manifest answer can never lose the claim race.
+      img.dataset.ceKind = "p";
       const id = img.dataset.documentId ?? "";
       resolveEmojiKind(id, (kind) => {
         if (!img.isConnected) return;
-        if (kind === "video") ceVideo(img, id);
-        else if (kind === "lottie") ceLottie(img, id);
+        if (kind === "video") {
+          img.dataset.ceKind = "v";
+          ceVideo(img, id);
+        } else if (kind === "lottie") {
+          ceLottie(img, id);
+        } else {
+          // Static pack artwork — release the claim; if the api stage
+          // already errored while we were pending, re-kick the cascade by
+          // re-assigning the src (a plain retry of the immutable route).
+          delete img.dataset.ceKind;
+          if (img.dataset.stage === "api" && img.complete && img.naturalWidth === 0) {
+            img.src = `/api/community/emoji/${id}?v=${EMOJI_CACHE_VERSION}&r=1`;
+          }
+        }
       });
     }
   };
