@@ -3313,9 +3313,12 @@ span.tg-edit-ce-lottie svg {
   overflow: hidden;
   opacity: 0;
   will-change: opacity;
+  /* Entrance (owner 2026-07-10 round 5): quick soft fade for the band while
+     the star field lights up in a slow horizontal WAVE (tg-aura-wave on
+     ::after), then the breath follows once the wave completes (~3.4s). */
   animation:
-    tg-aura-in 2.4s ease-out forwards,
-    tg-aura-pulse 6.5s ease-in-out 2.4s infinite;
+    tg-aura-in 1.1s ease-out forwards,
+    tg-aura-pulse 6.5s ease-in-out 3.6s infinite;
 }
 .tg-topic-aura::before,
 .tg-topic-aura::after {
@@ -3328,24 +3331,30 @@ span.tg-edit-ce-lottie svg {
    (compositor-only transform) gives the Gemini-style "shifting gradient"
    motion without repainting. */
 .tg-topic-aura::before {
-  inset: 0 -18%;
+  /* Owner 2026-07-10 round 5 ("glow still too tall — just a little taller
+     than the diamonds"): the glow box is now BOTTOM-ANCHORED and sized off
+     the panel WIDTH exactly like the star band. Stars are width x 310/1320
+     tall; the glow is width x 400/1320 — ~1.3x the star band, so it clears
+     the mound tops by only a sliver. Element width = 136% of the panel
+     (the -18% overhang for the drift), hence 1795/400 ≈ (1320*1.36)/400. */
+  inset: auto -18% 0;
+  height: auto;
+  aspect-ratio: 1795 / 400;
+  max-height: 100%;
   /* Two layers (owner reference): a soft WHITE bloom hovering just above the
-     star field + the pastel color band rising from the bottom. Owner
-     2026-07-10 round 2 ("glow smaller, not so high up"): the band now fades
-     out by ~40% of the panel height (was 60%) and the bloom moved DOWN from
-     the panel top to sit right above the star mounds — in both reference
-     banners the light area hugs the halftone, nothing glows near the top. */
+     star mounds + the pastel color band rising from the bottom, both inside
+     the short bottom box so nothing glows up the panel. */
   background:
     radial-gradient(
-      55% 24% at 50% 58%,
-      rgba(255, 255, 255, 0.38) 0%,
+      50% 42% at 50% 30%,
+      rgba(255, 255, 255, 0.35) 0%,
       transparent 70%
     ),
     linear-gradient(
       to top,
       var(--aura-a) 0%,
-      var(--aura-b) 22%,
-      transparent 40%
+      var(--aura-b) 45%,
+      transparent 96%
     );
   will-change: transform;
   animation: tg-aura-drift 12s ease-in-out infinite alternate;
@@ -3386,15 +3395,38 @@ span.tg-edit-ce-lottie svg {
     var(--aura-dot) 100%
   );
   background-size: 300% 100%;
-  animation: tg-aura-shift 9s ease-in-out infinite alternate;
-  -webkit-mask-image: url("/community-aura-stars.png?v=2");
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-position: bottom center;
-  -webkit-mask-size: 100% auto;
-  mask-image: url("/community-aura-stars.png?v=2");
-  mask-repeat: no-repeat;
-  mask-position: bottom center;
-  mask-size: 100% auto;
+  animation:
+    tg-aura-shift 9s ease-in-out infinite alternate,
+    tg-aura-wave 3.2s ease-in-out both;
+  /* Entrance wave (owner round 5): a SECOND mask layer — an oversized soft
+     slanted wipe gradient — is INTERSECTED with the star PNG, and its
+     mask-position sweeps once left→right (tg-aura-wave) so the diamonds
+     light up in a slow horizontal wave before the breath takes over. The
+     static position below is the fully-lit end state (reduced-motion shows
+     it directly). webkit block first; the standard block (intersect) wins
+     wherever unprefixed mask is supported. */
+  -webkit-mask-image:
+    url("/community-aura-stars.png?v=3"),
+    linear-gradient(78deg, #000 0%, #000 33%, transparent 67%);
+  -webkit-mask-repeat: no-repeat, no-repeat;
+  -webkit-mask-position:
+    bottom center,
+    0% 0%;
+  -webkit-mask-size:
+    100% auto,
+    300% 100%;
+  -webkit-mask-composite: source-in;
+  mask-image:
+    url("/community-aura-stars.png?v=3"),
+    linear-gradient(78deg, #000 0%, #000 33%, transparent 67%);
+  mask-repeat: no-repeat, no-repeat;
+  mask-position:
+    bottom center,
+    0% 0%;
+  mask-size:
+    100% auto,
+    300% 100%;
+  mask-composite: intersect;
 }
 @keyframes tg-aura-in {
   0% {
@@ -3425,6 +3457,27 @@ span.tg-edit-ce-lottie svg {
   }
   100% {
     background-position: 100% 0;
+  }
+}
+/* Wipe-layer sweep: X 100%→0% slides the oversized slanted gradient so the
+   lit region grows left→right across the star band (layer 1 stays pinned
+   bottom center in every frame). */
+@keyframes tg-aura-wave {
+  0% {
+    -webkit-mask-position:
+      bottom center,
+      100% 0%;
+    mask-position:
+      bottom center,
+      100% 0%;
+  }
+  100% {
+    -webkit-mask-position:
+      bottom center,
+      0% 0%;
+    mask-position:
+      bottom center,
+      0% 0%;
   }
 }
 @keyframes tg-aura-drift {

@@ -1683,7 +1683,7 @@ export default function CommunityChat({
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((v) => !v)}
           >
-            <i className="icon icon-more" aria-hidden />
+            <i className="icon icon-settings" aria-hidden />
           </button>
         </MiddleHeader>
       )}

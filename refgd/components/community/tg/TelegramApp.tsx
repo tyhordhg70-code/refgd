@@ -1164,7 +1164,7 @@ export default function TelegramApp({
                           aria-expanded={listMenuOpen}
                           onClick={() => setListMenuOpen((v) => !v)}
                         >
-                          <i className="icon icon-more" aria-hidden />
+                          <i className="icon icon-settings" aria-hidden />
                         </button>
                       </div>
                     </>
