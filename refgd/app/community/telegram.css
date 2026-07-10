@@ -3343,19 +3343,24 @@ span.tg-edit-ce-lottie svg {
   aspect-ratio: 1795 / 465;
   max-height: 100%;
   /* Two layers (owner reference): a soft WHITE bloom hovering just above the
-     star mounds + the pastel color band rising from the bottom, both inside
-     the short bottom box so nothing glows up the panel. */
+     star mounds + the pastel color glow rising from the bottom. Owner round
+     7 ("edges of the blur are too hard — make rounded and soft"): the old
+     bloom's radius poked past the box TOP (center 30% + 42% radius → -12%)
+     so the element edge sliced it into a hard horizontal line, and the
+     linear band was a straight-edged rectangle. Both are now ELLIPTICAL
+     domes whose transparent stop lands INSIDE the box on every side, so
+     nothing ever touches an element edge — rounded top, soft sides. */
   background:
     radial-gradient(
-      50% 42% at 50% 30%,
+      40% 42% at 50% 60%,
       rgba(255, 255, 255, 0.35) 0%,
-      transparent 70%
+      transparent 72%
     ),
-    linear-gradient(
-      to top,
+    radial-gradient(
+      55% 120% at 50% 110%,
       var(--aura-a) 0%,
       var(--aura-b) 45%,
-      transparent 96%
+      transparent 75%
     );
   will-change: transform;
   /* Owner round 6 ("no animations on it at all"): the glow only had the
