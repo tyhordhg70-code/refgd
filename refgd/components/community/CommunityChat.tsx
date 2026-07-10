@@ -2609,13 +2609,18 @@ export default function CommunityChat({
                             ceAltToId,
                           );
                           if (!tokens) {
-                            const plain =
-                              e.clipboardData.getData("text/plain");
-                            const up = upgradePlainEmojiTokens(
-                              plain,
+                            // PLAIN-TEXT clipboards (the Mini App's "Copy
+                            // Text" menu writes the RAW token body as
+                            // text/plain — no html flavor) must ALSO render
+                            // as formatting: inserting the raw text showed
+                            // literal `> `/`**`/`[](url)` markers instead of
+                            // the highlight/bold/link. bodyToEditHtml is the
+                            // serializer's exact inverse, so marker-free
+                            // text passes through unchanged.
+                            tokens = upgradePlainEmojiTokens(
+                              e.clipboardData.getData("text/plain"),
                               ceAltToId,
                             );
-                            if (up !== plain) tokens = up;
                           }
                           if (
                             hasUnupgradedEmoji(
@@ -2950,13 +2955,18 @@ export default function CommunityChat({
                             ceAltToId,
                           );
                           if (!tokens) {
-                            const plain =
-                              e.clipboardData.getData("text/plain");
-                            const up = upgradePlainEmojiTokens(
-                              plain,
+                            // PLAIN-TEXT clipboards must ALSO render as
+                            // formatting — the Mini App's own "Copy Text"
+                            // menu writes the RAW token body as text/plain
+                            // (no html flavor), so inserting it as raw text
+                            // showed literal `> `/`**`/`[](url)` markers.
+                            // bodyToEditHtml is the serializer's exact
+                            // inverse; marker-free text passes through
+                            // unchanged.
+                            tokens = upgradePlainEmojiTokens(
+                              e.clipboardData.getData("text/plain"),
                               ceAltToId,
                             );
-                            if (up !== plain) tokens = up;
                           }
                           if (
                             hasUnupgradedEmoji(

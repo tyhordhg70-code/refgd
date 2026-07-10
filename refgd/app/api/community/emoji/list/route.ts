@@ -45,6 +45,16 @@ export async function GET() {
       g.emoji.push({ id: r.id, alt: r.alt });
     }
     groups = Array.from(bySet.values()).filter((g) => g.emoji.length > 0);
+    // Owner-curated pack order: FaceEmoji and Roflmoji lead the Custom tab
+    // (and, because the client warms tiles in group order, their artwork is
+    // also cached FIRST). Everything else keeps its DB insertion order —
+    // Array.prototype.sort is stable.
+    const PACK_PRIORITY = ["faceemoji", "roflmoji"];
+    const prio = (g: (typeof groups)[number]) => {
+      const i = PACK_PRIORITY.indexOf((g.setName || g.title).toLowerCase());
+      return i === -1 ? PACK_PRIORITY.length : i;
+    };
+    groups.sort((a, b) => prio(a) - prio(b));
   } catch {
     groups = [];
   }

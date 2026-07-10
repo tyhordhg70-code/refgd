@@ -492,12 +492,17 @@ function emojiBlobUrl(url: string): Promise<string | null> {
 }
 
 /**
- * Blob src for a `<video>` emoji stage. Returns the ready object URL
- * (instantly on repeat mounts via the memo), null while the bytes load, or
- * the ORIGINAL url when the cache path fails — direct network playback is
- * the fallback, and its onError still advances the cascade.
+ * Blob src for an API-served emoji stage (`<video>` AND the API `<img>`
+ * stage). Returns the ready object URL (instantly on repeat mounts via the
+ * memo), null while the bytes load, or the ORIGINAL url when the cache path
+ * fails — direct network loading is the fallback, and its onError still
+ * advances the cascade. Routing the <img> stage through here matters in the
+ * Telegram Mini App: its webview's plain HTTP cache is effectively
+ * ephemeral, so static pack artwork re-downloaded EVERY session even though
+ * the warmer had already written the bytes into persistent Cache Storage —
+ * this hands the <img> those persisted bytes with zero network.
  */
-function useEmojiVideoSrc(url: string | null): string | null {
+function useEmojiMediaSrc(url: string | null): string | null {
   const [src, setSrc] = useState<string | null>(() =>
     url ? (emojiBlobUrls.get(url) ?? null) : null,
   );
@@ -1133,12 +1138,17 @@ export function CustomEmojiImg({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, attempt]);
 
-  // Resolved BEFORE the early returns so the video blob hook below runs on
+  // Resolved BEFORE the early returns so the media blob hook below runs on
   // every render (hooks rule); it's a no-op (null url) until the tile is
-  // near and its cascade sits at the video stage.
+  // near and its cascade sits at an API-served stage. Covers the video
+  // stage AND the API <img> stage (both go through the persistent Cache
+  // Storage layer); the self-hosted webp stage (idx 0) keeps a direct src —
+  // a blob path would double-fetch its common 404 before cascading.
   const stage = near ? (stages[idx] as EmojiStage | undefined) : undefined;
-  const videoSrc = useEmojiVideoSrc(
-    stage?.kind === "video" ? stage.src : null,
+  const mediaSrc = useEmojiMediaSrc(
+    stage && (stage.kind === "video" || (stage.kind === "img" && idx >= 1))
+      ? stage.src
+      : null,
   );
 
   // Both placeholder spans carry data-document-id/data-alt so copying a
@@ -1181,7 +1191,7 @@ export function CustomEmojiImg({
     );
   }
   if (stage.kind === "video") {
-    if (!videoSrc) {
+    if (!mediaSrc) {
       // Blob still building from Cache Storage / network — hold the box.
       return (
         <span
@@ -1196,7 +1206,7 @@ export function CustomEmojiImg({
     return (
       <video
         ref={playCustomEmojiVideo}
-        src={videoSrc}
+        src={mediaSrc}
         className="emoji emoji-small tg-custom-emoji"
         data-document-id={id}
         data-alt={alt}
@@ -1213,11 +1223,28 @@ export function CustomEmojiImg({
       />
     );
   }
+  // API <img> stage: paint from the persistent Cache Storage blob (repeat
+  // visits skip the network entirely — the Mini-App webview's HTTP cache is
+  // ephemeral, so a direct src re-downloaded every session). While the blob
+  // builds, hold the box exactly like the video stage; on cache failure
+  // mediaSrc falls back to the original URL and onError still cascades.
+  const imgSrc = idx >= 1 ? mediaSrc : stage.src;
+  if (!imgSrc) {
+    return (
+      <span
+        className="emoji emoji-small tg-custom-emoji"
+        role="img"
+        aria-label={alt}
+        data-document-id={id}
+        data-alt={alt}
+      />
+    );
+  }
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       ref={imgRef}
-      src={stage.src}
+      src={imgSrc}
       className="emoji emoji-small tg-custom-emoji"
       alt={alt}
       data-document-id={id}
