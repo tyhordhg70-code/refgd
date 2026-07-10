@@ -547,13 +547,17 @@ export default function TelegramApp({
 
   const rowMetaBase = (key: TopicKey): RowMeta => {
     if (key === "readme") {
-      const text = effWelcome.replace(/\s+/g, " ").trim();
+      // The readme topic's one (and last) message is the readme seed bubble —
+      // preview THAT (with any admin edit applied), not the welcome blurb,
+      // and give the row a time like every other topic (announcements does
+      // the same with its seed time).
+      const text = tokenPreview(effReadme).replace(/\s+/g, " ").trim();
       return {
-        sender: null,
+        sender: SEED_AUTHOR,
         summary:
           text ||
           "READ ME❗️ If you haven't already, we kindly ask you to please visit our website…",
-        time: "",
+        time: README_SEED_TIME,
       };
     }
     if (key === "chat") {

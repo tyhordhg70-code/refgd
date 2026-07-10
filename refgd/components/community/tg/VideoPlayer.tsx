@@ -38,6 +38,7 @@ export default function VideoPlayer({
   const seekRef = useRef<HTMLDivElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
   const [cur, setCur] = useState(0);
   const [dur, setDur] = useState(
     typeof durationHint === "number" && durationHint > 0 ? durationHint : 0,
@@ -119,8 +120,27 @@ export default function VideoPlayer({
   const toggleMute = () => {
     const v = videoRef.current;
     if (!v) return;
-    v.muted = !v.muted;
-    setMuted(v.muted);
+    if (v.muted || v.volume === 0) {
+      v.muted = false;
+      if (v.volume === 0) {
+        v.volume = 1;
+        setVolume(1);
+      }
+      setMuted(false);
+    } else {
+      v.muted = true;
+      setMuted(true);
+    }
+    poke();
+  };
+
+  const onVolume = (value: number) => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.volume = value;
+    v.muted = value === 0;
+    setVolume(value);
+    setMuted(value === 0);
     poke();
   };
 
@@ -176,65 +196,13 @@ export default function VideoPlayer({
         }}
       />
 
-      {/* Big center play/pause button (Web A parity): while paused it's the
-          play affordance; while playing it becomes a center PAUSE button that
-          fades away with the idle controls (opacity + pointer-events so idle
-          taps fall through to the video, whose own click toggles playback). */}
-      <button
-        type="button"
-        className={`tg-vp-bigplay${playing && !shown ? " tg-vp-bigplay-hidden" : ""}`}
-        aria-label={playing ? "Pause video" : "Play video"}
-        onClick={togglePlay}
-      >
-        <i
-          className={`icon ${playing ? "icon-pause" : "icon-play"}`}
-          aria-hidden
-        />
-      </button>
-
+      {/* NO overlay button on the picture (owner mandate + Telegram parity —
+          the real clients keep the frame clean while playing; tap the video
+          itself to toggle). All chrome lives in the bottom control bar:
+          volume on the left, play/pause dead center, fullscreen right, and
+          a time + seekline row underneath — the Telegram player layout. */}
       <div className="tg-vp-controls" onClick={(e) => e.stopPropagation()}>
-        <div
-          ref={seekRef}
-          className="tg-vp-seekline"
-          role="slider"
-          aria-label="Seek"
-          aria-valuemin={0}
-          aria-valuemax={Math.round(dur)}
-          aria-valuenow={Math.round(cur)}
-          onPointerDown={onSeekDown}
-          onPointerMove={onSeekMove}
-          onPointerUp={onSeekUp}
-          onPointerCancel={() => {
-            dragging.current = false;
-          }}
-        >
-          <div className="tg-vp-track">
-            <div
-              className="tg-vp-buffered"
-              style={{ width: `${buffredPct * 100}%` }}
-            />
-            <div
-              className="tg-vp-progress"
-              style={{ width: `${progress * 100}%` }}
-            />
-            <div
-              className="tg-vp-knob"
-              style={{ left: `${progress * 100}%` }}
-            />
-          </div>
-        </div>
         <div className="tg-vp-buttons">
-          <button
-            type="button"
-            className="tg-vp-btn"
-            aria-label={playing ? "Pause" : "Play"}
-            onClick={togglePlay}
-          >
-            <i
-              className={`icon ${playing ? "icon-pause" : "icon-play"}`}
-              aria-hidden
-            />
-          </button>
           <button
             type="button"
             className="tg-vp-btn"
@@ -246,9 +214,27 @@ export default function VideoPlayer({
               aria-hidden
             />
           </button>
-          <span className="tg-vp-time">
-            {fmtDuration(cur)} / {fmtDuration(dur)}
-          </span>
+          <input
+            type="range"
+            className="tg-vp-volume"
+            aria-label="Volume"
+            min={0}
+            max={1}
+            step={0.02}
+            value={muted ? 0 : volume}
+            onChange={(e) => onVolume(Number(e.currentTarget.value))}
+          />
+          <button
+            type="button"
+            className="tg-vp-btn tg-vp-playbtn"
+            aria-label={playing ? "Pause" : "Play"}
+            onClick={togglePlay}
+          >
+            <i
+              className={`icon ${playing ? "icon-pause" : "icon-play"}`}
+              aria-hidden
+            />
+          </button>
           <span className="tg-vp-spacer" />
           <button
             type="button"
@@ -258,6 +244,40 @@ export default function VideoPlayer({
           >
             <i className="icon icon-fullscreen" aria-hidden />
           </button>
+        </div>
+        <div className="tg-vp-timeline">
+          <span className="tg-vp-time">{fmtDuration(cur)}</span>
+          <div
+            ref={seekRef}
+            className="tg-vp-seekline"
+            role="slider"
+            aria-label="Seek"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(dur)}
+            aria-valuenow={Math.round(cur)}
+            onPointerDown={onSeekDown}
+            onPointerMove={onSeekMove}
+            onPointerUp={onSeekUp}
+            onPointerCancel={() => {
+              dragging.current = false;
+            }}
+          >
+            <div className="tg-vp-track">
+              <div
+                className="tg-vp-buffered"
+                style={{ width: `${buffredPct * 100}%` }}
+              />
+              <div
+                className="tg-vp-progress"
+                style={{ width: `${progress * 100}%` }}
+              />
+              <div
+                className="tg-vp-knob"
+                style={{ left: `${progress * 100}%` }}
+              />
+            </div>
+          </div>
+          <span className="tg-vp-time">{fmtDuration(dur)}</span>
         </div>
       </div>
     </div>

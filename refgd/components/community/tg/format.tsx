@@ -1502,6 +1502,10 @@ export function tokenPreview(body: string): string {
     .replace(M_RE, (_all, _id, name: string) => mentionLabel(name))
     .replace(/\[([^\]]+?)\]\((?:https?:\/\/)[^\s)]+\)/g, "$1")
     .replace(/^>(?: |$)/gm, "")
+    // Bold/italic markers are formatting, not preview text (Web A previews
+    // show the plain words) — strip the delimiters, keep the content.
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
     .trim();
 }
 

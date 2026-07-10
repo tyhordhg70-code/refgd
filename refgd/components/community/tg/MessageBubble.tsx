@@ -8,8 +8,16 @@ import {
   type ReactNode,
 } from "react";
 import Appendix from "./Appendix";
+import { calculateAlbumLayoutByRatios } from "./albumLayout";
 import { emojiSrc, initials } from "./format";
 import { fmtDuration } from "./VideoPlayer";
+
+/**
+ * Reference width (px) the album mosaic is computed at — Web A's available
+ * bubble width on a regular chat. The resulting rects are rendered as
+ * percentages, so the actual on-screen width just scales the whole mosaic.
+ */
+const ALBUM_LAYOUT_WIDTH = 451;
 
 /**
  * Near-viewport latch for in-bubble media (photos + video posters).
@@ -561,9 +569,9 @@ export default function MessageBubble({
                 </span>
               ))}
 
-            {mediaList.length > 0 && (
-              <div className={`tg-media${mediaFlush ? "" : " is-inset"}`}>
-                {mediaList.map((src, mi) => {
+            {mediaList.length > 0 &&
+              (() => {
+                const renderTile = (src: string, mi: number) => {
                   const meta = mediaMeta?.[mi];
                   const size = mediaSizes?.[mi] ?? mediaSize;
                   if (meta && meta.kind === "video") {
@@ -641,9 +649,61 @@ export default function MessageBubble({
                       }
                     />
                   );
-                })}
-              </div>
-            )}
+                };
+
+                if (mediaList.length === 1) {
+                  return (
+                    <div
+                      className={`tg-media${mediaFlush ? "" : " is-inset"}`}
+                    >
+                      {renderTile(mediaList[0], 0)}
+                    </div>
+                  );
+                }
+
+                // 2+ media → Telegram album mosaic (Web A's grouped-media
+                // layout, ported in albumLayout.ts). The algorithm returns px
+                // rects inside a container box; we convert to percentages so
+                // the mosaic scales with the bubble width, with the same
+                // relative 2px-ish gutters as the real client.
+                const ratios = mediaList.map((_, mi) => {
+                  const size = mediaSizes?.[mi] ?? mediaSize;
+                  return size && size.w > 0 && size.h > 0
+                    ? size.w / size.h
+                    : 1;
+                });
+                const { layout, containerStyle } =
+                  calculateAlbumLayoutByRatios(ratios, ALBUM_LAYOUT_WIDTH);
+                const { width: albumW, height: albumH } = containerStyle;
+                if (!albumW || !albumH) return null;
+                return (
+                  <div className={`tg-media${mediaFlush ? "" : " is-inset"}`}>
+                    <div
+                      className="tg-album"
+                      style={{ aspectRatio: `${albumW} / ${albumH}` }}
+                    >
+                      {mediaList.map((src, mi) => {
+                        const rect = layout[mi]?.dimensions;
+                        if (!rect) return null;
+                        return (
+                          <div
+                            key={src}
+                            className="tg-album-item"
+                            style={{
+                              left: `${(rect.x / albumW) * 100}%`,
+                              top: `${(rect.y / albumH) * 100}%`,
+                              width: `${(rect.width / albumW) * 100}%`,
+                              height: `${(rect.height / albumH) * 100}%`,
+                            }}
+                          >
+                            {renderTile(src, mi)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
             {hasBody && (
               <div

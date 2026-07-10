@@ -703,6 +703,40 @@ button.tg-reply-embed:focus-visible {
   border-radius: 0.9375rem;
 }
 
+/* Telegram album mosaic (2+ media in one post, Web A grouped-media parity).
+   The layout algorithm (albumLayout.ts) computes px rects in a reference
+   box; MessageBubble renders them as percentages, so the container just
+   needs the box's aspect-ratio and the tiles fill their absolute slots.
+   The .tg-media wrapper above clips the outer corners. */
+.message-content .tg-media .tg-album {
+  position: relative;
+  width: 100%;
+}
+.tg-album-item {
+  position: absolute;
+  overflow: hidden;
+}
+.message-content .tg-media .tg-album-item img,
+.message-content .tg-media .tg-album-item .tg-media-ph,
+.message-content .tg-media .tg-album-item .tg-media-video-blank {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  object-fit: cover;
+}
+.message-content .tg-media .tg-album-item .tg-media-video {
+  height: 100%;
+}
+/* Smaller play badge + duration pill so they fit compact tiles. */
+.tg-album-item .tg-media-video-play {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+.tg-album-item .tg-media-video-play .icon {
+  font-size: 1.375rem;
+}
+
 /* @Display-Name mention (server-composed [m:] token) — Web A renders these
    as link-colored text; ours are non-interactive highlights + notify hooks. */
 .tg-html .text-entity-mention {
@@ -2074,40 +2108,6 @@ video.tg-custom-emoji {
   max-height: 100vh;
   border-radius: 0;
 }
-.tg-vp-bigplay {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 4.25rem;
-  height: 4.25rem;
-  border: none;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
-  color: #fff;
-  cursor: pointer;
-}
-.tg-vp-bigplay .icon {
-  font-size: 2.25rem;
-  margin-left: 0.1875rem;
-}
-/* The play triangle is optically nudged right; the pause bars are symmetric. */
-.tg-vp-bigplay .icon-pause {
-  margin-left: 0;
-}
-/* While playing, the center pause fades out with the idle controls so it
-   never squats over the video; pointer-events off so an idle tap falls
-   through to the video itself (tap-to-pause, Web A behavior). */
-.tg-vp-bigplay {
-  transition: opacity 0.25s ease;
-}
-.tg-vp-bigplay-hidden {
-  opacity: 0;
-  pointer-events: none;
-}
 .tg-vp-controls {
   position: absolute;
   left: 0;
@@ -2164,10 +2164,77 @@ video.tg-custom-emoji {
   transform: translate(-50%, -50%);
   background: #fff;
 }
+/* Telegram-style bar: volume on the left, play/pause dead center (absolute
+   so it stays centered regardless of what sits at the edges), fullscreen on
+   the right; the time + seekline row lives underneath. */
 .tg-vp-buttons {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.25rem;
+}
+.tg-vp-playbtn {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.tg-vp-playbtn .icon {
+  font-size: 1.75rem;
+}
+/* The play triangle is optically nudged right; the pause bars are symmetric. */
+.tg-vp-playbtn .icon-play {
+  margin-left: 0.125rem;
+}
+.tg-vp-volume {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 4.5rem;
+  height: 1.25rem;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.tg-vp-volume::-webkit-slider-runnable-track {
+  height: 0.25rem;
+  border-radius: 0.125rem;
+  background: rgba(255, 255, 255, 0.35);
+}
+.tg-vp-volume::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-top: -0.25rem;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+}
+.tg-vp-volume::-moz-range-track {
+  height: 0.25rem;
+  border-radius: 0.125rem;
+  background: rgba(255, 255, 255, 0.35);
+}
+.tg-vp-volume::-moz-range-progress {
+  height: 0.25rem;
+  border-radius: 0.125rem;
+  background: #fff;
+}
+.tg-vp-volume::-moz-range-thumb {
+  width: 0.75rem;
+  height: 0.75rem;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+}
+.tg-vp-timeline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.tg-vp-timeline .tg-vp-seekline {
+  flex: 1;
+  min-width: 0;
 }
 .tg-vp-btn {
   width: 2.25rem;
