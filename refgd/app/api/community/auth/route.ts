@@ -18,6 +18,7 @@ import {
   isValidInviteSlug,
   recordInviteJoin,
   upsertChatMember,
+  greetNewMember,
   hashDeviceSignal,
   ipFromRequest,
   recordMemberDevice,
@@ -181,13 +182,22 @@ export async function POST(req: Request) {
   // exists in the verified initData (the session JWT never carries it). This
   // is what lets admins target `/ban @user` even before the member posts.
   // Fail-soft: presence writes must never break sign-in.
-  await upsertChatMember({
+  const isNewMember = await upsertChatMember({
     tgId: member.tid,
     name: member.name,
     photo: member.photo,
     isAdmin: member.admin,
     username: member.username ?? null,
-  }).catch(() => undefined);
+  }).catch(() => false);
+
+  // Rose-style join greeting (/setwelcome): greet ONLY first-ever sign-ins —
+  // the upsert reports whether this was a brand-new chat_members row, so a
+  // recurring member re-opening the community is never re-greeted. Admins
+  // are staff, not new joiners, and are skipped. Fail-soft: a greeting
+  // failure must never break sign-in.
+  if (isNewMember && !member.admin) {
+    await greetNewMember(member.name).catch(() => undefined);
+  }
 
   // IP + device-fingerprint ban enforcement (owner ask). Record this
   // sign-in's SALTED HASHES (raw signals never stored), then — silently —

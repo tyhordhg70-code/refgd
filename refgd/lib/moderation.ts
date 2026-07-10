@@ -430,7 +430,7 @@ export async function executeModCommand(opts: {
         handled: true,
         ok: true,
         system: rest
-          ? "Welcome message updated. {first} becomes the viewer's first name and {chatname} the community name."
+          ? "Welcome message updated. New members are greeted once when they first join — {first} becomes their first name and {chatname} the community name."
           : "Welcome message cleared.",
       };
     }

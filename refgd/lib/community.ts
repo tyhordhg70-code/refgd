@@ -598,10 +598,18 @@ export interface ChatMemberInput {
   username?: string | null;
 }
 
-/** Join / refresh a chat member (called when a signed-in member loads or posts). */
-export async function upsertChatMember(m: ChatMemberInput): Promise<void> {
+/**
+ * Join / refresh a chat member (called when a signed-in member loads or posts).
+ *
+ * Returns TRUE only when this call created a brand-new row — i.e. the member's
+ * first-ever sign-in. `(xmax = 0)` is the standard Postgres idiom: a freshly
+ * INSERTed row has no deleting/locking transaction recorded, while the
+ * ON CONFLICT UPDATE path stamps xmax, so recurring members always report
+ * false. The auth route uses this to fire the one-time Rose join greeting.
+ */
+export async function upsertChatMember(m: ChatMemberInput): Promise<boolean> {
   await initDb();
-  await getPool().query(
+  const { rows } = await getPool().query<{ inserted: boolean }>(
     `INSERT INTO chat_members (tg_id, first_name, photo_url, is_admin, invite_slug, username, last_seen)
      VALUES ($1, $2, $3, $4, $5, $6, NOW())
      ON CONFLICT (tg_id) DO UPDATE
@@ -610,9 +618,40 @@ export async function upsertChatMember(m: ChatMemberInput): Promise<void> {
            is_admin    = EXCLUDED.is_admin,
            last_seen   = NOW(),
            invite_slug = COALESCE(chat_members.invite_slug, EXCLUDED.invite_slug),
-           username    = COALESCE(EXCLUDED.username, chat_members.username)`,
+           username    = COALESCE(EXCLUDED.username, chat_members.username)
+     RETURNING (xmax = 0) AS inserted`,
     [m.tgId, m.name, m.photo, m.isAdmin, m.inviteSlug ?? null, m.username ?? null],
   );
+  return rows[0]?.inserted === true;
+}
+
+/**
+ * Rose-style join greeting (/setwelcome): when a member signs in for the
+ * FIRST time and an admin has set a welcome message, Rose posts it into the
+ * live Group Chat once — exactly like @MissRose_bot greeting a new joiner.
+ * Recurring sign-ins never reach here (upsertChatMember reports inserted
+ * only on the very first row). Placeholders match the /setwelcome contract:
+ * {first} → the joiner's first name, {chatname} → the community name. The
+ * greeting carries the same default 7-day TTL as ordinary group-chat posts,
+ * so the auto-delete sweep treats it like any other live message. Callers
+ * must treat this as fail-soft — a greeting error can never break sign-in.
+ */
+export async function greetNewMember(name: string): Promise<void> {
+  const welcome = await getModConfig<string>("welcome", "");
+  const body = (typeof welcome === "string" ? welcome : "").trim();
+  if (!body) return;
+  const first = name.trim().split(/\s+/)[0] || "friend";
+  const text = body
+    .replace(/\{first\}/gi, first)
+    .replace(/\{chatname\}/gi, "RefundGod Community");
+  await ensureBotMember();
+  await createChatMessage({
+    tgId: BOT_MEMBER_TG_ID,
+    authorName: BOT_MEMBER_NAME,
+    body: text,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    topic: "chat",
+  });
 }
 
 /**

@@ -48,7 +48,7 @@ export const COMMAND_SPECS: CommandSpec[] = [
   { cmd: "unpin", desc: "Reply to unpin — no reply clears all pins", admin: true },
   { cmd: "del", desc: "Reply to delete just that message", admin: true, target: true },
   { cmd: "purge", args: "[n]", desc: "Reply to purge from there, or delete the last n", admin: true },
-  { cmd: "setwelcome", args: "<text>", desc: "Set the welcome banner ({first}, {chatname})", admin: true },
+  { cmd: "setwelcome", args: "<text>", desc: "Greeting posted when a new member joins ({first}, {chatname})", admin: true },
   { cmd: "setrules", args: "<text>", desc: "Set the group rules", admin: true },
   { cmd: "rules", desc: "View the group rules", admin: false },
   { cmd: "help", desc: "Show the full command list", admin: false },

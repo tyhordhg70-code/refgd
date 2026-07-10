@@ -65,7 +65,6 @@ import {
   parseVoiceToken,
   peerIdx,
   renderBody,
-  applyWelcomePlaceholders,
   tokenPreview,
 } from "./tg/format";
 import {
@@ -2132,13 +2131,12 @@ export default function CommunityChat({
                   <div className="tg-loading">Loading chat…</div>
                 ) : (
                   <>
-                    {isGroupChat && state.welcome && !query && (
-                      <div className="tg-service-card">
-                        {renderBody(
-                          applyWelcomePlaceholders(state.welcome, me?.name),
-                        )}
-                      </div>
-                    )}
+                    {/* NOTE: the /setwelcome text is deliberately NOT rendered
+                        as an always-on banner here — that would re-greet every
+                        recurring viewer on every visit. Rose now posts it into
+                        the chat once per NEW member at their first sign-in
+                        (greetNewMember in the auth route), matching real Rose
+                        group behavior. */}
                     {/* Read-only migrated history (vouch topics). */}
                     {typeof history === "function"
                       ? history(
