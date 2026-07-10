@@ -706,7 +706,22 @@ export default function TelegramApp({
     );
   }
 
-  const back = () => setActive(null);
+  const back = () => {
+    setActive(null);
+    // Clear a stale `#<topic>` hash on close (replaceState fires no
+    // hashchange, so no loop) — otherwise re-clicking a deep-link button
+    // (e.g. the welcome bubble's /community#readme) is a no-op because the
+    // hash never changes. ONLY topic-key hashes are cleared: Mini-App
+    // `#tgWebApp...` launch fragments must never be touched.
+    const h = window.location.hash.replace(/^#/, "").toLowerCase();
+    if (TOPICS.some((t) => t.key === h)) {
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + window.location.search,
+      );
+    }
+  };
 
   // Web A-style tap ripple on topic rows: the vendored stylesheet already
   // ships .ripple-container/.ripple-wave and the ripple-animation keyframes —
