@@ -3315,7 +3315,7 @@ span.tg-edit-ce-lottie svg {
   will-change: opacity;
   animation:
     tg-aura-in 2.4s ease-out forwards,
-    tg-aura-pulse 9s ease-in-out 2.4s infinite;
+    tg-aura-pulse 6.5s ease-in-out 2.4s infinite;
 }
 .tg-topic-aura::before,
 .tg-topic-aura::after {
@@ -3330,21 +3330,22 @@ span.tg-edit-ce-lottie svg {
 .tg-topic-aura::before {
   inset: 0 -18%;
   /* Two layers (owner reference): a soft WHITE bloom hovering just above the
-     star field + the pastel color band rising from the bottom. Toned down
-     (owner 2026-07-10: "gradient glow is too much") — the reference's bloom
-     is gentle (bg only lifts ~15% toward white at its brightest) and the
-     band colors are light pastels, not saturated washes. */
+     star field + the pastel color band rising from the bottom. Owner
+     2026-07-10 round 2 ("glow smaller, not so high up"): the band now fades
+     out by ~40% of the panel height (was 60%) and the bloom moved DOWN from
+     the panel top to sit right above the star mounds — in both reference
+     banners the light area hugs the halftone, nothing glows near the top. */
   background:
     radial-gradient(
-      70% 42% at 50% -8%,
-      rgba(255, 255, 255, 0.45) 0%,
-      transparent 68%
+      55% 24% at 50% 58%,
+      rgba(255, 255, 255, 0.38) 0%,
+      transparent 70%
     ),
     linear-gradient(
       to top,
       var(--aura-a) 0%,
-      var(--aura-b) 32%,
-      transparent 60%
+      var(--aura-b) 22%,
+      transparent 40%
     );
   will-change: transform;
   animation: tg-aura-drift 12s ease-in-out infinite alternate;
@@ -3400,28 +3401,22 @@ span.tg-edit-ce-lottie svg {
     opacity: 0;
   }
   100% {
-    opacity: 0.92;
-  }
-}
-/* Gentle heartbeat: soft swell up, ease back down, rest — reads as a slow
-   pulse rather than a flat fade. Baseline raised twice (owner 2026-07-10:
-   kept reading washed-out vs the saturated reference — the dip must stay
-   shallow or the whole band goes pale). */
-@keyframes tg-aura-pulse {
-  0% {
-    opacity: 0.92;
-  }
-  18% {
     opacity: 1;
   }
-  42% {
-    opacity: 0.8;
+}
+/* Breathing (owner 2026-07-10 round 2: "doesn't have very breathing
+   animation" — the old shallow 0.8 dip read as static). One smooth
+   sine-like inhale/exhale per cycle with a clearly visible dip; peak stays
+   at full opacity so the band never looks permanently washed out. */
+@keyframes tg-aura-pulse {
+  0% {
+    opacity: 1;
   }
-  70% {
-    opacity: 0.95;
+  50% {
+    opacity: 0.68;
   }
   100% {
-    opacity: 0.92;
+    opacity: 1;
   }
 }
 @keyframes tg-aura-shift {
