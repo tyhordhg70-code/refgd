@@ -3318,7 +3318,7 @@ span.tg-edit-ce-lottie svg {
      ::after), then the breath follows once the wave completes (~3.4s). */
   animation:
     tg-aura-in 1.1s ease-out forwards,
-    tg-aura-pulse 6.5s ease-in-out 3.6s infinite;
+    tg-aura-pulse 6.5s ease-in-out 4.3s infinite;
 }
 .tg-topic-aura::before,
 .tg-topic-aura::after {
@@ -3334,12 +3334,13 @@ span.tg-edit-ce-lottie svg {
   /* Owner 2026-07-10 round 5 ("glow still too tall — just a little taller
      than the diamonds"): the glow box is now BOTTOM-ANCHORED and sized off
      the panel WIDTH exactly like the star band. Stars are width x 310/1320
-     tall; the glow is width x 400/1320 — ~1.3x the star band, so it clears
+     tall; the glow is width x 465/1320 — ~1.5x the star band, so it clears
      the mound tops by only a sliver. Element width = 136% of the panel
-     (the -18% overhang for the drift), hence 1795/400 ≈ (1320*1.36)/400. */
+     (the -18% overhang for the drift), hence 1795/465 ≈ (1320*1.36)/465
+     (owner round 6: "slightly taller" — 400 → 465, ~1.5x the star band). */
   inset: auto -18% 0;
   height: auto;
-  aspect-ratio: 1795 / 400;
+  aspect-ratio: 1795 / 465;
   max-height: 100%;
   /* Two layers (owner reference): a soft WHITE bloom hovering just above the
      star mounds + the pastel color band rising from the bottom, both inside
@@ -3357,7 +3358,15 @@ span.tg-edit-ce-lottie svg {
       transparent 96%
     );
   will-change: transform;
-  animation: tg-aura-drift 12s ease-in-out infinite alternate;
+  /* Owner round 6 ("no animations on it at all"): the glow only had the
+     near-invisible 12s ±7% drift, so it read as static next to the diamond
+     wave. It now gets its OWN entrance fade (reuses tg-aura-in, longer) and
+     a deeper dedicated breath (tg-aura-glow-pulse, 1↔0.65) on top of the
+     container-level pulse, so the glow visibly swells and breathes. */
+  animation:
+    tg-aura-in 2.8s ease-out both,
+    tg-aura-glow-pulse 6.5s ease-in-out 4.3s infinite,
+    tg-aura-drift 12s ease-in-out infinite alternate;
 }
 /* Diamond-star halftone field — a 1:1 EXTRACTION of the owner's reference
    image (owner 2026-07-10: "mesh and diamonds don't look like original at
@@ -3395,9 +3404,13 @@ span.tg-edit-ce-lottie svg {
     var(--aura-dot) 100%
   );
   background-size: 300% 100%;
+  /* Wave delayed 0.5s + lengthened (owner round 6: the entrance was easy to
+     miss — it could finish before the page settled) — `both` keeps the
+     diamonds hidden during the delay so the sweep is always seen. Breath
+     delays (4.3s) start right after the wave lands (~4.1s). */
   animation:
     tg-aura-shift 9s ease-in-out infinite alternate,
-    tg-aura-wave 3.2s ease-in-out both;
+    tg-aura-wave 3.6s ease-in-out 0.5s both;
   /* Entrance wave (owner round 5): a SECOND mask layer — an oversized soft
      slanted wipe gradient — is INTERSECTED with the star PNG, and its
      mask-position sweeps once left→right (tg-aura-wave) so the diamonds
@@ -3446,6 +3459,19 @@ span.tg-edit-ce-lottie svg {
   }
   50% {
     opacity: 0.68;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+/* Dedicated deeper breath for the ::before glow (stacks with the container
+   pulse, so the glow dips further than the diamonds and clearly moves). */
+@keyframes tg-aura-glow-pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.65;
   }
   100% {
     opacity: 1;
