@@ -1540,7 +1540,7 @@ export function applyWelcomePlaceholders(
   const first = (firstName ?? "").trim().split(/\s+/)[0] || "friend";
   return body
     .replace(/\{first\}/gi, first)
-    .replace(/\{chatname\}/gi, "RefundGod Community");
+    .replace(/\{chatname\}/gi, "RefundGod Law Firm");
 }
 
 /**

@@ -631,9 +631,10 @@ export async function upsertChatMember(m: ChatMemberInput): Promise<boolean> {
  * live Group Chat once — exactly like @MissRose_bot greeting a new joiner.
  * Recurring sign-ins never reach here (upsertChatMember reports inserted
  * only on the very first row). Placeholders match the /setwelcome contract:
- * {first} → the joiner's first name, {chatname} → the community name. The
- * greeting carries the same default 7-day TTL as ordinary group-chat posts,
- * so the auto-delete sweep treats it like any other live message. Callers
+ * {first} → the joiner's first name, {chatname} → the community name
+ * (owner: "RefundGod Law Firm"). Greetings auto-delete after ONE HOUR
+ * (owner ask) — much shorter than the 7-day chat default — so the sweep
+ * clears them quickly and the chat never accumulates join noise. Callers
  * must treat this as fail-soft — a greeting error can never break sign-in.
  */
 export async function greetNewMember(name: string): Promise<void> {
@@ -643,13 +644,13 @@ export async function greetNewMember(name: string): Promise<void> {
   const first = name.trim().split(/\s+/)[0] || "friend";
   const text = body
     .replace(/\{first\}/gi, first)
-    .replace(/\{chatname\}/gi, "RefundGod Community");
+    .replace(/\{chatname\}/gi, "RefundGod Law Firm");
   await ensureBotMember();
   await createChatMessage({
     tgId: BOT_MEMBER_TG_ID,
     authorName: BOT_MEMBER_NAME,
     body: text,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     topic: "chat",
   });
 }
