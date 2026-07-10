@@ -3387,11 +3387,11 @@ span.tg-edit-ce-lottie svg {
   );
   background-size: 300% 100%;
   animation: tg-aura-shift 9s ease-in-out infinite alternate;
-  -webkit-mask-image: url("/community-aura-stars.png");
+  -webkit-mask-image: url("/community-aura-stars.png?v=2");
   -webkit-mask-repeat: no-repeat;
   -webkit-mask-position: bottom center;
   -webkit-mask-size: 100% auto;
-  mask-image: url("/community-aura-stars.png");
+  mask-image: url("/community-aura-stars.png?v=2");
   mask-repeat: no-repeat;
   mask-position: bottom center;
   mask-size: 100% auto;
