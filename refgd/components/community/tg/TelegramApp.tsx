@@ -21,7 +21,14 @@ import {
 } from "../useCommunityChat";
 import { getDeviceSignals } from "../device-fp";
 import { parseStartParam, readStartParam } from "./deeplink";
-import { IconBell, IconChat, IconCollapse, IconExpand } from "./TgIcons";
+import {
+  IconBell,
+  IconChat,
+  IconCollapse,
+  IconExpand,
+  IconWallpaper,
+} from "./TgIcons";
+import ChatBackgroundPicker from "../ChatBackgroundPicker";
 import ChatBackground from "./ChatBackground";
 import MiddleHeader from "./MiddleHeader";
 import MessageBubble from "./MessageBubble";
@@ -214,6 +221,10 @@ export default function TelegramApp({
   // Topic-list search: null = closed, string = open with that query.
   const [listSearch, setListSearch] = useState<string | null>(null);
   const [showNotif, setShowNotif] = useState(false);
+  // "Customize background" from the topic-list ⋮ menu — same per-device
+  // localStorage preference the in-chat menu edits (picker is client-only,
+  // so it's available to everyone, signed-in or not).
+  const [showBgPicker, setShowBgPicker] = useState(false);
   // Live topic-list meta: the page is server-rendered ONCE, then the Mini
   // App lives for minutes/hours — without a refresher the "N members" label
   // and the Group Chat preview stay frozen at load time (owner saw "1
@@ -1209,6 +1220,17 @@ export default function TelegramApp({
                           <IconBell />
                           Notifications
                         </button>
+                        <button
+                          type="button"
+                          className="tg-menu-item"
+                          onClick={() => {
+                            setListMenuOpen(false);
+                            setShowBgPicker(true);
+                          }}
+                        >
+                          <IconWallpaper />
+                          Customize background
+                        </button>
                         <a
                           className="tg-menu-item"
                           href={ADMIN_TG}
@@ -1342,6 +1364,11 @@ export default function TelegramApp({
         </div>
         {showNotif && (
           <NotificationSettings onClose={() => setShowNotif(false)} />
+        )}
+        {/* Rendered here (outside the transformed #MiddleColumn) so the
+            fixed backdrop anchors to the viewport — overlay-portal rule. */}
+        {showBgPicker && (
+          <ChatBackgroundPicker onClose={() => setShowBgPicker(false)} />
         )}
       </div>
     </div>
