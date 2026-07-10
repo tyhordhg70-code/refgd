@@ -3297,45 +3297,47 @@ span.tg-edit-ce-lottie svg {
    motion without repainting. */
 .tg-topic-aura::before {
   inset: 0 -18%;
-  /* Two layers (owner reference): a slight airy WHITE glow at the top of the
-     panel + the palette color band rising from the bottom. The band is a
-     LINEAR gradient (owner 2026-07-10: the old radial left the backdrop
-     near-white — the reference's bottom is fully tinted edge-to-edge). */
+  /* Two layers (owner reference): a soft WHITE bloom hovering just above the
+     star field + the pastel color band rising from the bottom. Toned down
+     (owner 2026-07-10: "gradient glow is too much") — the reference's bloom
+     is gentle (bg only lifts ~15% toward white at its brightest) and the
+     band colors are light pastels, not saturated washes. */
   background:
     radial-gradient(
-      90% 55% at 50% -12%,
-      rgba(255, 255, 255, 0.7) 0%,
-      transparent 70%
+      70% 42% at 50% -8%,
+      rgba(255, 255, 255, 0.45) 0%,
+      transparent 68%
     ),
     linear-gradient(
       to top,
       var(--aura-a) 0%,
-      var(--aura-b) 34%,
-      transparent 64%
+      var(--aura-b) 32%,
+      transparent 60%
     );
   will-change: transform;
   animation: tg-aura-drift 12s ease-in-out infinite alternate;
 }
-/* Diamond-star halftone field (owner reference 2026-07-07): 4-pointed
-   concave-diamond sparkles on a staggered grid, largest at the bottom and
-   shrinking upward under a wavy envelope — generated as a single SVG
-   (public/community-aura-stars.svg, black fill) and applied as a MASK so the
-   palette CSS vars keep controlling the color. mask-size 100% auto +
-   position bottom scales the whole field to the panel width, keeping the
-   reference's proportions (field height ≈ 1/3 of the panel width).
-   mask-repeat MUST stay explicit — the initial value is `repeat`, which
-   would tile stars up the whole panel. */
+/* Diamond-star halftone field — a 1:1 EXTRACTION of the owner's reference
+   image (owner 2026-07-10: "mesh and diamonds don't look like original at
+   all — copy the source"): public/community-aura-stars.png is an alpha mask
+   lifted directly from the reference pixels (lime-vs-mint channel
+   discriminant → per-pixel sparkle alpha), so the wavy halftone envelope,
+   sparkle shapes, AA halos and density gradient ARE the original artwork.
+   Applied as a MASK so the palette CSS vars keep controlling the color.
+   mask-size 100% auto + position bottom scales the field to the panel
+   width. mask-repeat MUST stay explicit — the initial value is `repeat`,
+   which would tile stars up the whole panel. */
 .tg-topic-aura::after {
   /* Bottom band only (the mask never reaches higher) — keeps the animated
      gradient repaint area small. Two-hue horizontal gradient, oversized and
      slowly panned, so the star colors smoothly shift like the Gemini
      reference instead of sitting static. Band height derives from the panel
-     WIDTH via aspect-ratio (matching the mask's 1024x340 scale at
+     WIDTH via aspect-ratio (matching the mask's native 1320x310 scale at
      mask-size 100% auto) so short+wide layouts (landscape phones) never
      hard-clip the wavy envelope; max-height caps it at the panel. */
   inset: auto 0 0 0;
   height: auto;
-  aspect-ratio: 1024 / 340;
+  aspect-ratio: 1320 / 310;
   max-height: 100%;
   /* Owner reference match (2026-07-10): the star gradient stays in ONE hue
      family — a saturated base (--aura-dot) blending toward its lighter
@@ -3352,11 +3354,11 @@ span.tg-edit-ce-lottie svg {
   );
   background-size: 300% 100%;
   animation: tg-aura-shift 9s ease-in-out infinite alternate;
-  -webkit-mask-image: url("/community-aura-stars.svg");
+  -webkit-mask-image: url("/community-aura-stars.png");
   -webkit-mask-repeat: no-repeat;
   -webkit-mask-position: bottom center;
   -webkit-mask-size: 100% auto;
-  mask-image: url("/community-aura-stars.svg");
+  mask-image: url("/community-aura-stars.png");
   mask-repeat: no-repeat;
   mask-position: bottom center;
   mask-size: 100% auto;
@@ -3421,12 +3423,14 @@ span.tg-edit-ce-lottie svg {
    but matching"). --aura-a = bottom band core, --aura-b = band fade (both
    the contrasting partner hue), --aura-dot = star base (saturated main
    hue), --aura-c = the star's lighter same-hue sibling (star gradient
-   stays one family). Palette 0 matches the green reference. */
+   stays one family). Palette 0 is sampled DIRECTLY from the reference
+   image (bottom mint rgb(120,206,193), mid mint rgb(168,225,208), sparkle
+   core ≈rgb(160,245,45) fading toward rgb(195,255,120)). */
 .tg-topic-aura-0 {
-  --aura-a: rgba(110, 205, 170, 0.78);
-  --aura-b: rgba(153, 230, 205, 0.5);
-  --aura-dot: rgba(132, 204, 22, 0.95);
-  --aura-c: rgba(163, 230, 53, 0.95);
+  --aura-a: rgba(120, 206, 193, 0.88);
+  --aura-b: rgba(168, 225, 208, 0.5);
+  --aura-dot: rgb(160, 245, 45);
+  --aura-c: rgb(195, 255, 120);
 }
 .tg-topic-aura-1 {
   --aura-a: rgba(115, 195, 235, 0.75);
