@@ -3297,12 +3297,20 @@ span.tg-edit-ce-lottie svg {
    motion without repainting. */
 .tg-topic-aura::before {
   inset: 0 -18%;
-  background: radial-gradient(
-    120% 70% at 50% 124%,
-    var(--aura-a) 0%,
-    var(--aura-b) 38%,
-    transparent 64%
-  );
+  /* Two layers (owner reference): a slight airy WHITE glow at the top of the
+     panel + the palette color glow rising from the bottom. */
+  background:
+    radial-gradient(
+      90% 55% at 50% -12%,
+      rgba(255, 255, 255, 0.7) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      120% 70% at 50% 124%,
+      var(--aura-a) 0%,
+      var(--aura-b) 38%,
+      transparent 64%
+    );
   will-change: transform;
   animation: tg-aura-drift 12s ease-in-out infinite alternate;
 }
@@ -3327,18 +3335,17 @@ span.tg-edit-ce-lottie svg {
   height: auto;
   aspect-ratio: 1024 / 340;
   max-height: 100%;
-  /* REAL multi-hue gradient (owner 2026-07-07: the old two-tone band read as
-     "just static colors"): all four palette hues sit in view at once
-     (300% backdrop ≈ a full hue-cycle across the visible band) and the pan
-     is fast + wide enough to visibly sweep color through the stars. */
+  /* Owner reference match (2026-07-10): the star gradient stays in ONE hue
+     family — a saturated base (--aura-dot) blending toward its lighter
+     sibling (--aura-c) — like the reference's lime→light-lime sparkles that
+     sit harmoniously on the mint glow instead of cycling foreign hues. The
+     300% backdrop + pan keeps the subtle color drift alive. */
   background: linear-gradient(
     100deg,
-    var(--aura-a) 0%,
-    var(--aura-c) 16%,
-    var(--aura-dot) 32%,
-    var(--aura-b) 48%,
-    var(--aura-c) 64%,
-    var(--aura-a) 80%,
+    var(--aura-dot) 0%,
+    var(--aura-c) 25%,
+    var(--aura-dot) 50%,
+    var(--aura-c) 75%,
     var(--aura-dot) 100%
   );
   background-size: 300% 100%;
@@ -3357,26 +3364,27 @@ span.tg-edit-ce-lottie svg {
     opacity: 0;
   }
   100% {
-    opacity: 0.55;
+    opacity: 0.85;
   }
 }
 /* Gentle heartbeat: soft swell up, ease back down, rest — reads as a slow
-   pulse rather than a flat fade. */
+   pulse rather than a flat fade. Baseline raised (owner 2026-07-10: the old
+   band read washed-out vs the saturated reference). */
 @keyframes tg-aura-pulse {
   0% {
-    opacity: 0.55;
+    opacity: 0.85;
   }
   18% {
-    opacity: 0.72;
+    opacity: 0.95;
   }
   42% {
-    opacity: 0.42;
+    opacity: 0.68;
   }
   70% {
-    opacity: 0.6;
+    opacity: 0.88;
   }
   100% {
-    opacity: 0.55;
+    opacity: 0.85;
   }
 }
 @keyframes tg-aura-shift {
@@ -3406,68 +3414,69 @@ span.tg-edit-ce-lottie svg {
   }
 }
 /* Ten palettes: --aura-a = lower glow core, --aura-b = mid glow,
-   --aura-dot = halftone dot color, --aura-c = companion hue the shifting
-   gradient blends toward (Gemini-style two-tone drift). Palette 0 matches
+   --aura-dot = halftone star base color, --aura-c = the LIGHTER sibling of
+   the same hue the star gradient blends toward (owner reference: saturated
+   lime → light lime, one family — never a foreign hue). Palette 0 matches
    the green reference. */
 .tg-topic-aura-0 {
   --aura-a: rgba(132, 204, 22, 0.55);
   --aura-b: rgba(163, 230, 53, 0.3);
-  --aura-dot: rgba(132, 204, 22, 0.55);
-  --aura-c: rgba(45, 212, 191, 0.5);
+  --aura-dot: rgba(132, 204, 22, 0.95);
+  --aura-c: rgba(190, 242, 100, 0.9);
 }
 .tg-topic-aura-1 {
   --aura-a: rgba(59, 130, 246, 0.55);
   --aura-b: rgba(96, 165, 250, 0.3);
-  --aura-dot: rgba(59, 130, 246, 0.55);
-  --aura-c: rgba(167, 139, 250, 0.5);
+  --aura-dot: rgba(59, 130, 246, 0.95);
+  --aura-c: rgba(147, 197, 253, 0.9);
 }
 .tg-topic-aura-2 {
   --aura-a: rgba(168, 85, 247, 0.55);
   --aura-b: rgba(192, 132, 252, 0.3);
-  --aura-dot: rgba(168, 85, 247, 0.55);
-  --aura-c: rgba(244, 114, 182, 0.5);
+  --aura-dot: rgba(168, 85, 247, 0.95);
+  --aura-c: rgba(216, 180, 254, 0.9);
 }
 .tg-topic-aura-3 {
   --aura-a: rgba(236, 72, 153, 0.55);
   --aura-b: rgba(244, 114, 182, 0.3);
-  --aura-dot: rgba(236, 72, 153, 0.55);
-  --aura-c: rgba(167, 139, 250, 0.5);
+  --aura-dot: rgba(236, 72, 153, 0.95);
+  --aura-c: rgba(249, 168, 212, 0.9);
 }
 .tg-topic-aura-4 {
   --aura-a: rgba(249, 115, 22, 0.55);
   --aura-b: rgba(251, 146, 60, 0.3);
-  --aura-dot: rgba(249, 115, 22, 0.55);
-  --aura-c: rgba(250, 204, 21, 0.5);
+  --aura-dot: rgba(249, 115, 22, 0.95);
+  --aura-c: rgba(253, 186, 116, 0.9);
 }
 .tg-topic-aura-5 {
   --aura-a: rgba(20, 184, 166, 0.55);
   --aura-b: rgba(45, 212, 191, 0.3);
-  --aura-dot: rgba(20, 184, 166, 0.55);
-  --aura-c: rgba(56, 189, 248, 0.5);
+  --aura-dot: rgba(20, 184, 166, 0.95);
+  --aura-c: rgba(94, 234, 212, 0.9);
 }
 .tg-topic-aura-6 {
   --aura-a: rgba(244, 63, 94, 0.55);
   --aura-b: rgba(251, 113, 133, 0.3);
-  --aura-dot: rgba(244, 63, 94, 0.55);
-  --aura-c: rgba(251, 146, 60, 0.5);
+  --aura-dot: rgba(244, 63, 94, 0.95);
+  --aura-c: rgba(253, 164, 175, 0.9);
 }
 .tg-topic-aura-7 {
   --aura-a: rgba(6, 182, 212, 0.55);
   --aura-b: rgba(34, 211, 238, 0.3);
-  --aura-dot: rgba(6, 182, 212, 0.55);
-  --aura-c: rgba(129, 140, 248, 0.5);
+  --aura-dot: rgba(6, 182, 212, 0.95);
+  --aura-c: rgba(103, 232, 249, 0.9);
 }
 .tg-topic-aura-8 {
   --aura-a: rgba(234, 179, 8, 0.55);
   --aura-b: rgba(250, 204, 21, 0.3);
-  --aura-dot: rgba(234, 179, 8, 0.55);
-  --aura-c: rgba(251, 146, 60, 0.5);
+  --aura-dot: rgba(234, 179, 8, 0.95);
+  --aura-c: rgba(253, 224, 71, 0.9);
 }
 .tg-topic-aura-9 {
   --aura-a: rgba(99, 102, 241, 0.55);
   --aura-b: rgba(129, 140, 248, 0.3);
-  --aura-dot: rgba(99, 102, 241, 0.55);
-  --aura-c: rgba(232, 121, 249, 0.5);
+  --aura-dot: rgba(99, 102, 241, 0.95);
+  --aura-c: rgba(165, 180, 252, 0.9);
 }
 
 /* ── Chat wallpaper ("Customize background") ───────────────────────────
