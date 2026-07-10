@@ -16,6 +16,16 @@ export const dynamic = "force-dynamic";
 /** SQL-chunk size when streaming a large blob without a Range header. */
 const STREAM_CHUNK = 1024 * 1024;
 
+/**
+ * Max bytes served per 206 slice of a large blob. Browsers open playback with
+ * `Range: bytes=0-` (open-ended); satisfying that literally would materialize
+ * the entire clip out of Postgres per play — the exact egress pattern the
+ * split serving paths exist to avoid. RFC 9110 allows a 206 to carry a
+ * shorter range than requested; clients keep issuing follow-up ranges for
+ * the rest, so only the bytes actually watched leave the DB.
+ */
+const RANGE_SLICE_CAP = 4 * 1024 * 1024;
+
 const CACHE_CONTROL =
   "public, max-age=31536000, immutable, s-maxage=604800, stale-while-revalidate=86400";
 
@@ -93,9 +103,14 @@ export async function GET(
         return new NextResponse(null, { status: 416, headers });
       }
       if (r) {
-        const chunk = await getVouchMediaSlice(id, r.start, r.end - r.start + 1);
+        // Clamp oversized/open-ended ranges to the slice cap (shorter 206).
+        const end = Math.min(r.end, r.start + RANGE_SLICE_CAP - 1);
+        const chunk = await getVouchMediaSlice(id, r.start, end - r.start + 1);
         if (!chunk) return new NextResponse(null, { status: 404 });
-        headers.set("Content-Range", `bytes ${r.start}-${r.end}/${meta.total}`);
+        headers.set(
+          "Content-Range",
+          `bytes ${r.start}-${r.start + chunk.length - 1}/${meta.total}`,
+        );
         headers.set("Content-Length", String(chunk.length));
         return new NextResponse(new Uint8Array(chunk), {
           status: 206,
