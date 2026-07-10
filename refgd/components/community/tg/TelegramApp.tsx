@@ -1038,6 +1038,7 @@ export default function TelegramApp({
                 onOpenMedia={onOpenMedia}
                 reactionsFor={reactionsFor}
                 onReact={onReact}
+                hideDates={topicKey === "buy4u"}
               />
             </>
           );

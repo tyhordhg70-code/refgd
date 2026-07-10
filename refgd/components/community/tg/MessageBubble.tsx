@@ -3,6 +3,7 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import Appendix from "./Appendix";
 import { emojiSrc, initials } from "./format";
+import { fmtDuration } from "./VideoPlayer";
 
 /** Autoplay a member's animated (mp4/webm) avatar reliably. React does not emit
  * the `muted` attribute during SSR, which can block autoplay until hydration; a
@@ -53,6 +54,7 @@ export default function MessageBubble({
   media,
   mediaSize,
   mediaSizes,
+  mediaMeta,
   body,
   time,
   ticks,
@@ -95,6 +97,18 @@ export default function MessageBubble({
   mediaSize?: { w: number; h: number };
   /** Per-image intrinsic sizes aligned with `media`; overrides mediaSize. */
   mediaSizes?: ({ w: number; h: number } | null)[];
+  /**
+   * Per-media kind info aligned with `media`; entries with kind "video"
+   * render as a poster frame + play badge (the mp4 itself is only fetched
+   * when the viewer opens) instead of a plain photo.
+   */
+  mediaMeta?: ({
+    kind: "photo" | "video";
+    /** Poster frame URL shown in the bubble. */
+    poster?: string;
+    /** Clip length in seconds for the duration badge. */
+    duration?: number | null;
+  } | null)[];
   body?: ReactNode;
   time?: ReactNode;
   ticks?: boolean;
@@ -107,8 +121,11 @@ export default function MessageBubble({
    * Wired to right-click on desktop and a ~450ms long-press on touch.
    */
   onOpenMenu?: (pos: { x: number; y: number }) => void;
-  /** Opens the fullscreen media viewer for a clicked photo. */
-  onOpenMedia?: (src: string) => void;
+  /** Opens the fullscreen media viewer for a clicked photo or video. */
+  onOpenMedia?: (
+    src: string,
+    meta?: { video?: boolean; poster?: string; duration?: number | null },
+  ) => void;
   mid?: string;
   /** Shows the Web A "edited" marker before the timestamp. */
   edited?: boolean;
@@ -465,33 +482,93 @@ export default function MessageBubble({
 
             {mediaList.length > 0 && (
               <div className={`tg-media${mediaFlush ? "" : " is-inset"}`}>
-                {mediaList.map((src, mi) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={src}
-                    src={src}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                    width={(mediaSizes?.[mi] ?? mediaSize)?.w}
-                    height={(mediaSizes?.[mi] ?? mediaSize)?.h}
-                    className={onOpenMedia ? "tg-media-clickable" : undefined}
-                    onClick={
-                      onOpenMedia
-                        ? () => {
-                            // Long-press opened the menu → swallow the
-                            // follow-up synthetic click so the lightbox does
-                            // not also open on top of it.
-                            if (menuFired.current) {
-                              menuFired.current = false;
-                              return;
+                {mediaList.map((src, mi) => {
+                  const meta = mediaMeta?.[mi];
+                  const size = mediaSizes?.[mi] ?? mediaSize;
+                  if (meta && meta.kind === "video") {
+                    // Video: poster frame + centered play badge + duration
+                    // pill. The clip's bytes are only requested once the
+                    // viewer opens — scrolling past costs a thumbnail.
+                    return (
+                      <div
+                        key={src}
+                        className={`tg-media-video${
+                          onOpenMedia ? " tg-media-clickable" : ""
+                        }`}
+                        role={onOpenMedia ? "button" : undefined}
+                        onClick={
+                          onOpenMedia
+                            ? () => {
+                                if (menuFired.current) {
+                                  menuFired.current = false;
+                                  return;
+                                }
+                                onOpenMedia(src, {
+                                  video: true,
+                                  poster: meta.poster,
+                                  duration: meta.duration,
+                                });
+                              }
+                            : undefined
+                        }
+                      >
+                        {meta.poster ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={meta.poster}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            width={size?.w}
+                            height={size?.h}
+                          />
+                        ) : (
+                          <span
+                            className="tg-media-video-blank"
+                            style={
+                              size
+                                ? { aspectRatio: `${size.w} / ${size.h}` }
+                                : undefined
                             }
-                            onOpenMedia(src);
-                          }
-                        : undefined
-                    }
-                  />
-                ))}
+                          />
+                        )}
+                        <span className="tg-media-video-play" aria-hidden>
+                          <i className="icon icon-play" />
+                        </span>
+                        <span className="tg-media-video-duration">
+                          {fmtDuration(meta.duration)}
+                        </span>
+                      </div>
+                    );
+                  }
+                  return (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={src}
+                      src={src}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      width={size?.w}
+                      height={size?.h}
+                      className={onOpenMedia ? "tg-media-clickable" : undefined}
+                      onClick={
+                        onOpenMedia
+                          ? () => {
+                              // Long-press opened the menu → swallow the
+                              // follow-up synthetic click so the lightbox does
+                              // not also open on top of it.
+                              if (menuFired.current) {
+                                menuFired.current = false;
+                                return;
+                              }
+                              onOpenMedia(src);
+                            }
+                          : undefined
+                      }
+                    />
+                  );
+                })}
               </div>
             )}
 

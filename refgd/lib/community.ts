@@ -38,6 +38,14 @@ export function isVouchSection(x: unknown): x is VouchSection {
   );
 }
 
+export interface VouchMediaMeta {
+  kind: "photo" | "video";
+  /** Video duration in seconds; null for photos/unknown. */
+  duration: number | null;
+  /** vouch_media id of the video's poster frame; null for photos. */
+  posterId: string | null;
+}
+
 export interface Vouch {
   id: string;
   section: VouchSection;
@@ -46,6 +54,8 @@ export interface Vouch {
   mediaIds: string[];
   /** Intrinsic pixel size per media id (same order); null when unknown. */
   mediaDims: ({ w: number; h: number } | null)[];
+  /** Per-media kind/duration/poster (same order as mediaIds). */
+  mediaMeta: (VouchMediaMeta | null)[];
   pinned: boolean;
   createdAt: string;
   originDate: string | null;
@@ -62,6 +72,9 @@ interface VouchRow {
   media_ids: string[];
   media_ws: (number | null)[] | null;
   media_hs: (number | null)[] | null;
+  media_kinds: (string | null)[] | null;
+  media_durations: (number | null)[] | null;
+  media_posters: (string | number | null)[] | null;
 }
 
 /**
@@ -86,6 +99,17 @@ function mapVouch(r: VouchRow): Vouch {
       return typeof w === "number" && typeof h === "number" && w > 0 && h > 0
         ? { w, h }
         : null;
+    }),
+    mediaMeta: (r.media_ids ?? []).map((_, i) => {
+      const kind = r.media_kinds?.[i];
+      if (kind !== "video") return null; // photos need no extra meta
+      const dur = r.media_durations?.[i];
+      const poster = r.media_posters?.[i];
+      return {
+        kind: "video" as const,
+        duration: typeof dur === "number" && dur > 0 ? dur : null,
+        posterId: poster === null || poster === undefined ? null : String(poster),
+      };
     }),
     pinned: r.pinned,
     createdAt: isoTs(r.created_at),
@@ -124,9 +148,21 @@ export async function listVouches(
             COALESCE(
               array_agg(m.h ORDER BY m.id) FILTER (WHERE m.id IS NOT NULL),
               ARRAY[]::integer[]
-            ) AS media_hs
+            ) AS media_hs,
+            COALESCE(
+              array_agg(m.kind ORDER BY m.id) FILTER (WHERE m.id IS NOT NULL),
+              ARRAY[]::text[]
+            ) AS media_kinds,
+            COALESCE(
+              array_agg(m.duration ORDER BY m.id) FILTER (WHERE m.id IS NOT NULL),
+              ARRAY[]::real[]
+            ) AS media_durations,
+            COALESCE(
+              array_agg(m.poster_id ORDER BY m.id) FILTER (WHERE m.id IS NOT NULL),
+              ARRAY[]::bigint[]
+            ) AS media_posters
        FROM vouches v
-       LEFT JOIN vouch_media m ON m.vouch_id = v.id
+       LEFT JOIN vouch_media m ON m.vouch_id = v.id AND m.kind <> 'poster'
        ${where}
       GROUP BY v.id
       ORDER BY v.pinned DESC, v.created_at DESC, v.id DESC
@@ -239,6 +275,43 @@ export async function getVouchMedia(
   );
   if (!rows[0]) return null;
   return { bytes: rows[0].bytes, mime: rows[0].mime };
+}
+
+/**
+ * Size + mime of a vouch media row WITHOUT pulling the blob out of the
+ * database. Lets the media route decide whether the row is small enough to
+ * fully load + LRU-cache, or must be served by SQL-sliced byte ranges
+ * (videos are 10MB+; a full `SELECT bytes` per range request is exactly the
+ * DB-egress pattern that exhausted the data-transfer quota before).
+ */
+export async function getVouchMediaMeta(
+  id: string,
+): Promise<{ total: number; mime: string } | null> {
+  await initDb();
+  const { rows } = await getPool().query<{ total: string; mime: string }>(
+    `SELECT octet_length(bytes) AS total, mime FROM vouch_media WHERE id = $1`,
+    [id],
+  );
+  if (!rows[0]) return null;
+  return { total: Number(rows[0].total), mime: rows[0].mime };
+}
+
+/**
+ * A single byte range of a vouch media blob, sliced INSIDE Postgres so only
+ * the requested window leaves the database (substring on BYTEA is 1-based).
+ */
+export async function getVouchMediaSlice(
+  id: string,
+  start: number,
+  length: number,
+): Promise<Buffer | null> {
+  await initDb();
+  const { rows } = await getPool().query<{ chunk: Buffer }>(
+    `SELECT substring(bytes FROM $2::int + 1 FOR $3::int) AS chunk
+       FROM vouch_media WHERE id = $1`,
+    [id, start, length],
+  );
+  return rows[0] ? rows[0].chunk : null;
 }
 
 // ── mod_config: typed key/value JSON store for group settings ─────────

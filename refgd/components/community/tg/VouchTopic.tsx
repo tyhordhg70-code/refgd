@@ -63,6 +63,7 @@ export default function VouchHistory({
   onOpenMedia,
   reactionsFor,
   onReact,
+  hideDates,
 }: {
   vouches: VouchView[];
   /** Opens the reduced (Edit / Pin / Copy Text / Forward) context menu for a vouch. */
@@ -75,8 +76,17 @@ export default function VouchHistory({
       media?: string[];
     },
   ) => void;
-  /** Opens the fullscreen media viewer for a clicked photo. */
-  onOpenMedia?: (src: string) => void;
+  /** Opens the fullscreen media viewer for a clicked photo or video. */
+  onOpenMedia?: (
+    src: string,
+    meta?: { video?: boolean; poster?: string; duration?: number | null },
+  ) => void;
+  /**
+   * Hide the per-day date pills entirely (no sticky date while scrolling) —
+   * used for BUY4U Vouches, where every import lands on the same forward day
+   * and a floating date adds nothing.
+   */
+  hideDates?: boolean;
   /** Live reaction chips for a vouch bubble (key `v<id>`). */
   reactionsFor?: (id: string) => BubbleReaction[];
   /** Toggle the viewer's reaction on a vouch bubble (key `v<id>`). */
@@ -97,9 +107,11 @@ export default function VouchHistory({
             gi === 0 ? " first-message-date-group" : ""
           }`}
         >
-          <div className="sticky-date interactive">
-            <span dir="auto">{g.label}</span>
-          </div>
+          {!hideDates && (
+            <div className="sticky-date interactive">
+              <span dir="auto">{g.label}</span>
+            </div>
+          )}
           {g.runs.map((run) => (
             <div key={run[0].id} className="sender-group-container sKXqbu2I">
               {run.map((v, i) => {
@@ -118,6 +130,17 @@ export default function VouchHistory({
                       (id) => `/api/community/media/${id}`,
                     )}
                     mediaSizes={v.mediaDims}
+                    mediaMeta={v.mediaMeta?.map((m) =>
+                      m && m.kind === "video"
+                        ? {
+                            kind: "video" as const,
+                            poster: m.posterId
+                              ? `/api/community/media/${m.posterId}`
+                              : undefined,
+                            duration: m.duration,
+                          }
+                        : null,
+                    )}
                     body={v.body ? renderBody(v.body) : undefined}
                     time={<LocalTime iso={v.originDate ?? v.createdAt} />}
                     reactions={reactionsFor?.(`v${v.id}`)}

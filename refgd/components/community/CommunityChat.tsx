@@ -25,6 +25,7 @@ import EmojiPanel, {
 } from "./tg/EmojiPanel";
 import TextFormatter from "./tg/TextFormatter";
 import VoiceMessage from "./tg/VoiceMessage";
+import VideoPlayer from "./tg/VideoPlayer";
 import PollBubble from "./tg/PollBubble";
 import PollCreateModal from "./tg/PollCreateModal";
 import { useVoiceRecorder } from "./tg/useVoiceRecorder";
@@ -261,7 +262,10 @@ export default function CommunityChat({
             canDelete?: boolean;
           },
         ) => void,
-        onOpenMedia: (src: string) => void,
+        onOpenMedia: (
+          src: string,
+          meta?: { video?: boolean; poster?: string; duration?: number | null },
+        ) => void,
         pinnedOnly: boolean,
         reactionsFor: (id: string, baseline?: Reaction[]) => Reaction[],
         onReact: (id: string, emoji: string) => void,
@@ -434,8 +438,13 @@ export default function CommunityChat({
     };
   }, []);
   const [emojiOpen, setEmojiOpen] = useState(false);
-  // Fullscreen photo viewer (click a message photo to expand it).
-  const [lightbox, setLightbox] = useState<string | null>(null);
+  // Fullscreen media viewer (click a message photo/video to expand it).
+  const [lightbox, setLightbox] = useState<{
+    src: string;
+    video?: boolean;
+    poster?: string;
+    duration?: number | null;
+  } | null>(null);
   // Center-screen transient toast shown after every message action; the nonce
   // is used as the element key so the fade animation restarts on each action
   // (even when the same text is shown twice in a row).
@@ -2142,7 +2151,7 @@ export default function CommunityChat({
                       ? history(
                           query,
                           openReadonlyMenu,
-                          (src) => setLightbox(src),
+                          (src, meta) => setLightbox({ src, ...meta }),
                           pinnedOnly,
                           extraReactions.reactionsFor,
                           reactAny,
@@ -2330,7 +2339,9 @@ export default function CommunityChat({
                                   onReact={(emoji) =>
                                     void chat.react(m.id, emoji)
                                   }
-                                  onOpenMedia={(src) => setLightbox(src)}
+                                  onOpenMedia={(src, meta) =>
+                                    setLightbox({ src, ...meta })
+                                  }
                                   onOpenMenu={(pos) =>
                                     setCtxMenu({
                                       kind: "chat",
@@ -3124,17 +3135,25 @@ export default function CommunityChat({
           <button
             type="button"
             className="tg-lightbox-close"
-            aria-label="Close photo"
+            aria-label="Close media"
             onClick={() => setLightbox(null)}
           >
             <IconClose />
           </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={lightbox}
-            alt="Photo"
-            onClick={(e) => e.stopPropagation()}
-          />
+          {lightbox.video ? (
+            <VideoPlayer
+              src={lightbox.src}
+              poster={lightbox.poster}
+              durationHint={lightbox.duration}
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={lightbox.src}
+              alt="Photo"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
         </div>,
           overlayEl,
         )}

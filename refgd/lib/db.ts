@@ -181,6 +181,15 @@
         -- exact aspect-ratio box before the photo loads (no layout pop-in).
         ALTER TABLE vouch_media ADD COLUMN IF NOT EXISTS w INTEGER;
         ALTER TABLE vouch_media ADD COLUMN IF NOT EXISTS h INTEGER;
+        -- Video vouches: 'photo' rows render as before; 'video' rows carry a
+        -- duration (seconds) and point at their own 'poster' row (the thumb
+        -- frame shown in the bubble — the mp4 itself is only fetched when the
+        -- viewer actually presses play, so imported clips cost no egress on
+        -- ordinary scrolling). 'poster' rows are excluded from a vouch's
+        -- media list by listVouches.
+        ALTER TABLE vouch_media ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'photo';
+        ALTER TABLE vouch_media ADD COLUMN IF NOT EXISTS duration REAL;
+        ALTER TABLE vouch_media ADD COLUMN IF NOT EXISTS poster_id BIGINT;
 
         CREATE TABLE IF NOT EXISTS chat_members (
           tg_id       BIGINT PRIMARY KEY,

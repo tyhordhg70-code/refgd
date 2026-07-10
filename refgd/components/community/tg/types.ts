@@ -7,6 +7,15 @@ export interface VouchView {
   mediaIds: string[];
   /** Intrinsic pixel size per media id (same order); null/absent = unknown. */
   mediaDims?: ({ w: number; h: number } | null)[];
+  /**
+   * Per-media kind/duration/poster (same order as mediaIds); null/absent
+   * entries are plain photos.
+   */
+  mediaMeta?: ({
+    kind: "photo" | "video";
+    duration: number | null;
+    posterId: string | null;
+  } | null)[];
   pinned: boolean;
   createdAt: string;
   originDate: string | null;

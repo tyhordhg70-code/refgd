@@ -29,6 +29,13 @@ export interface CachedBlob {
 const MAX_TOTAL_BYTES = 16 * 1024 * 1024;
 const MAX_ENTRY_BYTES = 3 * 1024 * 1024;
 
+/**
+ * Anything larger than this can never live in the LRU (`putCachedBlob`
+ * silently rejects it), so serving routes must NOT pull the full blob out of
+ * Postgres for such entries — SQL-slice the requested byte range instead.
+ */
+export const BLOB_CACHE_ENTRY_CAP = MAX_ENTRY_BYTES;
+
 declare global {
   // eslint-disable-next-line no-var
   var _blobLru: { map: Map<string, CachedBlob>; total: number } | undefined;
