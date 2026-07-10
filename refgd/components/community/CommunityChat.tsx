@@ -2,6 +2,7 @@
 
 import {
   Fragment,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -466,6 +467,26 @@ export default function CommunityChat({
   // `| null` in the type parameter keeps `.current` mutable (React 18 types
   // make bare useRef<T>(null) readonly) — the composer uses a callback ref.
   const inputRef = useRef<HTMLDivElement | null>(null);
+  // Composer mount tracked in STATE too: the composer only renders once the
+  // session has loaded (`state !== null && me`), which is AFTER the draft
+  // restore effect has already put the draft into chat.text — the chat.text↔
+  // DOM sync effect must re-run when the node appears or a restored draft
+  // shows an empty input ("draft gone" bug). Stable useCallback so React
+  // doesn't detach/re-attach the ref (and churn this state) every render.
+  const [composerNode, setComposerNode] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const composerRefCb = useCallback((el: HTMLDivElement | null) => {
+    inputRef.current = el;
+    setComposerNode(el);
+    // Wire the emoji fallback/animation upgraders the moment the composer
+    // exists — a paste can arrive before any programmatic seed does (both
+    // helpers are idempotent via dataset flags).
+    if (el) {
+      wireEditCeFallback(el);
+      wireEditCeAnimations(el);
+    }
+  }, []);
   // contentEditable inside the readonly-post edit dialog (Web A edit
   // composer); its own TextFormatter binds to this ref.
   const editInputRef = useRef<HTMLDivElement | null>(null);
@@ -1464,7 +1485,10 @@ export default function CommunityChat({
       wireEditCeFallback(el);
       wireEditCeAnimations(el);
     }
-  }, [chat.text, chat.editing]);
+    // composerNode: the composer mounts only after the session loads, so this
+    // must ALSO fire on mount to seed a restored draft (chat.text was set
+    // while inputRef.current was still null — "draft gone on open" bug).
+  }, [chat.text, chat.editing, composerNode]);
 
   // Entering composer edit mode: seed the input with the message body and drop
   // the caret at the end. We set innerText explicitly (not relying on the
@@ -2854,17 +2878,7 @@ export default function CommunityChat({
                   <div className="custom-scroll input-scroller" data-lenis-prevent="">
                     <div className="input-scroller-content">
                       <div
-                        ref={(el) => {
-                          inputRef.current = el;
-                          // Wire the emoji fallback/animation upgraders the
-                          // moment the composer exists — a paste can arrive
-                          // before any programmatic seed does (both helpers
-                          // are idempotent via dataset flags).
-                          if (el) {
-                            wireEditCeFallback(el);
-                            wireEditCeAnimations(el);
-                          }
-                        }}
+                        ref={composerRefCb}
                         id="editable-message-text"
                         className="form-control allow-selection"
                         contentEditable
