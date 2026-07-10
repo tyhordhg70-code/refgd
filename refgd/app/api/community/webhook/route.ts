@@ -69,6 +69,7 @@ type TgEntity = {
   offset: number;
   length: number;
   custom_emoji_id?: string;
+  url?: string;
 };
 type TgMessage = {
   message_id: number;
@@ -86,45 +87,71 @@ type TgMessage = {
   forward_sender_name?: string;
 };
 /**
- * Splice `[ce:<documentId>:<alt>]` tokens into a message's text wherever a
- * custom_emoji entity covers it. Without this the ingestion queue stored only
- * bare unicode (msg.text drops entities), so an owner's premium animated
- * emoji — the whole reason a message looks alive in Telegram — arrived on
- * the site as static standard glyphs. Telegram entity offsets/lengths are
- * UTF-16 code units, which is exactly what JS string indices are, so a
- * straight slice works; entities are applied right-to-left so earlier
- * offsets stay valid, with an overlap guard for malformed payloads.
+ * Splice body tokens into a message's text wherever an entity covers it:
+ *   - custom_emoji → `[ce:<documentId>:<alt>]`. Without this the ingestion
+ *     queue stored only bare unicode (msg.text drops entities), so an owner's
+ *     premium animated emoji — the whole reason a message looks alive in
+ *     Telegram — arrived on the site as static standard glyphs.
+ *   - text_link → `[label](url)`. A real Telegram hyperlink (e.g. a Rose
+ *     filter reply saved with markdown) carries its URL ONLY in the entity;
+ *     msg.text has just the label, so without this the site permanently lost
+ *     the link and rendered plain text.
+ * Telegram entity offsets/lengths are UTF-16 code units, which is exactly
+ * what JS string indices are, so a straight slice works; entities are applied
+ * right-to-left so earlier offsets stay valid, with an overlap guard for
+ * malformed payloads. A custom_emoji nested inside a text_link is dropped in
+ * favor of the link (the label keeps its bare glyph, which still renders as
+ * animated standard emoji) — losing a clickable URL is worse than losing a
+ * premium sticker frame.
  */
-function spliceCustomEmojiTokens(
+function spliceEntityTokens(
   text: string,
   entities: TgEntity[] | undefined,
 ): string {
   if (!text || !entities?.length) return text;
-  const ce = entities
-    .filter(
-      (e) =>
-        e.type === "custom_emoji" &&
-        typeof e.custom_emoji_id === "string" &&
-        /^\d{1,32}$/.test(e.custom_emoji_id) &&
-        Number.isInteger(e.offset) &&
-        Number.isInteger(e.length) &&
-        e.offset >= 0 &&
-        e.length > 0 &&
-        e.offset + e.length <= text.length,
-    )
-    .sort((a, b) => b.offset - a.offset);
+  const spanOk = (e: TgEntity) =>
+    Number.isInteger(e.offset) &&
+    Number.isInteger(e.length) &&
+    e.offset >= 0 &&
+    e.length > 0 &&
+    e.offset + e.length <= text.length;
+  const links = entities.filter((e) => {
+    if (e.type !== "text_link" || typeof e.url !== "string" || !spanOk(e))
+      return false;
+    if (!/^https?:\/\/\S+$/.test(e.url)) return false;
+    const label = text.slice(e.offset, e.offset + e.length);
+    // Token grammar: "]" terminates the label, whitespace/")" terminate the
+    // URL on the render side ("(" and ")" get percent-encoded below).
+    return label.trim().length > 0 && !label.includes("]");
+  });
+  const ce = entities.filter(
+    (e) =>
+      e.type === "custom_emoji" &&
+      typeof e.custom_emoji_id === "string" &&
+      /^\d{1,32}$/.test(e.custom_emoji_id) &&
+      spanOk(e) &&
+      // Nested inside a kept link → the link token wins.
+      !links.some(
+        (l) => e.offset >= l.offset && e.offset + e.length <= l.offset + l.length,
+      ),
+  );
+  const all = [...links, ...ce].sort((a, b) => b.offset - a.offset);
   let out = text;
   let prevStart = Infinity;
-  for (const e of ce) {
+  for (const e of all) {
     if (e.offset + e.length > prevStart) continue;
-    const alt = text.slice(e.offset, e.offset + e.length);
-    // The token grammar reserves "]" as the alt terminator; a covered run
-    // containing one (never a real emoji) would produce an unparseable token.
-    if (!alt || alt.includes("]")) continue;
-    out =
-      out.slice(0, e.offset) +
-      `[ce:${e.custom_emoji_id}:${alt}]` +
-      out.slice(e.offset + e.length);
+    const covered = text.slice(e.offset, e.offset + e.length);
+    let token: string;
+    if (e.type === "text_link") {
+      const url = (e.url as string).replace(/\(/g, "%28").replace(/\)/g, "%29");
+      token = `[${covered}](${url})`;
+    } else {
+      // The token grammar reserves "]" as the alt terminator; a covered run
+      // containing one (never a real emoji) would produce an unparseable token.
+      if (!covered || covered.includes("]")) continue;
+      token = `[ce:${e.custom_emoji_id}:${covered}]`;
+    }
+    out = out.slice(0, e.offset) + token + out.slice(e.offset + e.length);
     prevStart = e.offset;
   }
   return out;
@@ -491,13 +518,14 @@ export async function POST(req: Request) {
   }
 
   // ── content ingestion → queue + destination keyboard ─────────────────
-  // Preserve premium custom emoji as [ce:] tokens (entities are the ONLY
-  // place their document ids travel); the pack-teaching block above has
-  // already cached the artwork for these very ids.
+  // Preserve premium custom emoji as [ce:] tokens and real hyperlinks as
+  // [label](url) tokens (entities are the ONLY place their document ids /
+  // URLs travel); the pack-teaching block above has already cached the
+  // artwork for these very ids.
   const body = (
     msg.text != null
-      ? spliceCustomEmojiTokens(msg.text, msg.entities)
-      : spliceCustomEmojiTokens(msg.caption ?? "", msg.caption_entities)
+      ? spliceEntityTokens(msg.text, msg.entities)
+      : spliceEntityTokens(msg.caption ?? "", msg.caption_entities)
   ).trim();
   const photos = msg.photo ?? [];
   if (!body && photos.length === 0) return NextResponse.json({ ok: true });
