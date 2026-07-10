@@ -176,17 +176,21 @@ export default function VideoPlayer({
         }}
       />
 
-      {/* Big center play button while paused (Web A parity). */}
-      {!playing && (
-        <button
-          type="button"
-          className="tg-vp-bigplay"
-          aria-label="Play video"
-          onClick={togglePlay}
-        >
-          <i className="icon icon-play" aria-hidden />
-        </button>
-      )}
+      {/* Big center play/pause button (Web A parity): while paused it's the
+          play affordance; while playing it becomes a center PAUSE button that
+          fades away with the idle controls (opacity + pointer-events so idle
+          taps fall through to the video, whose own click toggles playback). */}
+      <button
+        type="button"
+        className={`tg-vp-bigplay${playing && !shown ? " tg-vp-bigplay-hidden" : ""}`}
+        aria-label={playing ? "Pause video" : "Play video"}
+        onClick={togglePlay}
+      >
+        <i
+          className={`icon ${playing ? "icon-pause" : "icon-play"}`}
+          aria-hidden
+        />
+      </button>
 
       <div className="tg-vp-controls" onClick={(e) => e.stopPropagation()}>
         <div

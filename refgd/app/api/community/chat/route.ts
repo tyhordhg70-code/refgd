@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { readMemberSession } from "@/lib/community-auth";
-import { getCommunityBotUsername } from "@/lib/community-bot";
+import {
+  getCommunityBotUsername,
+  sendCommunityTelegram,
+} from "@/lib/community-bot";
 import {
   listChatMessages,
   createChatMessage,
@@ -23,13 +26,16 @@ import {
   isNotifCategory,
   listTyping,
   clearTyping,
+  rewriteMentions,
+  mentionedTgIds,
+  mentionPreview,
   hashDeviceSignal,
   ipFromRequest,
   checkDeviceBan,
   setMemberBan,
   type ChatTopic,
 } from "@/lib/community";
-import { notifyCategory } from "@/lib/community-notify";
+import { notifyCategory, notifyAll } from "@/lib/community-notify";
 import { parseCommand, executeModCommand } from "@/lib/moderation";
 import { memoTtl } from "@/lib/micro-cache";
 
@@ -650,6 +656,14 @@ export async function POST(req: Request) {
     text = `[voice:${voiceMediaId}:${voice.duration}:${voice.waveform}]`;
   }
 
+  // @Display-Name mentions: rewrite plain `@Name` text into server-composed
+  // [m:<tgId>:<name>] tokens (and fold any client-smuggled tokens back to
+  // text first — they are server-only, like [voice:]/[poll:]). Voice bodies
+  // are pure tokens and never carry mentions.
+  if (!voice && text) {
+    text = await rewriteMentions(text);
+  }
+
   // Pasted foreign-pack custom emoji: validate + cache their artwork BEFORE
   // the message lands so its bubble can animate on first render (the emoji
   // serve route is cache-first — see discoverMessageEmoji).
@@ -692,6 +706,37 @@ export async function POST(req: Request) {
       }
     } catch {
       // never let the auto-reply break the member's own send
+    }
+  }
+
+  // Mention pings — fire-and-forget, never blocking or failing the send.
+  // Each mentioned member gets a bot DM naming who mentioned them; an
+  // admin's @everyone broadcasts to the whole community (web push + DMs),
+  // exactly like a pin. A non-admin's "@everyone" stays plain text.
+  if (message && text) {
+    const targets = mentionedTgIds(text).filter(
+      (id) => id !== me.tid && id !== BOT_MEMBER_TG_ID,
+    );
+    const snippet = mentionPreview(text);
+    if (targets.length > 0) {
+      void (async () => {
+        const esc = (s: string) =>
+          s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        for (const id of targets) {
+          await sendCommunityTelegram(
+            id,
+            `<b>${esc(me.name)}</b> mentioned you in RefundGod Law Firm:\n${esc(snippet)}`,
+            { text: "Open Chat", url: "https://refundgod.io/community#chat" },
+          ).catch(() => undefined);
+        }
+      })();
+    }
+    if (me.admin && /(^|\s)@everyone\b/i.test(text)) {
+      void notifyAll({
+        title: `${me.name} mentioned everyone`,
+        body: snippet || "New message in the Group Chat",
+        url: "/community#chat",
+      }).catch(() => undefined);
     }
   }
 

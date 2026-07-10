@@ -254,7 +254,10 @@ export function AnimatedEmoji({ ch }: { ch: string }) {
   );
 }
 
-const URL_RE = /(https?:\/\/[^\s]+|t\.me\/[^\s]+)/g;
+// Bare `@refundgod` (the group's public handle, all over imported vouches)
+// linkifies straight to the Telegram group; `@everyone` renders as a blue
+// mention (the server only broadcasts it when an admin posted it).
+const URL_RE = /(https?:\/\/[^\s]+|t\.me\/[^\s]+|@refundgod\b|@everyone\b)/gi;
 
 /**
  * Force muted + play on mount so an animated custom-emoji <video> autoplays:
@@ -1287,18 +1290,38 @@ function renderLinkified(
       );
     }
     const raw = match[0];
-    const href = raw.startsWith("http") ? raw : `https://${raw}`;
-    out.push(
-      <a
-        key={`${keyPrefix}l${k}`}
-        className="text-entity-link"
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        {raw}
-      </a>,
-    );
+    if (/^@everyone$/i.test(raw)) {
+      out.push(
+        <span key={`${keyPrefix}l${k}`} className="text-entity-mention">
+          {raw}
+        </span>,
+      );
+    } else if (/^@refundgod$/i.test(raw)) {
+      out.push(
+        <a
+          key={`${keyPrefix}l${k}`}
+          className="text-entity-link"
+          href="https://t.me/refundgod"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {raw}
+        </a>,
+      );
+    } else {
+      const href = raw.startsWith("http") ? raw : `https://${raw}`;
+      out.push(
+        <a
+          key={`${keyPrefix}l${k}`}
+          className="text-entity-link"
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {raw}
+        </a>,
+      );
+    }
     last = match.index + raw.length;
     k += 1;
   }
@@ -1418,6 +1441,16 @@ function renderInline(
 /** `[ce:<documentId>:<alt>]` — custom emoji token written by the composer. */
 const CE_RE = /\[ce:(\d+):([^\]]+)\]/g;
 
+/** Server-composed @Display-Name mention token — see rewriteMentions() in
+ *  lib/community.ts. Rendered as a Web-A blue mention; previews collapse it
+ *  back to `@Name` (exactly one `@`, even when the display name has its own,
+ *  like the owner's "@RefundGod"). */
+const M_RE = /\[m:(\d+):([^\]\n]{1,64})\]/g;
+
+export function mentionLabel(name: string): string {
+  return name.startsWith("@") ? name : `@${name}`;
+}
+
 /** `[voice:<mediaId>:<durSec>:<waveform>]` — server-composed voice note body. */
 const VOICE_TOKEN_RE = /^\[voice:(\d+):(\d+):([0-9a-v]{0,64})\]$/;
 
@@ -1466,6 +1499,7 @@ export function tokenPreview(body: string): string {
   return body
     .replace(BUTTON_URL_RE, "$1")
     .replace(CE_RE, "$2")
+    .replace(M_RE, (_all, _id, name: string) => mentionLabel(name))
     .replace(/\[([^\]]+?)\]\((?:https?:\/\/)[^\s)]+\)/g, "$1")
     .replace(/^>(?: |$)/gm, "")
     .trim();
@@ -1634,9 +1668,12 @@ function renderRich(bodyText: string, keyPrefix: string): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
-  CE_RE.lastIndex = 0;
+  // Fresh combined scanner per call (module-level /g regexes share lastIndex
+  // across re-entrant renders): custom-emoji tokens AND mention tokens in one
+  // left-to-right pass so ordering between them is preserved.
+  const richRe = new RegExp(`${CE_RE.source}|${M_RE.source}`, "g");
   let k = 0;
-  while ((match = CE_RE.exec(bodyText)) !== null) {
+  while ((match = richRe.exec(bodyText)) !== null) {
     if (match.index > last) {
       out.push(
         ...renderInline(
@@ -1646,9 +1683,21 @@ function renderRich(bodyText: string, keyPrefix: string): ReactNode[] {
         ),
       );
     }
-    out.push(
-      <CustomEmojiImg key={`${keyPrefix}ce${k}`} id={match[1]} alt={match[2]} />,
-    );
+    if (match[1] !== undefined) {
+      out.push(
+        <CustomEmojiImg
+          key={`${keyPrefix}ce${k}`}
+          id={match[1]}
+          alt={match[2]}
+        />,
+      );
+    } else {
+      out.push(
+        <span key={`${keyPrefix}m${k}`} className="text-entity-mention">
+          {mentionLabel(match[4])}
+        </span>,
+      );
+    }
     last = match.index + match[0].length;
     k += 1;
   }

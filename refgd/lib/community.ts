@@ -776,6 +776,104 @@ export async function findMemberByUsername(
     : null;
 }
 
+/* ── @Display-Name mentions ──────────────────────────────────────────
+ * Server-composed mention token: `[m:<tgId>:<Display Name>]`. Only the
+ * server ever composes these (same contract as [voice:]/[poll:]) — a posted
+ * or edited body has its plain `@Name` text rewritten here when it matches a
+ * member's display name. format.tsx renders the token as a Web-A blue
+ * mention and tokenPreview collapses it back to `@Name` for reply embeds,
+ * topic rows, copy text and notifications. Telegram usernames are NEVER
+ * used for this feature (owner ask: display names only).
+ */
+export const MENTION_TOKEN_RE = /\[m:(\d+):([^\]\n]{1,64})\]/g;
+
+export interface MentionTarget {
+  tgId: string;
+  name: string;
+}
+
+/** Every mentionable member: live display name + id. Excludes the reserved
+ *  Rose bot row and banned members; usernames are deliberately not read. */
+export async function listMentionTargets(): Promise<MentionTarget[]> {
+  await initDb();
+  const { rows } = await getPool().query<{
+    tg_id: string;
+    first_name: string | null;
+  }>(
+    `SELECT tg_id::text AS tg_id, first_name
+       FROM chat_members
+      WHERE tg_id IS NOT NULL AND tg_id::text <> $1
+        AND is_banned = FALSE
+        AND COALESCE(first_name, '') <> ''`,
+    [BOT_MEMBER_TG_ID],
+  );
+  return rows
+    .map((r) => ({ tgId: r.tg_id, name: (r.first_name ?? "").trim() }))
+    .filter((m) => m.name.length > 0);
+}
+
+const RE_ESCAPE = /[.*+?^${}()|[\]\\]/g;
+
+/** Mention display text: exactly one leading `@` even when the member's
+ *  display name itself starts with one (the owner shows as "@RefundGod"). */
+export function mentionDisplay(name: string): string {
+  return name.startsWith("@") ? name : `@${name}`;
+}
+
+/**
+ * Rewrite plain `@Display Name` text into server-composed mention tokens.
+ * Client-supplied [m:] tokens are folded back to plain text FIRST so a member
+ * can never spoof a mention that didn't actually match here. Longest display
+ * name wins, so "@N. N. hello" never half-matches a shorter member name that
+ * happens to be its prefix; a sentinel placeholder keeps a later (shorter)
+ * name from matching inside an already-composed token. A display name's own
+ * leading `@` folds into the typed one, so `@RefundGod` matches — users never
+ * have to type `@@RefundGod`.
+ */
+export async function rewriteMentions(text: string): Promise<string> {
+  if (!text) return text;
+  let out = text.replace(MENTION_TOKEN_RE, (_a, _id, name: string) =>
+    mentionDisplay(name),
+  );
+  if (!out.includes("@")) return out;
+  const members = await listMentionTargets().catch(
+    () => [] as MentionTarget[],
+  );
+  if (members.length === 0) return out;
+  const sorted = [...members].sort((a, b) => b.name.length - a.name.length);
+  const toks: string[] = [];
+  for (const m of sorted) {
+    const typed = m.name.startsWith("@") ? m.name.slice(1) : m.name;
+    if (!typed) continue;
+    const re = new RegExp(`@${typed.replace(RE_ESCAPE, "\\$&")}(?![\\w@])`, "gi");
+    out = out.replace(re, () => {
+      toks.push(`[m:${m.tgId}:${m.name}]`);
+      return `\u0000${toks.length - 1}\u0000`;
+    });
+  }
+  return out.replace(/\u0000(\d+)\u0000/g, (_a, i: string) => toks[Number(i)] ?? "");
+}
+
+/** Unique member ids mentioned by a (rewritten) body's [m:] tokens. */
+export function mentionedTgIds(body: string): string[] {
+  const ids = new Set<string>();
+  MENTION_TOKEN_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = MENTION_TOKEN_RE.exec(body)) !== null) ids.add(m[1]);
+  return Array.from(ids);
+}
+
+/** Human snippet of a body for mention notifications: tokens collapse to
+ *  their `@Name`, whitespace flattens, hard cap for a DM preview line. */
+export function mentionPreview(body: string): string {
+  const flat = body
+    .replace(MENTION_TOKEN_RE, (_a, _id, name: string) => mentionDisplay(name))
+    .replace(/\[([^\]\n]{1,64})\]\(buttonurl:\/\/[^\s)]+\)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+  return flat.length > 160 ? `${flat.slice(0, 157)}…` : flat;
+}
+
 export async function countChatMembers(): Promise<number> {
   await initDb();
   const { rows } = await getPool().query<{ n: number }>(

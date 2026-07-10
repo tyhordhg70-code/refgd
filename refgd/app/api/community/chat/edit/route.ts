@@ -7,6 +7,7 @@ import {
   getChatMemberModState,
   matchBlocklist,
   recordAction,
+  rewriteMentions,
 } from "@/lib/community";
 
 export const runtime = "nodejs";
@@ -130,6 +131,17 @@ export async function POST(req: Request) {
         { status: 403 },
       );
     }
+  }
+
+  // @Display-Name mentions: same server-side rewrite as a fresh post — the
+  // edit composer seeds tokens back as plain `@Name` text, so re-matching
+  // here keeps mentions blue (and un-matching text plain) after an edit.
+  body = await rewriteMentions(body);
+  if (!body) {
+    return NextResponse.json(
+      { ok: false, error: "Message is empty" },
+      { status: 400 },
+    );
   }
 
   // An edit can paste in new foreign-pack custom emoji too — same discovery

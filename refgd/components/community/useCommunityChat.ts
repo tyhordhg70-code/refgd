@@ -802,10 +802,31 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state === null, topic]);
+  // First bottom-pin per topic must always land (initial open of a topic
+  // whose last post is a tall photo can legitimately be "far" from the
+  // bottom before the pin runs).
+  const firstPinDoneRef = useRef(false);
+  useEffect(() => {
+    firstPinDoneRef.current = false;
+  }, [topic]);
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !state?.messages?.length) return;
-    if (atBottomRef.current) el.scrollTop = el.scrollHeight;
+    if (!atBottomRef.current) return;
+    // iOS momentum scrolling delivers scroll events LATE — atBottomRef can
+    // still say "at bottom" while the viewer has already flung far up the
+    // history. Trust the LIVE geometry at write time: pin only when the view
+    // really is near the bottom, otherwise hand the pin off (release the
+    // flag) so a poll tick can't yank the view back down mid-scroll — the
+    // "jump cut" flicker when scrolling the photo-heavy vouch topics.
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (!firstPinDoneRef.current || dist <= Math.max(el.clientHeight, 600)) {
+      el.scrollTop = el.scrollHeight;
+      firstPinDoneRef.current = true;
+    } else {
+      atBottomRef.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.messages]);
 
   // While the viewer is at the bottom, KEEP them fully at the bottom as the
@@ -818,7 +839,13 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     if (!el || state === null || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(() => {
       if (atBottomRef.current) {
-        el.scrollTop = el.scrollHeight;
+        // Same live-geometry check as the message-arrival pin: media
+        // finishing decode mid-fling must not slam the view back to the
+        // bottom when the viewer has already scrolled well away.
+        const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (dist <= Math.max(el.clientHeight, 600)) {
+          el.scrollTop = el.scrollHeight;
+        }
         return;
       }
       const a = restoreAnchorRef.current;

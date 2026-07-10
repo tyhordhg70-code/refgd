@@ -1,9 +1,90 @@
 "use client";
 
-import { useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import Appendix from "./Appendix";
 import { emojiSrc, initials } from "./format";
 import { fmtDuration } from "./VideoPlayer";
+
+/**
+ * Near-viewport latch for in-bubble media (photos + video posters).
+ *
+ * `loading="lazy"` let the BROWSER defer the fetch until the tile touched the
+ * viewport edge, which is exactly why fast scrolling through the vouch topics
+ * flashed blank gray boxes mid-flight — the bytes only started downloading
+ * once the tile was already on screen (same lesson as the custom-emoji tiles,
+ * see CustomEmojiImg in format.tsx). Instead we gate the <img> mount on an
+ * IntersectionObserver with a huge margin so the fetch starts ~2 screens
+ * early, and once latched the img NEVER unmounts, so re-scrolling past it can
+ * never blank it again. The placeholder reserves the exact box via the stored
+ * dims (aspect-ratio), so nothing shifts when the pixels arrive.
+ */
+function LatchedImg({
+  src,
+  w,
+  h,
+  className,
+  onClick,
+}: {
+  src: string;
+  w?: number;
+  h?: number;
+  className?: string;
+  onClick?: () => void;
+}) {
+  const holderRef = useRef<HTMLSpanElement | null>(null);
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    if (near) return;
+    const el = holderRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setNear(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            setNear(true);
+            io.disconnect();
+            return;
+          }
+        }
+      },
+      // Viewport-relative with a big vertical margin: the nested messages
+      // scroller still intersects viewport coordinates, so root:null works.
+      { rootMargin: "1600px 0px 1600px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [near]);
+  if (!near) {
+    return (
+      <span
+        ref={holderRef}
+        className="tg-media-ph"
+        style={w && h ? { aspectRatio: `${w} / ${h}` } : undefined}
+      />
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      decoding="async"
+      width={w}
+      height={h}
+      className={className}
+      onClick={onClick}
+    />
+  );
+}
 
 /** Autoplay a member's animated (mp4/webm) avatar reliably. React does not emit
  * the `muted` attribute during SSR, which can block autoplay until hydration; a
@@ -513,14 +594,10 @@ export default function MessageBubble({
                         }
                       >
                         {meta.poster ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
+                          <LatchedImg
                             src={meta.poster}
-                            alt=""
-                            loading="lazy"
-                            decoding="async"
-                            width={size?.w}
-                            height={size?.h}
+                            w={size?.w}
+                            h={size?.h}
                           />
                         ) : (
                           <span
@@ -542,15 +619,11 @@ export default function MessageBubble({
                     );
                   }
                   return (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <LatchedImg
                       key={src}
                       src={src}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                      width={size?.w}
-                      height={size?.h}
+                      w={size?.w}
+                      h={size?.h}
                       className={onOpenMedia ? "tg-media-clickable" : undefined}
                       onClick={
                         onOpenMedia

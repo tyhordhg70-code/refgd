@@ -29,6 +29,8 @@ import {
   removeFilter,
   listFilters,
   findMemberByUsername,
+  listMentionTargets,
+  type MentionTarget,
   BOT_MEMBER_TG_ID,
   setMessagePinned,
   unpinAll,
@@ -107,12 +109,40 @@ async function resolveTarget(
     if (a) return { tgId: a.tgId, name: a.authorName, args: rest };
     return { error: "Couldn't find the message you replied to." };
   }
+  if (rest.startsWith("@")) {
+    // Display-name targeting first (owner ask: the roster keys on display
+    // names, not @usernames — most members never expose a handle). Longest
+    // prefix of the remaining text wins so "/ban @N. N. spamming" resolves
+    // the member "N. N." and leaves "spamming" as the reason; a member's own
+    // leading "@" (owner shows as "@RefundGod") folds into the typed one.
+    const after = rest.slice(1);
+    const members = await listMentionTargets().catch(
+      () => [] as MentionTarget[],
+    );
+    let best: { m: MentionTarget; len: number } | null = null;
+    for (const mt of members) {
+      const typed = mt.name.startsWith("@") ? mt.name.slice(1) : mt.name;
+      if (!typed || after.length < typed.length) continue;
+      if (after.slice(0, typed.length).toLowerCase() !== typed.toLowerCase())
+        continue;
+      const nxt = after[typed.length];
+      if (nxt !== undefined && !/\s/.test(nxt)) continue;
+      if (!best || typed.length > best.len) best = { m: mt, len: typed.length };
+    }
+    if (best) {
+      return {
+        tgId: best.m.tgId,
+        name: best.m.name,
+        args: after.slice(best.len).trim(),
+      };
+    }
+  }
   const um = rest.match(/^@([A-Za-z0-9_]{3,32})\b\s*([\s\S]*)$/);
   if (um) {
     const found = await findMemberByUsername(um[1]);
     if (!found) {
       return {
-        error: `No member with the username @${um[1]} has opened the community yet — reply to one of their messages or use their numeric ID instead.`,
+        error: `No member named @${um[1]} found — use their display name exactly as it appears on their messages (e.g. /ban @Full Name), reply to one of their messages, or use their numeric ID.`,
       };
     }
     return { tgId: found.tgId, name: found.name, args: (um[2] ?? "").trim() };
@@ -128,7 +158,7 @@ async function resolveTarget(
 }
 
 const HELP_TEXT = [
-  "Admin commands (reply to a message to target its author, or pass @username or a numeric Telegram ID):",
+  "Admin commands (reply to a message to target its author, or pass @Display Name or a numeric Telegram ID):",
   ...COMMAND_SPECS.filter((c) => c.admin).map(
     (c) => `/${c.cmd}${c.args ? ` ${c.args}` : ""} — ${c.desc}`,
   ),
@@ -201,7 +231,8 @@ export async function executeModCommand(opts: {
         return {
           handled: true,
           ok: false,
-          system: "Reply to a message, or pass @username or a numeric Telegram ID.",
+          system:
+            "Reply to a message, or pass @Display Name or a numeric Telegram ID.",
         };
       }
       if ("error" in target) {

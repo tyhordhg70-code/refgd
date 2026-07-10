@@ -687,9 +687,27 @@ button.tg-reply-embed:focus-visible {
      a hole in the bubble. */
   background: rgba(120, 130, 150, 0.14);
 }
+/* Pre-fetch placeholder for LatchedImg (MessageBubble): mirrors the img
+   sizing above so the reserved box is byte-identical to what the photo will
+   occupy — inline aspect-ratio comes from the stored media dims; min-height
+   keeps dimension-less legacy media from collapsing to zero. */
+.message-content .tg-media .tg-media-ph {
+  display: block;
+  width: 100%;
+  min-height: 3rem;
+  max-height: 26rem;
+  background: rgba(120, 130, 150, 0.14);
+}
 .message-content.is-media-only .tg-media {
   margin-bottom: -0.375rem;
   border-radius: 0.9375rem;
+}
+
+/* @Display-Name mention (server-composed [m:] token) — Web A renders these
+   as link-colored text; ours are non-interactive highlights + notify hooks. */
+.tg-html .text-entity-mention {
+  color: var(--color-links);
+  cursor: default;
 }
 
 /* Video attachment: poster frame + centered play badge + duration pill
@@ -2075,6 +2093,20 @@ video.tg-custom-emoji {
 .tg-vp-bigplay .icon {
   font-size: 2.25rem;
   margin-left: 0.1875rem;
+}
+/* The play triangle is optically nudged right; the pause bars are symmetric. */
+.tg-vp-bigplay .icon-pause {
+  margin-left: 0;
+}
+/* While playing, the center pause fades out with the idle controls so it
+   never squats over the video; pointer-events off so an idle tap falls
+   through to the video itself (tap-to-pause, Web A behavior). */
+.tg-vp-bigplay {
+  transition: opacity 0.25s ease;
+}
+.tg-vp-bigplay-hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 .tg-vp-controls {
   position: absolute;

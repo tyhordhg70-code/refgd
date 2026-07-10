@@ -121,6 +121,13 @@ function inlineHtml(text: string): string {
 
 /** Markdown-lite body → HTML for seeding the edit contentEditable. */
 export function bodyToEditHtml(body: string): string {
+  // Server-composed mention tokens seed back as plain `@Name` text — the
+  // server re-matches display names on save (see rewriteMentions), so the
+  // composer never has to round-trip the raw [m:] token.
+  body = body.replace(
+    /\[m:\d+:([^\]\n]{1,64})\]/g,
+    (_all, name: string) => (name.startsWith("@") ? name : `@${name}`),
+  );
   // `> `-prefixed line groups become a real <blockquote> in the composer so
   // the highlight is visible while editing (vendored bare-`blockquote`
   // element rules in tg-webapp.css style it in every surface);

@@ -1063,9 +1063,11 @@ export default function CommunityChat({
         if (/^\d+$/.test(msgs[i].id)) {
           try {
             localStorage.setItem(`rg_seen_${topic}`, msgs[i].id);
+            localStorage.setItem(`rg_mseen_${topic}`, msgs[i].id);
           } catch {
             /* storage unavailable */
           }
+          setMseen(Number(msgs[i].id));
           break;
         }
       }
@@ -1224,7 +1226,10 @@ export default function CommunityChat({
   const acMatch = useMemo(() => {
     if (!me || chat.editing) return null;
     const t = chat.text;
-    const at = /(?:^|\s)@([\w ]{1,24})$/.exec(t);
+    // Bare "@" opens the picker with the full member list (Telegram parity);
+    // dots/apostrophes/hyphens keep multi-word display names ("N. N.")
+    // matchable while typing.
+    const at = /(?:^|\s)@([\w .'-]{0,24})$/.exec(t);
     if (at && !at[1].endsWith(" ")) {
       return {
         kind: "mention" as const,
@@ -1243,30 +1248,107 @@ export default function CommunityChat({
     return null;
   }, [me, chat.editing, chat.text]);
 
+  // Full member roster for the @-picker (display names only — the endpoint
+  // deliberately exposes neither ids nor usernames). Visible-message authors
+  // are merged in as a fallback so the picker still works if the fetch fails.
+  const [memberNames, setMemberNames] = useState<string[]>([]);
+  useEffect(() => {
+    if (!me) return;
+    let dead = false;
+    fetch("/api/community/mention-targets")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { ok?: boolean; names?: unknown } | null) => {
+        if (dead || !d?.ok || !Array.isArray(d.names)) return;
+        setMemberNames(
+          d.names.filter((n): n is string => typeof n === "string"),
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      dead = true;
+    };
+  }, [me]);
+
   const mentionNames = useMemo(() => {
     const names = new Set<string>();
+    for (const n of memberNames) {
+      if (n && n !== me?.name) names.add(n);
+    }
     for (const m of state?.messages ?? []) {
       if (m.authorName && m.authorName !== me?.name) names.add(m.authorName);
     }
     return Array.from(names);
-  }, [state?.messages, me?.name]);
+  }, [memberNames, state?.messages, me?.name]);
+
+  // Unread-mention FAB (Telegram's "@" jump button): ids above the persisted
+  // high-water mark whose body mentions me — or an admin's @everyone. Being
+  // at the bottom marks everything seen (same rule as the unread divider).
+  const [mseen, setMseen] = useState(0);
+  useEffect(() => {
+    try {
+      const v = Number(
+        localStorage.getItem(`rg_mseen_${topic}`) ??
+          localStorage.getItem(`rg_seen_${topic}`) ??
+          "",
+      );
+      setMseen(Number.isFinite(v) && v > 0 ? v : 0);
+    } catch {
+      setMseen(0);
+    }
+  }, [topic]);
+  const unreadMentions = useMemo(() => {
+    if (!me) return [] as string[];
+    const out: string[] = [];
+    for (const m of state?.messages ?? []) {
+      if (!/^\d+$/.test(m.id) || Number(m.id) <= mseen) continue;
+      if (m.tgId === me.tid) continue;
+      if (
+        m.body.includes(`[m:${me.tid}:`) ||
+        (m.isAdmin && /(^|\s)@everyone\b/i.test(m.body))
+      ) {
+        out.push(m.id);
+      }
+    }
+    return out;
+  }, [state?.messages, me, mseen]);
+  const markMentionSeen = (id: string) => {
+    setMseen(Number(id));
+    try {
+      localStorage.setItem(`rg_mseen_${topic}`, id);
+    } catch {
+      /* storage unavailable */
+    }
+  };
 
   const acItems = useMemo(() => {
     if (!acMatch) return [];
     if (acMatch.kind === "mention") {
       const p = acMatch.partial;
-      return mentionNames
+      // A display name's own leading "@" (the owner shows as "@RefundGod")
+      // folds away for both matching and the inserted text — the server
+      // matcher folds it the same way, so "@RefundGod" resolves, never
+      // "@@RefundGod".
+      const items = mentionNames
         .filter((n) => {
-          const low = n.toLowerCase();
+          const low = (n.startsWith("@") ? n.slice(1) : n).toLowerCase();
           return low.startsWith(p) || low.replace(/\s+/g, "").startsWith(p);
         })
         .slice(0, 6)
         .map((n) => ({
           key: `@${n}`,
           label: n,
-          snippet: `@${n} `,
+          snippet: `@${n.startsWith("@") ? n.slice(1) : n} `,
           emoji: null as string | null,
         }));
+      if (me?.admin && "everyone".startsWith(p)) {
+        items.unshift({
+          key: "@everyone",
+          label: "@everyone — notify all members",
+          snippet: "@everyone ",
+          emoji: null as string | null,
+        });
+      }
+      return items;
     }
     return EMOJI_SHORTCODES.filter((s) => s.name.startsWith(acMatch.partial))
       .slice(0, 8)
@@ -2416,21 +2498,41 @@ export default function CommunityChat({
         }`}
         ref={footerRef}
       >
-        {showFab && (
-          <button
-            type="button"
-            className="tg-scroll-fab"
-            aria-label="Go to latest messages"
-            onClick={jumpToLatest}
-          >
-            {unread > 0 && (
+        {showFab &&
+          (unreadMentions.length > 0 ? (
+            // Telegram's "@" jump button: steps through unread mentions
+            // oldest-first, marking each seen as it goes; the plain
+            // down-arrow FAB returns once every mention has been visited.
+            <button
+              type="button"
+              className="tg-scroll-fab tg-scroll-fab-mention"
+              aria-label="Go to the next mention"
+              onClick={() => {
+                const id = unreadMentions[0];
+                markMentionSeen(id);
+                scrollToMessage(id);
+              }}
+            >
               <span className="tg-scroll-fab-badge">
-                {unread > 99 ? "99+" : unread}
+                {unreadMentions.length > 99 ? "99+" : unreadMentions.length}
               </span>
-            )}
-            <i className="icon icon-arrow-down" aria-hidden />
-          </button>
-        )}
+              <i className="icon icon-mention" aria-hidden />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="tg-scroll-fab"
+              aria-label="Go to latest messages"
+              onClick={jumpToLatest}
+            >
+              {unread > 0 && (
+                <span className="tg-scroll-fab-badge">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
+              <i className="icon icon-arrow-down" aria-hidden />
+            </button>
+          ))}
         {selecting && (
           <div className="MessageSelectToolbar with-composer shown">
             <div className="MessageSelectToolbar-inner">
