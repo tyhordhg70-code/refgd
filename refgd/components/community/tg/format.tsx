@@ -1264,6 +1264,7 @@ function renderLinkified(
     out.push(
       <a
         key={`${keyPrefix}l${k}`}
+        className="text-entity-link"
         href={href}
         target="_blank"
         rel="noopener noreferrer"
@@ -1339,7 +1340,13 @@ const INLINE_RULES: InlineRule[] = [
     re: /\[([^\]]+?)\]\((https?:\/\/[^\s)]+)\)/,
     mode: "emoji",
     wrap: (key, kids, m) => (
-      <a key={key} href={m[2]} target="_blank" rel="noopener noreferrer">
+      <a
+        key={key}
+        className="text-entity-link"
+        href={m[2]}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
         {kids}
       </a>
     ),
@@ -1426,8 +1433,13 @@ export function tokenPreview(body: string): string {
   if (single) return `${single.alt} Sticker`;
   // Rose-style buttonurl tokens collapse to their label in previews;
   // blockquote `> ` markers are highlight styling, not preview text.
+  // Custom-emoji tokens collapse to their alt glyph and inline `[text](url)`
+  // links to their label so topic-list rows and reply embeds never show a
+  // raw `[ce:…]` or markdown-link token.
   return body
     .replace(BUTTON_URL_RE, "$1")
+    .replace(CE_RE, "$2")
+    .replace(/\[([^\]]+?)\]\((?:https?:\/\/)[^\s)]+\)/g, "$1")
     .replace(/^>(?: |$)/gm, "")
     .trim();
 }
