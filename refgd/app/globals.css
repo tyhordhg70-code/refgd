@@ -685,8 +685,15 @@ html.hero-flight .rg-ambient-bg * {
 }
 ::-webkit-scrollbar-thumb:hover { background: #f5b945; }
 
-/* Smooth scroll */
+/* Smooth scroll — native smoothness only for the non-Lenis paths (touch /
+   reduced-motion, where SmoothScroll.tsx never mounts Lenis). When Lenis IS
+   active it owns window.scrollY every rAF tick; a CSS `scroll-behavior: smooth`
+   on the same scroller fights that per-frame positioning and shows up as a
+   slight jumpcut on direction reversal (most noticeable scrolling back up).
+   Lenis tags <html> with `lenis` from init, so scope smooth OFF whenever it's
+   present. */
 html { scroll-behavior: smooth; }
+html.lenis { scroll-behavior: auto !important; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .marquee, .marquee-reverse { animation: none; }

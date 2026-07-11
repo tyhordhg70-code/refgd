@@ -551,7 +551,14 @@ export default function TelegramApp({
       // preview THAT (with any admin edit applied), not the welcome blurb,
       // and give the row a time like every other topic (announcements does
       // the same with its seed time).
-      const text = tokenPreview(effReadme).replace(/\s+/g, " ").trim();
+      // The readme's decorative title is a run of custom "letter-tile" emoji
+      // spelling READ ME; their fallback glyph is 🔠 (a blue "ABCD" box), which
+      // looks broken repeated seven times in a plain-text preview. Collapse the
+      // leading run to the literal words those tiles spell.
+      const text = tokenPreview(effReadme)
+        .replace(/\s+/g, " ")
+        .replace(/^(?:\u{1F520})+/u, "READ ME")
+        .trim();
       return {
         sender: SEED_AUTHOR,
         summary:

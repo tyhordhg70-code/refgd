@@ -746,7 +746,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="mobile-3d-back-22"
+      data-hero-build="glow-edge-expand-23"
       className="relative w-full overflow-hidden"
       style={{
         height: "100svh",
@@ -848,10 +848,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         aria-hidden="true"
         className="cj-glow-edge cj-glow-edge-a pointer-events-none absolute"
         style={{
-          inset: "-12%",
+          inset: "-15%",
           background:
-            "radial-gradient(115% 115% at 50% 50%, transparent 34%, rgba(var(--glow-a), 0.45) 66%, rgba(var(--glow-a), 0.85) 92%, rgba(var(--glow-a), 0.95) 100%)",
-          filter: "blur(55px)",
+            "radial-gradient(125% 125% at 50% 50%, transparent 22%, rgba(var(--glow-a), 0.5) 52%, rgba(var(--glow-a), 0.85) 86%, rgba(var(--glow-a), 0.98) 100%)",
+          filter: "blur(64px)",
           mixBlendMode: "screen",
           opacity: "var(--glow-a-op)",
           transition: `opacity ${GLOW_CROSSFADE_MS}ms linear`,
@@ -862,10 +862,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         aria-hidden="true"
         className="cj-glow-edge cj-glow-edge-b pointer-events-none absolute"
         style={{
-          inset: "-12%",
+          inset: "-15%",
           background:
-            "radial-gradient(115% 115% at 50% 50%, transparent 34%, rgba(var(--glow-b), 0.45) 66%, rgba(var(--glow-b), 0.85) 92%, rgba(var(--glow-b), 0.95) 100%)",
-          filter: "blur(55px)",
+            "radial-gradient(125% 125% at 50% 50%, transparent 22%, rgba(var(--glow-b), 0.5) 52%, rgba(var(--glow-b), 0.85) 86%, rgba(var(--glow-b), 0.98) 100%)",
+          filter: "blur(64px)",
           mixBlendMode: "screen",
           opacity: "var(--glow-b-op)",
           transition: `opacity ${GLOW_CROSSFADE_MS}ms linear`,
@@ -880,10 +880,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         aria-hidden="true"
         className="cj-glow-corner cj-glow-corner-a pointer-events-none absolute"
         style={{
-          inset: "-12%",
+          inset: "-15%",
           background:
-            "radial-gradient(46% 46% at 0% 0%, rgba(var(--glow-a), 0.9), transparent 72%), radial-gradient(46% 46% at 100% 0%, rgba(var(--glow-a), 0.9), transparent 72%), radial-gradient(46% 46% at 0% 100%, rgba(var(--glow-a), 0.9), transparent 72%), radial-gradient(46% 46% at 100% 100%, rgba(var(--glow-a), 0.9), transparent 72%)",
-          filter: "blur(45px)",
+            "radial-gradient(60% 60% at 0% 0%, rgba(var(--glow-a), 0.92), transparent 82%), radial-gradient(60% 60% at 100% 0%, rgba(var(--glow-a), 0.92), transparent 82%), radial-gradient(60% 60% at 0% 100%, rgba(var(--glow-a), 0.92), transparent 82%), radial-gradient(60% 60% at 100% 100%, rgba(var(--glow-a), 0.92), transparent 82%)",
+          filter: "blur(52px)",
           mixBlendMode: "screen",
           opacity: "var(--glow-a-op)",
           transition: `opacity ${GLOW_CROSSFADE_MS}ms linear`,
@@ -894,10 +894,10 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         aria-hidden="true"
         className="cj-glow-corner cj-glow-corner-b pointer-events-none absolute"
         style={{
-          inset: "-12%",
+          inset: "-15%",
           background:
-            "radial-gradient(46% 46% at 0% 0%, rgba(var(--glow-b), 0.9), transparent 72%), radial-gradient(46% 46% at 100% 0%, rgba(var(--glow-b), 0.9), transparent 72%), radial-gradient(46% 46% at 0% 100%, rgba(var(--glow-b), 0.9), transparent 72%), radial-gradient(46% 46% at 100% 100%, rgba(var(--glow-b), 0.9), transparent 72%)",
-          filter: "blur(45px)",
+            "radial-gradient(60% 60% at 0% 0%, rgba(var(--glow-b), 0.92), transparent 82%), radial-gradient(60% 60% at 100% 0%, rgba(var(--glow-b), 0.92), transparent 82%), radial-gradient(60% 60% at 0% 100%, rgba(var(--glow-b), 0.92), transparent 82%), radial-gradient(60% 60% at 100% 100%, rgba(var(--glow-b), 0.92), transparent 82%)",
+          filter: "blur(52px)",
           mixBlendMode: "screen",
           opacity: "var(--glow-b-op)",
           transition: `opacity ${GLOW_CROSSFADE_MS}ms linear`,
