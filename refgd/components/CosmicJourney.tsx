@@ -746,7 +746,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     <section
       ref={sectionRef}
       data-testid="cosmic-journey"
-      data-hero-build="glow-edge-expand-23"
+      data-hero-build="glow-edge-boost-24"
       className="relative w-full overflow-hidden"
       style={{
         height: "100svh",
@@ -850,8 +850,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         style={{
           inset: "-15%",
           background:
-            "radial-gradient(125% 125% at 50% 50%, transparent 22%, rgba(var(--glow-a), 0.5) 52%, rgba(var(--glow-a), 0.85) 86%, rgba(var(--glow-a), 0.98) 100%)",
-          filter: "blur(64px)",
+            "radial-gradient(78% 78% at 50% 50%, transparent 18%, rgba(var(--glow-a), 0.45) 40%, rgba(var(--glow-a), 0.8) 62%, rgba(var(--glow-a), 1) 80%)",
+          filter: "blur(60px)",
           mixBlendMode: "screen",
           opacity: "var(--glow-a-op)",
           transition: `opacity ${GLOW_CROSSFADE_MS}ms linear`,
@@ -864,8 +864,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         style={{
           inset: "-15%",
           background:
-            "radial-gradient(125% 125% at 50% 50%, transparent 22%, rgba(var(--glow-b), 0.5) 52%, rgba(var(--glow-b), 0.85) 86%, rgba(var(--glow-b), 0.98) 100%)",
-          filter: "blur(64px)",
+            "radial-gradient(78% 78% at 50% 50%, transparent 18%, rgba(var(--glow-b), 0.45) 40%, rgba(var(--glow-b), 0.8) 62%, rgba(var(--glow-b), 1) 80%)",
+          filter: "blur(60px)",
           mixBlendMode: "screen",
           opacity: "var(--glow-b-op)",
           transition: `opacity ${GLOW_CROSSFADE_MS}ms linear`,
@@ -873,17 +873,18 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         }}
       />
 
-      {/* Extra CORNER glow — four radial pools anchored to each corner so the
-          color reads strongest in the corners (on top of the edge band).
-          Two crossfade buffers (A/B) — see the ambient glow note above. */}
+      {/* Extra CORNER glow — four radial pools anchored to the VIEWPORT corners
+          (10%/90% of the -15% overscan div ≈ each screen corner) so their bright
+          cores stay INSIDE the frame instead of being thrown away by the hero's
+          overflow-hidden. Two crossfade buffers (A/B) — see the ambient note. */}
       <div
         aria-hidden="true"
         className="cj-glow-corner cj-glow-corner-a pointer-events-none absolute"
         style={{
           inset: "-15%",
           background:
-            "radial-gradient(60% 60% at 0% 0%, rgba(var(--glow-a), 0.92), transparent 82%), radial-gradient(60% 60% at 100% 0%, rgba(var(--glow-a), 0.92), transparent 82%), radial-gradient(60% 60% at 0% 100%, rgba(var(--glow-a), 0.92), transparent 82%), radial-gradient(60% 60% at 100% 100%, rgba(var(--glow-a), 0.92), transparent 82%)",
-          filter: "blur(52px)",
+            "radial-gradient(58% 58% at 10% 10%, rgba(var(--glow-a), 1) 0%, rgba(var(--glow-a), 0.55) 34%, transparent 72%), radial-gradient(58% 58% at 90% 10%, rgba(var(--glow-a), 1) 0%, rgba(var(--glow-a), 0.55) 34%, transparent 72%), radial-gradient(58% 58% at 10% 90%, rgba(var(--glow-a), 1) 0%, rgba(var(--glow-a), 0.55) 34%, transparent 72%), radial-gradient(58% 58% at 90% 90%, rgba(var(--glow-a), 1) 0%, rgba(var(--glow-a), 0.55) 34%, transparent 72%)",
+          filter: "blur(48px)",
           mixBlendMode: "screen",
           opacity: "var(--glow-a-op)",
           transition: `opacity ${GLOW_CROSSFADE_MS}ms linear`,
@@ -896,8 +897,8 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         style={{
           inset: "-15%",
           background:
-            "radial-gradient(60% 60% at 0% 0%, rgba(var(--glow-b), 0.92), transparent 82%), radial-gradient(60% 60% at 100% 0%, rgba(var(--glow-b), 0.92), transparent 82%), radial-gradient(60% 60% at 0% 100%, rgba(var(--glow-b), 0.92), transparent 82%), radial-gradient(60% 60% at 100% 100%, rgba(var(--glow-b), 0.92), transparent 82%)",
-          filter: "blur(52px)",
+            "radial-gradient(58% 58% at 10% 10%, rgba(var(--glow-b), 1) 0%, rgba(var(--glow-b), 0.55) 34%, transparent 72%), radial-gradient(58% 58% at 90% 10%, rgba(var(--glow-b), 1) 0%, rgba(var(--glow-b), 0.55) 34%, transparent 72%), radial-gradient(58% 58% at 10% 90%, rgba(var(--glow-b), 1) 0%, rgba(var(--glow-b), 0.55) 34%, transparent 72%), radial-gradient(58% 58% at 90% 90%, rgba(var(--glow-b), 1) 0%, rgba(var(--glow-b), 0.55) 34%, transparent 72%)",
+          filter: "blur(48px)",
           mixBlendMode: "screen",
           opacity: "var(--glow-b-op)",
           transition: `opacity ${GLOW_CROSSFADE_MS}ms linear`,
