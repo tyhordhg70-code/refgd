@@ -31,6 +31,17 @@ const ALBUM_LAYOUT_WIDTH = 451;
  * early, and once latched the img NEVER unmounts, so re-scrolling past it can
  * never blank it again. The placeholder reserves the exact box via the stored
  * dims (aspect-ratio), so nothing shifts when the pixels arrive.
+ *
+ * `reserve` (single-photo / single-video tiles only): aspect-ratio alone is
+ * NOT enough there — the bubble shrink-wraps its content, so a bare
+ * placeholder span has no definite width (media-only bubbles collapsed to
+ * ~60px wide / 3rem tall) and the bubble GREW by hundreds of px when the img
+ * latched in. Chrome's scroll anchoring masks that; iOS Safari has none, so
+ * scrolling up through unlatched media visibly jump-cut. Giving the
+ * placeholder the image's natural width (clamped by max-width:100%) makes it
+ * occupy the same box the loaded img will, so nothing shifts. Album tiles
+ * must NOT set it — they are absolutely-positioned slots sized by the
+ * container (inline width would override the 100%/100% CSS).
  */
 function LatchedImg({
   src,
@@ -38,12 +49,14 @@ function LatchedImg({
   h,
   className,
   onClick,
+  reserve,
 }: {
   src: string;
   w?: number;
   h?: number;
   className?: string;
   onClick?: () => void;
+  reserve?: boolean;
 }) {
   const holderRef = useRef<HTMLSpanElement | null>(null);
   const [near, setNear] = useState(false);
@@ -76,7 +89,14 @@ function LatchedImg({
       <span
         ref={holderRef}
         className="tg-media-ph"
-        style={w && h ? { aspectRatio: `${w} / ${h}` } : undefined}
+        style={
+          w && h
+            ? {
+                aspectRatio: `${w} / ${h}`,
+                ...(reserve ? { width: `${w}px`, maxWidth: "100%" } : null),
+              }
+            : undefined
+        }
       />
     );
   }
@@ -571,7 +591,11 @@ export default function MessageBubble({
 
             {mediaList.length > 0 &&
               (() => {
-                const renderTile = (src: string, mi: number) => {
+                const renderTile = (
+                  src: string,
+                  mi: number,
+                  reserve = false,
+                ) => {
                   const meta = mediaMeta?.[mi];
                   const size = mediaSizes?.[mi] ?? mediaSize;
                   if (meta && meta.kind === "video") {
@@ -606,13 +630,22 @@ export default function MessageBubble({
                             src={meta.poster}
                             w={size?.w}
                             h={size?.h}
+                            reserve={reserve}
                           />
                         ) : (
                           <span
                             className="tg-media-video-blank"
                             style={
                               size
-                                ? { aspectRatio: `${size.w} / ${size.h}` }
+                                ? {
+                                    aspectRatio: `${size.w} / ${size.h}`,
+                                    ...(reserve
+                                      ? {
+                                          width: `${size.w}px`,
+                                          maxWidth: "100%",
+                                        }
+                                      : null),
+                                  }
                                 : undefined
                             }
                           />
@@ -632,6 +665,7 @@ export default function MessageBubble({
                       src={src}
                       w={size?.w}
                       h={size?.h}
+                      reserve={reserve}
                       className={onOpenMedia ? "tg-media-clickable" : undefined}
                       onClick={
                         onOpenMedia
@@ -656,7 +690,7 @@ export default function MessageBubble({
                     <div
                       className={`tg-media${mediaFlush ? "" : " is-inset"}`}
                     >
-                      {renderTile(mediaList[0], 0)}
+                      {renderTile(mediaList[0], 0, true)}
                     </div>
                   );
                 }
@@ -680,7 +714,17 @@ export default function MessageBubble({
                   <div className={`tg-media${mediaFlush ? "" : " is-inset"}`}>
                     <div
                       className="tg-album"
-                      style={{ aspectRatio: `${albumW} / ${albumH}` }}
+                      // Definite width so the mosaic reserves its full box
+                      // BEFORE any tile latches — media-only album bubbles
+                      // shrink-wrap to ~60px otherwise (absolutely-positioned
+                      // tiles contribute no intrinsic width), then the whole
+                      // bubble reflows when images arrive → scroll jump-cuts
+                      // on iOS Safari (no scroll anchoring there).
+                      style={{
+                        aspectRatio: `${albumW} / ${albumH}`,
+                        width: `${albumW}px`,
+                        maxWidth: "100%",
+                      }}
                     >
                       {mediaList.map((src, mi) => {
                         const rect = layout[mi]?.dimensions;
