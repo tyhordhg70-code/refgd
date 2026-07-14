@@ -2746,7 +2746,10 @@ span.tg-edit-ce-lottie svg {
   flex-direction: column;
   gap: 0.375rem;
 }
-.tg-poll-vote-btn {
+/* Pre-vote option rows (PollBubble renders .tg-poll-option/.tg-poll-radio —
+   these had NO rules, so the radio circles were invisible and the rows
+   unstyled). */
+.tg-poll-option {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -2760,11 +2763,14 @@ span.tg-edit-ce-lottie svg {
   padding: 0.25rem 0;
   border-radius: 0.375rem;
 }
-.tg-poll-vote-btn:hover {
+.tg-poll-option:hover {
   background: var(--color-chat-hover, rgba(0, 0, 0, 0.04));
 }
-.tg-pollmodal-check,
-.tg-poll-vote-btn .tg-pollmodal-check {
+.tg-poll-option:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.tg-poll-radio {
   flex-shrink: 0;
   width: 1.25rem;
   height: 1.25rem;
@@ -2773,6 +2779,54 @@ span.tg-edit-ce-lottie svg {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+/* Multiple-answers mode renders square "checkbox" pickers. */
+.tg-poll-radio.is-check {
+  border-radius: 0.3125rem;
+}
+.tg-poll-radio.is-on {
+  border-color: var(--color-primary, #3390ec);
+}
+.tg-poll-radio.is-on::after {
+  content: "";
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: inherit;
+  background: var(--color-primary, #3390ec);
+}
+/* Multiple-answers "Vote" submit button (centered, Web A style). */
+.tg-poll-vote-btn {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--color-primary, #3390ec);
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  padding: 0.375rem 0;
+  margin-top: 0.25rem;
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+.tg-poll-vote-btn:hover {
+  background: var(--color-chat-hover, rgba(0, 0, 0, 0.04));
+}
+.tg-poll-vote-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+/* "Multiple answers" checkbox label in the create-poll modal. (This class
+   previously shared the 1.25rem radio-circle rule, which squashed the whole
+   label into a tiny circle.) */
+.tg-pollmodal-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  margin-top: 0.25rem;
+  cursor: pointer;
+  user-select: none;
 }
 .tg-poll-option-text {
   overflow-wrap: anywhere;
@@ -3044,6 +3098,11 @@ span.tg-edit-ce-lottie svg {
 }
 .tg-attach-menu {
   position: absolute;
+  /* Reset the header-dropdown top offset from the base .tg-menu rule —
+     with BOTH top and bottom set the menu was over-constrained inside the
+     small .AttachMenu anchor, collapsed to ~0 height and painted below the
+     composer (offscreen) → the paperclip looked completely dead. */
+  top: auto;
   right: 0;
   bottom: 3.25rem;
   z-index: 25;
