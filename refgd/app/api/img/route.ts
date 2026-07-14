@@ -100,6 +100,13 @@ async function hostIsSafe(hostname: string): Promise<boolean> {
 const safeLookup: net.LookupFunction = (hostname, options, callback) => {
   const family =
     typeof options === "number" ? options : options?.family ?? 0;
+  // Node ≥20 (autoSelectFamily / happy-eyeballs) calls this lookup with
+  // `options.all === true` and REQUIRES the callback's second argument to be
+  // the LookupAddress ARRAY form. Answering with the legacy 3-arg
+  // (address, family) form there makes every connect fail with
+  // "Invalid IP address: undefined" — which silently 302-fell-back ALL
+  // proxied images in production. Honor whichever form the caller asked for.
+  const wantAll = typeof options === "object" && options !== null && options.all === true;
   dnsCb.lookup(
     hostname,
     { all: true, family, hints: typeof options === "object" ? options?.hints : undefined },
@@ -111,6 +118,10 @@ const safeLookup: net.LookupFunction = (hostname, options, callback) => {
       const list = Array.isArray(addresses) ? addresses : [];
       if (!list.length || list.some((r) => isBlockedIp(r.address))) {
         callback(new Error("blocked address"), "", 4);
+        return;
+      }
+      if (wantAll) {
+        callback(null, list);
         return;
       }
       const chosen = list[0];
@@ -246,6 +257,11 @@ export async function GET(req: NextRequest) {
       "Cache-Control":
         "public, max-age=31536000, immutable, s-maxage=604800, stale-while-revalidate=86400",
       "Content-Length": String(body.byteLength),
+      // Hardening for SVG (avatars flow through here): never let a direct
+      // navigation to /api/img?u=<hostile-svg> run scripts same-origin, and
+      // never let the browser sniff a different type than we forward.
+      "Content-Security-Policy": "sandbox",
+      "X-Content-Type-Options": "nosniff",
     });
     const etag = upstream.headers.etag;
     if (etag) headers.set("ETag", Array.isArray(etag) ? etag[0] : etag);

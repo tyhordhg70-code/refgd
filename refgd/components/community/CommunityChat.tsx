@@ -90,6 +90,7 @@ import {
   wireEditCeFallback,
 } from "./tg/editHtml";
 import type { ChatTopic } from "@/lib/community";
+import { avatarSrc } from "@/lib/img";
 import { COMMAND_SPECS } from "@/lib/community-commands";
 import {
   CHAT_NOTICE_SEED_BODY,
@@ -2409,7 +2410,9 @@ export default function CommunityChat({
                                           photo:
                                             m.tgId === "0"
                                               ? "/rose-bot-photo.jpg"
-                                              : m.authorPhoto,
+                                              : m.authorPhoto
+                                                ? avatarSrc(m.authorPhoto)
+                                                : m.authorPhoto,
                                           peer,
                                         }
                                       : null

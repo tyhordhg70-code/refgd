@@ -80,3 +80,27 @@ export function cachedSrc(u: string): string {
   }
   return `/api/img?u=${encodeURIComponent(normalized)}`;
 }
+
+/**
+ * Resolve the <img src> for a Telegram profile photo (community chat avatars).
+ *
+ * Stored `photo_url`s hotlink `https://t.me/i/userpic/...`, which breaks two
+ * ways: `t.me` does not even RESOLVE on many datacenter/carrier DNS servers
+ * (verified: NXDOMAIN from both this environment and Render — the deployed
+ * proxy 400s it at the host check), and mobile networks/webviews block it
+ * outright, which is why avatars showed as letters on phones.
+ * `telegram.me` is Telegram's own alias serving byte-identical userpics and
+ * resolves everywhere, so:
+ *   1. swap the host t.me → telegram.me, then
+ *   2. route through `/api/img` for same-origin delivery + long-lived caching
+ *      (a userpic URL's hash changes when the photo changes, so immutable
+ *      caching is safe). Video avatars hotlink directly — the proxy is
+ *      image/* only and would just 302 them anyway.
+ * Local paths (e.g. /rose-bot-photo.jpg, /gc-img/…) pass through untouched.
+ */
+export function avatarSrc(u: string): string {
+  if (!u || !/^https?:\/\//i.test(u)) return u;
+  const swapped = u.replace(/^https:\/\/(?:t|telegram)\.me\//i, "https://telegram.me/");
+  if (/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(swapped)) return swapped;
+  return `/api/img?u=${encodeURIComponent(swapped)}`;
+}

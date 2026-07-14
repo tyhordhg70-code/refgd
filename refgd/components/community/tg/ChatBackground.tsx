@@ -47,15 +47,27 @@ export default function ChatBackground() {
   useEffect(() => {
     if (!patternKey) return;
     let alive = true;
+    // Phones: skip the engine's continuous animation loop (a ~15fps full
+    // canvas repaint + composite, forever) — it is a constant drag on mobile
+    // GPUs and a prime source of chat scroll lag. Paint ONE static gradient
+    // frame instead; desktop keeps the living wallpaper.
+    const still = window.matchMedia(
+      "(max-width: 925px), (pointer: coarse)",
+    ).matches;
     void loadWallpaperEngine().then((tw) => {
       const canvas = canvasRef.current;
       if (!tw || !alive || !canvas) return;
       tw.init(canvas);
+      if (still) {
+        tw.update();
+        return;
+      }
       // Known site-wide rule: no rAF loop may keep running in a hidden tab
       // (the engine's own frame cap only limits FPS, it never pauses).
       if (!document.hidden) tw.animate(true);
     });
     const onVisibility = () => {
+      if (still) return;
       void loadWallpaperEngine().then((tw) => {
         if (!tw || !alive) return;
         tw.animate(!document.hidden);
