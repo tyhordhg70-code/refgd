@@ -60,10 +60,14 @@ type TgPhotoSize = {
   file_size?: number;
 };
 type TgForwardOrigin =
-  | { type: "user"; sender_user: { first_name?: string; last_name?: string } }
-  | { type: "hidden_user"; sender_user_name: string }
-  | { type: "chat"; sender_chat: { title?: string } }
-  | { type: "channel"; chat: { title?: string } };
+  | {
+      type: "user";
+      date?: number;
+      sender_user: { first_name?: string; last_name?: string };
+    }
+  | { type: "hidden_user"; date?: number; sender_user_name: string }
+  | { type: "chat"; date?: number; sender_chat: { title?: string } }
+  | { type: "channel"; date?: number; chat: { title?: string } };
 type TgEntity = {
   type: string;
   offset: number;
@@ -537,7 +541,16 @@ export async function POST(req: Request) {
     authorFromForward(msg) ??
     fullName(msg.from?.first_name, msg.from?.last_name) ??
     "Anonymous";
-  const originDate = msg.date ? new Date(msg.date * 1000) : null;
+  // A forward carries the ORIGINAL post's timestamp in forward_origin.date;
+  // msg.date is merely when the forward landed in this chat. Prefer the
+  // original so imported vouches keep their true history instead of all
+  // stamping "today".
+  const fwdTs = msg.forward_origin?.date;
+  const originDate = fwdTs
+    ? new Date(fwdTs * 1000)
+    : msg.date
+      ? new Date(msg.date * 1000)
+      : null;
   const mediaGroupId = msg.media_group_id ?? null;
   const largest = photos.length ? photos[photos.length - 1] : null;
 
