@@ -36,6 +36,10 @@ import {
   type ChatTopic,
 } from "@/lib/community";
 import { notifyCategory, notifyAll } from "@/lib/community-notify";
+import {
+  buildMiniAppLink,
+  buildStartParam,
+} from "@/components/community/tg/deeplink";
 import { parseCommand, executeModCommand } from "@/lib/moderation";
 import { memoTtl } from "@/lib/micro-cache";
 
@@ -722,11 +726,20 @@ export async function POST(req: Request) {
       void (async () => {
         const esc = (s: string) =>
           s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        // "Open Chat" must re-open the Mini App at the mentioning message —
+        // a plain website URL bounced members to the signed-out browser view
+        // instead. Same t.me/<bot>?startapp=… contract as Copy Link/Forward;
+        // the website URL survives only as a fallback if the bot username
+        // cannot be resolved (misconfigured token).
+        const bot = await getCommunityBotUsername().catch(() => null);
+        const url = bot
+          ? buildMiniAppLink(bot, buildStartParam(topic, message.id))
+          : "https://refundgod.io/community#chat";
         for (const id of targets) {
           await sendCommunityTelegram(
             id,
             `<b>${esc(me.name)}</b> mentioned you in RefundGod Law Firm:\n${esc(snippet)}`,
-            { text: "Open Chat", url: "https://refundgod.io/community#chat" },
+            { text: "Open Chat", url },
           ).catch(() => undefined);
         }
       })();
