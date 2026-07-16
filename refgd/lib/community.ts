@@ -930,11 +930,21 @@ export interface ChatMessage {
   authorName: string;
   authorPhoto: string | null;
   body: string;
-  /** Attached photo (chat_media id), served via /api/community/chat-media/[id]. */
+  /** Attached media (chat_media id), served via /api/community/chat-media/[id]. */
   mediaId: string | null;
-  /** Intrinsic pixel size of the photo, if measured at upload time. */
+  /** Intrinsic pixel size of the photo/video, if measured at upload time. */
   mediaW: number | null;
   mediaH: number | null;
+  /** How the attachment renders: photo (default), video clip or document. */
+  mediaKind: "photo" | "video" | "file" | null;
+  /** Video clip length in seconds; null for photos/files/unknown. */
+  mediaDuration: number | null;
+  /** chat_media id of the video's poster frame; null unless kind=video. */
+  mediaPosterId: string | null;
+  /** Document filename shown on file bubbles; null unless kind=file. */
+  mediaName: string | null;
+  /** Attachment size in bytes (for the file-bubble size label). */
+  mediaBytes: number | null;
   isAdmin: boolean;
   pinned: boolean;
   createdAt: string;
@@ -954,6 +964,11 @@ interface ChatMsgRow {
   media_id: string | null;
   media_w: number | null;
   media_h: number | null;
+  media_kind: string | null;
+  media_duration: number | null;
+  media_poster: string | number | null;
+  media_name: string | null;
+  media_bytes: string | number | null;
   pinned: boolean;
   created_at: string;
   edited_at: string | null;
@@ -980,6 +995,18 @@ async function attachReactions(
     mediaId: r.media_id ? String(r.media_id) : null,
     mediaW: r.media_w ?? null,
     mediaH: r.media_h ?? null,
+    mediaKind: r.media_id
+      ? r.media_kind === "video" || r.media_kind === "file"
+        ? r.media_kind
+        : "photo"
+      : null,
+    mediaDuration:
+      typeof r.media_duration === "number" && r.media_duration > 0
+        ? r.media_duration
+        : null,
+    mediaPosterId: r.media_poster != null ? String(r.media_poster) : null,
+    mediaName: r.media_name ?? null,
+    mediaBytes: r.media_bytes != null ? Number(r.media_bytes) : null,
     isAdmin: isCommunityAdmin(r.tg_id),
     pinned: r.pinned,
     createdAt: isoTs(r.created_at),
@@ -1059,7 +1086,11 @@ export async function listChatMessages(
   if (opts.afterId && /^\d+$/.test(opts.afterId)) {
     const res = await getPool().query<ChatMsgRow>(
       `SELECT m.id, m.tg_id, m.author_name, m.body, m.media_id,
-              md.w AS media_w, md.h AS media_h, m.pinned, m.created_at,
+              md.w AS media_w, md.h AS media_h,
+              md.kind AS media_kind, md.duration AS media_duration,
+              md.poster_id AS media_poster, md.name AS media_name,
+              octet_length(md.bytes) AS media_bytes,
+              m.pinned, m.created_at,
               m.edited_at, m.expires_at, cm.photo_url,
               m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body
          FROM chat_messages m
@@ -1078,7 +1109,11 @@ export async function listChatMessages(
   } else {
     const res = await getPool().query<ChatMsgRow>(
       `SELECT m.id, m.tg_id, m.author_name, m.body, m.media_id,
-              md.w AS media_w, md.h AS media_h, m.pinned, m.created_at,
+              md.w AS media_w, md.h AS media_h,
+              md.kind AS media_kind, md.duration AS media_duration,
+              md.poster_id AS media_poster, md.name AS media_name,
+              octet_length(md.bytes) AS media_bytes,
+              m.pinned, m.created_at,
               m.edited_at, m.expires_at, cm.photo_url,
               m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body
          FROM chat_messages m
@@ -1136,8 +1171,14 @@ export async function sweepExpiredMessages(): Promise<number> {
         WHERE message_id IN (SELECT id::text FROM del)
      ),
      _m AS (
+       -- A deleted video's poster frame is a separate chat_media row linked
+       -- via poster_id — remove it in the same statement (CTEs share the
+       -- snapshot, so the parent rows are still visible to the subselect).
        DELETE FROM chat_media
         WHERE id IN (SELECT media_id FROM del WHERE media_id IS NOT NULL)
+           OR id IN (SELECT poster_id FROM chat_media
+                      WHERE id IN (SELECT media_id FROM del WHERE media_id IS NOT NULL)
+                        AND poster_id IS NOT NULL)
      )
      SELECT COUNT(*)::int AS n FROM del`,
   );
@@ -1170,6 +1211,11 @@ export async function createChatMessage(
      RETURNING id, tg_id, author_name, body, media_id, pinned, created_at, edited_at, expires_at, reply_to,
                (SELECT w FROM chat_media cmed WHERE cmed.id = $7) AS media_w,
                (SELECT h FROM chat_media cmed WHERE cmed.id = $7) AS media_h,
+               (SELECT kind FROM chat_media cmed WHERE cmed.id = $7) AS media_kind,
+               (SELECT duration FROM chat_media cmed WHERE cmed.id = $7) AS media_duration,
+               (SELECT poster_id FROM chat_media cmed WHERE cmed.id = $7) AS media_poster,
+               (SELECT name FROM chat_media cmed WHERE cmed.id = $7) AS media_name,
+               (SELECT octet_length(bytes) FROM chat_media cmed WHERE cmed.id = $7) AS media_bytes,
                (SELECT photo_url FROM chat_members WHERE tg_id = $1) AS photo_url,
                (SELECT author_name FROM chat_messages r WHERE r.id = $5) AS reply_author,
                (SELECT body FROM chat_messages r WHERE r.id = $5) AS reply_body`,
@@ -1188,17 +1234,33 @@ export async function createChatMessage(
   return msg ?? null;
 }
 
-/** Store an uploaded chat photo (BYTEA — Render has no persistent disk). */
+/** Store an uploaded chat attachment (BYTEA — Render has no persistent disk). */
 export async function saveChatMedia(
   bytes: Buffer,
   mime: string,
   w: number | null = null,
   h: number | null = null,
+  extra?: {
+    kind?: "photo" | "video" | "file";
+    duration?: number | null;
+    posterId?: string | null;
+    name?: string | null;
+  },
 ): Promise<string> {
   await initDb();
   const { rows } = await getPool().query<{ id: string }>(
-    `INSERT INTO chat_media (bytes, mime, w, h) VALUES ($1, $2, $3, $4) RETURNING id`,
-    [bytes, mime, w, h],
+    `INSERT INTO chat_media (bytes, mime, w, h, kind, duration, poster_id, name)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+    [
+      bytes,
+      mime,
+      w,
+      h,
+      extra?.kind ?? "photo",
+      extra?.duration ?? null,
+      extra?.posterId ?? null,
+      extra?.name ?? null,
+    ],
   );
   return String(rows[0].id);
 }
@@ -1213,6 +1275,56 @@ export async function getChatMedia(
     [id],
   );
   return rows[0] ?? null;
+}
+
+/**
+ * Size/kind metadata for the split serving path — large blobs (video clips,
+ * documents over the blob-cache entry cap) must NEVER be fully materialized
+ * per request; the route SQL-slices the requested byte range instead.
+ */
+export async function getChatMediaMeta(id: string): Promise<{
+  total: number;
+  mime: string;
+  kind: "photo" | "video" | "file";
+  name: string | null;
+} | null> {
+  await initDb();
+  const { rows } = await getPool().query<{
+    total: string | number;
+    mime: string;
+    kind: string | null;
+    name: string | null;
+  }>(
+    `SELECT octet_length(bytes) AS total, mime, kind, name
+       FROM chat_media WHERE id = $1`,
+    [id],
+  );
+  if (!rows[0]) return null;
+  const kind =
+    rows[0].kind === "video" || rows[0].kind === "file"
+      ? rows[0].kind
+      : "photo";
+  return {
+    total: Number(rows[0].total),
+    mime: rows[0].mime,
+    kind,
+    name: rows[0].name ?? null,
+  };
+}
+
+/** SQL-sliced byte range of a large chat attachment (substring on BYTEA). */
+export async function getChatMediaSlice(
+  id: string,
+  start: number,
+  length: number,
+): Promise<Buffer | null> {
+  await initDb();
+  const { rows } = await getPool().query<{ chunk: Buffer }>(
+    `SELECT substring(bytes FROM $2::int + 1 FOR $3::int) AS chunk
+       FROM chat_media WHERE id = $1`,
+    [id, start, length],
+  );
+  return rows[0] ? rows[0].chunk : null;
 }
 
 /** Cached custom-emoji sticker (Telegram document id), if fetched before. */
