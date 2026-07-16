@@ -289,6 +289,15 @@
         );
         ALTER TABLE chat_media ADD COLUMN IF NOT EXISTS w INTEGER;
         ALTER TABLE chat_media ADD COLUMN IF NOT EXISTS h INTEGER;
+        -- Video/file attachments (mirrors vouch_media): kind discriminates
+        -- how the bubble renders ('photo' | 'video' | 'file'; voice rows keep
+        -- the default — they are addressed via [voice:] body tokens, never
+        -- through a message's media_id). duration/poster_id are video-only;
+        -- name is the document filename shown on file bubbles.
+        ALTER TABLE chat_media ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'photo';
+        ALTER TABLE chat_media ADD COLUMN IF NOT EXISTS duration REAL;
+        ALTER TABLE chat_media ADD COLUMN IF NOT EXISTS poster_id BIGINT;
+        ALTER TABLE chat_media ADD COLUMN IF NOT EXISTS name TEXT;
 
         -- Custom (premium pack) emoji stickers cached from the Telegram Bot
         -- API by document id, so the composer's custom-emoji tab renders the
