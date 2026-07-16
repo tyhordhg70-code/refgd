@@ -95,11 +95,21 @@ export interface ChatMessage {
   authorName: string;
   authorPhoto: string | null;
   body: string;
-  /** Attached photo (chat_media id) served via /api/community/chat-media/[id]. */
+  /** Attached media (chat_media id) served via /api/community/chat-media/[id]. */
   mediaId: string | null;
-  /** Intrinsic pixel size of the photo (layout reserved before load). */
+  /** Intrinsic pixel size of the photo/video (layout reserved before load). */
   mediaW?: number | null;
   mediaH?: number | null;
+  /** How the attachment renders: photo (default), video clip or document. */
+  mediaKind?: "photo" | "video" | "file" | null;
+  /** Video clip length in seconds. */
+  mediaDuration?: number | null;
+  /** chat_media id of the video's poster frame. */
+  mediaPosterId?: string | null;
+  /** Document filename (kind=file). */
+  mediaName?: string | null;
+  /** Attachment size in bytes (file-bubble size label). */
+  mediaBytes?: number | null;
   isAdmin: boolean;
   pinned: boolean;
   createdAt: string;
@@ -333,6 +343,117 @@ export async function prepareChatImage(
   }
 }
 
+/** Client-side mirrors of the server upload caps (friendly pre-flight errors). */
+export const MAX_VIDEO_UPLOAD_BYTES = 16 * 1024 * 1024;
+export const MAX_FILE_UPLOAD_BYTES = 8 * 1024 * 1024;
+
+export interface PreparedChatVideo {
+  kind: "video";
+  blob: Blob;
+  /** Intrinsic pixel size; 0 when the browser can't decode the container. */
+  w: number;
+  h: number;
+  /** Clip length in seconds, when readable. */
+  duration: number | null;
+  /** Poster frame (JPEG) captured near the start; null when undecodable. */
+  poster: Blob | null;
+}
+
+export interface PreparedChatFile {
+  kind: "file";
+  blob: Blob;
+  name: string;
+}
+
+export type PreparedChatAttachment =
+  | (PreparedChatImage & { kind?: "photo" })
+  | PreparedChatVideo
+  | PreparedChatFile;
+
+/**
+ * Measure a picked video's dimensions/duration and capture a poster frame
+ * near the start via canvas. Degrades gracefully: containers the browser
+ * can't decode (e.g. HEVC .mov) upload posterless with unknown dims — the
+ * bubble renders a blank tile with a play badge instead.
+ */
+export async function prepareChatVideo(
+  file: Blob,
+): Promise<PreparedChatVideo> {
+  const url = URL.createObjectURL(file);
+  const el = document.createElement("video");
+  el.preload = "auto";
+  el.muted = true;
+  el.playsInline = true;
+  try {
+    const metaOk = await new Promise<boolean>((resolve) => {
+      const to = window.setTimeout(() => resolve(false), 8000);
+      el.onloadedmetadata = () => {
+        window.clearTimeout(to);
+        resolve(true);
+      };
+      el.onerror = () => {
+        window.clearTimeout(to);
+        resolve(false);
+      };
+      el.src = url;
+    });
+    if (!metaOk) {
+      return { kind: "video", blob: file, w: 0, h: 0, duration: null, poster: null };
+    }
+    const w = el.videoWidth;
+    const h = el.videoHeight;
+    const duration =
+      Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null;
+    let poster: Blob | null = null;
+    if (w > 0 && h > 0) {
+      // Seek a beat in (t=0 often decodes black on mobile encodes).
+      const seeked = await new Promise<boolean>((resolve) => {
+        const to = window.setTimeout(() => resolve(false), 5000);
+        el.onseeked = () => {
+          window.clearTimeout(to);
+          resolve(true);
+        };
+        el.onerror = () => {
+          window.clearTimeout(to);
+          resolve(false);
+        };
+        try {
+          el.currentTime = Math.min(0.1, duration ? duration / 2 : 0.1);
+        } catch {
+          window.clearTimeout(to);
+          resolve(false);
+        }
+      });
+      if (seeked) {
+        try {
+          const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(w, h));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(w * scale));
+          canvas.height = Math.max(1, Math.round(h * scale));
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(el, 0, 0, canvas.width, canvas.height);
+            poster = await new Promise<Blob | null>((resolve) =>
+              canvas.toBlob(resolve, "image/jpeg", 0.8),
+            );
+          }
+        } catch {
+          poster = null;
+        }
+      }
+    }
+    return { kind: "video", blob: file, w, h, duration, poster };
+  } finally {
+    el.removeAttribute("src");
+    try {
+      el.load();
+    } catch {
+      /* non-fatal */
+    }
+    URL.revokeObjectURL(url);
+  }
+}
+
 export function useCommunityChat(topic: ChatTopic = "chat") {
   const [state, setState] = useState<ChatState | null>(null);
   const [text, setText] = useState("");
@@ -351,30 +472,70 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
   const [editing, setEditing] = useState<{ id: string; body: string } | null>(
     null,
   );
-  // Pending image attachment (paste or attach button) — sent with the next
-  // message so image + caption land in ONE bubble.
+  // Pending attachment (paste or attach button) — sent with the next message
+  // so media + caption land in ONE bubble. previewUrl is the photo itself or
+  // the video's poster frame; null for files (they preview as a name chip).
   const [attachment, setAttachmentState] = useState<{
+    kind: "photo" | "video" | "file";
     blob: Blob;
-    previewUrl: string;
+    previewUrl: string | null;
     w: number | null;
     h: number | null;
+    duration: number | null;
+    posterBlob: Blob | null;
+    name: string | null;
+    size: number;
   } | null>(null);
   const [inTelegram, setInTelegram] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   // Who is typing right now (from the server heartbeat table, via GET).
   const [typing, setTyping] = useState<string[]>([]);
 
-  const setAttachment = useCallback((img: PreparedChatImage | null) => {
+  const setAttachment = useCallback((att: PreparedChatAttachment | null) => {
     setAttachmentState((prev) => {
-      if (prev) URL.revokeObjectURL(prev.previewUrl);
-      return img
-        ? {
-            blob: img.blob,
-            previewUrl: URL.createObjectURL(img.blob),
-            w: img.w > 0 ? img.w : null,
-            h: img.h > 0 ? img.h : null,
-          }
-        : null;
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      if (!att) return null;
+      const kind = "kind" in att && att.kind ? att.kind : "photo";
+      if (kind === "file") {
+        const f = att as PreparedChatFile;
+        return {
+          kind,
+          blob: f.blob,
+          previewUrl: null,
+          w: null,
+          h: null,
+          duration: null,
+          posterBlob: null,
+          name: f.name,
+          size: f.blob.size,
+        };
+      }
+      if (kind === "video") {
+        const v = att as PreparedChatVideo;
+        return {
+          kind,
+          blob: v.blob,
+          previewUrl: v.poster ? URL.createObjectURL(v.poster) : null,
+          w: v.w > 0 ? v.w : null,
+          h: v.h > 0 ? v.h : null,
+          duration: v.duration,
+          posterBlob: v.poster,
+          name: null,
+          size: v.blob.size,
+        };
+      }
+      const img = att as PreparedChatImage;
+      return {
+        kind: "photo" as const,
+        blob: img.blob,
+        previewUrl: URL.createObjectURL(img.blob),
+        w: img.w > 0 ? img.w : null,
+        h: img.h > 0 ? img.h : null,
+        duration: null,
+        posterBlob: null,
+        name: null,
+        size: img.blob.size,
+      };
     });
   }, []);
 
@@ -1072,9 +1233,22 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     try {
       let res: Response;
       if (attachment) {
-        // Photo (with optional caption) → multipart; ONE bubble server-side.
+        // Media (with optional caption) → multipart; ONE bubble server-side.
         const form = new FormData();
-        form.append("photo", attachment.blob, "photo.jpg");
+        if (attachment.kind === "video") {
+          form.append("video", attachment.blob, "video");
+          if (attachment.posterBlob) {
+            form.append("poster", attachment.posterBlob, "poster.jpg");
+          }
+          if (attachment.duration && attachment.duration > 0) {
+            form.append("duration", String(attachment.duration));
+          }
+        } else if (attachment.kind === "file") {
+          form.append("file", attachment.blob, "file");
+          form.append("fileName", attachment.name || "file");
+        } else {
+          form.append("photo", attachment.blob, "photo.jpg");
+        }
         if (attachment.w && attachment.h) {
           form.append("mediaW", String(attachment.w));
           form.append("mediaH", String(attachment.h));
