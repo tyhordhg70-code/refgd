@@ -996,7 +996,7 @@ const CARDS_PER_PAGE = 24;
                 {isAdmin && editMode && (
                   <button onClick={() => handleDelete(c.key)} title="Remove card" className="absolute -right-2 -top-2 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[11px] font-bold text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-400">×</button>
                 )}
-                {c.image&&<Image src={c.image} alt={c.name} width={400} height={300} sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 200px" className="aspect-[4/3] w-full rounded-xl object-cover" unoptimized={c.image.startsWith("/api/")} />}
+                {c.image&&<Image src={c.image} alt={c.name} width={400} height={300} sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 200px" className="aspect-[4/3] w-full rounded-xl object-cover" unoptimized={c.image.startsWith("/api/") || c.image.startsWith("/gc-img/")} />}
                 <p className="mt-2 text-center text-xs font-semibold text-white">{c.name}</p>
                 {c.price&&<p className="mt-1 text-center text-[11px] font-bold text-amber-300">{c.price}</p>}
               </div>

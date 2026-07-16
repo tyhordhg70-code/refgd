@@ -39,7 +39,13 @@ const nextConfig = {
         { protocol: "https", hostname: "live.staticflickr.com" },
         { protocol: "https", hostname: "upload.wikimedia.org" },
       ],
-      formats: ["image/avif", "image/webp"],
+      // v6.13.66 — WebP only. AVIF encoding is dramatically more memory-hungry
+      // than WebP in sharp/libvips; with the buy4u grid pushing 100+ card
+      // thumbnails through the optimizer after every restart (the image cache
+      // dies with the instance), AVIF encode bursts were blowing past Render's
+      // 512 MB cap and OOM-killing the service. WebP keeps ~all of the size
+      // win at a fraction of the encode cost.
+      formats: ["image/webp"],
       minimumCacheTTL: 604800,
     },
       async headers() {
