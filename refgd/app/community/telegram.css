@@ -623,6 +623,29 @@
 .tg-attach-preview-fileicon .icon {
   font-size: 1.375rem;
 }
+/* the × cancel button on the attachment chip: .tg-icon-btn is only styled
+   inside .tg-reply-bar, and IconClose's svg has no intrinsic size, so
+   without this scope the button collapses to zero width (invisible). */
+.tg-attach-preview .tg-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: var(--color-icon-secondary);
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.tg-attach-preview .tg-icon-btn:hover {
+  background: var(--color-item-hover);
+}
+.tg-attach-preview .tg-icon-btn svg {
+  width: 1.375rem;
+  height: 1.375rem;
+}
 
 /* embedded reply (block above bubble text) */
 .tg-reply-embed {
