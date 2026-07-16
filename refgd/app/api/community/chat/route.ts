@@ -80,6 +80,22 @@ const ROSE_ANNOUNCE_CMDS = new Set([
 const MIN_POST_GAP_S = 2;
 /** Hard cap on an uploaded chat photo (client downscales to ≤1600px JPEG). */
 const MAX_MEDIA_BYTES = 3 * 1024 * 1024;
+/**
+ * Hard cap on an uploaded video clip. Kept deliberately modest: formData()
+ * buffers the whole body in memory AND node-postgres hex-encodes BYTEA
+ * params (~2x transient memory on INSERT) — Render's instance is tight.
+ */
+const MAX_VIDEO_BYTES = 16 * 1024 * 1024;
+/** Hard cap on an uploaded document (kind='file'). */
+const MAX_FILE_BYTES = 8 * 1024 * 1024;
+/** Hard cap on the client-captured video poster frame (JPEG). */
+const MAX_POSTER_BYTES = 512 * 1024;
+/**
+ * Reject oversized multipart bodies from the Content-Length header BEFORE
+ * req.formData() buffers them — the per-field caps alone can't stop the
+ * memory spike, the buffering has already happened by then.
+ */
+const MAX_UPLOAD_BODY_BYTES = MAX_VIDEO_BYTES + MAX_POSTER_BYTES + 256 * 1024;
 
 /**
  * Sniff the actual image type from magic bytes — never trust the client's
@@ -127,6 +143,29 @@ function sniffAudioMime(buf: Buffer): string | null {
   if (buf.subarray(0, 4).toString("ascii") === "OggS") return "audio/ogg";
   if (buf.subarray(0, 3).toString("ascii") === "ID3") return "audio/mpeg";
   if (buf[0] === 0xff && ((buf[1] ?? 0) & 0xe0) === 0xe0) return "audio/mpeg";
+  return null;
+}
+
+/**
+ * Sniff an uploaded video's real container from magic bytes. Phones and
+ * screen recorders produce mp4/quicktime (iOS) or webm (Android/desktop
+ * capture). Deliberately separate from sniffAudioMime — that one claims any
+ * `ftyp` as audio/mp4 and EBML as audio/webm.
+ */
+function sniffVideoMime(buf: Buffer): string | null {
+  if (buf.length < 12) return null;
+  if (buf.subarray(4, 8).toString("ascii") === "ftyp") {
+    const brand = buf.subarray(8, 12).toString("ascii");
+    return brand.startsWith("qt") ? "video/quicktime" : "video/mp4";
+  }
+  if (
+    buf[0] === 0x1a &&
+    buf[1] === 0x45 &&
+    buf[2] === 0xdf &&
+    buf[3] === 0xa3
+  )
+    return "video/webm";
+  if (buf.subarray(0, 4).toString("ascii") === "OggS") return "video/ogg";
   return null;
 }
 
@@ -315,6 +354,23 @@ export async function POST(req: Request) {
     w: number | null;
     h: number | null;
   } | null = null;
+  // Uploaded video clip (multipart `video` field) with its optional
+  // client-captured poster frame — both land in chat_media, the poster as a
+  // separate row referenced via poster_id.
+  let video: {
+    bytes: Buffer;
+    mime: string;
+    w: number | null;
+    h: number | null;
+    duration: number | null;
+    poster: { bytes: Buffer; mime: string } | null;
+  } | null = null;
+  // Uploaded document (multipart `file` field) — any bytes, always served
+  // with Content-Disposition: attachment (never inline).
+  let docFile: {
+    bytes: Buffer;
+    name: string;
+  } | null = null;
   // Recorded voice note (multipart `voice` field). The [voice:…] body token
   // is composed SERVER-side after all gates pass — the client never sends it,
   // so the blocklist can't randomly trip on waveform characters.
@@ -327,6 +383,14 @@ export async function POST(req: Request) {
 
   const contentType = req.headers.get("content-type") ?? "";
   if (contentType.includes("multipart/form-data")) {
+    // Reject oversized bodies BEFORE formData() buffers them in memory.
+    const bodyLen = Number(req.headers.get("content-length"));
+    if (Number.isFinite(bodyLen) && bodyLen > MAX_UPLOAD_BODY_BYTES) {
+      return NextResponse.json(
+        { ok: false, error: "Upload is too large" },
+        { status: 413 },
+      );
+    }
     let form: FormData;
     try {
       form = await req.formData();
@@ -344,6 +408,8 @@ export async function POST(req: Request) {
     };
     const voiceFile = form.get("voice");
     const file = form.get("photo");
+    const videoFile = form.get("video");
+    const docUpload = form.get("file");
     if (voiceFile instanceof Blob) {
       if (voiceFile.size > MAX_MEDIA_BYTES) {
         return NextResponse.json(
@@ -410,6 +476,76 @@ export async function POST(req: Request) {
         w: dimsOk ? wRaw : null,
         h: dimsOk ? hRaw : null,
       };
+    } else if (videoFile instanceof Blob) {
+      if (videoFile.size > MAX_VIDEO_BYTES) {
+        return NextResponse.json(
+          { ok: false, error: "Video is too large (max 16 MB)" },
+          { status: 413 },
+        );
+      }
+      const bytes = Buffer.from(await videoFile.arrayBuffer());
+      const mime = sniffVideoMime(bytes);
+      if (!mime) {
+        return NextResponse.json(
+          { ok: false, error: "Unsupported video type" },
+          { status: 415 },
+        );
+      }
+      // Client-captured poster frame (JPEG) — optional; browsers can't decode
+      // every container (e.g. HEVC .mov), those clips just render posterless.
+      let poster: { bytes: Buffer; mime: string } | null = null;
+      const posterBlob = form.get("poster");
+      if (posterBlob instanceof Blob && posterBlob.size <= MAX_POSTER_BYTES) {
+        const pBytes = Buffer.from(await posterBlob.arrayBuffer());
+        const pMime = sniffImageMime(pBytes);
+        if (pMime) poster = { bytes: pBytes, mime: pMime };
+      }
+      const wRaw = Number(form.get("mediaW"));
+      const hRaw = Number(form.get("mediaH"));
+      const dimsOk =
+        Number.isInteger(wRaw) &&
+        Number.isInteger(hRaw) &&
+        wRaw > 0 &&
+        hRaw > 0 &&
+        wRaw <= 10000 &&
+        hRaw <= 10000;
+      const durRaw = Number(form.get("duration"));
+      const duration =
+        Number.isFinite(durRaw) && durRaw > 0 && durRaw <= 6 * 3600
+          ? durRaw
+          : null;
+      video = {
+        bytes,
+        mime,
+        w: dimsOk ? wRaw : null,
+        h: dimsOk ? hRaw : null,
+        duration,
+        poster,
+      };
+    } else if (docUpload instanceof Blob) {
+      if (docUpload.size > MAX_FILE_BYTES) {
+        return NextResponse.json(
+          { ok: false, error: "File is too large (max 8 MB)" },
+          { status: 413 },
+        );
+      }
+      if (docUpload.size === 0) {
+        return NextResponse.json(
+          { ok: false, error: "File is empty" },
+          { status: 400 },
+        );
+      }
+      const bytes = Buffer.from(await docUpload.arrayBuffer());
+      // Filename: strip control chars + path separators, cap the length. The
+      // serving route re-sanitizes for the Content-Disposition header.
+      const nameRaw = form.get("fileName");
+      const name =
+        (typeof nameRaw === "string" ? nameRaw : "")
+          // eslint-disable-next-line no-control-regex
+          .replace(/[\x00-\x1f\x7f/\\]/g, "")
+          .trim()
+          .slice(0, 128) || "file";
+      docFile = { bytes, name };
     } else {
       return NextResponse.json(
         { ok: false, error: "No file attached" },
@@ -460,8 +596,8 @@ export async function POST(req: Request) {
   text = text.replace(/\[(?:voice|poll):[^\]\n]*\]/g, "").trim();
   // Voice notes are caption-less (Web A parity) — the token IS the body.
   if (voice) text = "";
-  // A photo may go out caption-less; a plain message still needs text.
-  if (!text && !photo && !voice) {
+  // Media may go out caption-less; a plain message still needs text.
+  if (!text && !photo && !voice && !video && !docFile) {
     return NextResponse.json(
       { ok: false, error: "Message is empty" },
       { status: 400 },
@@ -547,7 +683,7 @@ export async function POST(req: Request) {
   // admin can always moderate, and any member can read the rules. A command
   // never becomes a chat message — it returns ephemeral `system` feedback.
   // A caption on a photo is never a command — only bare text can be one.
-  const command = photo || voice ? null : parseCommand(text);
+  const command = photo || voice || video || docFile ? null : parseCommand(text);
   if (command) {
     const result = await executeModCommand({
       me,
@@ -631,7 +767,7 @@ export async function POST(req: Request) {
     isAdmin: me.admin,
   }).catch(() => undefined);
 
-  // Persist the photo/voice blob only after every moderation gate has passed,
+  // Persist the media blob only after every moderation gate has passed,
   // so a rejected message never leaves an orphaned blob behind.
   let mediaId: string | null = null;
   if (photo) {
@@ -640,6 +776,46 @@ export async function POST(req: Request) {
     } catch {
       return NextResponse.json(
         { ok: false, error: "Couldn't save the image — try again" },
+        { status: 500 },
+      );
+    }
+  }
+  if (video) {
+    try {
+      // Poster first so the clip row can reference it via poster_id.
+      let posterId: string | null = null;
+      if (video.poster) {
+        posterId = await saveChatMedia(
+          video.poster.bytes,
+          video.poster.mime,
+          video.w,
+          video.h,
+        );
+      }
+      mediaId = await saveChatMedia(video.bytes, video.mime, video.w, video.h, {
+        kind: "video",
+        duration: video.duration,
+        posterId,
+      });
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: "Couldn't save the video — try again" },
+        { status: 500 },
+      );
+    }
+  }
+  if (docFile) {
+    try {
+      mediaId = await saveChatMedia(
+        docFile.bytes,
+        "application/octet-stream",
+        null,
+        null,
+        { kind: "file", name: docFile.name },
+      );
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: "Couldn't save the file — try again" },
         { status: 500 },
       );
     }
@@ -693,7 +869,7 @@ export async function POST(req: Request) {
   // TTL policy as any other group-chat message. Fail-soft: a filter error
   // must never break the send.
   let extraMessages: NonNullable<typeof message>[] = [];
-  if (message && topic === "chat" && text && !photo && !voice) {
+  if (message && topic === "chat" && text && !photo && !voice && !video && !docFile) {
     try {
       const hit = await matchFilter(text);
       if (hit) {
@@ -767,7 +943,15 @@ export async function POST(req: Request) {
                   ? "Group Chat is active"
                   : "New activity in the community",
               body: `${me.name}: ${
-                voice ? "🎤 Voice message" : text ? text.slice(0, 120) : "📷 Photo"
+                voice
+                  ? "🎤 Voice message"
+                  : text
+                    ? text.slice(0, 120)
+                    : video
+                      ? "🎬 Video"
+                      : docFile
+                        ? "📎 File"
+                        : "📷 Photo"
               }`,
               url: "/community",
             })
