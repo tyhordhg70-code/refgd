@@ -19,6 +19,14 @@ import { fmtDuration } from "./VideoPlayer";
  */
 const ALBUM_LAYOUT_WIDTH = 451;
 
+/** "2.4 MB" / "312 KB" size label on document rows (Web A style). */
+function fmtBytes(n: number | null | undefined): string {
+  if (!n || n <= 0) return "";
+  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  return `${n} B`;
+}
+
 /**
  * Near-viewport latch for in-bubble media (photos + video posters).
  *
@@ -212,11 +220,15 @@ export default function MessageBubble({
    * when the viewer opens) instead of a plain photo.
    */
   mediaMeta?: ({
-    kind: "photo" | "video";
+    kind: "photo" | "video" | "file";
     /** Poster frame URL shown in the bubble. */
     poster?: string;
     /** Clip length in seconds for the duration badge. */
     duration?: number | null;
+    /** Document filename (kind=file). */
+    name?: string | null;
+    /** Document size in bytes (kind=file). */
+    size?: number | null;
   } | null)[];
   body?: ReactNode;
   time?: ReactNode;
@@ -598,6 +610,39 @@ export default function MessageBubble({
                 ) => {
                   const meta = mediaMeta?.[mi];
                   const size = mediaSizes?.[mi] ?? mediaSize;
+                  if (meta && meta.kind === "file") {
+                    // Document: icon + filename + size row that downloads on
+                    // tap (the serving route forces Content-Disposition:
+                    // attachment, so this never navigates).
+                    const label = meta.name || "File";
+                    return (
+                      <a
+                        key={src}
+                        className="tg-media-file"
+                        href={src}
+                        download={label}
+                        onClick={(e) => {
+                          // Long-press opened the menu → swallow the
+                          // follow-up synthetic click so the download does
+                          // not also fire underneath it.
+                          if (menuFired.current) {
+                            menuFired.current = false;
+                            e.preventDefault();
+                          }
+                        }}
+                      >
+                        <span className="tg-media-file-icon" aria-hidden>
+                          <i className="icon icon-document" />
+                        </span>
+                        <span className="tg-media-file-info">
+                          <span className="tg-media-file-name">{label}</span>
+                          <span className="tg-media-file-size">
+                            {fmtBytes(meta.size)}
+                          </span>
+                        </span>
+                      </a>
+                    );
+                  }
                   if (meta && meta.kind === "video") {
                     // Video: poster frame + centered play badge + duration
                     // pill. The clip's bytes are only requested once the
