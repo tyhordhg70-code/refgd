@@ -72,8 +72,11 @@ import {
 import {
   ADMIN_TG,
   FS_PREF_KEY,
+  MAX_FILE_UPLOAD_BYTES,
+  MAX_VIDEO_UPLOAD_BYTES,
   REACTIONS,
   prepareChatImage,
+  prepareChatVideo,
   useCommunityChat,
   type ChatMessage,
   type Reaction,
@@ -299,7 +302,7 @@ export default function CommunityChat({
    * `data-mid`, plus body for the banner preview), merged into the pinned
    * banner + pinned-only panel so migrated pins behave like live pins.
    */
-  pinnedExtras?: { id: string; body: string }[];
+  pinnedExtras?: { id: string; body: string; mediaKind?: string | null }[];
   /**
    * Effective chat-notice seed body + whether it's an admin override, so the
    * "messages will be cleared" seed bubble is editable like the other seeds
@@ -492,6 +495,7 @@ export default function CommunityChat({
   // composer); its own TextFormatter binds to this ref.
   const editInputRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   // Keep the message list clear of the composer: the footer is overlaid at the
   // bottom, so the list needs bottom padding equal to its live height (which
   // grows with the reply bar, attachment preview or admin TTL row).
@@ -535,10 +539,10 @@ export default function CommunityChat({
       /* clipboard/image API unavailable — ignore */
     }
   };
-  const downloadImage = (mediaId: string) => {
+  const downloadImage = (mediaId: string, name?: string) => {
     const a = document.createElement("a");
     a.href = mediaUrl(mediaId);
-    a.download = `photo-${mediaId}.jpg`;
+    a.download = name || `photo-${mediaId}.jpg`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -563,7 +567,14 @@ export default function CommunityChat({
   const postForward = (
     body: string,
     dest: { topic: ChatTopic; title: string },
-    photo?: { blob: Blob; name: string },
+    media?: {
+      field: "photo" | "video" | "file";
+      blob: Blob;
+      name: string;
+      fileName?: string;
+      duration?: number | null;
+      poster?: Blob | null;
+    },
   ) => {
     const finish = (data: { ok?: boolean; error?: string } | null) =>
       showToast(
@@ -571,9 +582,18 @@ export default function CommunityChat({
           ? `Forwarded to ${dest.title}`
           : data?.error || "Couldn't forward",
       );
-    if (photo) {
+    if (media) {
       const form = new FormData();
-      form.append("photo", photo.blob, photo.name);
+      form.append(media.field, media.blob, media.name);
+      if (media.field === "file") {
+        form.append("fileName", media.fileName || media.name);
+      }
+      if (media.field === "video") {
+        if (media.poster) form.append("poster", media.poster, "poster.jpg");
+        if (media.duration && media.duration > 0) {
+          form.append("duration", String(media.duration));
+        }
+      }
       form.append("text", body);
       form.append("topic", dest.topic);
       void fetch("/api/community/chat", { method: "POST", body: form })
@@ -609,13 +629,42 @@ export default function CommunityChat({
     const body = buildForwardBody(origin, rest);
     if (m.mediaId) {
       const id = m.mediaId;
+      const kind =
+        m.mediaKind === "video" || m.mediaKind === "file"
+          ? m.mediaKind
+          : "photo";
+      const fallback =
+        kind === "video" ? "🎬 Video" : kind === "file" ? "📎 File" : "📷 Photo";
       void (async () => {
         try {
           const res = await fetch(mediaUrl(id));
+          if (!res.ok) throw new Error("media fetch failed");
           const blob = await res.blob();
-          postForward(body, dest, { blob, name: `photo-${id}.jpg` });
+          // Re-fetch the poster too so a forwarded clip keeps its thumbnail.
+          let poster: Blob | null = null;
+          if (kind === "video" && m.mediaPosterId) {
+            try {
+              const pres = await fetch(mediaUrl(m.mediaPosterId));
+              if (pres.ok) poster = await pres.blob();
+            } catch {
+              /* posterless forward — non-fatal */
+            }
+          }
+          postForward(body, dest, {
+            field: kind,
+            blob,
+            name:
+              kind === "photo"
+                ? `photo-${id}.jpg`
+                : kind === "video"
+                  ? `video-${id}`
+                  : m.mediaName || "file",
+            fileName: kind === "file" ? m.mediaName || "file" : undefined,
+            duration: m.mediaDuration ?? null,
+            poster,
+          });
         } catch {
-          postForward(body || buildForwardBody(origin, "📷 Photo"), dest);
+          postForward(body || buildForwardBody(origin, fallback), dest);
         }
       })();
       return;
@@ -881,6 +930,41 @@ export default function CommunityChat({
     } else {
       chat.setError("That file doesn't look like an image");
     }
+  };
+
+  // "Photo or Video" picker → route on the picked file's MIME type. Videos
+  // upload as-is (no client transcode); dims/duration/poster are measured
+  // client-side and degrade gracefully for undecodable containers.
+  const attachMedia = async (file: File) => {
+    if (file.type.startsWith("video/")) {
+      if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
+        chat.setError("Video is too large (max 16 MB)");
+        return;
+      }
+      const prepared = await prepareChatVideo(file);
+      chat.setAttachment(prepared);
+      chat.setError(null);
+      return;
+    }
+    await attachImage(file);
+  };
+
+  // "File" picker → any document, sent as a download-only attachment.
+  const attachDoc = (file: File) => {
+    if (file.size > MAX_FILE_UPLOAD_BYTES) {
+      chat.setError("File is too large (max 8 MB)");
+      return;
+    }
+    if (file.size === 0) {
+      chat.setError("That file is empty");
+      return;
+    }
+    chat.setAttachment({
+      kind: "file",
+      blob: file,
+      name: file.name || "file",
+    });
+    chat.setError(null);
   };
 
   // Offer fullscreen as an entry prompt instead of a buried menu item. A
@@ -1157,7 +1241,13 @@ export default function CommunityChat({
       .filter((m) => selectedIds.has(m.id))
       .map((m) => {
         const rest = parseForward(m.body ?? "").rest;
-        const text = tokenPreview(rest).trim() || "📷 Photo";
+        const text =
+          tokenPreview(rest).trim() ||
+          (m.mediaKind === "video"
+            ? "🎬 Video"
+            : m.mediaKind === "file"
+              ? "📎 File"
+              : "📷 Photo");
         return `${m.authorName}:\n${text}`;
       });
     if (parts.length === 0) return;
@@ -1510,7 +1600,11 @@ export default function CommunityChat({
       ...(pinnedExtras ?? []),
       ...(state?.messages ?? [])
         .filter((m) => m.pinned)
-        .map((m) => ({ id: m.id, body: m.body ?? "" })),
+        .map((m) => ({
+          id: m.id,
+          body: m.body ?? "",
+          mediaKind: m.mediaKind,
+        })),
     ],
     [state?.messages, pinnedExtras],
   );
@@ -1719,7 +1813,12 @@ export default function CommunityChat({
               <span className="tg-pinned-text">
                 {tokenPreview(
                   parseForward(pinnedBannerMsg.body ?? "").rest,
-                ).trim() || "Photo"}
+                ).trim() ||
+                  (pinnedBannerMsg.mediaKind === "video"
+                    ? "Video"
+                    : pinnedBannerMsg.mediaKind === "file"
+                      ? "File"
+                      : "Photo")}
               </span>
             </span>
           </button>
@@ -1923,21 +2022,23 @@ export default function CommunityChat({
                   <IconReply />
                   Reply
                 </button>
-                {ctxMenu.m.mediaId && (
-                  <button
-                    type="button"
-                    className="tg-menu-item"
-                    onClick={() => {
-                      const id = ctxMenu.m.mediaId;
-                      if (id) void copyImage(id);
-                      showToast("Image copied");
-                      setCtxMenu(null);
-                    }}
-                  >
-                    <IconCopy />
-                    Copy Image
-                  </button>
-                )}
+                {ctxMenu.m.mediaId &&
+                  ctxMenu.m.mediaKind !== "video" &&
+                  ctxMenu.m.mediaKind !== "file" && (
+                    <button
+                      type="button"
+                      className="tg-menu-item"
+                      onClick={() => {
+                        const id = ctxMenu.m.mediaId;
+                        if (id) void copyImage(id);
+                        showToast("Image copied");
+                        setCtxMenu(null);
+                      }}
+                    >
+                      <IconCopy />
+                      Copy Image
+                    </button>
+                  )}
                 {ctxMenu.m.body && (
                   <button
                     type="button"
@@ -2025,9 +2126,19 @@ export default function CommunityChat({
                     type="button"
                     className="tg-menu-item"
                     onClick={() => {
-                      const id = ctxMenu.m.mediaId;
-                      if (id) downloadImage(id);
-                      showToast("Downloading photo");
+                      const m = ctxMenu.m;
+                      const id = m.mediaId;
+                      if (id) {
+                        downloadImage(
+                          id,
+                          m.mediaKind === "video"
+                            ? `video-${id}.mp4`
+                            : m.mediaKind === "file"
+                              ? m.mediaName || "file"
+                              : undefined,
+                        );
+                      }
+                      showToast("Downloading");
                       setCtxMenu(null);
                     }}
                   >
@@ -2441,6 +2552,28 @@ export default function CommunityChat({
                                       ? { w: m.mediaW, h: m.mediaH }
                                       : undefined
                                   }
+                                  mediaMeta={
+                                    m.mediaId &&
+                                    (m.mediaKind === "video" ||
+                                      m.mediaKind === "file")
+                                      ? [
+                                          m.mediaKind === "video"
+                                            ? {
+                                                kind: "video" as const,
+                                                poster: m.mediaPosterId
+                                                  ? `/api/community/chat-media/${m.mediaPosterId}`
+                                                  : undefined,
+                                                duration:
+                                                  m.mediaDuration ?? null,
+                                              }
+                                            : {
+                                                kind: "file" as const,
+                                                name: m.mediaName ?? null,
+                                                size: m.mediaBytes ?? null,
+                                              },
+                                        ]
+                                      : undefined
+                                  }
                                   time={<LocalTime iso={m.createdAt} />}
                                   edited={!!m.editedAt}
                                   ticks={own}
@@ -2840,13 +2973,29 @@ export default function CommunityChat({
               )}
               {chat.attachment && (
                 <div className="tg-attach-preview">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={chat.attachment.previewUrl}
-                    alt="Attached image"
-                  />
+                  {chat.attachment.previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={chat.attachment.previewUrl}
+                      alt="Attached media"
+                    />
+                  ) : (
+                    <span className="tg-attach-preview-fileicon" aria-hidden>
+                      <i
+                        className={`icon ${
+                          chat.attachment.kind === "video"
+                            ? "icon-play"
+                            : "icon-document"
+                        }`}
+                      />
+                    </span>
+                  )}
                   <span className="tg-attach-preview-label">
-                    Photo attached — add a caption or hit send
+                    {chat.attachment.kind === "video"
+                      ? "Video attached — add a caption or hit send"
+                      : chat.attachment.kind === "file"
+                        ? `${chat.attachment.name || "File"} attached — hit send`
+                        : "Photo attached — add a caption or hit send"}
                   </span>
                   <button
                     type="button"
@@ -3105,11 +3254,21 @@ export default function CommunityChat({
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*"
                     style={{ display: "none" }}
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) void attachImage(file);
+                      if (file) void attachMedia(file);
+                      e.target.value = "";
+                    }}
+                  />
+                  <input
+                    ref={docInputRef}
+                    type="file"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) attachDoc(file);
                       e.target.value = "";
                     }}
                   />
@@ -3141,7 +3300,18 @@ export default function CommunityChat({
                           }}
                         >
                           <i className="icon icon-photo" aria-hidden />
-                          Photo
+                          Photo or Video
+                        </button>
+                        <button
+                          type="button"
+                          className="tg-menu-item"
+                          onClick={() => {
+                            setAttachOpen(false);
+                            docInputRef.current?.click();
+                          }}
+                        >
+                          <i className="icon icon-document" aria-hidden />
+                          File
                         </button>
                         <button
                           type="button"
