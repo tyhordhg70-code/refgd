@@ -15,6 +15,7 @@ import {
   recordAction,
   enqueuePendingForward,
   claimForwardPrompt,
+  claimForwardPromptRefresh,
   setForwardPromptMsg,
   claimPendingForwards,
   purgeStalePendingForwards,
@@ -581,6 +582,34 @@ export async function POST(req: Request) {
     );
     if (sent.ok && sent.messageId) {
       await setForwardPromptMsg(batchKey, sent.messageId).catch(() => undefined);
+    }
+  } else {
+    // The batch already has a keyboard — but if it has sat unanswered long
+    // enough to scroll out of view (forward more the next day and the bot
+    // looks mute), retire the old keyboard and send a fresh one at the
+    // bottom of the chat. The 2-minute floor keeps album parts and rapid
+    // bulk forwards from spamming keyboards; the atomic re-claim keeps
+    // Render's multi-worker webhook delivery to a single re-prompt. This
+    // also self-heals a batch whose original keyboard send failed.
+    const refresh = await claimForwardPromptRefresh(batchKey, 120);
+    if (refresh.won) {
+      if (refresh.oldMsgId !== null) {
+        await editCommunityMessage(
+          chatId,
+          refresh.oldMsgId,
+          "⬇️ More forwards queued — pick a destination on the newest prompt below.",
+        );
+      }
+      const sent = await sendCommunityKeyboard(
+        chatId,
+        "📥 Queued (batch still open). Where should everything post? Keep forwarding — it all posts together when you pick.",
+        FWD_KEYBOARD,
+      );
+      if (sent.ok && sent.messageId) {
+        await setForwardPromptMsg(batchKey, sent.messageId).catch(
+          () => undefined,
+        );
+      }
     }
   }
 

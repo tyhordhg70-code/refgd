@@ -518,6 +518,38 @@ export async function claimForwardPrompt(
   return rows.length > 0;
 }
 
+/**
+ * Atomically claim the right to RE-send the destination keyboard for a batch
+ * whose prompt has gone stale. Only the queue's very first forward mints a
+ * keyboard (claimForwardPrompt); every later forward is silent by design so
+ * album parts don't spam. But when the prompt sits unanswered long enough to
+ * scroll out of view — forward more the next day and the bot looks mute —
+ * a fresh forward must surface a fresh keyboard.
+ *
+ * Race-safety: a plain UPDATE re-evaluates its WHERE clause on the current
+ * row version when it unblocks behind a concurrent writer (READ COMMITTED),
+ * so of N racing workers exactly one sees created_at still stale and wins;
+ * the rest match 0 rows. RETURNING exposes prompt_msg_id (untouched by the
+ * SET) — i.e. the OLD keyboard's message id, for the caller to retire.
+ */
+export async function claimForwardPromptRefresh(
+  batchKey: string,
+  minAgeSeconds: number,
+): Promise<{ won: boolean; oldMsgId: number | null }> {
+  await initDb();
+  const { rows } = await getPool().query<{ prompt_msg_id: string | null }>(
+    `UPDATE pending_forward_prompts
+        SET created_at = NOW()
+      WHERE batch_key = $1
+        AND created_at < NOW() - make_interval(secs => $2::int)
+      RETURNING prompt_msg_id`,
+    [batchKey, minAgeSeconds],
+  );
+  if (rows.length === 0) return { won: false, oldMsgId: null };
+  const raw = rows[0].prompt_msg_id;
+  return { won: true, oldMsgId: raw === null ? null : Number(raw) };
+}
+
 /** Remember the prompt's Telegram message id (edited after the pick). */
 export async function setForwardPromptMsg(
   batchKey: string,
