@@ -16,6 +16,12 @@ import type { ShopCategory as Category } from "@/lib/shop-catalog";
  * On first visit the image slides in from above and the text from below.
  * On return visits (back-navigation) cards skip the entrance and start
  * floating immediately, so cached images appear without any flash.
+ *
+ * PERFORMANCE: the bob is a pure-CSS @keyframes animation so it runs on
+ * the compositor thread and never blocks click events. Previously each card
+ * ran its own framer-motion infinite RAF loop on the JS main thread, which
+ * competed with pointer-event processing and caused the "takes forever to
+ * register" clicks the owner reported.
  */
 export default function ShopMethodsGrid({ categories }: { categories: Category[] }) {
   const reduced = useReducedMotion();
@@ -33,9 +39,17 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
   });
 
   const skip = reduced || returnVisit;
+  // Pause the CSS bob when reduced-motion is on or the vouches modal is open.
+  const bobPaused = reduced || frozen;
 
   return (
     <section id="categories" className="relative z-10 py-16 sm:py-24 overflow-x-clip">
+      {/* One shared keyframe; each card sets its own duration/delay via inline style */}
+      <style dangerouslySetInnerHTML={{ __html:
+        `@keyframes shopCardBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+         @media(prefers-reduced-motion:reduce){.shop-card-bob{animation:none!important}}`
+      }} />
+
       <div className="container-wide relative">
         <EditableText
           id="shop.grid.eyebrow"
@@ -77,19 +91,14 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
                 ease: [0.22, 1, 0.36, 1],
               }}
             >
-              {/* Inner: continuous gentle float — each card offset so they don't bob in sync */}
-              <motion.div
-                animate={reduced || frozen ? { y: 0 } : { y: [0, -10, 0] }}
-                transition={
-                  reduced || frozen
-                    ? { duration: 0.4 }
-                    : {
-                        duration: 4.2 + i * 0.5,
-                        repeat: Infinity,
-                        ease: "easeInOut",
-                        delay: i * 0.7 + (skip ? 0 : 0.6),
-                      }
-                }
+              {/* Inner: continuous CSS bob — compositor thread, never blocks clicks */}
+              <div
+                className="shop-card-bob"
+                style={{
+                  animation: `shopCardBob ${4.2 + i * 0.5}s ease-in-out infinite`,
+                  animationDelay: `${i * 0.7 + (skip ? 0 : 0.6)}s`,
+                  animationPlayState: bobPaused ? "paused" : "running",
+                }}
               >
                 <Link
                   href={`/shop-methods/${c.slug}`}
@@ -156,7 +165,7 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
 
                   </div>
                 </Link>
-              </motion.div>
+              </div>
             </motion.div>
           ))}
         </div>

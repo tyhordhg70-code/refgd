@@ -20,6 +20,11 @@
    *     (max-w-[160px]) so the whole card + button fits a 667px viewport.
    *   • Glow uses OUTWARD positive box-shadow spread — visible against the
    *     white background. Border also changed to violet so the ring reads.
+   *
+   * PERFORMANCE: the hero card bob is a pure CSS @keyframe (compositor thread).
+   * The button glow pulse still uses framer-motion animate (box-shadow can't
+   * be keyframed in CSS without custom properties), but it's one animation not
+   * four and it targets box-shadow not transform, so it doesn't block clicks.
    */
   export default function ShopMethodsHero({ hero }: { hero: Hero }) {
     const reduced = useReducedMotion();
@@ -27,27 +32,27 @@
 
     return (
       <section className="relative z-10 pt-0 pb-8 sm:pt-4 sm:pb-12 overflow-x-clip">
+        <style dangerouslySetInnerHTML={{ __html:
+          `@keyframes shopHeroBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+           @media(prefers-reduced-motion:reduce){.shop-hero-bob{animation:none!important}}`
+        }} />
         <div className="container-wide relative">
-          {/* Title block */}
+          {/* Title block — entrance spring (fires once, not infinite) */}
           <motion.div
             initial={reduced ? {} : { opacity: 0, y: 30, scale: 0.97 }}
             animate={reduced ? undefined : { opacity: 1, y: 0, scale: 1 }}
             transition={{ type: "spring", stiffness: 90, damping: 18, delay: 0.3 }}
             className="relative z-10 mx-auto max-w-4xl"
           >
-            {/* Inner wrapper floats the whole boxcard gently (paused while the
-                vouches modal is open so its blur stays cheap). */}
-            <motion.div
-              animate={reduced || frozen ? { y: 0 } : { y: [0, -8, 0] }}
-              transition={
-                reduced || frozen
-                  ? { duration: 0.4 }
-                  : { duration: 5.5, repeat: Infinity, ease: "easeInOut", delay: 1 }
-              }
-              className="rounded-[1.75rem] border border-violet-400/60 bg-[rgba(8,6,20,0.90)] p-4 text-center backdrop-blur-md sm:p-8"
+            {/* Inner wrapper: CSS bob on the compositor thread.
+                Paused while vouches modal is open so its blur stays cheap. */}
+            <div
+              className="shop-hero-bob rounded-[1.75rem] border border-violet-400/60 bg-[rgba(8,6,20,0.90)] p-4 text-center backdrop-blur-md sm:p-8"
               style={{
                 boxShadow:
                   "0 0 0 1px rgba(139,92,246,0.35), 0 0 32px 6px rgba(139,92,246,0.55), 0 0 90px 24px rgba(139,92,246,0.22), 0 30px 80px -20px rgba(0,0,0,0.8)",
+                animation: "shopHeroBob 5.5s ease-in-out infinite 1s",
+                animationPlayState: reduced || frozen ? "paused" : "running",
               }}
             >
             {/* Crypto illustration — sized to keep the whole card in view on desktop */}
@@ -135,7 +140,7 @@
                 </span>
               </motion.button>
             </div>
-            </motion.div>
+            </div>
           </motion.div>
         </div>
       </section>
