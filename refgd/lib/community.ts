@@ -1105,6 +1105,61 @@ export function isChatTopic(v: unknown): v is ChatTopic {
   return typeof v === "string" && (CHAT_TOPICS as readonly string[]).includes(v);
 }
 
+/**
+ * Topic-list unread badges: the newest live-message ids per topic plus the
+ * newest vouch ids per section (each capped, NEWEST FIRST). The client
+ * compares them against its per-device `rg_seen_*` / `rg_vseen_*` watermarks
+ * to derive the badge counts — the payload is deliberately viewer-independent
+ * so every visitor can be served from ONE shared memo (same Neon-quota
+ * posture as the rest of the ?meta=1 refresher: no per-viewer reads on a
+ * public poll).
+ */
+export interface UnreadSnapshot {
+  /** topic → newest live chat_messages ids, DESC, ≤ UNREAD_ID_CAP. */
+  live: Record<string, string[]>;
+  /** vouch section → newest vouches ids, DESC, ≤ UNREAD_ID_CAP. */
+  vouch: Record<string, string[]>;
+}
+
+/** Badge counts cap out as "99+", so 100 ids per topic is always enough. */
+const UNREAD_ID_CAP = 100;
+
+export async function getUnreadSnapshot(): Promise<UnreadSnapshot> {
+  await initDb();
+  const [liveRes, vouchRes] = await Promise.all([
+    // Uses chat_messages_topic_idx (topic, id DESC) WHERE deleted = FALSE.
+    // The expiry filter matters for the group chat's auto-delete TTL —
+    // without it a badge could count posts that will never render again.
+    getPool().query<{ topic: string; id: string }>(
+      `SELECT topic, id FROM (
+         SELECT topic, id,
+                row_number() OVER (PARTITION BY topic ORDER BY id DESC) AS rn
+           FROM chat_messages
+          WHERE deleted = FALSE
+            AND (expires_at IS NULL OR expires_at > NOW())
+       ) t
+       WHERE rn <= $1
+       ORDER BY topic, id DESC`,
+      [UNREAD_ID_CAP],
+    ),
+    getPool().query<{ section: string; id: string }>(
+      `SELECT section, id FROM (
+         SELECT section, id,
+                row_number() OVER (PARTITION BY section ORDER BY id DESC) AS rn
+           FROM vouches
+       ) t
+       WHERE rn <= $1
+       ORDER BY section, id DESC`,
+      [UNREAD_ID_CAP],
+    ),
+  ]);
+  const live: Record<string, string[]> = {};
+  for (const r of liveRes.rows) (live[r.topic] ??= []).push(String(r.id));
+  const vouch: Record<string, string[]> = {};
+  for (const r of vouchRes.rows) (vouch[r.section] ??= []).push(String(r.id));
+  return { live, vouch };
+}
+
 export interface ListChatOptions {
   afterId?: string | null;
   limit?: number;

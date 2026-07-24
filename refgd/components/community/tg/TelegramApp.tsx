@@ -3,6 +3,7 @@
 import {
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -234,6 +235,16 @@ export default function TelegramApp({
     memberLabel: string;
     chatPreview: ChatPreview | null;
   } | null>(null);
+  // Topic-list unread badges (Web A's blue ChatBadge): newest live/vouch ids
+  // per topic from the same ?meta=1 poll, counted client-side against the
+  // per-device rg_seen_* / rg_vseen_* watermarks. seenTick re-reads the
+  // watermarks whenever the user lands back on the list (rg_seen_* advances
+  // inside CommunityChat while a topic is open).
+  const [unreadSnap, setUnreadSnap] = useState<{
+    live?: Record<string, string[]>;
+    vouch?: Record<string, string[]>;
+  } | null>(null);
+  const [seenTick, setSeenTick] = useState(0);
   useEffect(() => {
     let stop = false;
     const tick = async () => {
@@ -244,8 +255,13 @@ export default function TelegramApp({
         const data = (await res.json()) as {
           memberCount: number | null;
           lastMessage: ChatPreview | null;
+          unread?: {
+            live?: Record<string, string[]>;
+            vouch?: Record<string, string[]>;
+          } | null;
         };
         if (stop) return;
+        if (data.unread) setUnreadSnap(data.unread);
         setLiveMeta({
           memberLabel:
             typeof data.memberCount === "number" && data.memberCount > 0
@@ -279,6 +295,9 @@ export default function TelegramApp({
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   useEffect(() => {
     if (active !== null) return;
+    // Back on the list: re-read the seen watermarks too — rg_seen_* advanced
+    // inside CommunityChat while the topic was open, so its badge clears now.
+    setSeenTick((v) => v + 1);
     const next: Record<string, string> = {};
     try {
       for (const t of TOPICS) {
@@ -290,6 +309,90 @@ export default function TelegramApp({
     }
     setDrafts(next);
   }, [active]);
+  // First-visit baseline: a device with no stored watermark treats existing
+  // history as read (exactly like joining a Telegram group) — badges only
+  // count what arrives AFTER this. Never touches an existing rg_seen_* value
+  // (that watermark belongs to CommunityChat's unread-divider logic).
+  useEffect(() => {
+    if (!unreadSnap) return;
+    try {
+      for (const t of TOPICS) {
+        const maxLive = unreadSnap.live?.[t.key]?.[0];
+        if (maxLive && !localStorage.getItem(`rg_seen_${t.key}`))
+          localStorage.setItem(`rg_seen_${t.key}`, maxLive);
+        const maxVouch = unreadSnap.vouch?.[t.key]?.[0];
+        if (maxVouch && !localStorage.getItem(`rg_vseen_${t.key}`))
+          localStorage.setItem(`rg_vseen_${t.key}`, maxVouch);
+      }
+    } catch {
+      /* storage unavailable */
+    }
+    setSeenTick((v) => v + 1);
+  }, [unreadSnap]);
+  // Opening a topic marks its vouch HISTORY seen (imported/readonly rows
+  // don't live-append while the topic is open, so open == read for them).
+  // The live watermark stays CommunityChat's job — it only advances when the
+  // viewer actually reaches the bottom, so a badge survives a partial visit
+  // exactly like the real client.
+  // Marked once per open (ref) — retries when the first snapshot lands after
+  // a fast open, but never keeps advancing for vouches that arrive mid-visit.
+  const vouchMarkedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!active) {
+      vouchMarkedRef.current = null;
+      return;
+    }
+    if (vouchMarkedRef.current === active) return;
+    const maxVouch = unreadSnap?.vouch?.[active]?.[0];
+    if (!maxVouch) return; // snapshot not here yet — effect re-runs on arrival
+    vouchMarkedRef.current = active;
+    try {
+      const cur = Number(localStorage.getItem(`rg_vseen_${active}`) ?? "0");
+      if (!Number.isFinite(cur) || Number(maxVouch) > cur)
+        localStorage.setItem(`rg_vseen_${active}`, maxVouch);
+    } catch {
+      /* storage unavailable */
+    }
+  }, [active, unreadSnap]);
+  // Per-row unread counts. A missing watermark counts as 0 (the baseline
+  // effect above fills it an instant later), so a brand-new device never
+  // flashes the whole history as unread. Ids arrive NEWEST-first — stop at
+  // the first already-seen id.
+  const unreadCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (!unreadSnap) return counts;
+    const tally = (ids: string[] | undefined, seenRaw: string | null) => {
+      if (!ids || ids.length === 0) return 0;
+      const seen = Number(seenRaw ?? "");
+      if (!Number.isFinite(seen) || seen <= 0) return 0;
+      let n = 0;
+      for (const id of ids) {
+        if (Number(id) > seen) n += 1;
+        else break;
+      }
+      return n;
+    };
+    try {
+      for (const t of TOPICS) {
+        if (t.key === active) continue; // the open topic never badges its row
+        const n =
+          tally(
+            unreadSnap.live?.[t.key],
+            localStorage.getItem(`rg_seen_${t.key}`),
+          ) +
+          tally(
+            unreadSnap.vouch?.[t.key],
+            localStorage.getItem(`rg_vseen_${t.key}`),
+          );
+        if (n > 0) counts[t.key] = n;
+      }
+    } catch {
+      /* storage unavailable */
+    }
+    return counts;
+    // seenTick forces a localStorage re-read after each topic visit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unreadSnap, seenTick, active]);
   // Desktop-only (≥768px): collapse the persistent topic-list pane. Read the
   // saved preference in an effect so the SSR markup matches the first paint.
   const [listCollapsed, setListCollapsed] = useState(false);
@@ -1282,6 +1385,7 @@ export default function TelegramApp({
                   >
                     {visibleTopics.map((t, i) => {
                       const meta = rowMeta(t.key);
+                      const unreadN = unreadCounts[t.key] ?? 0;
                       return (
                         <div
                           key={t.key}
@@ -1345,6 +1449,14 @@ export default function TelegramApp({
                                     )}
                                   </span>
                                 </p>
+                                {unreadN > 0 && (
+                                  <div
+                                    className="tg-topic-badge"
+                                    aria-label={`${unreadN} unread`}
+                                  >
+                                    {unreadN > 99 ? "99+" : unreadN}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </a>
