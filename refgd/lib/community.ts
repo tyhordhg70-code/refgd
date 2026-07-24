@@ -11,6 +11,7 @@
 import { createHash } from "node:crypto";
 import { getPool, initDb } from "./db";
 import { probeImageDims } from "./image-dims";
+import type { LinkPreview } from "./link-preview";
 import {
   isCommunityAdmin,
   communityBotToken,
@@ -986,7 +987,11 @@ export interface ChatMessage {
   expiresAt: string | null;
   reactions: ChatReaction[];
   reply: ChatReplyRef | null;
+  /** Scraped Open Graph card shown below the message text (null = no URL or scrape failed). */
+  linkPreview: LinkPreview | null;
 }
+
+export type { LinkPreview };
 
 interface ChatMsgRow {
   id: string;
@@ -1009,6 +1014,7 @@ interface ChatMsgRow {
   reply_to: string | null;
   reply_author: string | null;
   reply_body: string | null;
+  link_preview: Record<string, unknown> | null;
 }
 
 const REPLY_SNIPPET_MAX = 140;
@@ -1052,6 +1058,7 @@ async function attachReactions(
           body: (r.reply_body ?? "").slice(0, REPLY_SNIPPET_MAX),
         }
       : null,
+    linkPreview: r.link_preview ? (r.link_preview as unknown as LinkPreview) : null,
   }));
   if (base.length === 0) return base;
   const ids = base.map((m) => m.id);
@@ -1124,7 +1131,8 @@ export async function listChatMessages(
               octet_length(md.bytes) AS media_bytes,
               m.pinned, m.created_at,
               m.edited_at, m.expires_at, cm.photo_url,
-              m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body
+              m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body,
+              m.link_preview
          FROM chat_messages m
          LEFT JOIN chat_members cm ON cm.tg_id = m.tg_id
          LEFT JOIN chat_messages rm ON rm.id = m.reply_to
@@ -1147,7 +1155,8 @@ export async function listChatMessages(
               octet_length(md.bytes) AS media_bytes,
               m.pinned, m.created_at,
               m.edited_at, m.expires_at, cm.photo_url,
-              m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body
+              m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body,
+              m.link_preview
          FROM chat_messages m
          LEFT JOIN chat_members cm ON cm.tg_id = m.tg_id
          LEFT JOIN chat_messages rm ON rm.id = m.reply_to
@@ -1227,6 +1236,8 @@ export interface CreateChatMessageInput {
   topic?: ChatTopic;
   /** Attached photo (chat_media id) — image + caption land in ONE bubble. */
   mediaId?: string | null;
+  /** Scraped Open Graph card to show below the message text. */
+  linkPreview?: LinkPreview | null;
 }
 
 export async function createChatMessage(
@@ -1237,10 +1248,15 @@ export async function createChatMessage(
     input.replyTo && /^\d+$/.test(input.replyTo) ? input.replyTo : null;
   const mediaId =
     input.mediaId && /^\d+$/.test(input.mediaId) ? input.mediaId : null;
+  const preview =
+    input.linkPreview && Object.keys(input.linkPreview).length > 0
+      ? JSON.stringify(input.linkPreview)
+      : null;
   const { rows } = await getPool().query<ChatMsgRow>(
-    `INSERT INTO chat_messages (tg_id, author_name, body, expires_at, reply_to, topic, media_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO chat_messages (tg_id, author_name, body, expires_at, reply_to, topic, media_id, link_preview)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
      RETURNING id, tg_id, author_name, body, media_id, pinned, created_at, edited_at, expires_at, reply_to,
+               link_preview,
                (SELECT w FROM chat_media cmed WHERE cmed.id = $7) AS media_w,
                (SELECT h FROM chat_media cmed WHERE cmed.id = $7) AS media_h,
                (SELECT kind FROM chat_media cmed WHERE cmed.id = $7) AS media_kind,
@@ -1259,11 +1275,25 @@ export async function createChatMessage(
       replyTo,
       input.topic ?? "chat",
       mediaId,
+      preview,
     ],
   );
   if (!rows[0]) return null;
   const [msg] = await attachReactions(rows, input.tgId);
   return msg ?? null;
+}
+
+/** Persist a scraped link preview on an already-saved message row. */
+export async function updateLinkPreview(
+  id: string,
+  data: LinkPreview,
+): Promise<void> {
+  if (!/^\d+$/.test(id)) return;
+  await initDb();
+  await getPool().query(
+    `UPDATE chat_messages SET link_preview = $2::jsonb WHERE id = $1`,
+    [id, JSON.stringify(data)],
+  );
 }
 
 /** Store an uploaded chat attachment (BYTEA — Render has no persistent disk). */

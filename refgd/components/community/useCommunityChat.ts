@@ -119,6 +119,14 @@ export interface ChatMessage {
   expiresAt?: string | null;
   reactions: Reaction[];
   reply: ReplyRef | null;
+  /** Scraped Open Graph card shown below the message text, if any. */
+  linkPreview?: {
+    url: string;
+    title?: string;
+    description?: string;
+    image?: string;
+    siteName?: string;
+  } | null;
 }
 
 export interface Member {

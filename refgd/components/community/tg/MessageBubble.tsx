@@ -190,6 +190,7 @@ export default function MessageBubble({
   selected,
   onToggleSelect,
   appearCls,
+  linkPreview,
 }: {
   own: boolean;
   /** First message of its author run (adds first-in-group). */
@@ -274,6 +275,14 @@ export default function MessageBubble({
    * the CSS animation only runs on insertion.
    */
   appearCls?: string;
+  /** Scraped Open Graph card shown below the message body (Telegram Web A WebPage style). */
+  linkPreview?: {
+    url: string;
+    title?: string;
+    description?: string;
+    image?: string;
+    siteName?: string;
+  } | null;
 }) {
   const pressTimer = useRef<number | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
@@ -802,11 +811,54 @@ export default function MessageBubble({
                 dir="auto"
               >
                 {body}
-                {!hasReactions && meta}
+                {!hasReactions && !linkPreview && meta}
               </div>
             )}
 
-            {!hasBody && !hasReactions && meta && (
+            {linkPreview && (
+              <a
+                href={linkPreview.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="WebPage tg-link-preview"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="WebPage--content">
+                  <div className="WebPage-text">
+                    {linkPreview.siteName && (
+                      <span className="tg-wp-site">{linkPreview.siteName}</span>
+                    )}
+                    {linkPreview.title && (
+                      <span className="tg-wp-title">{linkPreview.title}</span>
+                    )}
+                    {linkPreview.description && (
+                      <p className="tg-wp-desc">{linkPreview.description}</p>
+                    )}
+                  </div>
+                  {linkPreview.image &&
+                    // Defense-in-depth: the scraper only stores http(s) image
+                    // URLs, but never let anything else reach an <img src>.
+                    /^https?:\/\//i.test(linkPreview.image) && (
+                      <div className="media-inner square-image tg-wp-img">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={linkPreview.image}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      </div>
+                    )}
+                </div>
+                {!hasReactions && meta && (
+                  <div className="text-content clearfix with-meta tg-wp-meta" dir="auto">
+                    {meta}
+                  </div>
+                )}
+              </a>
+            )}
+
+            {!hasBody && !hasReactions && !linkPreview && meta && (
               <div className="text-content clearfix with-meta" dir="auto">
                 {meta}
               </div>

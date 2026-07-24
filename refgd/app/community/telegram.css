@@ -3956,3 +3956,87 @@ span.tg-edit-ce-lottie svg {
   width: 1rem;
   height: 1rem;
 }
+
+/* ── Link preview (Web A WebPage card) ───────────────────────────── */
+/* The vendored .WebPage base already sets font-size/line-height/overflow.
+   We add the left accent bar and sub-element typography so the card looks
+   identical to Telegram Web A's in-chat link embeds. */
+.tg-link-preview {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 0.25rem;
+  overflow: hidden;
+  cursor: pointer;
+  margin-top: 0.25rem;
+  /* Left accent line (Web A primary blue). */
+  border-left: 3px solid var(--color-primary, #3390ec);
+  padding-inline-start: 0.5rem;
+}
+.tg-link-preview:hover {
+  opacity: 0.85;
+}
+/* Site name — small coloured label above the title. */
+.tg-wp-site {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-primary, #3390ec);
+  line-height: 1.25;
+  margin-bottom: 0.125rem;
+}
+/* Page title — bold single line. */
+.tg-wp-title {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text, #000);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0.125rem;
+}
+/* Description — up to 3 lines, slightly dimmed. */
+.tg-wp-desc {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary, #666);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* OG image thumbnail. */
+.tg-wp-img {
+  flex-shrink: 0;
+  width: 4rem !important;
+  height: 4rem !important;
+  border-radius: 0.375rem;
+  overflow: hidden;
+  margin-inline-start: 0.5rem;
+}
+.tg-wp-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* MessageMeta (timestamp + ticks) inside the preview card. */
+.tg-wp-meta {
+  margin-top: 0.125rem;
+}
+/* Dark/outgoing bubble — invert text colours. */
+.own .tg-link-preview {
+  border-left-color: rgba(255 255 255 / 0.6);
+}
+.own .tg-wp-site {
+  color: rgba(255 255 255 / 0.8);
+}
+.own .tg-wp-title {
+  color: #fff;
+}
+.own .tg-wp-desc {
+  color: rgba(255 255 255 / 0.75);
+}

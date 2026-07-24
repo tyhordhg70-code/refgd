@@ -574,6 +574,9 @@ export default function CommunityChat({
       fileName?: string;
       duration?: number | null;
       poster?: Blob | null;
+      /** Source photo's intrinsic size — forwarded copies must keep it. */
+      w?: number | null;
+      h?: number | null;
     },
   ) => {
     const finish = (data: { ok?: boolean; error?: string } | null) =>
@@ -585,6 +588,15 @@ export default function CommunityChat({
     if (media) {
       const form = new FormData();
       form.append(media.field, media.blob, media.name);
+      // Re-send the source photo's measured dimensions: a normal upload gets
+      // these from the client-side downscale, but a forward re-uploads raw
+      // bytes — without them the server stores null w/h and the bubble's
+      // pre-latch placeholder collapses (photo pops in on scroll, iOS
+      // jump-cuts).
+      if (media.field === "photo" && media.w && media.h) {
+        form.append("mediaW", String(media.w));
+        form.append("mediaH", String(media.h));
+      }
       if (media.field === "file") {
         form.append("fileName", media.fileName || media.name);
       }
@@ -662,6 +674,8 @@ export default function CommunityChat({
             fileName: kind === "file" ? m.mediaName || "file" : undefined,
             duration: m.mediaDuration ?? null,
             poster,
+            w: m.mediaW ?? null,
+            h: m.mediaH ?? null,
           });
         } catch {
           postForward(body || buildForwardBody(origin, fallback), dest);
@@ -2612,6 +2626,7 @@ export default function CommunityChat({
                                   selectMode={selecting}
                                   selected={selectedIds.has(m.id)}
                                   onToggleSelect={() => toggleSelect(m.id)}
+                                  linkPreview={m.linkPreview}
                                   />
                                 </Fragment>
                               );

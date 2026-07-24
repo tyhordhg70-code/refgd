@@ -7,6 +7,7 @@ import {
 import {
   listChatMessages,
   createChatMessage,
+  updateLinkPreview,
   discoverMessageEmoji,
   saveChatMedia,
   upsertChatMember,
@@ -42,6 +43,11 @@ import {
 } from "@/components/community/tg/deeplink";
 import { parseCommand, executeModCommand } from "@/lib/moderation";
 import { memoTtl } from "@/lib/micro-cache";
+import {
+  extractFirstUrl,
+  fetchLinkPreview,
+  type LinkPreview,
+} from "@/lib/link-preview";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -849,6 +855,29 @@ export async function POST(req: Request) {
   // serve route is cache-first — see discoverMessageEmoji).
   await discoverMessageEmoji(text);
 
+  // Link preview (best-effort): scrape an Open Graph card from the first URL
+  // in the body. The scrape is raced against a hard 3 s ceiling so a slow
+  // site can never hold the member's send hostage — when it loses the race
+  // the message inserts WITHOUT the card and the still-running scrape (its
+  // own budget is 8 s, streamed + byte-capped, SSRF-guarded) attaches it
+  // afterwards via updateLinkPreview; readers pick that up on the 30 s full
+  // refresh (the short-poll only carries brand-new rows). Cards are for
+  // text-only messages — attachments already dominate the bubble, matching
+  // Telegram, and pure voice/token bodies never qualify.
+  let linkPreview: LinkPreview | null = null;
+  let lateScrape: Promise<LinkPreview | null> | null = null;
+  if (text && !voice && !photo && !video && !docFile) {
+    const url = extractFirstUrl(text);
+    if (url) {
+      const scrape = fetchLinkPreview(url, 8_000).catch(() => null);
+      linkPreview = await Promise.race([
+        scrape,
+        new Promise<null>((resolve) => setTimeout(resolve, 3_000, null)),
+      ]);
+      if (!linkPreview) lateScrape = scrape;
+    }
+  }
+
   const message = await createChatMessage({
     tgId: me.tid,
     authorName: me.name,
@@ -857,7 +886,17 @@ export async function POST(req: Request) {
     expiresAt,
     topic,
     mediaId,
+    linkPreview,
   });
+
+  // Slow-site link preview: attach the card once the scrape lands. Fail-soft
+  // and fire-and-forget — a scrape/update failure must never affect the send.
+  if (lateScrape && message) {
+    const mid = message.id;
+    void lateScrape
+      .then((lp) => (lp ? updateLinkPreview(mid, lp) : undefined))
+      .catch(() => undefined);
+  }
 
   // A send always ends the sender's "typing…" state immediately (fail-soft).
   void clearTyping(topic, me.tid).catch(() => undefined);
