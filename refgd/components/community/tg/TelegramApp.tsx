@@ -235,6 +235,55 @@ export default function TelegramApp({
     memberLabel: string;
     chatPreview: ChatPreview | null;
   } | null>(null);
+  // Vouch history is initially passed as server props, but bot imports can
+  // arrive while the Mini App stays open. Refresh only the active read-only
+  // topic so the list remains cheap and the open feed catches new posts.
+  const [liveVouches, setLiveVouches] = useState(() => ({
+    testimonials,
+    buy4u,
+    announcements,
+  }));
+  useEffect(() => {
+    if (
+      active !== "testimonials" &&
+      active !== "buy4u" &&
+      active !== "announcements"
+    ) {
+      return;
+    }
+    const section = active;
+    let stopped = false;
+    const refresh = async () => {
+      if (document.hidden) return;
+      try {
+        const res = await fetch(
+          `/api/community/vouches?section=${encodeURIComponent(section)}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok || stopped) return;
+        const data = (await res.json()) as {
+          ok?: boolean;
+          vouches?: VouchView[];
+        };
+        if (!stopped && data.ok && Array.isArray(data.vouches)) {
+          setLiveVouches((prev) => ({ ...prev, [section]: data.vouches! }));
+        }
+      } catch {
+        /* transient — keep the last known history */
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 30_000);
+    const onVisibility = () => {
+      if (!document.hidden) void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [active]);
   // Topic-list unread badges (Web A's blue ChatBadge): newest live/vouch ids
   // per topic from the same ?meta=1 poll, counted client-side against the
   // per-device rg_seen_* / rg_vseen_* watermarks. seenTick re-reads the
@@ -643,9 +692,9 @@ export default function TelegramApp({
         : { ...v, body, pinned };
     });
   const byTopic: Record<string, VouchView[]> = {
-    testimonials: applyEdits(testimonials),
-    buy4u: applyEdits(buy4u),
-    announcements: applyEdits(announcements),
+    testimonials: applyEdits(liveVouches.testimonials),
+    buy4u: applyEdits(liveVouches.buy4u),
+    announcements: applyEdits(liveVouches.announcements),
   };
 
   const rowMetaBase = (key: TopicKey): RowMeta => {

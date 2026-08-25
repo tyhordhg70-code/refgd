@@ -923,9 +923,48 @@ export default function CommunityChat({
   }, [chat.text, chat.editing, topic]);
 
   // Append an emoji character / custom-emoji token to the composer text and
-  // keep the contenteditable + caret in sync.
+  // keep the contenteditable + caret in sync. The picker steals focus from the
+  // contenteditable, so the range is captured on the picker button's pointer
+  // down and restored here before inserting.
+  const composerSelectionRef = useRef<Range | null>(null);
+  const saveComposerSelection = () => {
+    const el = inputRef.current;
+    const selection = window.getSelection();
+    if (!el || !selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    if (el.contains(range.commonAncestorContainer)) {
+      composerSelectionRef.current = range.cloneRange();
+    }
+  };
   const insertAtComposer = (snippet: string) => {
-    seedComposer((chat.text + snippet).slice(0, MAX_LEN));
+    const el = inputRef.current;
+    if (!el) {
+      seedComposer((chat.text + snippet).slice(0, MAX_LEN));
+      return;
+    }
+    el.focus();
+    const selection = window.getSelection();
+    const saved = composerSelectionRef.current;
+    if (selection) {
+      selection.removeAllRanges();
+      if (saved && el.contains(saved.commonAncestorContainer)) {
+        selection.addRange(saved);
+      } else {
+        const end = document.createRange();
+        end.selectNodeContents(el);
+        end.collapse(false);
+        selection.addRange(end);
+      }
+    }
+    document.execCommand("insertHTML", false, bodyToEditHtml(snippet));
+    wireEditCeFallback(el);
+    wireEditCeAnimations(el);
+    let next = editHtmlToBody(el).replace(/\n$/, "");
+    if (next === "\n") next = "";
+    next = next.slice(0, MAX_LEN);
+    chat.setText(next);
+    if (!chat.editing && next.trim()) chat.notifyTyping();
+    composerSelectionRef.current = null;
   };
 
   // Replace the composer text with a chosen slash command (+ trailing space)
@@ -3144,6 +3183,7 @@ export default function CommunityChat({
                   className="Button symbol-menu-button composer-action-button default translucent round"
                   aria-label="Choose an emoji"
                   title="Choose an emoji"
+                  onPointerDown={saveComposerSelection}
                   onClick={() => setEmojiOpen((v) => !v)}
                 >
                   <i className="icon icon-smile" aria-hidden />
