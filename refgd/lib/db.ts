@@ -1,8 +1,10 @@
 /**
    * PostgreSQL pool singleton.
    *
-   * Reads connection string from NEON_DATABASE_URL (preferred), RENDER_DATABASE_URL
-   * (legacy), or DATABASE_URL (fallback).
+   * Reads connection string from RENDER_DATABASE_URL (preferred), the legacy
+   * NEON_DATABASE_URL, or DATABASE_URL (fallback). Render is the current
+   * production source of truth; preferring Neon here can serve an old snapshot
+   * when both deployment variables are present.
    *
    * Works with Neon, Render Postgres, Supabase, or any standard Postgres host.
    * Tables are created on first call to initDb() and then cached in memory.
@@ -21,8 +23,8 @@
 
   function createPool(): Pool {
     const url =
-      process.env.NEON_DATABASE_URL ??
       process.env.RENDER_DATABASE_URL ??
+      process.env.NEON_DATABASE_URL ??
       process.env.DATABASE_URL;
     if (!url) {
       throw new Error(
