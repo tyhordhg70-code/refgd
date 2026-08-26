@@ -893,6 +893,12 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
   const releaseScrollAnchor = useCallback(() => {
     restoreAnchorRef.current = null;
   }, []);
+  const newestVouchMid = useCallback((el: HTMLElement): string | undefined => {
+    const nodes = el.querySelectorAll<HTMLElement>('[data-mid^="v"]');
+    return nodes.length
+      ? (nodes[nodes.length - 1].getAttribute("data-mid") ?? undefined)
+      : undefined;
+  }, []);
   useEffect(() => {
     const el = scrollRef.current;
     // Gate on the initial fetch finishing (NOT on live messages existing) so
@@ -914,22 +920,37 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
             m?: string;
             o?: number;
             t?: number;
+            /** Newest vouch that existed when this position was saved. */
+            n?: string;
           };
           if (spot && typeof spot.m === "string") {
-            atBottomRef.current = false;
-            // Rough position first (collapses the distance the anchor fix
-            // has to cover), then snap exactly to the anchored bubble.
-            if (typeof spot.t === "number" && spot.t >= 0)
-              el.scrollTop = spot.t;
-            const off = typeof spot.o === "number" ? spot.o : 0;
-            if (applyAnchor(el, spot.m, off)) {
-              restoreAnchorRef.current = {
-                mid: spot.m,
-                off,
-                until: Date.now() + 4000,
-              };
+            const currentNewestVouch = newestVouchMid(el);
+            // A persisted history position is useful only while the history is
+            // unchanged. If a newer vouch arrived, restoring the old anchor
+            // makes the topic appear frozen on that old date even though the
+            // new bubbles are already rendered below it. Old snapshots lack
+            // `n`, so they intentionally take this one-time path to latest.
+            if (!currentNewestVouch || spot.n === currentNewestVouch) {
+              atBottomRef.current = false;
+              // Rough position first (collapses the distance the anchor fix
+              // has to cover), then snap exactly to the anchored bubble.
+              if (typeof spot.t === "number" && spot.t >= 0)
+                el.scrollTop = spot.t;
+              const off = typeof spot.o === "number" ? spot.o : 0;
+              if (applyAnchor(el, spot.m, off)) {
+                restoreAnchorRef.current = {
+                  mid: spot.m,
+                  off,
+                  until: Date.now() + 4000,
+                };
+              }
+              return;
             }
-            return;
+            try {
+              localStorage.removeItem(`rg_scroll_${topic}`);
+            } catch {
+              /* storage unavailable */
+            }
           }
         } catch {
           /* fall through to legacy handling */
@@ -1056,6 +1077,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     atBottom: boolean;
     mid?: string;
     off?: number;
+    newestVouch?: string;
   } | null>(null);
   const saveScrollSpot = useCallback(() => {
     const el = scrollRef.current;
@@ -1063,7 +1085,11 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     if (el) {
       // Anchor the topmost visible bubble: a raw scrollTop drifts when media
       // above it finishes loading on the next visit; the bubble id doesn't.
-      snap = { top: Math.round(el.scrollTop), atBottom: atBottomRef.current };
+      snap = {
+        top: Math.round(el.scrollTop),
+        atBottom: atBottomRef.current,
+        newestVouch: newestVouchMid(el),
+      };
       if (!snap.atBottom) {
         const cRect = el.getBoundingClientRect();
         for (const node of el.querySelectorAll<HTMLElement>("[data-mid]")) {
@@ -1087,14 +1113,19 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     const value = snap.atBottom
       ? "bottom"
       : snap.mid
-        ? JSON.stringify({ m: snap.mid, o: snap.off ?? 0, t: snap.top })
+        ? JSON.stringify({
+            m: snap.mid,
+            o: snap.off ?? 0,
+            t: snap.top,
+            n: snap.newestVouch,
+          })
         : String(snap.top);
     try {
       localStorage.setItem(`rg_scroll_${topic}`, value);
     } catch {
       /* storage unavailable */
     }
-  }, [topic]);
+  }, [newestVouchMid, topic]);
   useEffect(() => {
     return () => {
       if (saveScrollTimerRef.current !== null) {
