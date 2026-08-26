@@ -230,6 +230,7 @@ export default function CommunityChat({
   title = "Group Chat",
   icon,
   history,
+  chronologicalHistory = false,
   onVouchEdited,
   onVouchPinned,
   onVouchDeleted,
@@ -247,10 +248,10 @@ export default function CommunityChat({
   /** Header icon override (topic emoji); defaults to the # forum icon. */
   icon?: ReactNode;
   /**
-   * Read-only migrated history rendered above the live messages. A function
+   * Read-only migrated history rendered with the live messages. A function
    * receives the active in-chat search query so it can filter itself, plus a
-   * `pinnedOnly` flag so it renders only pinned bubbles when the pinned-messages
-   * panel is open (Web A parity).
+   * `pinnedOnly` flag and optional timestamp range used to keep imported and
+   * live rows in chronological order.
    */
   history?:
     | ReactNode
@@ -274,7 +275,15 @@ export default function CommunityChat({
         pinnedOnly: boolean,
         reactionsFor: (id: string, baseline?: Reaction[]) => Reaction[],
         onReact: (id: string, emoji: string) => void,
+         range?: { through?: string; after?: string },
       ) => ReactNode);
+  /**
+   * Split migrated history around the newest live-message timestamp. Vouch
+   * topics contain both imported history and legacy live rows; without this,
+   * an old live row renders after newer imports and becomes the false "latest"
+   * physical bottom of the topic.
+   */
+  chronologicalHistory?: boolean;
   /**
    * Called after an admin edits a read-only history post so the parent can
    * patch its cached vouch body in place (no refetch → no flicker).
@@ -1593,6 +1602,30 @@ export default function CommunityChat({
         : all;
     return buildGroups(shown, localDates);
   }, [state?.messages, query, pinnedOnly, localDates]);
+  const latestLiveAt = useMemo(() => {
+    if (!chronologicalHistory) return null;
+    let newest: string | null = null;
+    for (const message of state?.messages ?? []) {
+      if (newest === null || message.createdAt > newest) {
+        newest = message.createdAt;
+      }
+    }
+    return newest;
+  }, [chronologicalHistory, state?.messages]);
+  const renderHistory = (
+    range?: { through?: string; after?: string },
+  ): ReactNode =>
+    typeof history === "function"
+      ? history(
+          query,
+          openReadonlyMenu,
+          (src, meta) => setLightbox({ src, ...meta }),
+          pinnedOnly,
+          extraReactions.reactionsFor,
+          reactAny,
+          range,
+        )
+      : history;
 
   // Paint the active search term inside the filtered results (CSS Custom
   // Highlight API — highlights text WITHOUT rewriting the DOM, so custom
@@ -2417,17 +2450,10 @@ export default function CommunityChat({
                         the chat once per NEW member at their first sign-in
                         (greetNewMember in the auth route), matching real Rose
                         group behavior. */}
-                    {/* Read-only migrated history (vouch topics). */}
-                    {typeof history === "function"
-                      ? history(
-                          query,
-                          openReadonlyMenu,
-                          (src, meta) => setLightbox({ src, ...meta }),
-                          pinnedOnly,
-                          extraReactions.reactionsFor,
-                          reactAny,
-                        )
-                      : history}
+                    {/* Imported rows at/before the newest legacy live row. */}
+                    {renderHistory(
+                      latestLiveAt ? { through: latestLiveAt } : undefined,
+                    )}
                     {(isGroupChat || topic === "testimonials") &&
                       !query &&
                       !chatNoticeHidden &&
@@ -2674,6 +2700,11 @@ export default function CommunityChat({
                         ))}
                       </div>
                     ))}
+                    {/* Imported rows newer than every legacy live row belong
+                        at the physical bottom of the topic. */}
+                    {latestLiveAt
+                      ? renderHistory({ after: latestLiveAt })
+                      : null}
                   </>
                 )}
               </div>

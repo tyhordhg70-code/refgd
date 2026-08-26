@@ -1131,6 +1131,7 @@ export default function TelegramApp({
         topic={active}
         title={def?.title ?? ""}
         icon={def ? <TopicIcon def={def} /> : undefined}
+        chronologicalHistory
         onVouchEdited={(id, body) =>
           setVouchEdits((prev) => ({ ...prev, [id]: body }))
         }
@@ -1169,6 +1170,7 @@ export default function TelegramApp({
           pinnedOnly,
           reactionsFor,
           onReact,
+          range,
         ) => {
           const q = query.trim().toLowerCase();
           const vouches = byTopic[topicKey] ?? [];
@@ -1180,10 +1182,17 @@ export default function TelegramApp({
                     v.authorName.toLowerCase().includes(q),
                 )
               : vouches
-          ).filter((v) => !pinnedOnly || v.pinned);
+          ).filter((v) => {
+            if (pinnedOnly && !v.pinned) return false;
+            const stamp = v.originDate ?? v.createdAt;
+            if (range?.through && stamp > range.through) return false;
+            if (range?.after && stamp <= range.after) return false;
+            return true;
+          });
           return (
             <>
               {topicKey === "announcements" &&
+                !range?.after &&
                 !q &&
                 !seedGone("announcement") &&
                 (!pinnedOnly || seedPin("announcement")) && (

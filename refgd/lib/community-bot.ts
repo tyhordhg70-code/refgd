@@ -14,7 +14,7 @@ import { createHash } from "node:crypto";
 
 type SendResult = { ok: boolean; error?: string };
 
-export const COMMUNITY_MINI_APP_PATH = "/community/app-20260826";
+export const COMMUNITY_MINI_APP_PATH = "/community/app-20260826-order";
 
 export function communityMiniAppUrl(base: string): string {
   return `${base.replace(/\/$/, "")}${COMMUNITY_MINI_APP_PATH}`;
