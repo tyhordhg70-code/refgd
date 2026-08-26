@@ -1820,6 +1820,13 @@ video.tg-custom-emoji {
       var(--middle-panel-inline-padding, 1rem) + 0.5rem
   );
 }
+/* Imported vouch runs and live-message runs are separate React trees. Make
+   their shared container an ordered column so each run's exact timestamp can
+   determine its position across both sources. */
+.tg-app .MessageList .messages-container[data-chronological="true"] {
+  display: flex;
+  flex-direction: column;
+}
 /* When the floating pinned-message pill is showing it overlays the top of the
    list; add its height to the clearance so the first message isn't hidden
    beneath it. Toggled by CommunityChat via data-has-pinned-banner. */

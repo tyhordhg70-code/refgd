@@ -9,6 +9,7 @@ import {
   dateKeyLocal,
   dateLabel,
   renderBody,
+  timelineOrder,
   useLocalDates,
 } from "./format";
 
@@ -25,9 +26,15 @@ interface DateGroup {
   key: string;
   label: string;
   runs: VouchView[][];
+  orderAt: string;
+  showDate: boolean;
 }
 
-function buildGroups(vouches: VouchView[], localDates: boolean): DateGroup[] {
+function buildGroups(
+  vouches: VouchView[],
+  localDates: boolean,
+  splitRuns: boolean,
+): DateGroup[] {
   const sorted = [...vouches].sort((a, b) => {
     const ta = a.originDate ?? a.createdAt;
     const tb = b.originDate ?? b.createdAt;
@@ -44,7 +51,13 @@ function buildGroups(vouches: VouchView[], localDates: boolean): DateGroup[] {
     );
     let group = groups[groups.length - 1];
     if (!group || group.key !== key) {
-      group = { key, label: dateLabel(key, todayYear), runs: [] };
+      group = {
+        key,
+        label: dateLabel(key, todayYear),
+        runs: [],
+        orderAt: v.originDate ?? v.createdAt,
+        showDate: true,
+      };
       groups.push(group);
     }
     const run = group.runs[group.runs.length - 1];
@@ -54,7 +67,16 @@ function buildGroups(vouches: VouchView[], localDates: boolean): DateGroup[] {
       group.runs.push([v]);
     }
   }
-  return groups;
+  if (!splitRuns) return groups;
+  return groups.flatMap((group) =>
+    group.runs.map((run, i) => ({
+      key: `${group.key}:${run[0].id}`,
+      label: group.label,
+      runs: [run],
+      orderAt: run[0].originDate ?? run[0].createdAt,
+      showDate: i === 0,
+    })),
+  );
 }
 
 export default function VouchHistory({
@@ -64,6 +86,7 @@ export default function VouchHistory({
   reactionsFor,
   onReact,
   hideDates,
+  chronological = false,
 }: {
   vouches: VouchView[];
   /** Opens the reduced (Edit / Pin / Copy Text / Forward) context menu for a vouch. */
@@ -91,11 +114,13 @@ export default function VouchHistory({
   reactionsFor?: (id: string) => BubbleReaction[];
   /** Toggle the viewer's reaction on a vouch bubble (key `v<id>`). */
   onReact?: (id: string, emoji: string) => void;
+  /** Merge these runs chronologically with sibling live-message runs. */
+  chronological?: boolean;
 }) {
   const localDates = useLocalDates();
   const groups = useMemo(
-    () => buildGroups(vouches, localDates),
-    [vouches, localDates],
+    () => buildGroups(vouches, localDates, chronological),
+    [vouches, localDates, chronological],
   );
 
   return (
@@ -106,8 +131,11 @@ export default function VouchHistory({
           className={`message-date-group${
             gi === 0 ? " first-message-date-group" : ""
           }`}
+          style={
+            chronological ? { order: timelineOrder(g.orderAt) } : undefined
+          }
         >
-          {!hideDates && (
+          {!hideDates && g.showDate && (
             <div className="sticky-date interactive">
               <span dir="auto">{g.label}</span>
             </div>

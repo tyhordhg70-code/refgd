@@ -895,9 +895,17 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
   }, []);
   const newestVouchMid = useCallback((el: HTMLElement): string | undefined => {
     const nodes = el.querySelectorAll<HTMLElement>('[data-mid^="v"]');
-    return nodes.length
-      ? (nodes[nodes.length - 1].getAttribute("data-mid") ?? undefined)
-      : undefined;
+    let newest: string | undefined;
+    let maxId = -1;
+    for (const node of nodes) {
+      const mid = node.getAttribute("data-mid") ?? "";
+      const id = Number(mid.slice(1));
+      if (Number.isFinite(id) && id > maxId) {
+        maxId = id;
+        newest = mid;
+      }
+    }
+    return newest;
   }, []);
   useEffect(() => {
     const el = scrollRef.current;
@@ -969,8 +977,15 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     // up so the POST'S TOP greets the viewer and they read DOWN through it
     // (owner rule 2026-07-07). Short posts keep the plain bottom landing.
     el.scrollTop = el.scrollHeight;
-    const bubbles = el.querySelectorAll<HTMLElement>("[data-mid]");
-    const last = bubbles.length ? bubbles[bubbles.length - 1] : null;
+    const last = Array.from(
+      el.querySelectorAll<HTMLElement>("[data-mid]"),
+    ).reduce<HTMLElement | null>((bottommost, node) => {
+      if (!bottommost) return node;
+      return node.getBoundingClientRect().top >
+        bottommost.getBoundingClientRect().top
+        ? node
+        : bottommost;
+    }, null);
     if (last) {
       const cRect = el.getBoundingClientRect();
       const r = last.getBoundingClientRect();
@@ -1092,8 +1107,11 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
       };
       if (!snap.atBottom) {
         const cRect = el.getBoundingClientRect();
-        for (const node of el.querySelectorAll<HTMLElement>("[data-mid]")) {
-          const r = node.getBoundingClientRect();
+        const visualBubbles = Array.from(
+          el.querySelectorAll<HTMLElement>("[data-mid]"),
+          (node) => ({ node, rect: node.getBoundingClientRect() }),
+        ).sort((a, b) => a.rect.top - b.rect.top);
+        for (const { node, rect: r } of visualBubbles) {
           if (r.bottom > cRect.top + 8) {
             const mid = node.getAttribute("data-mid");
             if (mid) {

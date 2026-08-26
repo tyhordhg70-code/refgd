@@ -55,9 +55,11 @@ import {
 import {
   CustomEmojiImg,
   LocalTime,
+  TIMELINE_SEED_ORDER,
   dateKey,
   dateKeyLocal,
   dateLabel,
+  timelineOrder,
   useLocalDates,
   emojiSrc,
   isSingleCustomEmoji,
@@ -115,11 +117,14 @@ interface DateGroup {
   key: string;
   label: string;
   runs: ChatMessage[][];
+  orderAt: string;
+  showDate: boolean;
 }
 
 function buildGroups(
   messages: ChatMessage[],
   localDates: boolean,
+  splitRuns = false,
 ): DateGroup[] {
   const todayYear = localDates
     ? new Date().getFullYear()
@@ -129,7 +134,13 @@ function buildGroups(
     const key = (localDates ? dateKeyLocal : dateKey)(m.createdAt);
     let group = groups[groups.length - 1];
     if (!group || group.key !== key) {
-      group = { key, label: dateLabel(key, todayYear), runs: [] };
+      group = {
+        key,
+        label: dateLabel(key, todayYear),
+        runs: [],
+        orderAt: m.createdAt,
+        showDate: true,
+      };
       groups.push(group);
     }
     const run = group.runs[group.runs.length - 1];
@@ -139,7 +150,16 @@ function buildGroups(
       group.runs.push([m]);
     }
   }
-  return groups;
+  if (!splitRuns) return groups;
+  return groups.flatMap((group) =>
+    group.runs.map((run, i) => ({
+      key: `${group.key}:${run[0].id}`,
+      label: group.label,
+      runs: [run],
+      orderAt: run[0].createdAt,
+      showDate: i === 0,
+    })),
+  );
 }
 
 const LIST_STYLE = {
@@ -1263,7 +1283,12 @@ export default function CommunityChat({
       }, 1000);
     }
     const listTop = el.getBoundingClientRect().top;
-    const groups = el.querySelectorAll<HTMLElement>(".message-date-group");
+    const groups = Array.from(
+      el.querySelectorAll<HTMLElement>(".message-date-group"),
+    ).sort(
+      (a, b) =>
+        a.getBoundingClientRect().top - b.getBoundingClientRect().top,
+    );
     let current: HTMLElement | null = null;
     groups.forEach((g) => {
       if (g.getBoundingClientRect().top - listTop <= 64) current = g;
@@ -1600,8 +1625,14 @@ export default function CommunityChat({
               m.authorName.toLowerCase().includes(query),
           )
         : all;
-    return buildGroups(shown, localDates);
-  }, [state?.messages, query, pinnedOnly, localDates]);
+    return buildGroups(shown, localDates, chronologicalHistory);
+  }, [
+    state?.messages,
+    query,
+    pinnedOnly,
+    localDates,
+    chronologicalHistory,
+  ]);
   const latestLiveAt = useMemo(() => {
     if (!chronologicalHistory) return null;
     let newest: string | null = null;
@@ -2431,6 +2462,7 @@ export default function CommunityChat({
             <div className="Transition_slide Transition_slide-active">
               <div
                 className="messages-container"
+                data-chronological={chronologicalHistory ? "true" : undefined}
                 style={{
                   // Header + pinned-pill clearance both come from CSS
                   // (.messages-container, plus the [data-has-pinned-banner]
@@ -2439,7 +2471,14 @@ export default function CommunityChat({
                   paddingBottom: composerPad,
                 }}
               >
-                <div className="backwards-trigger" />
+                <div
+                  className="backwards-trigger"
+                  style={
+                    chronologicalHistory
+                      ? { order: TIMELINE_SEED_ORDER }
+                      : undefined
+                  }
+                />
                 {state === null ? (
                   <div className="tg-loading">Loading chat…</div>
                 ) : (
@@ -2458,7 +2497,14 @@ export default function CommunityChat({
                       !query &&
                       !chatNoticeHidden &&
                       (!pinnedOnly || chatNoticePinned) && (
-                      <div className="sender-group-container sKXqbu2I">
+                      <div
+                        className="sender-group-container sKXqbu2I"
+                        style={
+                          chronologicalHistory
+                            ? { order: TIMELINE_SEED_ORDER }
+                            : undefined
+                        }
+                      >
                         <MessageBubble
                           own
                           first
@@ -2498,10 +2544,17 @@ export default function CommunityChat({
                         className={`message-date-group${
                           gi === 0 ? " first-message-date-group" : ""
                         }`}
+                        style={
+                          chronologicalHistory
+                            ? { order: timelineOrder(g.orderAt) }
+                            : undefined
+                        }
                       >
-                        <div className="sticky-date interactive">
-                          <span dir="auto">{g.label}</span>
-                        </div>
+                        {g.showDate && (
+                          <div className="sticky-date interactive">
+                            <span dir="auto">{g.label}</span>
+                          </div>
+                        )}
                         {g.runs.map((run) => (
                           <div
                             key={run[0].id}

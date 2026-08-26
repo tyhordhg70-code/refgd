@@ -50,6 +50,7 @@ import {
 import type { TopicDef, TopicKey, VouchView } from "./types";
 import {
   CustomEmojiImg,
+  TIMELINE_SEED_ORDER,
   renderBody,
   renderTextWithEmoji,
   shortDateLabel,
@@ -1196,7 +1197,10 @@ export default function TelegramApp({
                 !q &&
                 !seedGone("announcement") &&
                 (!pinnedOnly || seedPin("announcement")) && (
-                <div className="message-date-group first-message-date-group">
+                <div
+                  className="message-date-group first-message-date-group"
+                  style={{ order: TIMELINE_SEED_ORDER }}
+                >
                   <div className="sender-group-container sKXqbu2I">
                     <MessageBubble
                       own
@@ -1237,6 +1241,7 @@ export default function TelegramApp({
                 reactionsFor={reactionsFor}
                 onReact={onReact}
                 hideDates={topicKey === "buy4u"}
+                chronological
               />
             </>
           );

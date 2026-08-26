@@ -67,6 +67,20 @@ export function dateKeyLocal(iso: string): string {
   return `${d.getFullYear()}-${mo}-${da}`;
 }
 
+/** Intentional top slot for non-chronological informational seed bubbles. */
+export const TIMELINE_SEED_ORDER = -2_000_000_000;
+
+/** CSS flex-order value for merging imported and live timeline runs. */
+export function timelineOrder(iso: string): number {
+  const ms = Date.parse(iso);
+  // CSS `order` is a signed integer. Use deciseconds relative to 2024 so
+  // same-second forwards retain their sub-second ordering while 2022–2030
+  // dates remain comfortably inside the browser's 32-bit style range.
+  return Number.isFinite(ms)
+    ? Math.floor((ms - Date.UTC(2024, 0, 1)) / 100)
+    : 0;
+}
+
 /**
  * True once hydrated: gates date-group math onto the DEVICE's timezone
  * (same SSR-safe pattern as LocalTime — server renders UTC groups, the
