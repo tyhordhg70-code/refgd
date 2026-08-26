@@ -133,7 +133,7 @@ const EMOJI_RE =
   /\p{Regional_Indicator}\p{Regional_Indicator}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:[\u{1F3FB}-\u{1F3FF}]|\uFE0F)?(?:\u200D\p{Extended_Pictographic}(?:[\u{1F3FB}-\u{1F3FF}]|\uFE0F)?)*/gu;
 
 /**
- * img-apple-64 sprite URL for an emoji sequence (FE0F stripped, hex-joined).
+ * img-apple-64 sprite URL for an emoji sequence.
  * Served from jsdelivr's copy of the *same* iamcal img-apple-64 set that
  * Telegram Web A vendors, NOT web.telegram.org: the Telegram CDN sends no
  * Cross-Origin-Resource-Policy / Access-Control-Allow-Origin, so inside the
@@ -145,11 +145,28 @@ export function emojiSrc(seq: string): string {
   const stripped = Array.from(seq)
     .map((c) => (c.codePointAt(0) ?? 0).toString(16))
     .filter((h) => h !== "fe0f");
-  // iamcal img-apple-64 KEEPS the -fe0f suffix for a fixed set of "text-default"
-  // emoji (e.g. ❤ → 2764-fe0f.png). Blindly stripping fe0f 404'd the heart (and
-  // every other text-default glyph), so re-append it for those keys only.
   const key = stripped.join("-");
-  const codes = EMOJI_FE0F_KEEP.has(key) ? [...stripped, "fe0f"] : stripped;
+  // iamcal keeps FE0F after each text-default COMPONENT of a ZWJ sequence, not
+  // merely at the end of the whole emoji. For example 🏌️‍♂️ is stored as
+  // 1f3cc-fe0f-200d-2642-fe0f.png: both the golfer and male-sign components
+  // need a selector. Rebuild the sequence component-by-component while also
+  // preserving the generated full-sequence rule for legacy entries.
+  const components: string[][] = [[]];
+  for (const code of stripped) {
+    if (code === "200d") components.push([]);
+    else components[components.length - 1].push(code);
+  }
+  const codes: string[] = [];
+  components.forEach((component, i) => {
+    codes.push(...component);
+    if (
+      EMOJI_FE0F_KEEP.has(component.join("-")) ||
+      (i === components.length - 1 && EMOJI_FE0F_KEEP.has(key))
+    ) {
+      codes.push("fe0f");
+    }
+    if (i < components.length - 1) codes.push("200d");
+  });
   return `https://cdn.jsdelivr.net/gh/iamcal/emoji-data@v15.1.2/img-apple-64/${codes.join("-")}.png`;
 }
 
