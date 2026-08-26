@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readSession } from "@/lib/auth";
 import { publicBaseUrl } from "@/lib/deliver";
+import { communityMiniAppUrl } from "@/lib/community-bot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,7 +55,7 @@ export async function GET(req: Request) {
         menu_button: {
           type: "web_app",
           text: "Community",
-          web_app: { url: `${base}/community` },
+          web_app: { url: communityMiniAppUrl(base) },
         },
       }),
       cache: "no-store",

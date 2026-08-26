@@ -14,6 +14,12 @@ import { createHash } from "node:crypto";
 
 type SendResult = { ok: boolean; error?: string };
 
+export const COMMUNITY_MINI_APP_PATH = "/community/app-20260826";
+
+export function communityMiniAppUrl(base: string): string {
+  return `${base.replace(/\/$/, "")}${COMMUNITY_MINI_APP_PATH}`;
+}
+
 export function communityBotToken(): string {
   // Trim: a trailing newline/space in the hosting env var silently changes the
   // HMAC secret and makes Mini App initData fail its "signature check" even when

@@ -7,6 +7,7 @@ import {
   editCommunityMessage,
   downloadTelegramFile,
   sha256Hex,
+  communityMiniAppUrl,
 } from "@/lib/community-bot";
 import {
   createVouch,
@@ -394,7 +395,7 @@ export async function POST(req: Request) {
       "👋 Welcome to the RefundGod community! Tap the button below to open the community — chat, vouches and announcements live there.",
       {
         text: "🚀 Open Community",
-        webAppUrl: `${communityBase()}/community`,
+        webAppUrl: communityMiniAppUrl(communityBase()),
       },
     );
     return NextResponse.json({ ok: true });
@@ -455,7 +456,7 @@ export async function POST(req: Request) {
     if (cmd === "/start" || cmd === "/help") {
       await sendCommunityTelegram(chatId, helpText(), {
         text: "🚀 Open Community",
-        webAppUrl: `${communityBase()}/community`,
+        webAppUrl: communityMiniAppUrl(communityBase()),
       });
       return NextResponse.json({ ok: true });
     }
