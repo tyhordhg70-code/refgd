@@ -901,6 +901,9 @@ export function mentionedTgIds(body: string): string[] {
  *  their `@Name`, whitespace flattens, hard cap for a DM preview line. */
 export function mentionPreview(body: string): string {
   const flat = body
+    // A forwarded body starts with a [fwd:NAME] marker that the bubble renders
+    // as Telegram's "Forwarded from" header — it is markup, never preview text.
+    .replace(/^(?:\[fwd:[^\]\n]{1,64}\]\n?)+/, "")
     .replace(MENTION_TOKEN_RE, (_a, _id, name: string) => mentionDisplay(name))
     .replace(/\[([^\]\n]{1,64})\]\(buttonurl:\/\/[^\s)]+\)/g, "$1")
     .replace(/\s+/g, " ")

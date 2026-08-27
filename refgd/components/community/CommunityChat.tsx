@@ -67,6 +67,7 @@ import {
   AnimatedEmoji,
   parsePollToken,
   parseVoiceToken,
+  parseForward,
   peerIdx,
   renderBody,
   tokenPreview,
@@ -184,12 +185,8 @@ function hasUnupgradedEmoji(s: string): boolean {
   );
 }
 
-const FWD_RE = /^\[fwd:([^\]\n]{1,64})\]\n?/;
-function parseForward(body: string): { name: string | null; rest: string } {
-  const m = FWD_RE.exec(body);
-  if (!m) return { name: null, rest: body };
-  return { name: m[1].trim(), rest: body.slice(m[0].length) };
-}
+// parseForward lives in ./tg/format beside tokenPreview: the preview helpers
+// must strip this token too, so both sides share one definition.
 function buildForwardBody(origin: string, body: string): string {
   const clean = origin.replace(/[\]\n]/g, "").trim().slice(0, 64) || "a member";
   const token = `[fwd:${clean}]\n`;

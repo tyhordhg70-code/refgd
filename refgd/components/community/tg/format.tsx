@@ -1513,11 +1513,36 @@ export function isSingleCustomEmoji(
 }
 
 /**
+ * Forwarded messages carry their origin inline as a leading `[fwd:NAME]`
+ * token, which MessageBubble turns into the Web A "Forwarded from" header.
+ * The token is MARKUP, not text: real Telegram previews a forwarded message
+ * as its plain content (chat-list rows, reply embeds, pinned banner,
+ * notifications), never as an "fwd" marker — so strip it everywhere text is
+ * rendered. Repeated tokens can only come from a re-forward.
+ */
+export const FWD_TOKEN_RE = /^\[fwd:([^\]\n]{1,64})\]\n?/;
+const FWD_TOKEN_RUN_RE = /^(?:\[fwd:[^\]\n]{1,64}\]\n?)+/;
+
+/** Split a leading `[fwd:NAME]` token off a body (name = null when absent). */
+export function parseForward(body: string): {
+  name: string | null;
+  rest: string;
+} {
+  const m = FWD_TOKEN_RE.exec(body);
+  if (!m) return { name: null, rest: body };
+  return { name: m[1].trim(), rest: body.slice(m[0].length) };
+}
+
+/**
  * Human preview for token bodies — topic-list rows, reply embeds, copy text
- * and notifications must never show a raw `[voice:…]`/`[poll:…]` token.
+ * and notifications must never show a raw `[voice:…]`/`[poll:…]`/`[fwd:…]`
+ * token.
  */
 export function tokenPreview(body: string): string {
-  const b = body.trim();
+  // Drop the forward marker FIRST so a forwarded voice/poll/sticker still
+  // previews as "🎤 Voice message" etc. rather than falling through to text.
+  const src = body.replace(FWD_TOKEN_RUN_RE, "");
+  const b = src.trim();
   if (VOICE_TOKEN_RE.test(b)) return "🎤 Voice message";
   if (POLL_TOKEN_RE.test(b)) return "📊 Poll";
   const single = isSingleCustomEmoji(b);
@@ -1527,7 +1552,7 @@ export function tokenPreview(body: string): string {
   // Custom-emoji tokens collapse to their alt glyph and inline `[text](url)`
   // links to their label so topic-list rows and reply embeds never show a
   // raw `[ce:…]` or markdown-link token.
-  return body
+  return src
     .replace(BUTTON_URL_RE, "$1")
     .replace(CE_RE, "$2")
     .replace(M_RE, (_all, _id, name: string) => mentionLabel(name))

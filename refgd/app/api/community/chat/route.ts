@@ -996,7 +996,9 @@ export async function POST(req: Request) {
                 voice
                   ? "🎤 Voice message"
                   : text
-                    ? text.slice(0, 120)
+                    ? // mentionPreview drops the admin-only [fwd:NAME] marker
+                      // (bubble chrome, not text) before truncating.
+                      mentionPreview(text).slice(0, 120)
                     : video
                       ? "🎬 Video"
                       : docFile
