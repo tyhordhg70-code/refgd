@@ -47,6 +47,7 @@ import {
   README_SEED_TIME,
   SEED_AUTHOR,
 } from "./seed";
+import type { TopicPreview } from "@/lib/community";
 import type { TopicDef, TopicKey, VouchView } from "./types";
 import {
   CustomEmojiImg,
@@ -182,6 +183,7 @@ export default function TelegramApp({
   seedHidden = {},
   memberLabel,
   chatPreview,
+  topicPreviews = {},
 }: {
   testimonials: VouchView[];
   buy4u: VouchView[];
@@ -199,6 +201,8 @@ export default function TelegramApp({
   seedHidden?: Record<string, boolean>;
   memberLabel: string;
   chatPreview: ChatPreview | null;
+  /** Newest LIVE post per topic — read-only rows merge it with their vouches. */
+  topicPreviews?: Record<string, TopicPreview>;
 }) {
   const router = useRouter();
   const [active, setActive] = useState<TopicKey | null>(null);
@@ -235,6 +239,8 @@ export default function TelegramApp({
   const [liveMeta, setLiveMeta] = useState<{
     memberLabel: string;
     chatPreview: ChatPreview | null;
+    /** Newest live post per topic (all topics, not just the group chat). */
+    lastByTopic: Record<string, TopicPreview>;
   } | null>(null);
   // Vouch history is initially passed as server props, but bot imports can
   // arrive while the Mini App stays open. Refresh only the active read-only
@@ -309,6 +315,7 @@ export default function TelegramApp({
             live?: Record<string, string[]>;
             vouch?: Record<string, string[]>;
           } | null;
+          lastByTopic?: Record<string, TopicPreview> | null;
         };
         if (stop) return;
         if (data.unread) setUnreadSnap(data.unread);
@@ -320,6 +327,7 @@ export default function TelegramApp({
                 }`
               : "public group",
           chatPreview: data.lastMessage,
+          lastByTopic: data.lastByTopic ?? {},
         });
       } catch {
         /* transient — keep last known values */
@@ -339,6 +347,9 @@ export default function TelegramApp({
   }, [active]);
   const effMemberLabel = liveMeta?.memberLabel ?? memberLabel;
   const effChatPreview = liveMeta ? liveMeta.chatPreview : chatPreview;
+  // Newest live post per topic: the poll's snapshot once it lands, the
+  // server-seeded map until then.
+  const effTopicPreviews = liveMeta ? liveMeta.lastByTopic : topicPreviews;
   // Unsent composer drafts per topic (written by CommunityChat under the
   // same tg_draft:* keys) — re-read every time the user lands back on the
   // topic list so the red "Draft:" preview is always current.
@@ -367,12 +378,16 @@ export default function TelegramApp({
     if (!unreadSnap) return;
     try {
       for (const t of TOPICS) {
+        // A topic with NO history yet still gets a baseline ("0" = nothing
+        // seen). Without it the watermark stays unwritten until that topic's
+        // FIRST post arrives, which then becomes its own baseline — so the
+        // first message ever posted to a quiet topic never badged its row.
         const maxLive = unreadSnap.live?.[t.key]?.[0];
-        if (maxLive && !localStorage.getItem(`rg_seen_${t.key}`))
-          localStorage.setItem(`rg_seen_${t.key}`, maxLive);
+        if (localStorage.getItem(`rg_seen_${t.key}`) === null)
+          localStorage.setItem(`rg_seen_${t.key}`, maxLive ?? "0");
         const maxVouch = unreadSnap.vouch?.[t.key]?.[0];
-        if (maxVouch && !localStorage.getItem(`rg_vseen_${t.key}`))
-          localStorage.setItem(`rg_vseen_${t.key}`, maxVouch);
+        if (localStorage.getItem(`rg_vseen_${t.key}`) === null)
+          localStorage.setItem(`rg_vseen_${t.key}`, maxVouch ?? "0");
       }
     } catch {
       /* storage unavailable */
@@ -413,8 +428,13 @@ export default function TelegramApp({
     if (!unreadSnap) return counts;
     const tally = (ids: string[] | undefined, seenRaw: string | null) => {
       if (!ids || ids.length === 0) return 0;
-      const seen = Number(seenRaw ?? "");
-      if (!Number.isFinite(seen) || seen <= 0) return 0;
+      // A MISSING watermark means the baseline effect hasn't run yet — count
+      // nothing, so a brand-new device never flashes its whole history as
+      // unread. A STORED "0" is a real watermark ("this topic was empty when
+      // I arrived"), so everything posted since is genuinely unread.
+      if (seenRaw === null) return 0;
+      const seen = Number(seenRaw);
+      if (!Number.isFinite(seen) || seen < 0) return 0;
       let n = 0;
       for (const id of ids) {
         if (Number(id) > seen) n += 1;
@@ -733,7 +753,31 @@ export default function TelegramApp({
         time: shortDateLabel(effChatPreview.createdAt),
       };
     }
-    const last = latest(byTopic[key] ?? []);
+    // Read-only topics interleave imported vouches with live posts (see the
+    // chronological message list). The row must preview whichever source is
+    // actually newest, or the list advertises an older post than the one the
+    // topic opens on. Parsed to epoch ms — the two sources are separate code
+    // paths and need not agree on timestamp formatting.
+    const lastVouch = latest(byTopic[key] ?? []);
+    const livePost = effTopicPreviews[key] ?? null;
+    const stamp = (iso: string | null | undefined) => {
+      const ms = iso ? Date.parse(iso) : NaN;
+      return Number.isFinite(ms) ? ms : 0;
+    };
+    if (
+      livePost &&
+      (!lastVouch ||
+        stamp(livePost.createdAt) >
+          stamp(lastVouch.originDate ?? lastVouch.createdAt))
+    ) {
+      const liveText = tokenPreview(livePost.body).replace(/\s+/g, " ").trim();
+      return {
+        sender: livePost.authorName,
+        summary: liveText || (livePost.hasMedia ? "Photo" : ""),
+        time: shortDateLabel(livePost.createdAt),
+      };
+    }
+    const last = lastVouch;
     if (!last) {
       // Announcements' latest post in the real group is the seeded "ask the
       // bot" notice, so mirror it in the row preview until the bot ingests more.

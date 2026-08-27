@@ -10,6 +10,7 @@
  */
 import { createHash } from "node:crypto";
 import { getPool, initDb } from "./db";
+import { memoTtl } from "./micro-cache";
 import { probeImageDims } from "./image-dims";
 import type { LinkPreview } from "./link-preview";
 import {
@@ -1123,6 +1124,58 @@ export interface UnreadSnapshot {
 
 /** Badge counts cap out as "99+", so 100 ids per topic is always enough. */
 const UNREAD_ID_CAP = 100;
+
+/** Newest live message per topic, for the topic-list row previews. */
+export interface TopicPreview {
+  authorName: string;
+  body: string;
+  createdAt: string;
+  /** Media-only posts preview as "Photo", exactly like the real client. */
+  hasMedia: boolean;
+}
+
+/**
+ * Newest live message for EVERY topic (not just the group chat). Read-only
+ * topics mix imported vouch history with live posts, so a row preview built
+ * from vouches alone goes stale the moment a newer live message lands — the
+ * list then advertises an older post than the one the topic actually opens
+ * on. Viewer-independent, so it is served from ONE shared short memo: the
+ * SSR page render is public and force-dynamic, so an uncached read here would
+ * hit the DB once per visitor/scraper (the 2026 egress-quota posture).
+ */
+export async function getTopicLastMessages(): Promise<
+  Record<string, TopicPreview>
+> {
+  return memoTtl("community:topicLastMessages", 5_000, loadTopicLastMessages);
+}
+
+async function loadTopicLastMessages(): Promise<Record<string, TopicPreview>> {
+  await initDb();
+  const res = await getPool().query<{
+    topic: string;
+    author_name: string;
+    body: string | null;
+    created_at: Date;
+    media_id: string | null;
+  }>(
+    `SELECT DISTINCT ON (topic)
+            topic, author_name, body, created_at, media_id
+       FROM chat_messages
+      WHERE deleted = FALSE
+        AND (expires_at IS NULL OR expires_at > NOW())
+      ORDER BY topic, id DESC`,
+  );
+  const out: Record<string, TopicPreview> = {};
+  for (const r of res.rows) {
+    out[r.topic] = {
+      authorName: r.author_name,
+      body: r.body ?? "",
+      createdAt: new Date(r.created_at).toISOString(),
+      hasMedia: r.media_id !== null,
+    };
+  }
+  return out;
+}
 
 export async function getUnreadSnapshot(): Promise<UnreadSnapshot> {
   await initDb();

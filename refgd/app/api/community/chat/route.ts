@@ -9,6 +9,7 @@ import {
   createChatMessage,
   updateLinkPreview,
   getUnreadSnapshot,
+  getTopicLastMessages,
   discoverMessageEmoji,
   saveChatMedia,
   upsertChatMember,
@@ -256,12 +257,13 @@ export async function GET(req: Request) {
   // per-viewer reads) — same Neon-quota posture as the anon snapshot below.
   if (url.searchParams.get("meta") === "1") {
     const payload = await memoTtl("community:listMeta", 5_000, async () => {
-      const [memberCount, hideMembers, lastMessages, unread] =
+      const [memberCount, hideMembers, lastMessages, unread, lastByTopic] =
         await Promise.all([
           countChatMembers(),
           getModConfig<boolean>("chat_hide_members", false),
           listChatMessages({ limit: 1 }),
           getUnreadSnapshot(),
+          getTopicLastMessages(),
         ]);
       const last = lastMessages[lastMessages.length - 1];
       return {
@@ -276,6 +278,9 @@ export async function GET(req: Request) {
         // Topic-list unread badges: newest live/vouch ids per topic — the
         // client counts these against its per-device seen watermarks.
         unread,
+        // Newest live message per topic, so a read-only row can preview a
+        // live post that is newer than its newest imported vouch.
+        lastByTopic,
       };
     });
     return NextResponse.json(payload);

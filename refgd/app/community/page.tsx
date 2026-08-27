@@ -3,8 +3,10 @@ import "./telegram.css";
 import {
   countChatMembers,
   getModConfig,
+  getTopicLastMessages,
   listChatMessages,
   listVouches,
+  type TopicPreview,
 } from "@/lib/community";
 import { getContentBlock } from "@/lib/content";
 import TelegramApp, {
@@ -96,6 +98,17 @@ export default async function CommunityPage() {
     /* preview only — the live chat loads client-side regardless */
   }
 
+  // Newest LIVE post per topic. Read-only topics interleave imported vouches
+  // with live posts, so their row preview must consider both sources — seeded
+  // here so the first paint already matches what the topic opens on, instead
+  // of showing a stale vouch until the first ?meta=1 poll lands.
+  let topicPreviews: Record<string, TopicPreview> = {};
+  try {
+    topicPreviews = await getTopicLastMessages();
+  } catch {
+    /* preview only — rows fall back to their newest vouch */
+  }
+
   /* NO <main> wrapper here — the root layout already renders <main>, and a
      nested <main> gets caught by the mobile perf rule `main > * { contain:
      layout style }` (globals.css), which turns it into the containing block
@@ -114,6 +127,7 @@ export default async function CommunityPage() {
       seedHidden={seedHidden}
       memberLabel={memberLabel}
       chatPreview={chatPreview}
+      topicPreviews={topicPreviews}
     />
   );
 }
