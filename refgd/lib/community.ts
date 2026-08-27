@@ -896,6 +896,29 @@ export const BOT_MEMBER_PHOTO = "/rose-bot-photo.jpg";
  * DO UPDATE (not DO NOTHING) so an existing prod row is migrated to the Rose
  * identity on the first command after a deploy — no manual DB step needed.
  */
+/**
+ * Make sure a tg_id has a chat_members row before it authors a message.
+ *
+ * Used by the ingestion bot, whose author is an admin identified by Telegram
+ * rather than by a Mini App sign-in: message rendering resolves the avatar
+ * through this table, so a missing row means no profile at all. DO NOTHING on
+ * conflict — a real signed-in profile (verified name, photo, admin flag) must
+ * never be clobbered by the bot's minimal stub.
+ */
+export async function ensureChatMemberStub(
+  tgId: string,
+  name: string,
+): Promise<void> {
+  if (!/^\d+$/.test(tgId)) return;
+  await initDb();
+  await getPool().query(
+    `INSERT INTO chat_members (tg_id, first_name)
+     VALUES ($1, $2)
+     ON CONFLICT (tg_id) DO NOTHING`,
+    [tgId, name || "Admin"],
+  );
+}
+
 export async function ensureBotMember(): Promise<void> {
   await initDb();
   await getPool().query(

@@ -22,6 +22,9 @@ import {
   claimPendingForwards,
   purgeStalePendingForwards,
   learnEmojiPacksFromIds,
+  createChatMessage,
+  saveChatMedia,
+  ensureChatMemberStub,
   type PendingForwardRow,
   type VouchSection,
 } from "@/lib/community";
@@ -369,6 +372,148 @@ function sectionLabel(s: VouchSection): string {
       : "Client Testimonials";
 }
 
+/**
+ * Where a queued batch can land: one of the three vouch sections, or the live
+ * Group Chat. Chat is a different storage shape entirely (chat_messages rows
+ * authored by a real member, one attachment each, 7-day auto-delete) — see
+ * postForwardToChat.
+ */
+type ForwardDest = VouchSection | "chat";
+
+function destLabel(d: ForwardDest): string {
+  return d === "chat" ? "Group Chat" : sectionLabel(d);
+}
+
+/**
+ * Outcome of posting a claimed batch. `failed` matters because claiming a
+ * batch DELETES the queue rows: an item that dies mid-post cannot be retried,
+ * so the count has to come back to the admin rather than disappear.
+ */
+type PostResult = { posted: number; failed: number };
+
+/** Tell the admin what didn't make it — those forwards have to be re-sent. */
+function failedNote(failed: number): string {
+  return failed > 0
+    ? `\n⚠️ ${failed} couldn't be posted (download or save failed) — forward ${failed === 1 ? "it" : "them"} again.`
+    : "";
+}
+
+/** Group-chat body cap (mirrors MAX_BODY on the chat POST route). */
+const CHAT_MAX_BODY = 2000;
+/**
+ * Auto-delete window for the messages this bot posts into the Group Chat.
+ * Group Chat is the one ephemeral section — every message there rolls off
+ * after 7 days unless it is pinned — so a forwarded post follows the same
+ * rule instead of quietly becoming permanent.
+ */
+const CHAT_TTL_S = 604_800;
+
+/**
+ * `[fwd:NAME]` banner + text, same contract as the in-app Forward action:
+ * the post is authored by the forwarding ADMIN and names the original poster
+ * in the banner. Only admins may create these tokens (the chat route strips
+ * them from member posts to stop impersonation), which is exactly what this
+ * admin-only webhook is.
+ */
+function chatForwardBody(origin: string, body: string): string {
+  const clean =
+    (origin || "a member")
+      .replace(/[\]\n]/g, "")
+      .replace(/^@+\s*/, "")
+      .trim()
+      .slice(0, 64) || "a member";
+  const token = `[fwd:${clean}]\n`;
+  return (
+    token + (body ?? "").trim().slice(0, Math.max(0, CHAT_MAX_BODY - token.length))
+  );
+}
+
+/**
+ * Post a claimed batch into the live Group Chat.
+ *
+ * Chat rows differ from vouches in every way that matters here: ONE
+ * attachment per message (no album mosaic), a real chat member as the author,
+ * and a TTL. So each queued item posts as its own message, authored by the
+ * admin who forwarded it, with the original poster named in the banner.
+ */
+async function postForwardToChat(
+  rows: PendingForwardRow[],
+  admin: { tgId: string; name: string },
+): Promise<PostResult> {
+  let posted = 0;
+  let failed = 0;
+  // The admin may never have opened the Mini App, and createChatMessage
+  // resolves the author's avatar through chat_members — insert a stub row if
+  // one is missing (never overwriting a real signed-in profile).
+  await ensureChatMemberStub(admin.tgId, admin.name).catch(() => undefined);
+  for (const r of rows) {
+    try {
+      let mediaId: string | null = null;
+      let voiceToken: string | null = null;
+      if (r.fileId) {
+        const file = await downloadTelegramFile(r.fileId, r.mime);
+        if (file) {
+          if (r.kind === "video") {
+            let posterId: string | null = null;
+            if (r.thumbFileId) {
+              const thumb = await downloadTelegramFile(r.thumbFileId);
+              if (thumb) {
+                posterId = await saveChatMedia(thumb.bytes, thumb.mime, r.w, r.h);
+              }
+            }
+            mediaId = await saveChatMedia(file.bytes, file.mime, r.w, r.h, {
+              kind: "video",
+              duration: r.duration,
+              posterId,
+            });
+          } else if (r.kind === "file") {
+            mediaId = await saveChatMedia(
+              file.bytes,
+              "application/octet-stream",
+              null,
+              null,
+              { kind: "file", name: r.fileName ?? "file" },
+            );
+          } else if (r.kind === "voice") {
+            const voiceId = await saveChatMedia(file.bytes, file.mime);
+            // A voice bubble's body must be EXACTLY the token — the renderer
+            // anchors its match — so a forwarded voice note cannot also carry a
+            // "Forwarded from" banner. The playable audio wins over the label
+            // (the in-app Forward action makes the opposite trade and posts the
+            // "🎤 Voice message" text instead, which loses the recording).
+            voiceToken = `[voice:${voiceId}:${Math.max(0, Math.round(r.duration ?? 0))}:]`;
+          } else {
+            mediaId = await saveChatMedia(file.bytes, file.mime, r.w, r.h);
+          }
+        }
+      }
+      // A media forward whose download failed would otherwise post as an empty
+      // "Forwarded from …" banner and be counted as a success.
+      if (r.fileId && !mediaId && !voiceToken) {
+        failed++;
+        continue;
+      }
+      const body = voiceToken ?? chatForwardBody(r.author, r.body);
+      if (!body && !mediaId) continue;
+      const message = await createChatMessage({
+        tgId: admin.tgId,
+        authorName: admin.name,
+        body,
+        topic: "chat",
+        mediaId,
+        expiresAt: new Date(Date.now() + CHAT_TTL_S * 1000),
+      });
+      if (message) posted++;
+      else failed++;
+    } catch {
+      // The queue rows were already claimed (deleted) — one bad item must not
+      // take the rest of the batch down with it. Report the count instead.
+      failed++;
+    }
+  }
+  return { posted, failed };
+}
+
 function helpText(): string {
   return [
     "🤖 <b>Rose — community bot</b>",
@@ -381,6 +526,11 @@ function helpText(): string {
     "/testimonials — post the queued batch to Client Testimonials",
     "/buy4u — post the queued batch to BUY4U Vouches",
     "/announcements — post the queued batch to Announcements",
+    "/chat — post the queued batch to the Group Chat",
+    "",
+    "Group Chat posts show a “Forwarded from …” banner and auto-delete",
+    "after 7 days unless you pin them — the other sections keep posts",
+    "forever.",
     "",
     "/status — show post counts",
     "",
@@ -408,7 +558,7 @@ async function postForwardBatch(
   rows: PendingForwardRow[],
   section: VouchSection,
   chatId: string | number,
-): Promise<number> {
+): Promise<PostResult> {
   const groups = new Map<string, PendingForwardRow[]>();
   for (const r of rows) {
     const key =
@@ -418,113 +568,122 @@ async function postForwardBatch(
     else groups.set(key, [r]);
   }
   let posted = 0;
+  let failed = 0;
   for (const parts of groups.values()) {
-    const first = parts[0];
-    const body = parts.map((p) => p.body).find((b) => b.trim()) ?? "";
-    // Section is part of BOTH hashes: posting the same album/message to a
-    // second section must not be silently swallowed by the vouches dedupe
-    // index (it also shields late album stragglers from colliding with an
-    // already-posted batch in a different section).
-    // The hash must follow the SAME grouping rule as the key above. Telegram
-    // also groups documents and audio, but those post one bubble each — hash
-    // them on the media group and every item after the first collides with
-    // the album hash and silently vanishes behind the unique dedupe index.
-    const grouped = parts.length > 1 || isGroupable(first);
-    const dedupe =
-      first.mediaGroupId && grouped
-        ? sha256Hex(`mg|${chatId}|${first.mediaGroupId}|${section}`)
-        : sha256Hex(
-            // Distinct files have distinct unique ids, so ungrouped album
-            // parts no longer collide; text-only forwards keep their old
-            // content hash (re-forwarding the same text stays a no-op).
-            `${section}|${first.author}|${body}|${first.fileUniqueId ?? ""}`,
-          );
-    const vouchId = await createVouch({
-      section,
-      authorName: first.author,
-      body,
-      originChatId: chatId,
-      originMsgId: first.originMsgId,
-      mediaGroupId: first.mediaGroupId,
-      dedupeHash: dedupe,
-      originDate: first.originDate,
-    });
-    if (!vouchId) continue; // dedupe hit — identical post already exists
-    for (const p of parts) {
-      if (!p.fileId) continue;
-      const file = await downloadTelegramFile(p.fileId, p.mime);
-      if (!file) continue;
-      if (p.kind === "video") {
-        // The poster frame is its own row (kind='poster', excluded from the
-        // vouch's media list) so the bubble can show the thumbnail without
-        // ever fetching the clip — scrolling past a video costs a thumb.
-        let posterId: string | null = null;
-        if (p.thumbFileId) {
-          const thumb = await downloadTelegramFile(p.thumbFileId);
-          if (thumb) {
-            posterId = await addVouchMedia(
-              vouchId,
-              thumb.bytes,
-              thumb.mime,
-              sha256Hex(thumb.bytes),
-              { kind: "poster" },
+    try {
+      const first = parts[0];
+      const body = parts.map((p) => p.body).find((b) => b.trim()) ?? "";
+      // Section is part of BOTH hashes: posting the same album/message to a
+      // second section must not be silently swallowed by the vouches dedupe
+      // index (it also shields late album stragglers from colliding with an
+      // already-posted batch in a different section).
+      // The hash must follow the SAME grouping rule as the key above. Telegram
+      // also groups documents and audio, but those post one bubble each — hash
+      // them on the media group and every item after the first collides with
+      // the album hash and silently vanishes behind the unique dedupe index.
+      const grouped = parts.length > 1 || isGroupable(first);
+      const dedupe =
+        first.mediaGroupId && grouped
+          ? sha256Hex(`mg|${chatId}|${first.mediaGroupId}|${section}`)
+          : sha256Hex(
+              // Distinct files have distinct unique ids, so ungrouped album
+              // parts no longer collide; text-only forwards keep their old
+              // content hash (re-forwarding the same text stays a no-op).
+              `${section}|${first.author}|${body}|${first.fileUniqueId ?? ""}`,
             );
+      const vouchId = await createVouch({
+        section,
+        authorName: first.author,
+        body,
+        originChatId: chatId,
+        originMsgId: first.originMsgId,
+        mediaGroupId: first.mediaGroupId,
+        dedupeHash: dedupe,
+        originDate: first.originDate,
+      });
+      if (!vouchId) continue; // dedupe hit — identical post already exists
+      for (const p of parts) {
+        if (!p.fileId) continue;
+        const file = await downloadTelegramFile(p.fileId, p.mime);
+        if (!file) continue;
+        if (p.kind === "video") {
+          // The poster frame is its own row (kind='poster', excluded from the
+          // vouch's media list) so the bubble can show the thumbnail without
+          // ever fetching the clip — scrolling past a video costs a thumb.
+          let posterId: string | null = null;
+          if (p.thumbFileId) {
+            const thumb = await downloadTelegramFile(p.thumbFileId);
+            if (thumb) {
+              posterId = await addVouchMedia(
+                vouchId,
+                thumb.bytes,
+                thumb.mime,
+                sha256Hex(thumb.bytes),
+                { kind: "poster" },
+              );
+            }
           }
+          await addVouchMedia(
+            vouchId,
+            file.bytes,
+            file.mime,
+            sha256Hex(file.bytes),
+            {
+              kind: "video",
+              duration: p.duration,
+              posterId,
+              w: p.w,
+              h: p.h,
+            },
+          );
+          continue;
+        }
+        if (p.kind === "voice") {
+          await addVouchMedia(
+            vouchId,
+            file.bytes,
+            file.mime,
+            sha256Hex(file.bytes),
+            { kind: "voice", duration: p.duration },
+          );
+          continue;
+        }
+        if (p.kind === "file") {
+          // Documents are served as an attachment download, never inline under
+          // their own mime (an HTML/SVG blob rendered same-origin would be
+          // stored XSS) — the stored mime matches how it leaves the server.
+          await addVouchMedia(
+            vouchId,
+            file.bytes,
+            "application/octet-stream",
+            sha256Hex(file.bytes),
+            { kind: "file", name: p.fileName ?? "file" },
+          );
+          continue;
         }
         await addVouchMedia(
           vouchId,
           file.bytes,
           file.mime,
           sha256Hex(file.bytes),
-          {
-            kind: "video",
-            duration: p.duration,
-            posterId,
-            w: p.w,
-            h: p.h,
-          },
         );
-        continue;
       }
-      if (p.kind === "voice") {
-        await addVouchMedia(
-          vouchId,
-          file.bytes,
-          file.mime,
-          sha256Hex(file.bytes),
-          { kind: "voice", duration: p.duration },
-        );
-        continue;
-      }
-      if (p.kind === "file") {
-        // Documents are served as an attachment download, never inline under
-        // their own mime (an HTML/SVG blob rendered same-origin would be
-        // stored XSS) — the stored mime matches how it leaves the server.
-        await addVouchMedia(
-          vouchId,
-          file.bytes,
-          "application/octet-stream",
-          sha256Hex(file.bytes),
-          { kind: "file", name: p.fileName ?? "file" },
-        );
-        continue;
-      }
-      await addVouchMedia(
-        vouchId,
-        file.bytes,
-        file.mime,
-        sha256Hex(file.bytes),
-      );
+      posted++;
+    } catch {
+      // Claiming the batch DELETED its queue rows, so a failure here cannot
+      // be retried — one bad item must not abort the whole batch. The count
+      // goes back to the admin instead of vanishing.
+      failed++;
     }
-    posted++;
   }
-  return posted;
+  return { posted, failed };
 }
 
 const FWD_KEYBOARD = [
   [{ text: "💬 Client Testimonials", callbackData: "fwd:post:testimonials" }],
   [{ text: "🛍 BUY4U Vouches", callbackData: "fwd:post:buy4u" }],
   [{ text: "📣 Announcements", callbackData: "fwd:post:announcements" }],
+  [{ text: "👥 Group Chat", callbackData: "fwd:post:chat" }],
   [{ text: "🗑 Discard batch", callbackData: "fwd:clear" }],
 ];
 
@@ -564,9 +723,27 @@ export async function POST(req: Request) {
       }
       return NextResponse.json({ ok: true });
     }
-    const pick = /^fwd:post:(testimonials|buy4u|announcements)$/.exec(data);
+    const pick = /^fwd:post:(testimonials|buy4u|announcements|chat)$/.exec(
+      data,
+    );
     if (pick) {
-      const section = pick[1] as VouchSection;
+      const dest = pick[1] as ForwardDest;
+      const actorId =
+        cb.from?.id !== undefined && cb.from?.id !== null
+          ? String(cb.from.id)
+          : null;
+      const actorName =
+        fullName(cb.from?.first_name, cb.from?.last_name) ?? "Admin";
+      // A Group Chat post is authored by the admin who tapped, so it needs a
+      // real member id. Bail out BEFORE claiming (claiming deletes the queue)
+      // and never silently reroute the batch to a different destination.
+      if (dest === "chat" && !actorId) {
+        await answerCallbackQuery(
+          cb.id,
+          "Couldn't identify you — send /chat instead.",
+        );
+        return NextResponse.json({ ok: true });
+      }
       const rows = await claimPendingForwards(cbChatId);
       if (rows.length === 0) {
         // Double-tap or a second admin device — the batch was already drained.
@@ -580,34 +757,45 @@ export async function POST(req: Request) {
         }
         return NextResponse.json({ ok: true });
       }
-      const posted = await postForwardBatch(rows, section, cbChatId);
+      const { posted, failed } =
+        dest === "chat" && actorId
+          ? await postForwardToChat(rows, { tgId: actorId, name: actorName })
+          : await postForwardBatch(rows, dest as VouchSection, cbChatId);
       await answerCallbackQuery(
         cb.id,
-        `Posted ${posted} to ${sectionLabel(section)}.`,
+        `Posted ${posted} to ${destLabel(dest)}.`,
       );
       if (cb.message?.message_id) {
         await editCommunityMessage(
           cbChatId,
           cb.message.message_id,
-          `✅ Posted <b>${posted}</b> post${posted === 1 ? "" : "s"} to <b>${sectionLabel(section)}</b>.`,
+          `✅ Posted <b>${posted}</b> post${posted === 1 ? "" : "s"} to <b>${destLabel(dest)}</b>.${
+            dest === "chat"
+              ? " They auto-delete in 7 days unless you pin them."
+              : ""
+          }${failedNote(failed)}`,
         );
       }
       await recordAction({
-        actorTgId: cb.from?.id !== undefined && cb.from?.id !== null ? String(cb.from.id) : null,
-        actorName: fullName(cb.from?.first_name, cb.from?.last_name) ?? "Admin",
+        actorTgId: actorId,
+        actorName,
         action: "vouch_ingested",
-        target: section,
+        target: dest,
         meta: { count: posted },
       }).catch(() => undefined);
       if (posted > 0) {
         // Fan out to opted-in subscribers (fail-soft — must never fail the 200).
-        await notifyCategory(section, {
-          title: `New ${sectionLabel(section)}`,
+        await notifyCategory(dest, {
+          title: dest === "chat" ? "Group Chat is active" : `New ${destLabel(dest)}`,
           body:
-            posted === 1
-              ? "A new post is up on the community."
-              : `${posted} new posts are up on the community.`,
-          url: "/community",
+            dest === "chat"
+              ? posted === 1
+                ? "A new message is up in the Group Chat."
+                : `${posted} new messages are up in the Group Chat.`
+              : posted === 1
+                ? "A new post is up on the community."
+                : `${posted} new posts are up on the community.`,
+          url: dest === "chat" ? "/community#chat" : "/community",
         }).catch(() => undefined);
       }
       return NextResponse.json({ ok: true });
@@ -706,45 +894,73 @@ export async function POST(req: Request) {
       cmd === "/testimonials" ||
       cmd === "/buy4u" ||
       cmd === "/announcements" ||
-      cmd === "/announce"
+      cmd === "/announce" ||
+      cmd === "/chat" ||
+      cmd === "/groupchat"
     ) {
       // Command fallback for the destination keyboard: posts whatever is
-      // queued right now to the named section.
-      const section: VouchSection =
+      // queued right now to the named destination.
+      const dest: ForwardDest =
         cmd === "/buy4u"
           ? "buy4u"
           : cmd === "/announcements" || cmd === "/announce"
             ? "announcements"
-            : "testimonials";
+            : cmd === "/chat" || cmd === "/groupchat"
+              ? "chat"
+              : "testimonials";
+      const actorId =
+        fromId !== undefined && fromId !== null ? String(fromId) : null;
+      const actorName =
+        fullName(msg.from?.first_name, msg.from?.last_name) ?? "Admin";
+      // Group Chat needs the admin's own member id as the author. Refuse
+      // BEFORE claiming (claiming deletes the queue) rather than rerouting
+      // the batch somewhere the admin didn't ask for.
+      if (dest === "chat" && !actorId) {
+        await sendCommunityTelegram(
+          chatId,
+          "Couldn't identify you, so I didn't post anything — your batch is still queued.",
+        );
+        return NextResponse.json({ ok: true });
+      }
       const rows = await claimPendingForwards(chatId);
       if (rows.length === 0) {
         await sendCommunityTelegram(
           chatId,
-          `Nothing queued. Forward messages first — I'll ask where to post them (or send /${section === "testimonials" ? "testimonials" : section} right after forwarding).`,
+          `Nothing queued. Forward messages first — I'll ask where to post them (or send ${cmd} right after forwarding).`,
         );
         return NextResponse.json({ ok: true });
       }
-      const posted = await postForwardBatch(rows, section, chatId);
+      const { posted, failed } =
+        dest === "chat" && actorId
+          ? await postForwardToChat(rows, { tgId: actorId, name: actorName })
+          : await postForwardBatch(rows, dest as VouchSection, chatId);
       await sendCommunityTelegram(
         chatId,
-        `✅ Posted <b>${posted}</b> post${posted === 1 ? "" : "s"} to <b>${sectionLabel(section)}</b>.`,
+        `✅ Posted <b>${posted}</b> post${posted === 1 ? "" : "s"} to <b>${destLabel(dest)}</b>.${
+          dest === "chat"
+            ? " They auto-delete in 7 days unless you pin them."
+            : ""
+        }${failedNote(failed)}`,
       );
       await recordAction({
-        actorTgId:
-          fromId !== undefined && fromId !== null ? String(fromId) : null,
-        actorName: fullName(msg.from?.first_name, msg.from?.last_name) ?? "Admin",
+        actorTgId: actorId,
+        actorName,
         action: "vouch_ingested",
-        target: section,
+        target: dest,
         meta: { count: posted },
       }).catch(() => undefined);
       if (posted > 0) {
-        await notifyCategory(section, {
-          title: `New ${sectionLabel(section)}`,
+        await notifyCategory(dest, {
+          title: dest === "chat" ? "Group Chat is active" : `New ${destLabel(dest)}`,
           body:
-            posted === 1
-              ? "A new post is up on the community."
-              : `${posted} new posts are up on the community.`,
-          url: "/community",
+            dest === "chat"
+              ? posted === 1
+                ? "A new message is up in the Group Chat."
+                : `${posted} new messages are up in the Group Chat.`
+              : posted === 1
+                ? "A new post is up on the community."
+                : `${posted} new posts are up on the community.`,
+          url: dest === "chat" ? "/community#chat" : "/community",
         }).catch(() => undefined);
       }
       return NextResponse.json({ ok: true });
