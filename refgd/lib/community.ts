@@ -41,11 +41,20 @@ export function isVouchSection(x: unknown): x is VouchSection {
 }
 
 export interface VouchMediaMeta {
-  kind: "photo" | "video";
-  /** Video duration in seconds; null for photos/unknown. */
+  /**
+   * 'photo' rows carry no meta at all. 'video' renders a poster + play badge,
+   * 'voice' a Web A voice bubble, 'file' a document download row — the same
+   * three shapes chat attachments already use.
+   */
+  kind: "photo" | "video" | "voice" | "file";
+  /** Video/voice duration in seconds; null for photos/unknown. */
   duration: number | null;
   /** vouch_media id of the video's poster frame; null for photos. */
   posterId: string | null;
+  /** Document filename (kind=file); null otherwise. */
+  name: string | null;
+  /** Blob size in bytes, shown on document rows. */
+  size: number | null;
 }
 
 export interface Vouch {
@@ -77,6 +86,8 @@ interface VouchRow {
   media_kinds: (string | null)[] | null;
   media_durations: (number | null)[] | null;
   media_posters: (string | number | null)[] | null;
+  media_names: (string | null)[] | null;
+  media_sizes: (string | number | null)[] | null;
 }
 
 /**
@@ -104,13 +115,21 @@ function mapVouch(r: VouchRow): Vouch {
     }),
     mediaMeta: (r.media_ids ?? []).map((_, i) => {
       const kind = r.media_kinds?.[i];
-      if (kind !== "video") return null; // photos need no extra meta
+      if (kind !== "video" && kind !== "voice" && kind !== "file") {
+        return null; // photos need no extra meta
+      }
       const dur = r.media_durations?.[i];
       const poster = r.media_posters?.[i];
+      const size = r.media_sizes?.[i];
       return {
-        kind: "video" as const,
+        kind,
         duration: typeof dur === "number" && dur > 0 ? dur : null,
         posterId: poster === null || poster === undefined ? null : String(poster),
+        name: r.media_names?.[i] ?? null,
+        size:
+          size === null || size === undefined || Number.isNaN(Number(size))
+            ? null
+            : Number(size),
       };
     }),
     pinned: r.pinned,
@@ -162,7 +181,18 @@ export async function listVouches(
             COALESCE(
               array_agg(m.poster_id ORDER BY m.id) FILTER (WHERE m.id IS NOT NULL),
               ARRAY[]::bigint[]
-            ) AS media_posters
+            ) AS media_posters,
+            COALESCE(
+              array_agg(m.name ORDER BY m.id) FILTER (WHERE m.id IS NOT NULL),
+              ARRAY[]::text[]
+            ) AS media_names,
+            -- octet_length on BYTEA reads the TOAST pointer's raw size, so
+            -- this does NOT pull (or decompress) the blob — the document
+            -- rows still need a size label.
+            COALESCE(
+              array_agg(octet_length(m.bytes) ORDER BY m.id) FILTER (WHERE m.id IS NOT NULL),
+              ARRAY[]::integer[]
+            ) AS media_sizes
        FROM vouches v
        LEFT JOIN vouch_media m ON m.vouch_id = v.id AND m.kind <> 'poster'
        ${where}
@@ -246,6 +276,20 @@ export async function addVouchMedia(
   bytes: Buffer,
   mime: string,
   sha256?: string | null,
+  /**
+   * Non-photo attachments (bot forwards of videos, GIFs, voice notes and
+   * documents). Omitted → the historical photo behaviour, byte-for-byte.
+   * `w`/`h` override the probe for formats it cannot read (mp4/ogg), and
+   * `posterId` links a video row to its already-inserted thumb frame.
+   */
+  extra?: {
+    kind?: "photo" | "video" | "voice" | "file" | "poster";
+    duration?: number | null;
+    name?: string | null;
+    posterId?: string | null;
+    w?: number | null;
+    h?: number | null;
+  },
 ): Promise<string | null> {
   await initDb();
   // Guard against re-ingesting the same photo (Telegram retries the webhook,
@@ -255,14 +299,26 @@ export async function addVouchMedia(
   // the photo loads (fixes image pop-in on READ ME/Announcements).
   const dims = probeImageDims(bytes);
   const { rows } = await getPool().query<{ id: string }>(
-    `INSERT INTO vouch_media (vouch_id, bytes, mime, sha256, w, h)
-     SELECT $1, $2, $3, $4, $5, $6
+    `INSERT INTO vouch_media
+       (vouch_id, bytes, mime, sha256, w, h, kind, duration, name, poster_id)
+     SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
       WHERE $4::text IS NULL
          OR NOT EXISTS (
            SELECT 1 FROM vouch_media WHERE vouch_id = $1 AND sha256 = $4
          )
      RETURNING id`,
-    [vouchId, bytes, mime, sha256 ?? null, dims?.w ?? null, dims?.h ?? null],
+    [
+      vouchId,
+      bytes,
+      mime,
+      sha256 ?? null,
+      dims?.w ?? extra?.w ?? null,
+      dims?.h ?? extra?.h ?? null,
+      extra?.kind ?? "photo",
+      extra?.duration ?? null,
+      extra?.name ?? null,
+      extra?.posterId ?? null,
+    ],
   );
   return rows[0] ? String(rows[0].id) : null;
 }
@@ -286,16 +342,30 @@ export async function getVouchMedia(
  * (videos are 10MB+; a full `SELECT bytes` per range request is exactly the
  * DB-egress pattern that exhausted the data-transfer quota before).
  */
-export async function getVouchMediaMeta(
-  id: string,
-): Promise<{ total: number; mime: string } | null> {
+export async function getVouchMediaMeta(id: string): Promise<{
+  total: number;
+  mime: string;
+  kind: string;
+  name: string | null;
+} | null> {
   await initDb();
-  const { rows } = await getPool().query<{ total: string; mime: string }>(
-    `SELECT octet_length(bytes) AS total, mime FROM vouch_media WHERE id = $1`,
+  const { rows } = await getPool().query<{
+    total: string;
+    mime: string;
+    kind: string | null;
+    name: string | null;
+  }>(
+    `SELECT octet_length(bytes) AS total, mime, kind, name
+       FROM vouch_media WHERE id = $1`,
     [id],
   );
   if (!rows[0]) return null;
-  return { total: Number(rows[0].total), mime: rows[0].mime };
+  return {
+    total: Number(rows[0].total),
+    mime: rows[0].mime,
+    kind: rows[0].kind ?? "photo",
+    name: rows[0].name,
+  };
 }
 
 /**
@@ -455,6 +525,9 @@ export async function setActiveSection(section: VouchSection): Promise<void> {
 // prompt ledger guarantees exactly ONE keyboard per outstanding batch even
 // across album parts and Render's multi-worker webhook delivery.
 
+/** What a queued attachment IS — decided from the incoming Telegram update. */
+export type PendingForwardKind = "photo" | "video" | "voice" | "file";
+
 export interface PendingForwardInput {
   chatId: string | number;
   batchKey: string;
@@ -465,6 +538,17 @@ export interface PendingForwardInput {
   mediaGroupId?: string | null;
   originMsgId?: number | null;
   originDate?: Date | null;
+  kind?: PendingForwardKind;
+  /** Telegram's declared mime — getFile's path extension is not reliable. */
+  mime?: string | null;
+  /** Video/voice length in seconds. */
+  duration?: number | null;
+  /** Document filename (kind=file). */
+  fileName?: string | null;
+  /** Thumbnail file_id downloaded as the video's poster frame at post time. */
+  thumbFileId?: string | null;
+  w?: number | null;
+  h?: number | null;
 }
 
 export interface PendingForwardRow {
@@ -476,6 +560,13 @@ export interface PendingForwardRow {
   mediaGroupId: string | null;
   originMsgId: number | null;
   originDate: Date | null;
+  kind: PendingForwardKind;
+  mime: string | null;
+  duration: number | null;
+  fileName: string | null;
+  thumbFileId: string | null;
+  w: number | null;
+  h: number | null;
 }
 
 export async function enqueuePendingForward(
@@ -485,8 +576,10 @@ export async function enqueuePendingForward(
   await getPool().query(
     `INSERT INTO pending_forwards
        (chat_id, batch_key, author, body, file_id, file_unique_id,
-        media_group_id, origin_msg_id, origin_date)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        media_group_id, origin_msg_id, origin_date,
+        kind, mime, duration, file_name, thumb_file_id, w, h)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+             $10, $11, $12, $13, $14, $15, $16)`,
     [
       input.chatId,
       input.batchKey,
@@ -497,6 +590,13 @@ export async function enqueuePendingForward(
       input.mediaGroupId ?? null,
       input.originMsgId ?? null,
       input.originDate ?? null,
+      input.kind ?? "photo",
+      input.mime ?? null,
+      input.duration ?? null,
+      input.fileName ?? null,
+      input.thumbFileId ?? null,
+      input.w ?? null,
+      input.h ?? null,
     ],
   );
 }
@@ -583,10 +683,18 @@ export async function claimPendingForwards(
     media_group_id: string | null;
     origin_msg_id: string | null;
     origin_date: Date | null;
+    kind: string | null;
+    mime: string | null;
+    duration: number | null;
+    file_name: string | null;
+    thumb_file_id: string | null;
+    w: number | null;
+    h: number | null;
   }>(
     `DELETE FROM pending_forwards WHERE chat_id = $1
      RETURNING id, author, body, file_id, file_unique_id, media_group_id,
-               origin_msg_id, origin_date`,
+               origin_msg_id, origin_date, kind, mime, duration, file_name,
+               thumb_file_id, w, h`,
     [chatId],
   );
   await getPool()
@@ -603,6 +711,16 @@ export async function claimPendingForwards(
       mediaGroupId: r.media_group_id,
       originMsgId: r.origin_msg_id === null ? null : Number(r.origin_msg_id),
       originDate: r.origin_date,
+      kind:
+        r.kind === "video" || r.kind === "voice" || r.kind === "file"
+          ? r.kind
+          : "photo",
+      mime: r.mime,
+      duration: r.duration,
+      fileName: r.file_name,
+      thumbFileId: r.thumb_file_id,
+      w: r.w,
+      h: r.h,
     }));
 }
 

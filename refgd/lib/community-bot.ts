@@ -285,9 +285,45 @@ export async function getBotIdentityFromToken(): Promise<BotIdentity> {
   }
 }
 
-/** Download a Telegram file (photo) by file_id → raw bytes + mime. */
+/**
+ * Hard ceiling on what a BOT may download: the Bot API refuses getFile for
+ * anything above 20 MB, whatever the user's own upload limit is. Checked
+ * against the update's declared file_size so the owner is told immediately,
+ * at forward time, instead of the clip silently vanishing at post time.
+ */
+export const TELEGRAM_MAX_DOWNLOAD = 20 * 1024 * 1024;
+
+/** file_path extension → mime, for the formats the ingestion bot accepts. */
+const EXT_MIME: Record<string, string> = {
+  png: "image/png",
+  webp: "image/webp",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+  ogg: "audio/ogg",
+  oga: "audio/ogg",
+  opus: "audio/ogg",
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+  wav: "audio/wav",
+  pdf: "application/pdf",
+};
+
+/**
+ * Download a Telegram file by file_id → raw bytes + mime.
+ *
+ * `hintMime` is the mime_type Telegram declared on the message (videos, voice
+ * notes, documents all carry one). Prefer it: getFile's path extension is
+ * only a hint, and the historical extension-only mapping defaulted EVERYTHING
+ * unknown to image/jpeg — which would store a forwarded mp4 or ogg as a
+ * broken "photo".
+ */
 export async function downloadTelegramFile(
   fileId: string,
+  hintMime?: string | null,
 ): Promise<{ bytes: Buffer; mime: string } | null> {
   const token = communityBotToken();
   if (!token) return null;
@@ -300,21 +336,24 @@ export async function downloadTelegramFile(
     });
     const mj = (await meta.json()) as {
       ok?: boolean;
-      result?: { file_path?: string };
+      result?: { file_path?: string; file_size?: number };
     };
     const filePath = mj.result?.file_path;
     if (!mj.ok || !filePath) return null;
+    if ((mj.result?.file_size ?? 0) > TELEGRAM_MAX_DOWNLOAD) return null;
     const dl = await fetch(
       `https://api.telegram.org/file/bot${token}/${filePath}`,
       { cache: "no-store" },
     );
     if (!dl.ok) return null;
     const bytes = Buffer.from(await dl.arrayBuffer());
-    const mime = filePath.endsWith(".png")
-      ? "image/png"
-      : filePath.endsWith(".webp")
-        ? "image/webp"
-        : "image/jpeg";
+    const ext = /\.([a-z0-9]+)$/i.exec(filePath)?.[1]?.toLowerCase() ?? "";
+    const mime =
+      (hintMime && /^[a-z]+\/[a-z0-9.+-]+$/i.test(hintMime)
+        ? hintMime
+        : null) ??
+      EXT_MIME[ext] ??
+      "image/jpeg";
     return { bytes, mime };
   } catch {
     return null;

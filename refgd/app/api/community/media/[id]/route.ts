@@ -29,6 +29,40 @@ const RANGE_SLICE_CAP = 4 * 1024 * 1024;
 const CACHE_CONTROL =
   "public, max-age=31536000, immutable, s-maxage=604800, stale-while-revalidate=86400";
 
+/**
+ * Document (kind='file') downloads: the bytes came from a forwarded Telegram
+ * file, so they are NEVER served inline under a guessable mime (an HTML or
+ * SVG blob rendered same-origin would be stored XSS). Force a download with a
+ * generic content type and a header-safe filename (ASCII fallback plus RFC
+ * 5987 filename* for the original UTF-8 name — CR/LF/quotes stripped so the
+ * stored name can't inject headers). Same rule as chat-media.
+ */
+/**
+ * Per-process memo of the two columns the blob cache does not carry (kind +
+ * filename). Photos are the hot path here — a topic list can request dozens
+ * — and re-reading meta on every LRU hit would put a DB round-trip back in
+ * front of media the cache exists to serve from memory. Ids are immutable so
+ * the memo can never go stale; a miss (or an evicted entry) just falls back
+ * to the indexed lookup.
+ */
+const metaMemo = new Map<string, { kind: string; name: string | null }>();
+const META_MEMO_CAP = 4096;
+function rememberMeta(id: string, kind: string, name: string | null) {
+  if (metaMemo.size >= META_MEMO_CAP) metaMemo.clear();
+  metaMemo.set(id, { kind, name });
+}
+
+function fileHeaders(headers: Headers, name: string | null) {
+  headers.set("Content-Type", "application/octet-stream");
+  headers.set("X-Content-Type-Options", "nosniff");
+  const raw = (name || "file").replace(/[\r\n"\\]/g, "").slice(0, 128);
+  const ascii = raw.replace(/[^\x20-\x7e]/g, "_") || "file";
+  headers.set(
+    "Content-Disposition",
+    `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(raw)}`,
+  );
+}
+
 function parseRange(
   req: Request,
   total: number,
@@ -86,9 +120,14 @@ export async function GET(
 
   // Hot small media served straight from process memory.
   let media = getCachedBlob(`vm:${id}`);
+  let fileName: string | null = null;
+  let isFile = false;
   if (!media) {
     const meta = await getVouchMediaMeta(id);
     if (!meta) return new NextResponse(null, { status: 404 });
+    fileName = meta.name;
+    isFile = meta.kind === "file";
+    rememberMeta(id, meta.kind, meta.name);
 
     if (meta.total > BLOB_CACHE_ENTRY_CAP) {
       // Large blob (video): serve without ever materializing all of it.
@@ -97,6 +136,7 @@ export async function GET(
         "Accept-Ranges": "bytes",
         "Cache-Control": CACHE_CONTROL,
       });
+      if (isFile) fileHeaders(headers, fileName);
       const r = parseRange(req, meta.total);
       if (r === "invalid") {
         headers.set("Content-Range", `bytes */${meta.total}`);
@@ -145,6 +185,16 @@ export async function GET(
     if (!row) return new NextResponse(null, { status: 404 });
     putCachedBlob(`vm:${id}`, row.bytes, row.mime);
     media = { bytes: row.bytes, mime: row.mime };
+  } else {
+    // A cache hit can still be a small document — its download headers depend
+    // on kind/name, which the blob cache doesn't carry.
+    const memo = metaMemo.get(id) ?? null;
+    const meta = memo ?? (await getVouchMediaMeta(id));
+    if (meta && !memo) rememberMeta(id, meta.kind, meta.name);
+    if (meta?.kind === "file") {
+      fileName = meta.name;
+      isFile = true;
+    }
   }
 
   const total = media.bytes.length;
@@ -153,6 +203,7 @@ export async function GET(
     "Accept-Ranges": "bytes",
     "Cache-Control": CACHE_CONTROL,
   });
+  if (isFile) fileHeaders(headers, fileName);
 
   // Byte-range support: Safari/iOS insists on 206 responses for <video> and
   // will refuse to play — or to seek — without them.

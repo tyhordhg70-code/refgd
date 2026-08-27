@@ -192,6 +192,12 @@
         ALTER TABLE vouch_media ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'photo';
         ALTER TABLE vouch_media ADD COLUMN IF NOT EXISTS duration REAL;
         ALTER TABLE vouch_media ADD COLUMN IF NOT EXISTS poster_id BIGINT;
+        -- Telegram forwards are no longer photos-only: the ingestion bot also
+        -- accepts voice notes, video notes, GIFs, audio and documents. 'voice'
+        -- rows render as a Web A voice bubble (duration + player) and 'file'
+        -- rows as a document download row, which is the only kind that needs a
+        -- filename (it is shown in the bubble AND used for the download).
+        ALTER TABLE vouch_media ADD COLUMN IF NOT EXISTS name TEXT;
 
         CREATE TABLE IF NOT EXISTS chat_members (
           tg_id       BIGINT PRIMARY KEY,
@@ -267,6 +273,17 @@
         );
         CREATE INDEX IF NOT EXISTS pending_forwards_chat_idx
           ON pending_forwards (chat_id, id);
+        -- Non-photo forwards: the queue row remembers WHAT the attachment is
+        -- (Telegram only hands out mime/duration/filename on the incoming
+        -- update — the file is downloaded later, at post time, and getFile
+        -- alone can no longer tell a voice note from a document).
+        ALTER TABLE pending_forwards ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'photo';
+        ALTER TABLE pending_forwards ADD COLUMN IF NOT EXISTS mime TEXT;
+        ALTER TABLE pending_forwards ADD COLUMN IF NOT EXISTS duration REAL;
+        ALTER TABLE pending_forwards ADD COLUMN IF NOT EXISTS file_name TEXT;
+        ALTER TABLE pending_forwards ADD COLUMN IF NOT EXISTS thumb_file_id TEXT;
+        ALTER TABLE pending_forwards ADD COLUMN IF NOT EXISTS w INTEGER;
+        ALTER TABLE pending_forwards ADD COLUMN IF NOT EXISTS h INTEGER;
 
         -- One-prompt-per-batch ledger: the webhook instance that wins the
         -- INSERT ... ON CONFLICT DO NOTHING race sends the destination

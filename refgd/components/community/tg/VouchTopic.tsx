@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import MessageBubble, { type BubbleReaction } from "./MessageBubble";
+import VoiceMessage from "./VoiceMessage";
 import type { VouchView } from "./types";
 import {
   LocalTime,
@@ -145,6 +146,22 @@ export default function VouchHistory({
               {run.map((v, i) => {
                 const first = i === 0;
                 const last = i === run.length - 1;
+                // A voice note is the bubble's BODY (player + waveform), not
+                // a media tile — so it is pulled out of the media list and
+                // the remaining attachments keep their aligned dims/meta.
+                const voiceIdx =
+                  v.mediaMeta?.findIndex((m) => m?.kind === "voice") ?? -1;
+                const voice =
+                  voiceIdx >= 0
+                    ? {
+                        id: v.mediaIds[voiceIdx],
+                        duration: v.mediaMeta?.[voiceIdx]?.duration ?? 0,
+                      }
+                    : null;
+                const tiles = v.mediaIds
+                  .map((id, mi) => ({ id, mi }))
+                  .filter(({ mi }) => mi !== voiceIdx);
+                const caption = v.body ? renderBody(v.body) : null;
                 return (
                   <MessageBubble
                     key={v.id}
@@ -154,22 +171,47 @@ export default function VouchHistory({
                     hasAppendix={last}
                     mid={`v${v.id}`}
                     pinned={v.pinned}
-                    media={v.mediaIds.map(
-                      (id) => `/api/community/media/${id}`,
+                    media={tiles.map(
+                      ({ id }) => `/api/community/media/${id}`,
                     )}
-                    mediaSizes={v.mediaDims}
-                    mediaMeta={v.mediaMeta?.map((m) =>
-                      m && m.kind === "video"
-                        ? {
-                            kind: "video" as const,
-                            poster: m.posterId
-                              ? `/api/community/media/${m.posterId}`
-                              : undefined,
-                            duration: m.duration,
-                          }
-                        : null,
+                    mediaSizes={tiles.map(
+                      ({ mi }) => v.mediaDims?.[mi] ?? null,
                     )}
-                    body={v.body ? renderBody(v.body) : undefined}
+                    mediaMeta={tiles.map(({ mi }) => {
+                      const m = v.mediaMeta?.[mi];
+                      if (m?.kind === "video") {
+                        return {
+                          kind: "video" as const,
+                          poster: m.posterId
+                            ? `/api/community/media/${m.posterId}`
+                            : undefined,
+                          duration: m.duration,
+                        };
+                      }
+                      if (m?.kind === "file") {
+                        return {
+                          kind: "file" as const,
+                          name: m.name ?? null,
+                          size: m.size ?? null,
+                        };
+                      }
+                      return null;
+                    })}
+                    body={
+                      voice ? (
+                        <>
+                          <VoiceMessage
+                            src={`/api/community/media/${voice.id}`}
+                            duration={voice.duration ?? 0}
+                            waveform=""
+                            own
+                          />
+                          {caption}
+                        </>
+                      ) : (
+                        caption ?? undefined
+                      )
+                    }
                     time={<LocalTime iso={v.originDate ?? v.createdAt} />}
                     reactions={reactionsFor?.(`v${v.id}`)}
                     onReact={

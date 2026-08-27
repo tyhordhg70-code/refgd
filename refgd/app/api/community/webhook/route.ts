@@ -8,6 +8,7 @@ import {
   downloadTelegramFile,
   sha256Hex,
   communityMiniAppUrl,
+  TELEGRAM_MAX_DOWNLOAD,
 } from "@/lib/community-bot";
 import {
   createVouch,
@@ -77,6 +78,31 @@ type TgEntity = {
   custom_emoji_id?: string;
   url?: string;
 };
+/**
+ * Every non-photo attachment Telegram can put on a message. The fields are a
+ * union of the Video/Animation/VideoNote/Voice/Audio/Document/Sticker objects
+ * — each type only fills the ones that apply to it.
+ */
+type TgFile = {
+  file_id: string;
+  file_unique_id: string;
+  file_size?: number;
+  mime_type?: string;
+  file_name?: string;
+  /** Seconds (video, animation, video_note, voice, audio). */
+  duration?: number;
+  width?: number;
+  height?: number;
+  /** video_note is square: side length in px. */
+  length?: number;
+  title?: string;
+  performer?: string;
+  is_animated?: boolean;
+  is_video?: boolean;
+  thumbnail?: TgPhotoSize;
+  /** Bot API < 7.0 spelling, still sent by some clients. */
+  thumb?: TgPhotoSize;
+};
 type TgMessage = {
   message_id: number;
   date?: number;
@@ -86,6 +112,13 @@ type TgMessage = {
   chat?: { id?: number | string };
   from?: { id?: number | string; first_name?: string; last_name?: string };
   photo?: TgPhotoSize[];
+  video?: TgFile;
+  animation?: TgFile;
+  video_note?: TgFile;
+  voice?: TgFile;
+  audio?: TgFile;
+  document?: TgFile;
+  sticker?: TgFile;
   entities?: TgEntity[];
   caption_entities?: TgEntity[];
   forward_origin?: TgForwardOrigin;
@@ -197,6 +230,137 @@ function authorFromForward(m: TgMessage): string | null {
   return null;
 }
 
+/**
+ * What the forwarded message is carrying, normalized to the four kinds the
+ * site can store and render (see vouch_media.kind).
+ *
+ * Telegram is the ONLY place this information exists: getFile later returns a
+ * path and nothing else, so mime, duration, filename and the thumbnail id all
+ * have to be captured here, on the incoming update, and carried through the
+ * queue to post time.
+ *
+ * Returns `null` when there is no attachment at all (plain text forward), or
+ * a rejection when the attachment exists but cannot be ingested — the caller
+ * TELLS the owner instead of silently dropping it, which is how a forwarded
+ * video used to disappear without a trace.
+ */
+type Attachment = {
+  kind: "photo" | "video" | "voice" | "file";
+  fileId: string;
+  fileUniqueId: string;
+  mime: string | null;
+  duration: number | null;
+  fileName: string | null;
+  thumbFileId: string | null;
+  w: number | null;
+  h: number | null;
+};
+type AttachmentPick =
+  | { att: Attachment; reject: null }
+  | { att: null; reject: string | null };
+
+function thumbOf(f: TgFile): string | null {
+  return f.thumbnail?.file_id ?? f.thumb?.file_id ?? null;
+}
+
+function pickAttachment(msg: TgMessage): AttachmentPick {
+  const none: AttachmentPick = { att: null, reject: null };
+  const photos = msg.photo ?? [];
+  const build = (
+    f: TgFile,
+    kind: Attachment["kind"],
+    extra?: Partial<Attachment>,
+  ): AttachmentPick => {
+    if ((f.file_size ?? 0) > TELEGRAM_MAX_DOWNLOAD) {
+      return {
+        att: null,
+        reject: `⚠️ That file is ${Math.round((f.file_size ?? 0) / (1024 * 1024))} MB. Telegram only lets bots download files up to 20 MB, so I couldn't queue it — post it from the website instead (Group Chat composer → attach).`,
+      };
+    }
+    return {
+      att: {
+        kind,
+        fileId: f.file_id,
+        fileUniqueId: f.file_unique_id,
+        mime: f.mime_type ?? null,
+        duration: typeof f.duration === "number" ? f.duration : null,
+        fileName: f.file_name ?? null,
+        thumbFileId: thumbOf(f),
+        w: f.width ?? null,
+        h: f.height ?? null,
+        ...extra,
+      },
+      reject: null,
+    };
+  };
+
+  if (photos.length > 0) {
+    const largest = photos[photos.length - 1];
+    if ((largest.file_size ?? 0) > TELEGRAM_MAX_DOWNLOAD) {
+      return { att: null, reject: "⚠️ That photo is over 20 MB — Telegram won't let bots download it." };
+    }
+    return {
+      att: {
+        kind: "photo",
+        fileId: largest.file_id,
+        fileUniqueId: largest.file_unique_id,
+        mime: null,
+        duration: null,
+        fileName: null,
+        thumbFileId: null,
+        w: largest.width ?? null,
+        h: largest.height ?? null,
+      },
+      reject: null,
+    };
+  }
+  if (msg.video) return build(msg.video, "video");
+  // A GIF is an mp4 with no sound; a video note is a square clip. Both are
+  // videos as far as storage and the bubble are concerned.
+  if (msg.animation) return build(msg.animation, "video");
+  if (msg.video_note) {
+    const side = msg.video_note.length ?? null;
+    return build(msg.video_note, "video", { w: side, h: side });
+  }
+  if (msg.voice) {
+    return build(msg.voice, "voice", {
+      mime: msg.voice.mime_type ?? "audio/ogg",
+    });
+  }
+  if (msg.audio) {
+    // A music/audio file is not a voice note — it keeps its filename and
+    // downloads, like Telegram's own audio row.
+    const a = msg.audio;
+    const named =
+      a.file_name ??
+      [a.performer, a.title].filter(Boolean).join(" — ") ??
+      null;
+    return build(a, "file", { fileName: named || "audio" });
+  }
+  if (msg.document) {
+    const d = msg.document;
+    const mime = d.mime_type ?? "";
+    // Telegram sends "uncompressed" photos and some clips as documents.
+    // Route them to the tile that actually renders them; SVG stays a
+    // download (an inline same-origin SVG is stored XSS).
+    if (/^image\/(jpeg|png|webp|gif)$/i.test(mime)) return build(d, "photo");
+    if (/^video\//i.test(mime)) return build(d, "video");
+    return build(d, "file", { fileName: d.file_name ?? "file" });
+  }
+  if (msg.sticker) {
+    const s = msg.sticker;
+    if (s.is_animated || s.is_video) {
+      return {
+        att: null,
+        reject:
+          "⚠️ Animated stickers can't be posted to the site yet — forward a photo, video, voice note or file instead.",
+      };
+    }
+    return build(s, "photo", { mime: "image/webp" });
+  }
+  return none;
+}
+
 function sectionLabel(s: VouchSection): string {
   return s === "buy4u"
     ? "BUY4U Vouches"
@@ -209,8 +373,9 @@ function helpText(): string {
   return [
     "🤖 <b>Rose — community bot</b>",
     "",
-    "Forward messages to me — I'll queue them, then ask where the batch",
-    "should post. Tap a button and everything queued posts there at once.",
+    "Forward anything to me — text, photos, videos, GIFs, voice notes,",
+    "audio or files. I'll queue it, then ask where the batch should post.",
+    "Tap a button and everything queued posts there at once.",
     "",
     "You can also pick with a command after forwarding:",
     "/testimonials — post the queued batch to Client Testimonials",
@@ -230,6 +395,15 @@ function helpText(): string {
  * else posts individually. Returns the number of posts created (duplicates
  * are silently skipped by the vouch dedupe hash).
  */
+/**
+ * Only visual media collapses into one album bubble. Telegram also groups
+ * documents and audio, but a download row or a voice player shares no layout
+ * with a photo mosaic — those post one bubble each.
+ */
+function isGroupable(r: PendingForwardRow): boolean {
+  return r.kind === "photo" || r.kind === "video";
+}
+
 async function postForwardBatch(
   rows: PendingForwardRow[],
   section: VouchSection,
@@ -237,7 +411,8 @@ async function postForwardBatch(
 ): Promise<number> {
   const groups = new Map<string, PendingForwardRow[]>();
   for (const r of rows) {
-    const key = r.mediaGroupId ? `mg|${r.mediaGroupId}` : `one|${r.id}`;
+    const key =
+      r.mediaGroupId && isGroupable(r) ? `mg|${r.mediaGroupId}` : `one|${r.id}`;
     const g = groups.get(key);
     if (g) g.push(r);
     else groups.set(key, [r]);
@@ -250,11 +425,20 @@ async function postForwardBatch(
     // second section must not be silently swallowed by the vouches dedupe
     // index (it also shields late album stragglers from colliding with an
     // already-posted batch in a different section).
-    const dedupe = first.mediaGroupId
-      ? sha256Hex(`mg|${chatId}|${first.mediaGroupId}|${section}`)
-      : sha256Hex(
-          `${section}|${first.author}|${body}|${first.fileUniqueId ?? ""}`,
-        );
+    // The hash must follow the SAME grouping rule as the key above. Telegram
+    // also groups documents and audio, but those post one bubble each — hash
+    // them on the media group and every item after the first collides with
+    // the album hash and silently vanishes behind the unique dedupe index.
+    const grouped = parts.length > 1 || isGroupable(first);
+    const dedupe =
+      first.mediaGroupId && grouped
+        ? sha256Hex(`mg|${chatId}|${first.mediaGroupId}|${section}`)
+        : sha256Hex(
+            // Distinct files have distinct unique ids, so ungrouped album
+            // parts no longer collide; text-only forwards keep their old
+            // content hash (re-forwarding the same text stays a no-op).
+            `${section}|${first.author}|${body}|${first.fileUniqueId ?? ""}`,
+          );
     const vouchId = await createVouch({
       section,
       authorName: first.author,
@@ -268,15 +452,69 @@ async function postForwardBatch(
     if (!vouchId) continue; // dedupe hit — identical post already exists
     for (const p of parts) {
       if (!p.fileId) continue;
-      const file = await downloadTelegramFile(p.fileId);
-      if (file) {
+      const file = await downloadTelegramFile(p.fileId, p.mime);
+      if (!file) continue;
+      if (p.kind === "video") {
+        // The poster frame is its own row (kind='poster', excluded from the
+        // vouch's media list) so the bubble can show the thumbnail without
+        // ever fetching the clip — scrolling past a video costs a thumb.
+        let posterId: string | null = null;
+        if (p.thumbFileId) {
+          const thumb = await downloadTelegramFile(p.thumbFileId);
+          if (thumb) {
+            posterId = await addVouchMedia(
+              vouchId,
+              thumb.bytes,
+              thumb.mime,
+              sha256Hex(thumb.bytes),
+              { kind: "poster" },
+            );
+          }
+        }
         await addVouchMedia(
           vouchId,
           file.bytes,
           file.mime,
           sha256Hex(file.bytes),
+          {
+            kind: "video",
+            duration: p.duration,
+            posterId,
+            w: p.w,
+            h: p.h,
+          },
         );
+        continue;
       }
+      if (p.kind === "voice") {
+        await addVouchMedia(
+          vouchId,
+          file.bytes,
+          file.mime,
+          sha256Hex(file.bytes),
+          { kind: "voice", duration: p.duration },
+        );
+        continue;
+      }
+      if (p.kind === "file") {
+        // Documents are served as an attachment download, never inline under
+        // their own mime (an HTML/SVG blob rendered same-origin would be
+        // stored XSS) — the stored mime matches how it leaves the server.
+        await addVouchMedia(
+          vouchId,
+          file.bytes,
+          "application/octet-stream",
+          sha256Hex(file.bytes),
+          { kind: "file", name: p.fileName ?? "file" },
+        );
+        continue;
+      }
+      await addVouchMedia(
+        vouchId,
+        file.bytes,
+        file.mime,
+        sha256Hex(file.bytes),
+      );
     }
     posted++;
   }
@@ -402,6 +640,9 @@ export async function POST(req: Request) {
   }
 
   const text = (msg.text ?? "").trim();
+  // What (if anything) this message is carrying. Needed before the emoji
+  // block so a media message is never mistaken for a "teach this pack" DM.
+  const pick = pickAttachment(msg);
 
   // ── emoji-pack teaching ──────────────────────────────────────────────
   // Native Telegram apps copy custom emoji as BARE unicode, so a pasted
@@ -429,7 +670,8 @@ export async function POST(req: Request) {
     }
     const emojiOnly =
       !msg.caption &&
-      (msg.photo ?? []).length === 0 &&
+      !pick.att &&
+      !pick.reject &&
       !msg.forward_origin &&
       !msg.forward_from &&
       !msg.forward_sender_name &&
@@ -533,8 +775,15 @@ export async function POST(req: Request) {
       ? spliceEntityTokens(msg.text, msg.entities)
       : spliceEntityTokens(msg.caption ?? "", msg.caption_entities)
   ).trim();
-  const photos = msg.photo ?? [];
-  if (!body && photos.length === 0) return NextResponse.json({ ok: true });
+  // An attachment the bot cannot ingest (over Telegram's 20 MB bot download
+  // limit, or an animated sticker) must SAY so — silently returning 200 is
+  // exactly why forwarding a video used to look like the bot was dead.
+  if (pick.reject) {
+    await sendCommunityTelegram(chatId, pick.reject);
+    return NextResponse.json({ ok: true });
+  }
+  const att = pick.att;
+  if (!body && !att) return NextResponse.json({ ok: true });
 
   // An abandoned queue must never post days later by surprise.
   await purgeStalePendingForwards().catch(() => undefined);
@@ -554,7 +803,6 @@ export async function POST(req: Request) {
       ? new Date(msg.date * 1000)
       : null;
   const mediaGroupId = msg.media_group_id ?? null;
-  const largest = photos.length ? photos[photos.length - 1] : null;
 
   // One outstanding batch per chat: everything forwarded before a destination
   // is picked belongs to the same batch (that's what makes bulk forwards a
@@ -565,11 +813,18 @@ export async function POST(req: Request) {
     batchKey,
     author,
     body,
-    fileId: largest?.file_id ?? null,
-    fileUniqueId: largest?.file_unique_id ?? null,
+    fileId: att?.fileId ?? null,
+    fileUniqueId: att?.fileUniqueId ?? null,
     mediaGroupId,
     originMsgId: msg.message_id,
     originDate,
+    kind: att?.kind ?? "photo",
+    mime: att?.mime ?? null,
+    duration: att?.duration ?? null,
+    fileName: att?.fileName ?? null,
+    thumbFileId: att?.thumbFileId ?? null,
+    w: att?.w ?? null,
+    h: att?.h ?? null,
   });
 
   // Exactly ONE keyboard per outstanding batch — album parts and bulk

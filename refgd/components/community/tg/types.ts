@@ -12,9 +12,13 @@ export interface VouchView {
    * entries are plain photos.
    */
   mediaMeta?: ({
-    kind: "photo" | "video";
+    kind: "photo" | "video" | "voice" | "file";
     duration: number | null;
     posterId: string | null;
+    /** Document filename (kind=file). */
+    name?: string | null;
+    /** Blob size in bytes, shown on document rows. */
+    size?: number | null;
   } | null)[];
   pinned: boolean;
   createdAt: string;
