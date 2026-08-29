@@ -41,6 +41,7 @@ import {
   IconDelete,
   IconDownload,
   IconEdit,
+  IconEyeCrossed,
   IconChevronDown,
   IconCollapse,
   IconExpand,
@@ -71,6 +72,7 @@ import {
   peerIdx,
   renderBody,
   tokenPreview,
+  firstLinkUrl,
 } from "./tg/format";
 import {
   ADMIN_TG,
@@ -1805,6 +1807,13 @@ export default function CommunityChat({
     sel?.collapseToEnd();
   }, [editingId, editingBody]);
 
+  // URL the server would scrape a preview card from for the current draft —
+  // drives the composer's "remove preview" strip below the input.
+  const composerLinkUrl = useMemo(
+    () => firstLinkUrl(chat.text),
+    [chat.text],
+  );
+
   // Live "X is typing…" presence takes over the subtitle line (Web A shows
   // typing state in the chat header's status slot).
   const typingNames = chat.typing ?? [];
@@ -2172,6 +2181,26 @@ export default function CommunityChat({
                     Copy Text
                   </button>
                 )}
+                {/* Remove the Open Graph card from an already-sent message
+                    (own message, or any as an admin). One-way: the composer
+                    strip is where you decide before sending. */}
+                {ctxMenu.m.linkPreview &&
+                  (ctxMenu.m.tgId === me?.tid || me?.admin) && (
+                    <button
+                      type="button"
+                      className="tg-menu-item"
+                      onClick={() => {
+                        const id = ctxMenu.m.id;
+                        setCtxMenu(null);
+                        void chat.hideLinkPreview(id).then((ok) => {
+                          if (ok) showToast("Link preview hidden");
+                        });
+                      }}
+                    >
+                      <IconEyeCrossed />
+                      Hide Link Preview
+                    </button>
+                  )}
                 {(ctxMenu.m.tgId === me?.tid || me?.admin) &&
                   !isTokenBody(ctxMenu.m.body ?? "") &&
                   parseForward(ctxMenu.m.body ?? "").name === null && (
@@ -3104,6 +3133,42 @@ export default function CommunityChat({
                   >
                     <IconClose />
                   </button>
+                </div>
+              )}
+              {/* Link-preview strip (Telegram's "remove preview" ✕): shown
+                  while the draft holds a URL and the message is text-only —
+                  media bubbles never get a card, and an edit can't add one. */}
+              {composerLinkUrl && !chat.attachment && !chat.editing && (
+                <div className="tg-reply-bar tg-lp-bar">
+                  <span className="tg-reply-embed">
+                    <span className="tg-reply-sender">
+                      {chat.noPreview ? "Link preview off" : "Link preview"}
+                    </span>
+                    <span className="tg-reply-text">
+                      {chat.noPreview
+                        ? "This message will send without a preview card"
+                        : composerLinkUrl}
+                    </span>
+                  </span>
+                  {chat.noPreview ? (
+                    <button
+                      type="button"
+                      className="tg-lp-restore"
+                      onClick={() => chat.setNoPreview(false)}
+                    >
+                      Show
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="tg-icon-btn"
+                      onClick={() => chat.setNoPreview(true)}
+                      aria-label="Don't send a link preview"
+                      title="Don't send a link preview"
+                    >
+                      <IconClose />
+                    </button>
+                  )}
                 </div>
               )}
               {chat.attachment && (

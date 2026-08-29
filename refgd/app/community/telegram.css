@@ -1092,6 +1092,28 @@ video.tg-custom-emoji {
   height: 1.5rem;
 }
 
+/* Link-preview strip: same shell as the reply bar, but its embed text is a
+   URL that must never widen the composer (long links wrap otherwise). */
+.tg-lp-bar .tg-reply-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tg-lp-bar .tg-lp-restore {
+  flex-shrink: 0;
+  padding: 0.25rem 0.75rem;
+  border: 0;
+  border-radius: 1rem;
+  background: none;
+  color: var(--color-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.tg-lp-bar .tg-lp-restore:hover {
+  background: var(--color-item-hover);
+}
+
 /* sign-in / notice strip in place of the composer */
 .tg-composer-notice {
   display: flex;

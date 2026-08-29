@@ -13,6 +13,7 @@ import { getPool, initDb } from "./db";
 import { memoTtl } from "./micro-cache";
 import { probeImageDims } from "./image-dims";
 import type { LinkPreview } from "./link-preview";
+import { ANY_LINK_TOKEN_SRC, buttonUrlRe } from "./link-token";
 import {
   isCommunityAdmin,
   communityBotToken,
@@ -989,6 +990,17 @@ export async function listMentionTargets(): Promise<MentionTarget[]> {
 
 const RE_ESCAPE = /[.*+?^${}()|[\]\\]/g;
 
+/**
+ * Bracket tokens whose INSIDES are markup, not message text: custom emoji,
+ * server-only voice/poll bodies, the forward banner, and `[label](url)` /
+ * buttonurl links (whose label may itself hold a `[ce:]` token, hence the
+ * one level of nesting). rewriteMentions steps over these — see there.
+ */
+const MENTION_SKIP_RE = new RegExp(
+  `\\[ce:\\d+:[^\\]\\n]+\\]|\\[(?:voice|poll):[^\\]\\n]*\\]|\\[fwd:[^\\]\\n]{1,64}\\]|${ANY_LINK_TOKEN_SRC}`,
+  "g",
+);
+
 /** Mention display text: exactly one leading `@` even when the member's
  *  display name itself starts with one (the owner shows as "@RefundGod"). */
 export function mentionDisplay(name: string): string {
@@ -1016,17 +1028,41 @@ export async function rewriteMentions(text: string): Promise<string> {
   );
   if (members.length === 0) return out;
   const sorted = [...members].sort((a, b) => b.name.length - a.name.length);
-  const toks: string[] = [];
-  for (const m of sorted) {
-    const typed = m.name.startsWith("@") ? m.name.slice(1) : m.name;
-    if (!typed) continue;
-    const re = new RegExp(`@${typed.replace(RE_ESCAPE, "\\$&")}(?![\\w@])`, "gi");
-    out = out.replace(re, () => {
-      toks.push(`[m:${m.tgId}:${m.name}]`);
-      return `\u0000${toks.length - 1}\u0000`;
-    });
+  const rewrite = (segment: string): string => {
+    if (!segment.includes("@")) return segment;
+    let s = segment;
+    const toks: string[] = [];
+    for (const m of sorted) {
+      const typed = m.name.startsWith("@") ? m.name.slice(1) : m.name;
+      if (!typed) continue;
+      const re = new RegExp(
+        `@${typed.replace(RE_ESCAPE, "\\$&")}(?![\\w@])`,
+        "gi",
+      );
+      s = s.replace(re, () => {
+        toks.push(`[m:${m.tgId}:${m.name}]`);
+        return `\u0000${toks.length - 1}\u0000`;
+      });
+    }
+    return s.replace(
+      /\u0000(\d+)\u0000/g,
+      (_a, i: string) => toks[Number(i)] ?? "",
+    );
+  };
+  // Only PLAIN text becomes a mention. A `@name` inside an existing bracket
+  // token — most importantly a `[label](url)` hyperlink's label — must stay
+  // as typed: tokenizing it produced a nested `[[m:…]](url)` body that no
+  // renderer can parse, so the bubble showed the raw brackets with the text
+  // broken in two around the mention.
+  let last = 0;
+  let composed = "";
+  MENTION_SKIP_RE.lastIndex = 0;
+  let skip: RegExpExecArray | null;
+  while ((skip = MENTION_SKIP_RE.exec(out)) !== null) {
+    composed += rewrite(out.slice(last, skip.index)) + skip[0];
+    last = skip.index + skip[0].length;
   }
-  return out.replace(/\u0000(\d+)\u0000/g, (_a, i: string) => toks[Number(i)] ?? "");
+  return composed + rewrite(out.slice(last));
 }
 
 /** Unique member ids mentioned by a (rewritten) body's [m:] tokens. */
@@ -1046,7 +1082,7 @@ export function mentionPreview(body: string): string {
     // as Telegram's "Forwarded from" header — it is markup, never preview text.
     .replace(/^(?:\[fwd:[^\]\n]{1,64}\]\n?)+/, "")
     .replace(MENTION_TOKEN_RE, (_a, _id, name: string) => mentionDisplay(name))
-    .replace(/\[([^\]\n]{1,64})\]\(buttonurl:\/\/[^\s)]+\)/g, "$1")
+    .replace(buttonUrlRe("g"), "$1")
     .replace(/\s+/g, " ")
     .trim();
   return flat.length > 160 ? `${flat.slice(0, 157)}…` : flat;
@@ -1545,6 +1581,17 @@ export async function updateLinkPreview(
   await getPool().query(
     `UPDATE chat_messages SET link_preview = $2::jsonb WHERE id = $1`,
     [id, JSON.stringify(data)],
+  );
+}
+
+/** Drop a message's link-preview card (Telegram's "remove preview"). Returns
+ *  the refreshed row so the sender's client can repaint the bubble. */
+export async function clearLinkPreview(id: string): Promise<void> {
+  if (!/^\d+$/.test(id)) return;
+  await initDb();
+  await getPool().query(
+    `UPDATE chat_messages SET link_preview = NULL WHERE id = $1`,
+    [id],
   );
 }
 

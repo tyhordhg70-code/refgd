@@ -26,6 +26,7 @@ import net from "node:net";
 import dnsCb from "node:dns";
 import dns from "node:dns/promises";
 import type { IncomingMessage } from "node:http";
+import { linkTokenRe } from "./link-token";
 
 export interface LinkPreview {
   url: string;
@@ -51,7 +52,7 @@ const MAX_REDIRECTS = 3;
  * then falls back to raw URL patterns.
  */
 export function extractFirstUrl(body: string): string | null {
-  const tokenMatch = /\[([^\]]*)\]\((https?:\/\/[^)]+)\)/.exec(body);
+  const tokenMatch = linkTokenRe().exec(body);
   if (tokenMatch) return tokenMatch[2].trim();
   const rawMatch = /(https?:\/\/[^\s<>"'[\]]+)/.exec(body);
   return rawMatch ? rawMatch[1].replace(/[.,;:!?)]+$/, "") : null;

@@ -15,6 +15,7 @@ import {
   emojiDebugError,
   sanitizeLottieData,
 } from "./emoji-debug";
+import { buttonUrlRe, linkTokenRe } from "@/lib/link-token";
 
 /**
  * Shared deterministic formatting helpers for the Telegram replica.
@@ -1370,11 +1371,14 @@ function renderLinkified(
  * into styled spans on render. Deliberately small (not full markdown):
  * bold, strike, underline, italic, spoiler, monospace and [text](url).
  */
+/** `[label](https://…)` hyperlink — see lib/link-token.ts for the grammar. */
+const LINK_TOKEN_RE = linkTokenRe();
+
 interface InlineRule {
   re: RegExp;
   /** recurse = allow nested formatting; emoji = plain text + emoji;
    *  raw = verbatim (monospace). */
-  mode: "recurse" | "emoji" | "raw";
+  mode: "recurse" | "emoji" | "raw" | "rich";
   wrap: (key: string, kids: ReactNode, m: RegExpExecArray) => ReactNode;
 }
 
@@ -1418,8 +1422,11 @@ const INLINE_RULES: InlineRule[] = [
     ),
   },
   {
-    re: /\[([^\]]+?)\]\((https?:\/\/[^\s)]+)\)/,
-    mode: "emoji",
+    re: LINK_TOKEN_RE,
+    // "rich", not "emoji": a hyperlink's label can hold custom-emoji and
+    // mention tokens (you can select any text in the composer and link it),
+    // and those have to render as the emoji/mention — not as raw brackets.
+    mode: "rich",
     wrap: (key, kids, m) => (
       <a
         key={key}
@@ -1460,9 +1467,11 @@ function renderInline(
   const kids: ReactNode =
     rule.mode === "recurse"
       ? renderInline(inner, `${keyPrefix}i`, animated)
-      : rule.mode === "emoji"
-        ? renderTextWithEmoji(inner, `${keyPrefix}i`, animated)
-        : inner;
+      : rule.mode === "rich"
+        ? renderRich(inner, `${keyPrefix}i`)
+        : rule.mode === "emoji"
+          ? renderTextWithEmoji(inner, `${keyPrefix}i`, animated)
+          : inner;
   out.push(rule.wrap(`${keyPrefix}t`, kids, m));
   const rest = text.slice(m.index + m[0].length);
   if (rest) out.push(...renderInline(rest, `${keyPrefix}r`, animated));
@@ -1538,6 +1547,19 @@ export function parseForward(body: string): {
  * and notifications must never show a raw `[voice:…]`/`[poll:…]`/`[fwd:…]`
  * token.
  */
+/**
+ * First HTTP(S) URL in a body — the one the server would scrape a preview
+ * card from. Mirrors extractFirstUrl() in lib/link-preview.ts (which is
+ * server-only: it pulls in dns/net), so the composer can show the same
+ * "this message will get a link preview" strip Telegram does.
+ */
+export function firstLinkUrl(body: string): string | null {
+  const tokenMatch = linkTokenRe().exec(body);
+  if (tokenMatch) return tokenMatch[2].trim();
+  const rawMatch = /(https?:\/\/[^\s<>"'[\]]+)/.exec(body);
+  return rawMatch ? rawMatch[1].replace(/[.,;:!?)]+$/, "") : null;
+}
+
 export function tokenPreview(body: string): string {
   // Drop the forward marker FIRST so a forwarded voice/poll/sticker still
   // previews as "🎤 Voice message" etc. rather than falling through to text.
@@ -1556,7 +1578,7 @@ export function tokenPreview(body: string): string {
     .replace(BUTTON_URL_RE, "$1")
     .replace(CE_RE, "$2")
     .replace(M_RE, (_all, _id, name: string) => mentionLabel(name))
-    .replace(/\[([^\]]+?)\]\((?:https?:\/\/)[^\s)]+\)/g, "$1")
+    .replace(linkTokenRe("g"), "$1")
     .replace(/^>(?: |$)/gm, "")
     // Bold/italic markers are formatting, not preview text (Web A previews
     // show the plain words) — strip the delimiters, keep the content.
@@ -1571,8 +1593,7 @@ export function tokenPreview(body: string): string {
  * bot inline keyboards: full-width rounded buttons UNDER the text, one per
  * row, with `:same` appending a button to the previous row.
  */
-const BUTTON_URL_RE =
-  /\[([^\]\n]{1,64})\]\(buttonurl:\/\/([^\s)]+?)(:same)?\)/g;
+const BUTTON_URL_RE = buttonUrlRe("g");
 
 interface BodyButton {
   label: string;
@@ -1724,6 +1745,17 @@ export function renderBody(body: string): ReactNode {
  *  with a same-glyph static-sprite fallback. This is also the only cure for
  *  historical messages whose premium-emoji entities were lost at ingestion:
  *  their bare 🛒/🌟/📝 now animate instead of sitting as static sprites. */
+/** `[start, end)` of every hyperlink token in a body. */
+function linkTokenSpans(text: string): Array<[number, number]> {
+  const spans: Array<[number, number]> = [];
+  const re = linkTokenRe("g");
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    spans.push([m.index, m.index + m[0].length]);
+  }
+  return spans;
+}
+
 function renderRich(bodyText: string, keyPrefix: string): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
@@ -1732,8 +1764,16 @@ function renderRich(bodyText: string, keyPrefix: string): ReactNode[] {
   // across re-entrant renders): custom-emoji tokens AND mention tokens in one
   // left-to-right pass so ordering between them is preserved.
   const richRe = new RegExp(`${CE_RE.source}|${M_RE.source}`, "g");
+  // Spans covered by a `[label](url)` hyperlink. Emoji/mention tokens inside
+  // a link LABEL belong to the link, so this pass steps over them and leaves
+  // the whole token to renderInline's link rule (which re-enters here for the
+  // label) — otherwise the label was torn out of its own link.
+  const linkSpans = linkTokenSpans(bodyText);
   let k = 0;
   while ((match = richRe.exec(bodyText)) !== null) {
+    if (linkSpans.some(([s, e]) => match!.index >= s && match!.index < e)) {
+      continue;
+    }
     if (match.index > last) {
       out.push(
         ...renderInline(

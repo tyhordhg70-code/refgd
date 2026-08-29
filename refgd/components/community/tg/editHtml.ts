@@ -20,6 +20,7 @@
 import { EMOJI_CACHE_VERSION } from "@/lib/custom-emoji";
 import { sanitizeLottieData } from "./emoji-debug";
 import { loadLottieLib, resolveEmojiKind } from "./format";
+import { ANY_LINK_TOKEN_SRC, linkTokenRe } from "@/lib/link-token";
 
 const ESC: Record<string, string> = {
   "&": "&amp;",
@@ -89,7 +90,8 @@ const EDIT_RULES: EditRule[] = [
   },
 ];
 
-const LINK_RE = /\[([^\]]+?)\]\((https?:\/\/[^\s)]+)\)/;
+/** Shared hyperlink grammar — see lib/link-token.ts. */
+const LINK_RE = linkTokenRe();
 
 function inlineHtml(text: string): string {
   let best: { idx: number; len: number; html: string } | null = null;
@@ -487,8 +489,10 @@ export function pasteHtmlToTokens(html: string): string {
  * a [ce:] token's alt part, a [label](url) link label or a Rose buttonurl
  * label could contain emoji characters, and injecting a nested [ce:] token
  * there would break their regexes at render time. */
-const UPGRADE_SKIP_RE =
-  /\[ce:\d+:[^\]]+\]|\[[^\]\n]+\]\((?:https?|buttonurl):\/\/[^)\s]*\)/g;
+const UPGRADE_SKIP_RE = new RegExp(
+  `\\[ce:\\d+:[^\\]]+\\]|${ANY_LINK_TOKEN_SRC}`,
+  "g",
+);
 
 /**
  * Upgrade PLAIN emoji characters to `[ce:<id>:<alt>]` tokens wherever the

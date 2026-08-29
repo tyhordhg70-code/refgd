@@ -364,6 +364,7 @@ export async function POST(req: Request) {
     replyTo?: unknown;
     ttlSeconds?: unknown;
     topic?: unknown;
+    noPreview?: unknown;
   };
   let photo: {
     bytes: Buffer;
@@ -576,6 +577,7 @@ export async function POST(req: Request) {
         replyTo?: unknown;
         ttlSeconds?: unknown;
         topic?: unknown;
+        noPreview?: unknown;
       };
     } catch {
       return NextResponse.json(
@@ -875,9 +877,12 @@ export async function POST(req: Request) {
   // refresh (the short-poll only carries brand-new rows). Cards are for
   // text-only messages — attachments already dominate the bubble, matching
   // Telegram, and pure voice/token bodies never qualify.
+  // The sender can switch the card off for this message (Telegram's "remove
+  // preview" ✕ above the composer) — then nothing is scraped at all.
+  const noPreview = payload.noPreview === true || payload.noPreview === "true";
   let linkPreview: LinkPreview | null = null;
   let lateScrape: Promise<LinkPreview | null> | null = null;
-  if (text && !voice && !photo && !video && !docFile) {
+  if (text && !noPreview && !voice && !photo && !video && !docFile) {
     const url = extractFirstUrl(text);
     if (url) {
       const scrape = fetchLinkPreview(url, 8_000).catch(() => null);

@@ -476,6 +476,9 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
   // custom lifetime or "Never" (0) via the composer. Non-admins always get the
   // server-side 7-day default regardless of this value.
   const [ttlSeconds, setTtlSeconds] = useState(604800);
+  // "Don't send a link preview" for the message being composed (Telegram's ✕
+  // on the preview strip). Per-message, like Telegram: it resets on send.
+  const [noPreview, setNoPreview] = useState(false);
   // The message currently being edited in place (composer edit mode), or null.
   const [editing, setEditing] = useState<{ id: string; body: string } | null>(
     null,
@@ -1250,6 +1253,43 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     [mergeMessages],
   );
 
+  // Drop a sent message's link-preview card (own message, or any as admin).
+  // The bubble repaints immediately — the server call only persists it.
+  const hideLinkPreview = useCallback(
+    async (id: string): Promise<boolean> => {
+      setState((prev) =>
+        prev
+          ? {
+              ...prev,
+              messages: prev.messages.map((m) =>
+                m.id === id ? { ...m, linkPreview: null } : m,
+              ),
+            }
+          : prev,
+      );
+      try {
+        const res = await fetch("/api/community/chat/link-preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          error?: string;
+        } | null;
+        if (!res.ok || !data?.ok) {
+          setError(data?.error ?? "Couldn't hide the link preview");
+          return false;
+        }
+        return true;
+      } catch {
+        setError("Couldn't hide the link preview");
+        return false;
+      }
+    },
+    [],
+  );
+
   // Enter composer edit mode for a message: seed the composer with its body
   // and clear any reply/attachment (an edit replaces text only).
   const beginEdit = useCallback(
@@ -1327,6 +1367,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
             replyTo: replyTo?.id ?? null,
             ttlSeconds: me?.admin ? ttlSeconds : 0,
             topic,
+            noPreview,
           }),
         });
       }
@@ -1358,6 +1399,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
       setText("");
       setReplyTo(null);
       setAttachment(null);
+      setNoPreview(false);
       atBottomRef.current = true;
       const incoming = [
         ...(data.message ? [data.message] : []),
@@ -1376,6 +1418,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     sending,
     replyTo,
     ttlSeconds,
+    noPreview,
     me,
     mergeMessages,
     loadInitial,
@@ -1577,6 +1620,8 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     setReplyTo,
     ttlSeconds,
     setTtlSeconds,
+    noPreview,
+    setNoPreview,
     attachment,
     setAttachment,
     inTelegram,
@@ -1595,6 +1640,7 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
     sendCommand,
     deleteMessage,
     editMessage,
+    hideLinkPreview,
     editing,
     beginEdit,
     cancelEdit,
