@@ -2208,10 +2208,23 @@ export async function setMemberBan(
   // IP/device ban (owner ask): banning a member also bans every device signal
   // hash ever recorded for them; unbanning clears those entries again. Both
   // are exact-hash operations — nothing range-based, nothing disclosed.
+  //
+  // False-positive guards (learned the hard way — a ban cascaded onto six
+  // innocent members):
+  //  • IPs are NEVER copied. CGNAT + dynamic rotation mean even a rare IP is
+  //    someone else's tomorrow; industry practice is to never ban on IP.
+  //  • A hash shared by >3 distinct members is a population collision, not a
+  //    device (Mini-App webviews make canvas/audio/webgl/ua readings identical
+  //    across hundreds of users), so it is never banned.
   if (banned) {
     await getPool().query(
       `INSERT INTO banned_devices (hash, kind, tg_id)
-       SELECT hash, kind, tg_id FROM member_devices WHERE tg_id = $1
+       SELECT md.hash, md.kind, md.tg_id
+         FROM member_devices md
+        WHERE md.tg_id = $1
+          AND md.kind <> 'ip'
+          AND (SELECT COUNT(DISTINCT o.tg_id) FROM member_devices o
+                WHERE o.hash = md.hash) <= 3
        ON CONFLICT (hash) DO NOTHING`,
       [tgId],
     );
@@ -2234,7 +2247,11 @@ export async function setMemberBan(
      clearing (the self-healing id + hardware/gpu signals stay).
    • Signals carry per-kind WEIGHTS; a block fires when either a strong unique
      signal (device id) matches, or the summed weight of matched signals crosses
-     a threshold. IP alone is weak (shared NATs/CGNAT) and never discloses.  */
+     a threshold. IPs never match at all (shared NATs/CGNAT/dynamic rotation
+     make IP bans pure false positives), and any hash shared by >3 distinct
+     members is treated as a population collision and never matched either —
+     Mini-App webviews make canvas/audio/webgl readings identical across
+     hundreds of users, so uniqueness is measured against our own roster.  */
 
 const DEVICE_PEPPER =
   process.env.SESSION_SECRET || "refgd-device-ban-pepper-v1";
@@ -2331,11 +2348,18 @@ export async function checkDeviceBan(
 ): Promise<"none" | "ip" | "device"> {
   await initDb();
   const fresh = Object.values(sig).filter((h): h is string => Boolean(h));
+  // Defense in depth mirroring setMemberBan: never match IP rows, and never
+  // match a hash shared by >3 distinct members even if one slipped into
+  // banned_devices before the insert-side guard existed (or the hash became
+  // common later). A collision-prone signal must not accrue ban score.
   const { rows } = await getPool().query<{ kind: string }>(
     `SELECT DISTINCT bd.kind
        FROM banned_devices bd
-      WHERE bd.hash = ANY($2::text[])
-         OR bd.hash IN (SELECT md.hash FROM member_devices md WHERE md.tg_id = $1)`,
+      WHERE bd.kind <> 'ip'
+        AND (bd.hash = ANY($2::text[])
+          OR bd.hash IN (SELECT md.hash FROM member_devices md WHERE md.tg_id = $1))
+        AND (SELECT COUNT(DISTINCT o.tg_id) FROM member_devices o
+              WHERE o.hash = bd.hash) <= 3`,
     [tgId, fresh],
   );
 
