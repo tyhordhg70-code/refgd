@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useEntranceReady } from "@/lib/loading-screen-gate";
+import { MEDIA_ASSETS, MEDIA_ASSETS_BY_SOURCE } from "@/lib/media-assets";
 
 /**
  * Background music — only mounted on the home page (so it stops when you
@@ -17,13 +18,13 @@ import { useEntranceReady } from "@/lib/loading-screen-gate";
  */
 
 const TRACKS = [
-  { src: "/audio/01-aglow.mp3",       label: "Karamel Kel — Aglow" },
-  { src: "/audio/02-mirage.mp3",      label: "Theos & Antent — Mirage" },
-  { src: "/audio/03-drowning.mp3",    label: "Antent & vowl — Drowning" },
-  { src: "/audio/04-this-feeling.mp3", label: "øneheart — this feeling" },
-  { src: "/audio/05-apathy.mp3",      label: "øneheart — apathy" },
-  { src: "/audio/06-stellar.mp3",     label: "diedlonely & énouement — stellar" },
-  { src: "/audio/07-snowfall.mp3",    label: "øneheart x reidenshi — snowfall" },
+  { src: MEDIA_ASSETS.aglow.url,       label: "Karamel Kel — Aglow" },
+  { src: MEDIA_ASSETS.mirage.url,      label: "Theos & Antent — Mirage" },
+  { src: MEDIA_ASSETS.drowning.url,    label: "Antent & vowl — Drowning" },
+  { src: MEDIA_ASSETS.thisFeeling.url, label: "øneheart — this feeling" },
+  { src: MEDIA_ASSETS.apathy.url,      label: "øneheart — apathy" },
+  { src: MEDIA_ASSETS.stellar.url,     label: "diedlonely & énouement — stellar" },
+  { src: MEDIA_ASSETS.snowfall.url,    label: "øneheart x reidenshi — snowfall" },
 ];
 
 const TARGET_VOLUME = 0.5;
@@ -46,6 +47,18 @@ function pickTrack() {
     if (stored) {
       const t = TRACKS.find((x) => x.src === stored);
       if (t) return t;
+      // Migrate a track choice made before the CDN cutover so a same-session
+      // deploy does not unexpectedly jump to a random playlist entry.
+      const legacy = Object.values(MEDIA_ASSETS_BY_SOURCE).find(
+        (asset) => `/${asset.source}` === stored,
+      );
+      if (legacy) {
+        const migrated = TRACKS.find((x) => x.src === legacy.url);
+        if (migrated) {
+          sessionStorage.setItem(VISIT_KEY, migrated.src);
+          return migrated;
+        }
+      }
     }
     const t = TRACKS[Math.floor(Math.random() * TRACKS.length)];
     sessionStorage.setItem(VISIT_KEY, t.src);

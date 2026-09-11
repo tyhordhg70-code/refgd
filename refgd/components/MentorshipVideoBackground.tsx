@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { MEDIA_ASSETS } from "@/lib/media-assets";
 
 /**
  * MentorshipVideoBackground — fixed full-viewport video backdrop for the
@@ -10,7 +11,7 @@ import { useEffect, useRef } from "react";
  * decoded video + a few static scrim gradients is lighter AND is the
  * requested look.
  *
- * Source clip: /mentorship-bg.mp4 — a seamless ~32s boomerang loop built
+ * Source clip: the CDN mentorship montage — a seamless ~32s boomerang loop built
  * from the owner-supplied "4K Liquid Reflections in Red and Purple Neon"
  * abstract screensaver. Re-encoded to 1080p H.264 (yuv420p, faststart) so
  * it decodes smoothly on iOS Safari. The boomerang (forward + reversed)
@@ -76,7 +77,7 @@ export default function MentorshipVideoBackground() {
     document.addEventListener("visibilitychange", onVisibility);
 
     // The loading screen treats /exclusive-mentorships as a heavy-asset route:
-    // it fully downloads /mentorship-bg.mp4 behind the splash AND waits for a
+    // it fully downloads the CDN montage behind the splash AND waits for a
     // `refgd:scene-ready` event before lifting, so the page is never revealed
     // onto a not-yet-ready backdrop. Announce readiness as soon as the video
     // can play (or has errored, or the user prefers reduced motion), with a
@@ -117,7 +118,8 @@ export default function MentorshipVideoBackground() {
       <video
         ref={videoRef}
         className="absolute inset-0 h-full w-full object-contain md:object-cover"
-        src="/mentorship-bg.mp4"
+        crossOrigin="anonymous"
+        src={MEDIA_ASSETS.mentorshipBackground.url}
         poster="/mentorship-bg-poster.webp"
         muted
         loop

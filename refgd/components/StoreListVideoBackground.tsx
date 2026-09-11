@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { MEDIA_ASSETS } from "@/lib/media-assets";
 
 /**
  * StoreListVideoBackground — fixed full-viewport video backdrop for the
@@ -11,7 +12,7 @@ import { useEffect, useRef } from "react";
  * scrim gradients is far lighter AND is the requested liquid-reflections
  * look.
  *
- * Source clip: /store-list-bg.mp4 — a seamless boomerang loop cut from a 4K
+ * Source clip: the CDN store-list montage — a seamless boomerang loop cut from a 4K
  * "multicoloured liquid reflections" recording, downscaled to 720p H.264.
  * The clip is colourful and busy, so the scrim layers below are deliberately
  * heavy: the page sits MANY readable illustrations on top (CashbackScene and
@@ -100,7 +101,8 @@ export default function StoreListVideoBackground() {
       <video
         ref={videoRef}
         className="absolute inset-0 h-full w-full object-cover"
-        src="/store-list-bg.mp4"
+        crossOrigin="anonymous"
+        src={MEDIA_ASSETS.storeListBackground.url}
         poster="/store-list-bg-poster.webp"
         muted
         loop

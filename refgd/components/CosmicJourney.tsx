@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { MEDIA_ASSETS } from "@/lib/media-assets";
 import KineticText from "./KineticText";
 
 /**
@@ -33,7 +34,7 @@ import KineticText from "./KineticText";
  */
 
 // H.264 MP4 is hardware-decoded in every browser → smooth playback.
-const VIDEO_SRC_MP4 = "/sphere-montage.mp4";
+const VIDEO_SRC_MP4 = MEDIA_ASSETS.sphereMontage.url;
 
 // Color-matched glow (desktop AND mobile) via a DUAL-BUFFER opacity crossfade.
 // The video is sampled a few times a second; its dominant color is committed to
@@ -101,6 +102,9 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     const video = videoRef.current;
     const section = sectionRef.current;
     if (!video || !section) return;
+    // The hero is sampled into a canvas below. Set CORS before any imperative
+    // source assignment (including the Blob restore and CDN fallback).
+    video.crossOrigin = "anonymous";
 
     // Sync the dual-buffer crossfade DOM state with this effect's initial JS
     // state (buffer A shown, both buffers on the cool-blue start color). The
@@ -169,6 +173,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
       if (video.dataset.blobApplied !== "1") return;
       video.dataset.blobApplied = "2";
       try {
+        video.crossOrigin = "anonymous";
         video.src = VIDEO_SRC_MP4;
         video.load();
         // Put the fallback source in place regardless, but never start decoding
@@ -301,6 +306,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         video.src !== blobUrl
       ) {
         try {
+          video.crossOrigin = "anonymous";
           video.src = blobUrl; // a direct src overrides the <source> child
           video.dataset.blobApplied = "1";
           video.load();
@@ -503,7 +509,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
     };
 
     // ── Defer the hero clip's first network load until the loading screen has
-    //    finished pre-downloading /sphere-montage.mp4 ──────────────────────────
+    //    finished pre-downloading the CDN sphere montage ────────────────────────
     // On a fresh full-page load the splash streams the whole clip into the HTTP
     // cache. If this <video> also fetches concurrently (autoPlay / preload) it
     // plays from its own half-finished stream and visibly re-buffers even though
@@ -807,6 +813,7 @@ export default function CosmicJourney({ kicker }: { kicker: string }) {
         ref={videoRef}
         aria-hidden="true"
         className="cj-hero-video absolute left-1/2 top-1/2"
+        crossOrigin="anonymous"
         muted
         loop={!reduced}
         playsInline

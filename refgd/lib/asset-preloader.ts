@@ -1,4 +1,5 @@
 "use client";
+import { MEDIA_ASSETS } from "@/lib/media-assets";
 
 /**
  * Route-aware heavy-asset preloader.
@@ -91,40 +92,42 @@ export function sceneEligible(): boolean {
 
 /**
  * Heavy CROSS-NETWORK assets a route must fully download before its content
- * is revealed. Today only the home page pulls a large remote file. Local
- * same-origin assets (e.g. the evade frame sequence) are handled by their
- * own component plus the scene-ready signal and don't need listing here.
+ * is revealed. Local same-origin assets (e.g. the evade frame sequence) are
+ * handled by their own component plus the scene-ready signal and don't need
+ * listing here.
  */
 export function heavyAssetsForPath(pathname: string): HeavyAsset[] {
   const p = norm(pathname);
   // Evade-Cancelations hero plays a ~13 MB neon-vortex MP4. Download it IN FULL
-  // behind the loading overlay — reading the body to completion warms the HTTP
-  // cache (next.config serves /uploads/* immutable for a year), so the <video>
-  // then plays straight from cache with NO buffering the instant the page is
-  // revealed. This gates the splash on the whole file, which is the desired
-  // "fully load before reveal" behaviour for this route.
+  // behind the loading overlay so the CDN-backed <video> has no buffering when
+  // the page is revealed. This gates the splash on the whole file, which is the
+  // desired "fully load before reveal" behaviour for this route.
   if (p === "/evade-cancelations") {
-    return [{ url: "/uploads/evade-hero-vortex.mp4", bytesHint: 12987759 }];
+    return [{
+      url: MEDIA_ASSETS.evadeHeroVortex.url,
+      bytesHint: MEDIA_ASSETS.evadeHeroVortex.bytes,
+    }];
   }
   // Exclusive-Mentorships hero plays an ~8 MB "Liquid Reflections" boomerang
   // loop. Download it IN FULL behind the loading overlay so the <video> plays
-  // straight from the browser's (immutable, year-long) HTTP cache the instant
-  // the page is revealed — no buffering, no pop-in. The resumable downloader
-  // below keeps this going across mobile tab suspensions, and the video
-  // component announces `refgd:scene-ready` once it can play so the splash
-  // lifts promptly. (next.config serves /mentorship-bg.* immutable.)
+  // straight from the CDN once the page is revealed — no buffering, no pop-in.
+  // The resumable downloader below keeps this going across mobile tab
+  // suspensions, and the video component announces `refgd:scene-ready` once it
+  // can play so the splash lifts promptly.
   if (p === "/exclusive-mentorships") {
-    return [{ url: "/mentorship-bg.mp4", bytesHint: 8231222 }];
+    return [{
+      url: MEDIA_ASSETS.mentorshipBackground.url,
+      bytesHint: MEDIA_ASSETS.mentorshipBackground.bytes,
+    }];
   }
   // The home page is the usual first visit, so we DO gate it: download the
-  // ~32 MB "sphere montage" hero (/sphere-montage.mp4, served immutable) in
-  // full behind the splash so the hero plays with zero buffering on reveal.
+  // ~32 MB "sphere montage" hero from the CDN in full behind the splash so the
+  // hero plays with zero buffering on reveal.
   // CosmicJourney dispatches `refgd:scene-ready` on the video's loadeddata, so
   // the splash lifts the instant the download finishes + the first frame is
   // ready (no wasted grace). On a slow first visit this is bounded by the 30 s
   // ceiling in LoadingScreen; repeat visits are instant from the immutable
-  // cache. (The 17 MB /sphere-bg.mp4 left in public/ is a stale, unused file —
-  // the live hero <video> in CosmicJourney points at /sphere-montage.mp4.)
+  // cache. (The old files left in public/ are stale, unused rollback assets.)
   if (p === "/") {
     // captureBlob: keep the exact bytes we stream here and republish them as an
     // in-memory object URL (see downloadAsset / publishHeroBlobUrl). The hero
@@ -133,7 +136,11 @@ export function heavyAssetsForPath(pathname: string): HeavyAsset[] {
     // NOT holding on desktop or iOS, so the clip re-streamed from the
     // non-edge-cached origin and buffered even though the splash had "already
     // downloaded" it.
-    return [{ url: "/sphere-montage.mp4", bytesHint: 32156163, captureBlob: true }];
+    return [{
+      url: MEDIA_ASSETS.sphereMontage.url,
+      bytesHint: MEDIA_ASSETS.sphereMontage.bytes,
+      captureBlob: true,
+    }];
   }
   return [];
 }
@@ -203,7 +210,7 @@ function waitUntilVisible(signal?: AbortSignal): Promise<void> {
 /**
  * Window key the hero <video> reads to find an in-memory object URL of the
  * fully-downloaded clip. When present the player uses it INSTEAD of streaming
- * /sphere-montage.mp4, so playback never depends on the browser reusing this
+ * the CDN sphere montage, so playback never depends on the browser reusing this
  * fetch's HTTP cache for byte-range requests. Set once and kept alive for the
  * document session (never revoked — a single ~32 MB Blob).
  */
@@ -492,7 +499,12 @@ async function revalidateMedia(url: string, cached: Response): Promise<void> {
   if (mediaRevalidated.has(url)) return;
   mediaRevalidated.add(url);
   try {
-    const head = await fetch(url, { method: "HEAD", cache: "no-store" });
+    const head = await fetch(url, {
+      method: "HEAD",
+      mode: "cors",
+      credentials: "omit",
+      cache: "no-store",
+    });
     if (!head || !head.ok) return;
     const fresh = head.headers.get("etag");
     const have = cached.headers.get("etag");
@@ -554,11 +566,23 @@ export const PREFETCHABLE_HEAVY_MEDIA: PrefetchAsset[] = [
   // Home "sphere montage" hero loop (~32 MB). It IS splash-gated on the home
   // page (see heavyAssetsForPath), so this entry only warms it when the user
   // is browsing OTHER pages — prefetchOtherRouteMedia skips the current route.
-  { url: "/sphere-montage.mp4", bytesHint: 32156163, routes: ["/"] },
+  {
+    url: MEDIA_ASSETS.sphereMontage.url,
+    bytesHint: MEDIA_ASSETS.sphereMontage.bytes,
+    routes: ["/"],
+  },
   // Evade-Cancelations neon-vortex hero.
-  { url: "/uploads/evade-hero-vortex.mp4", bytesHint: 12987759, routes: ["/evade-cancelations"] },
+  {
+    url: MEDIA_ASSETS.evadeHeroVortex.url,
+    bytesHint: MEDIA_ASSETS.evadeHeroVortex.bytes,
+    routes: ["/evade-cancelations"],
+  },
   // Exclusive-Mentorships "Liquid Reflections" hero loop.
-  { url: "/mentorship-bg.mp4", bytesHint: 8231222, routes: ["/exclusive-mentorships"] },
+  {
+    url: MEDIA_ASSETS.mentorshipBackground.url,
+    bytesHint: MEDIA_ASSETS.mentorshipBackground.bytes,
+    routes: ["/exclusive-mentorships"],
+  },
 ];
 
 const prefetchedMedia = new Set<string>();

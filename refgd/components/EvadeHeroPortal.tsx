@@ -22,6 +22,7 @@
 
 import { motion, useScroll, useSpring, useTransform } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import { MEDIA_ASSETS } from "@/lib/media-assets";
 
 export default function EvadeHeroPortal({
   caption,
@@ -162,6 +163,7 @@ export default function EvadeHeroPortal({
         <motion.video
           ref={videoRef}
           className="ev-hero-video"
+          crossOrigin="anonymous"
           style={reduceMotion ? { scale: 1.06 } : { scale: videoScale, y: videoY }}
           poster="/uploads/evade-hero-vortex-poster.webp"
           autoPlay
@@ -173,7 +175,7 @@ export default function EvadeHeroPortal({
           onLoadedData={kickPlay}
           onCanPlay={kickPlay}
         >
-          <source src="/uploads/evade-hero-vortex.mp4" type="video/mp4" />
+          <source src={MEDIA_ASSETS.evadeHeroVortex.url} type="video/mp4" />
         </motion.video>
         <div aria-hidden="true" className="ev-hero-videoscrim" />
 
