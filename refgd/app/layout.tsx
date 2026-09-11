@@ -49,7 +49,6 @@ import Cosmic3DShapes from "@/components/Cosmic3DShapes";
    already wired up — just remounting the screen here re-arms it. */
 import LoadingScreen from "@/components/LoadingScreen";
 import RouteTransitionLoader from "@/components/RouteTransitionLoader";
-import BackgroundPrefetcher from "@/components/BackgroundPrefetcher";
 import SmoothScroll from "@/components/SmoothScroll";
 import EditProvider from "@/lib/edit-context";
 import ReactDomGuard from "@/components/ReactDomGuard";
@@ -170,10 +169,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               destination's large scene is fully downloaded + painted before
               the page is revealed (light routes stay instant). */}
           <RouteTransitionLoader />
-          {/* Warms other routes' heavy hero videos into the immutable HTTP cache
-              during idle, so navigating to them is instant. Connection-aware
-              (skips Data Saver / 2g) and fire-and-forget. Renders nothing. */}
-          <BackgroundPrefetcher />
+          {/* Heavy media loads only for the route being visited. Speculative
+              downloads of other pages' videos waste ~53 MB per cold visit. */}
         </SiteChrome>
         <EditProvider initialAdmin={initialAdmin} initialContent={initialContent}>
         <EditorErrorBoundary showDetail={initialAdmin}>
