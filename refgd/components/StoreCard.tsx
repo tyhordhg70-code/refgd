@@ -133,19 +133,24 @@ export default function StoreCard({
   // Gate the deep-link auto-open on the same boot signal the scroller uses.
   const entranceReady = useEntranceReady();
 
+  // The first note link that resolves to recreated content. Kept separate
+  // from the domain fallback so the "CLICK TO READ FULL INFO" button below
+  // can be suppressed when the notes already carry a working inline trigger
+  // (otherwise PayPal cards would show TWO buttons opening the same popup).
+  const inlineInfo = useMemo<TelegraphContent | null>(() => {
+    if (!store.notes) return null;
+    const re = /\[([^\]]+)\]\(([^)]+)\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(store.notes))) {
+      const linked = getTelegraphContent(m[2]);
+      if (linked) return linked;
+    }
+    return null;
+  }, [store.notes]);
+
   // The popup this card opens when deep-linked: the first mirrored note link
   // that resolves to recreated content, else a domain match (e.g. StubHub).
-  const primaryInfo = useMemo<TelegraphContent | null>(() => {
-    if (store.notes) {
-      const re = /\[([^\]]+)\]\(([^)]+)\)/g;
-      let m: RegExpExecArray | null;
-      while ((m = re.exec(store.notes))) {
-        const linked = getTelegraphContent(m[2]);
-        if (linked) return linked;
-      }
-    }
-    return domainInfo ?? null;
-  }, [store.notes, domainInfo]);
+  const primaryInfo = inlineInfo ?? domainInfo ?? null;
 
   // Deep link: on a fresh load of /store-list#<anchorId> auto-open this card's
   // info popup. Opening is DELAYED so StoreListHashScroll's instant-scroll
@@ -331,9 +336,12 @@ export default function StoreCard({
         )}
 
         {/* Stores with no inline link (e.g. StubHub) still get an in-place
-            info popup, triggered by domain match. A <button> dodges the admin
-            edit-mode anchor click guard, same as the note-link triggers. */}
-        {domainInfo && (
+            info popup, triggered by domain match. Suppressed when the notes
+            already render a mirrored inline trigger (inlineInfo) so a card
+            never shows two buttons opening the same popup. A <button> dodges
+            the admin edit-mode anchor click guard, same as the note-link
+            triggers. */}
+        {!inlineInfo && domainInfo && (
           <button
             type="button"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfo(domainInfo); }}
