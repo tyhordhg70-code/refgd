@@ -23,6 +23,10 @@ export const INFO_CONTENT: Record<string, TelegraphEntry> = {
     "title": "Viator — Insider Event Refunds",
     "html": "<figure><img src=\"/info-img/5a1e48c047f6dd66.png\" alt=\"\" loading=\"lazy\" /><figcaption></figcaption></figure>\n<p>Viator.com INSIDER WORLDWIDE:</p>\n<p>🎟️ Ticket Limit: NO LIMIT (must be same event)</p>\n<p>💸 Price Limit: 7,000$</p>\n<p>⏳ Time Frame: INSTANT</p>\n<p><strong>Fee 35%</strong></p>\n<p>Minimum Order: $500</p>\n<p>Minimum Fee: $250</p>\n<p><strong>💬 Please message at least a day or 1-2 Hours Before The Event, and make sure we are ONLINE.</strong></p>"
   },
+  "paypal": {
+    "title": "PayPal — UA 12HRS Refunds",
+    "html": "<figure><img src=\"/info-img/be6109dfd900113a.png\" alt=\"\" loading=\"lazy\" /><figcaption></figcaption></figure>\n<p><strong>💰 PAYPAL UA 12HRS REFUNDS 💰</strong></p>\n<p>✅99.9% SUCCESS RATE</p>\n<p>✅LIMIT: 25.000</p>\n<p>✅NO ITEM LIMITS</p>\n<p>✅ 1 MINUTE TO 12 HOURS</p>\n<p>✅ ANY STORE</p>\n<p>✅ CAN BE REPEATED QUICKER THAN ANY OTHER UA (1 MONTH)</p>\n<hr />\n<p><strong>Account Requirements:</strong></p>\n<p>┄ Account Age: at least 3 months</p>\n<p>┄ Minimum Transactions: 10</p>\n<p>┄ Needs card attached to account (at least for 3 days + 3 transactions)</p>\n<p>┄ Valid Phone Number has to be linked</p>\n<p>┄ 2FA Disabled</p>\n<p>┄ No failed/open Cases</p>\n<p>┄ No Debt to PayPal open</p>\n<p>┄ Account has to be verified</p>\n<p>┄ No Data changed within last week</p>\n<p>┄ PayPal app not installed</p>\n<p><strong>WHEN READY CONTACT US FOR ORDER INSTRUCTIONS!</strong></p>\n<p><br /></p>"
+  },
   "stubhub": {
     "title": "StubHub / ViaGoGo — Event Ticket Refunds",
     "html": "<p><strong>StubHub.com</strong> | <strong>ViaGoGo.com</strong> (currently unstable success rate for USA)</p>\n<blockquote>We are taking test orders also for <em>VividSeats.com | Lysted.com and other event tickets platforms for a smaller fee, just DM us. </em></blockquote>\n<p>🎟️ Ticket Limit: 8 </p>\n<p>💸 Price Limit: 7,000 (WORLDWIDE)</p>\n<p>⏳ Time Frame: 1 week</p>\n<p><strong>Fee 35%</strong></p>\n<hr />\n<p>⚠️Please notice: </p>\n<p>Email access is required so please use a disposable email or one you don't mind sharing such as <strong>mail.com </strong></p>\n<p><br /></p>\n<p><strong>💬 Please message at least a day or 1-2 Hours Before The Event, and make sure we are ONLINE. Otherwise it will not succeed. </strong></p>\n<p><br /></p>\n<p>🔥 We are currently the only ones offering this opportunity. \nTake advantage while it lasts. \nYou can resell the tickets before the refund on competitor platforms such as \"<em>SeatGeek.com | VividSeats.com | Lysted.com\" </em>and you'll get paid out in 5-6 days after the event! (payout in PayPal for the fastest)</p>\n<p><br /></p>\n<p>Minimum Order: $300</p>\n<p>Minimum Fee: $150</p>\n<p><br /></p>\n<p><a href=\"http://t.me/refundgod\" target=\"_blank\" rel=\"noopener noreferrer\"><strong>CLICK TO CONTACT</strong></a></p>\n<p><br /></p>\n<p><br /></p>"
@@ -31,6 +35,7 @@ export const INFO_CONTENT: Record<string, TelegraphEntry> = {
 
 // telegra.ph URL path (decoded, lowercased) -> logical content id.
 const URL_PATH_TO_ID: Record<string, string> = {
+  "-08-05-2106": "paypal",
   "-08-06-2817": "hotels",
   "crypto-investment-guide-06-03": "crypto",
   "𝗥𝗲𝗳𝘂𝗻𝗱𝘀-for-your-sportsconcertmusical-events---𝗪𝗼𝗿𝗹𝗱𝘄𝗶𝗱𝗲-01-31": "viator"
@@ -38,7 +43,8 @@ const URL_PATH_TO_ID: Record<string, string> = {
 
 // Stores with an info popup but NO inline link in their notes, matched by domain.
 const DOMAIN_TO_ID: Record<string, string> = {
-  "stubhub.com": "stubhub"
+  "stubhub.com": "stubhub",
+  "paypal.com": "paypal"
 };
 
 /** Normalize any telegra.ph URL to its path key (decoded, lowercased). */
