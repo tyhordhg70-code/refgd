@@ -3379,13 +3379,13 @@ export default function CommunityChat({
                         onPaste={(e) => {
                           e.preventDefault();
                           // A pasted screenshot/photo becomes the pending
-                          // attachment (Web A parity) — except in edit mode,
-                          // where Telegram edits are text-only.
+                          // attachment (Web A parity) — in edit mode too, so
+                          // an image can be ADDED to a text-only message.
                           const items = Array.from(e.clipboardData.items);
                           const img = items.find((it) =>
                             it.type.startsWith("image/"),
                           );
-                          if (img && !chat.editing) {
+                          if (img) {
                             const file = img.getAsFile();
                             if (file) {
                               void attachImage(file);

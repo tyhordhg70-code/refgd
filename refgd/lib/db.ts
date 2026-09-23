@@ -227,6 +227,17 @@
         ALTER TABLE chat_members
           ADD COLUMN IF NOT EXISTS ban_reason TEXT;
 
+        -- Everyone who ever DMed the community bot ("/start" included). This
+        -- is part of the @everyone broadcast audience: Telegram only lets a
+        -- bot DM users who started it, and chat_members alone misses people
+        -- who talked to the bot but never opened the Mini App.
+        CREATE TABLE IF NOT EXISTS community_bot_users (
+          chat_id    BIGINT PRIMARY KEY,
+          name       TEXT NOT NULL DEFAULT '',
+          first_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          last_seen  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
         -- IP + device-fingerprint ban enforcement (owner ask). Every sign-in
         -- records SALTED SHA-256 HASHES of the member's device signals — the
         -- raw IP / fingerprint is never stored, so nothing sensitive can leak

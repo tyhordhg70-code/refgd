@@ -2713,6 +2713,8 @@ export interface MessageEditInfo {
   tgId: string;
   deleted: boolean;
   body: string;
+  /** NULL while the message is text-only — an edit may then ADD a photo. */
+  mediaId: string | null;
 }
 
 export async function getMessageEditInfo(
@@ -2723,12 +2725,16 @@ export async function getMessageEditInfo(
     tg_id: string;
     deleted: boolean;
     body: string | null;
-  }>(`SELECT tg_id, deleted, body FROM chat_messages WHERE id = $1`, [id]);
+    media_id: string | null;
+  }>(`SELECT tg_id, deleted, body, media_id FROM chat_messages WHERE id = $1`, [
+    id,
+  ]);
   if (!rows[0]) return null;
   return {
     tgId: String(rows[0].tg_id),
     deleted: Boolean(rows[0].deleted),
     body: String(rows[0].body ?? ""),
+    mediaId: rows[0].media_id ? String(rows[0].media_id) : null,
   };
 }
 
@@ -2742,19 +2748,42 @@ export async function editChatMessage(
   id: string,
   body: string,
   viewerTid: string | null,
+  /** When set (and the message was text-only), the edit ATTACHES this media. */
+  mediaId: string | null = null,
 ): Promise<ChatMessage | null> {
   await initDb();
+  const { rows: updated } = await getPool().query<{ id: string }>(
+    mediaId
+      ? `UPDATE chat_messages m
+            SET body = $2, edited_at = NOW(), media_id = $3
+          WHERE m.id = $1 AND m.deleted = FALSE
+          RETURNING m.id`
+      : `UPDATE chat_messages m
+            SET body = $2, edited_at = NOW()
+          WHERE m.id = $1 AND m.deleted = FALSE
+          RETURNING m.id`,
+    mediaId ? [id, body, mediaId] : [id, body],
+  );
+  if (!updated[0]) return null;
+  // Re-read with the canonical joins (same field list as listChatMessages) so
+  // a just-attached photo returns its dims/kind — the bubble reserves layout
+  // space instead of popping in — and the link-preview card survives the edit.
   const { rows } = await getPool().query<ChatMsgRow>(
-    `UPDATE chat_messages m
-        SET body = $2, edited_at = NOW()
-      WHERE m.id = $1 AND m.deleted = FALSE
-      RETURNING m.id, m.tg_id, m.author_name, m.body, m.media_id, m.pinned,
-                m.created_at, m.edited_at,
-                (SELECT photo_url FROM chat_members WHERE tg_id = m.tg_id) AS photo_url,
-                m.reply_to,
-                (SELECT author_name FROM chat_messages r WHERE r.id = m.reply_to) AS reply_author,
-                (SELECT body FROM chat_messages r WHERE r.id = m.reply_to) AS reply_body`,
-    [id, body],
+    `SELECT m.id, m.tg_id, m.author_name, m.body, m.media_id,
+            md.w AS media_w, md.h AS media_h,
+            md.kind AS media_kind, md.duration AS media_duration,
+            md.poster_id AS media_poster, md.name AS media_name,
+            octet_length(md.bytes) AS media_bytes,
+            m.pinned, m.created_at,
+            m.edited_at, m.expires_at, cm.photo_url,
+            m.reply_to, rm.author_name AS reply_author, rm.body AS reply_body,
+            m.link_preview
+       FROM chat_messages m
+       LEFT JOIN chat_members cm ON cm.tg_id = m.tg_id
+       LEFT JOIN chat_messages rm ON rm.id = m.reply_to
+       LEFT JOIN chat_media md ON md.id = m.media_id
+      WHERE m.id = $1`,
+    [id],
   );
   if (!rows[0]) return null;
   const [msg] = await attachReactions(rows, viewerTid);
@@ -2998,6 +3027,53 @@ export async function getAllMemberTgIds(): Promise<string[]> {
       WHERE is_banned = FALSE AND tg_id IS NOT NULL`,
   );
   return rows.map((r) => String(r.tg_id));
+}
+
+/**
+ * Record a bot DM (webhook) so the @everyone broadcast can also reach users
+ * who started the bot but never opened the Mini App. Fire-and-forget — a
+ * failure here must never break the webhook's reply.
+ */
+export async function recordCommunityBotUser(
+  chatId: string | number,
+  name = "",
+): Promise<void> {
+  const id = String(chatId);
+  if (!/^\d+$/.test(id)) return;
+  await initDb();
+  await getPool().query(
+    `INSERT INTO community_bot_users (chat_id, name)
+     VALUES ($1, $2)
+     ON CONFLICT (chat_id) DO UPDATE
+       SET last_seen = NOW(),
+           name = CASE WHEN EXCLUDED.name <> ''
+                       THEN EXCLUDED.name
+                       ELSE community_bot_users.name END`,
+    [id, name.slice(0, 128)],
+  );
+}
+
+/**
+ * The @everyone audience: every non-banned Mini App member PLUS everyone who
+ * ever DMed the bot, minus banned members and the bot's own stub row. This
+ * deliberately ignores notification opt-ins — @everyone is the owner's
+ * override, like Discord.
+ */
+export async function getAllCommunityReachableTgIds(): Promise<string[]> {
+  await initDb();
+  const { rows } = await getPool().query<{ id: string }>(
+    `SELECT id FROM (
+       SELECT tg_id::text AS id FROM chat_members
+        WHERE is_banned = FALSE AND tg_id IS NOT NULL
+       UNION
+       SELECT chat_id::text AS id FROM community_bot_users
+        WHERE chat_id NOT IN (
+          SELECT tg_id FROM chat_members WHERE is_banned = TRUE
+        )
+     ) u
+     WHERE id <> '0'`,
+  );
+  return rows.map((r) => String(r.id));
 }
 
 /** Current opt-in state for a member (web + telegram), for settings UI. */

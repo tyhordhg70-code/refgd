@@ -15,6 +15,7 @@ import {
   addVouchMedia,
   countVouches,
   recordAction,
+  recordCommunityBotUser,
   enqueuePendingForward,
   claimForwardPrompt,
   claimForwardPromptRefresh,
@@ -813,6 +814,16 @@ export async function POST(req: Request) {
   }
 
   const fromId = msg.from?.id;
+
+  // @everyone reachability ledger: Telegram only lets a bot DM users who
+  // started it, so everyone who DMs the bot ("/start" included) is recorded
+  // here — the owner's @everyone broadcast fans out to this table PLUS Mini
+  // App members. Fire-and-forget: recording must never delay the reply.
+  void recordCommunityBotUser(
+    chatId,
+    fullName(msg.from?.first_name, msg.from?.last_name) ?? "",
+  ).catch(() => undefined);
+
   if (!isCommunityAdmin(fromId)) {
     // Members hit this gate before the slash-command block, so their Mini App
     // launcher MUST live here — without it Mini-App-only access locks them out.

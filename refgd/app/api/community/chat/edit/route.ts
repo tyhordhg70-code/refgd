@@ -8,6 +8,7 @@ import {
   matchBlocklist,
   recordAction,
   rewriteMentions,
+  saveChatMedia,
 } from "@/lib/community";
 
 export const runtime = "nodejs";
@@ -15,8 +16,43 @@ export const dynamic = "force-dynamic";
 
 const MAX_BODY = 2000;
 
+/** Same 3 MB photo cap as the send path (client downscales before upload). */
+const MAX_MEDIA_BYTES = 3 * 1024 * 1024;
+
 /**
- * POST /api/community/chat/edit — edit a message body in place.
+ * Sniff the actual image type from magic bytes — never trust the client's
+ * declared Content-Type for stored/served media. (Copy of the send route's
+ * sniffer; keep in sync.)
+ */
+function sniffImageMime(buf: Buffer): string | null {
+  if (buf.length < 12) return null;
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff)
+    return "image/jpeg";
+  if (
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47
+  )
+    return "image/png";
+  if (
+    buf.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buf.subarray(8, 12).toString("ascii") === "WEBP"
+  )
+    return "image/webp";
+  if (
+    buf.subarray(0, 6).toString("ascii") === "GIF87a" ||
+    buf.subarray(0, 6).toString("ascii") === "GIF89a"
+  )
+    return "image/gif";
+  return null;
+}
+
+/**
+ * POST /api/community/chat/edit — edit a message body in place. Accepts JSON
+ * (text-only edit) or multipart/form-data with a `photo` field, which ATTACHES
+ * an image to a text-only message (Telegram parity: pasting an image into the
+ * composer while editing).
  *
  * A member may edit their OWN live message; an admin may edit any. The message
  * must still be live (a deleted message can't be resurrected). Non-admin edits
@@ -34,13 +70,77 @@ export async function POST(req: Request) {
   }
 
   let payload: { id?: unknown; body?: unknown };
-  try {
-    payload = (await req.json()) as { id?: unknown; body?: unknown };
-  } catch {
-    return NextResponse.json(
-      { ok: false, error: "Invalid JSON" },
-      { status: 400 },
-    );
+  let photo: {
+    bytes: Buffer;
+    mime: string;
+    w: number | null;
+    h: number | null;
+  } | null = null;
+  if ((req.headers.get("content-type") ?? "").includes("multipart/form-data")) {
+    // Reject oversized bodies BEFORE formData() buffers them in memory.
+    const bodyLen = Number(req.headers.get("content-length"));
+    if (
+      Number.isFinite(bodyLen) &&
+      bodyLen > MAX_MEDIA_BYTES + 64 * 1024
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "Upload is too large" },
+        { status: 413 },
+      );
+    }
+    let form: FormData;
+    try {
+      form = await req.formData();
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: "Invalid upload" },
+        { status: 400 },
+      );
+    }
+    payload = { id: form.get("id"), body: form.get("text") };
+    const file = form.get("photo");
+    if (file instanceof Blob) {
+      if (file.size > MAX_MEDIA_BYTES) {
+        return NextResponse.json(
+          { ok: false, error: "Image is too large (max 3 MB)" },
+          { status: 413 },
+        );
+      }
+      const bytes = Buffer.from(await file.arrayBuffer());
+      const mime = sniffImageMime(bytes);
+      if (!mime) {
+        return NextResponse.json(
+          { ok: false, error: "Unsupported image type" },
+          { status: 415 },
+        );
+      }
+      // Intrinsic pixel size measured client-side during the downscale, so
+      // the bubble can reserve layout space before the image loads.
+      const wRaw = Number(form.get("mediaW"));
+      const hRaw = Number(form.get("mediaH"));
+      const dimsOk =
+        Number.isInteger(wRaw) &&
+        Number.isInteger(hRaw) &&
+        wRaw > 0 &&
+        hRaw > 0 &&
+        wRaw <= 10000 &&
+        hRaw <= 10000;
+      photo = {
+        bytes,
+        mime,
+        w: dimsOk ? wRaw : null,
+        h: dimsOk ? hRaw : null,
+      };
+    }
+  } else {
+    try {
+      payload = (await req.json()) as { id?: unknown; body?: unknown };
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: "Invalid JSON" },
+        { status: 400 },
+      );
+    }
   }
 
   const id =
@@ -64,7 +164,7 @@ export async function POST(req: Request) {
     body = body.replace(/^(?:\[fwd:[^\]\n]{1,64}\]\n?)+/, "").trim();
   }
   body = body.replace(/\[(?:voice|poll):[^\]\n]*\]/g, "").trim();
-  if (!body) {
+  if (!body && !photo) {
     return NextResponse.json(
       { ok: false, error: "Message is empty" },
       { status: 400 },
@@ -91,6 +191,15 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { ok: false, error: "Forwarded messages can't be edited" },
       { status: 403 },
+    );
+  }
+  // Adding a photo on edit is only defined for a text-only message — real
+  // Telegram can also SWAP media, but that needs album/poster bookkeeping we
+  // don't do here, so media messages stay media-locked for now.
+  if (photo && info.mediaId) {
+    return NextResponse.json(
+      { ok: false, error: "That message already has media" },
+      { status: 409 },
     );
   }
   if (!me.admin && info.tgId !== me.tid) {
@@ -137,7 +246,7 @@ export async function POST(req: Request) {
   // edit composer seeds tokens back as plain `@Name` text, so re-matching
   // here keeps mentions blue (and un-matching text plain) after an edit.
   body = await rewriteMentions(body);
-  if (!body) {
+  if (!body && !photo) {
     return NextResponse.json(
       { ok: false, error: "Message is empty" },
       { status: 400 },
@@ -148,7 +257,12 @@ export async function POST(req: Request) {
   // as the send path (fail-soft, cache-first serve route).
   await discoverMessageEmoji(body);
 
-  const message = await editChatMessage(id, body, me.tid);
+  // Save the photo first — if the UPDATE then fails, the orphaned media row
+  // is simply unreachable (no message references its id).
+  const mediaId = photo
+    ? await saveChatMedia(photo.bytes, photo.mime, photo.w, photo.h)
+    : null;
+  const message = await editChatMessage(id, body, me.tid, mediaId);
   if (!message) {
     return NextResponse.json(
       { ok: false, error: "Message not found" },
@@ -161,7 +275,7 @@ export async function POST(req: Request) {
     actorName: me.name,
     action: "edit-message",
     target: info.tgId,
-    meta: { id },
+    meta: { id, mediaAdded: Boolean(mediaId) },
   }).catch(() => undefined);
 
   return NextResponse.json({ ok: true, message });

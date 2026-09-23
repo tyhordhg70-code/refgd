@@ -60,6 +60,28 @@ export function isCommunityAdmin(
   return communityAdminIds().has(String(id));
 }
 
+/**
+ * The OWNER is the first id in COMMUNITY_ADMIN_TG_IDS (the list is
+ * owner-first by convention). Owner-only powers — currently the @everyone
+ * broadcast — hang off this so other admins can moderate without being able
+ * to ping every member.
+ */
+export function communityOwnerId(): string | null {
+  const first = (process.env.COMMUNITY_ADMIN_TG_IDS ?? "")
+    .split(/[,\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)[0];
+  return first ?? null;
+}
+
+export function isCommunityOwner(
+  id: string | number | undefined | null,
+): boolean {
+  if (id === undefined || id === null) return false;
+  const owner = communityOwnerId();
+  return owner !== null && String(id) === owner;
+}
+
 export async function sendCommunityTelegram(
   chatId: string | number,
   text: string,

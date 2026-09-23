@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { readMemberSession } from "@/lib/community-auth";
 import {
   getCommunityBotUsername,
+  isCommunityOwner,
   sendCommunityTelegram,
 } from "@/lib/community-bot";
 import {
@@ -945,9 +946,9 @@ export async function POST(req: Request) {
   }
 
   // Mention pings — fire-and-forget, never blocking or failing the send.
-  // Each mentioned member gets a bot DM naming who mentioned them; an
-  // admin's @everyone broadcasts to the whole community (web push + DMs),
-  // exactly like a pin. A non-admin's "@everyone" stays plain text.
+  // Each mentioned member gets a bot DM naming who mentioned them; the
+  // owner's @everyone broadcasts to the whole community (web push + DMs),
+  // exactly like a pin. A non-owner's "@everyone" stays plain text.
   if (message && text) {
     const targets = mentionedTgIds(text).filter(
       (id) => id !== me.tid && id !== BOT_MEMBER_TG_ID,
@@ -975,12 +976,26 @@ export async function POST(req: Request) {
         }
       })();
     }
-    if (me.admin && /(^|\s)@everyone\b/i.test(text)) {
-      void notifyAll({
-        title: `${me.name} mentioned everyone`,
-        body: snippet || "New message in the Group Chat",
-        url: "/community#chat",
-      }).catch(() => undefined);
+    // @everyone is the OWNER's broadcast (Discord parity): DMs every
+    // reachable member — Mini App members AND people who only ever /started
+    // the bot — ignoring notification opt-ins, with a deep link straight to
+    // the post. Anyone else's "@everyone" stays plain text.
+    if (isCommunityOwner(me.tid) && /(^|\s)@everyone\b/i.test(text)) {
+      void (async () => {
+        const bot = await getCommunityBotUsername().catch(() => null);
+        const appUrl = bot
+          ? buildMiniAppLink(bot, buildStartParam(topic, message.id))
+          : `https://refundgod.io/community#${topic}`;
+        await notifyAll(
+          {
+            title: `${me.name} mentioned everyone`,
+            body: snippet || "New message in the community",
+            url: `/community#${topic}`,
+            button: { text: "Open", url: appUrl },
+          },
+          { exclude: [me.tid, BOT_MEMBER_TG_ID] },
+        );
+      })().catch(() => undefined);
     }
   }
 

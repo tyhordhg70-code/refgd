@@ -1223,17 +1223,45 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
   // Edit a message body in place. Returns whether the edit succeeded; the
   // refreshed (edited_at-stamped) message is merged back on success.
   const editMessage = useCallback(
-    async (id: string, body: string): Promise<boolean> => {
+    async (
+      id: string,
+      body: string,
+      // The composer's pending-attachment shape (only what an edit needs).
+      attachment?: {
+        kind: "photo" | "video" | "file";
+        blob: Blob;
+        w: number | null;
+        h: number | null;
+      } | null,
+    ): Promise<boolean> => {
       const trimmed = body.trim();
-      if (!trimmed) return false;
+      if (!trimmed && !attachment) return false;
       setError(null);
       setSystemNote(null);
       try {
-        const res = await fetch("/api/community/chat/edit", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, body: trimmed }),
-        });
+        let res: Response;
+        if (attachment) {
+          // Photo added during an edit (Telegram parity): multipart, same
+          // field names as the send path so the route parses both alike.
+          const form = new FormData();
+          form.append("id", id);
+          form.append("text", trimmed);
+          form.append("photo", attachment.blob, "photo.jpg");
+          if (attachment.w && attachment.h) {
+            form.append("mediaW", String(attachment.w));
+            form.append("mediaH", String(attachment.h));
+          }
+          res = await fetch("/api/community/chat/edit", {
+            method: "POST",
+            body: form,
+          });
+        } else {
+          res = await fetch("/api/community/chat/edit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, body: trimmed }),
+          });
+        }
         const data = (await res.json().catch(() => null)) as {
           ok?: boolean;
           error?: string;
@@ -1311,15 +1339,24 @@ export function useCommunityChat(topic: ChatTopic = "chat") {
   const send = useCallback(async () => {
     const body = text.trim();
     // Composer edit mode: the submit routes to the edit endpoint instead of a
-    // new post (no attachment/reply while editing).
+    // new post (no reply while editing; a pasted PHOTO may be attached to a
+    // text-only message — Telegram parity).
     if (editing) {
-      if (!body || sending) return;
+      if ((!body && !attachment) || sending) return;
+      if (
+        attachment &&
+        (attachment.kind === "video" || attachment.kind === "file")
+      ) {
+        setError("Only photos can be added while editing");
+        return;
+      }
       setSending(true);
-      const ok = await editMessage(editing.id, body);
+      const ok = await editMessage(editing.id, body, attachment);
       setSending(false);
       if (ok) {
         setEditing(null);
         setText("");
+        setAttachment(null);
       }
       return;
     }
