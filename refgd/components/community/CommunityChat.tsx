@@ -1481,7 +1481,9 @@ export default function CommunityChat({
       if (m.tgId === me.tid) continue;
       if (
         m.body.includes(`[m:${me.tid}:`) ||
-        (m.isAdmin && /(^|\s)@everyone\b/i.test(m.body))
+        (me.ownerTid != null &&
+          m.tgId === me.ownerTid &&
+          /(^|\s)@everyone\b/i.test(m.body))
       ) {
         out.push(m.id);
       }
@@ -1517,7 +1519,7 @@ export default function CommunityChat({
           snippet: `@${n.startsWith("@") ? n.slice(1) : n} `,
           emoji: null as string | null,
         }));
-      if (me?.admin && "everyone".startsWith(p)) {
+      if (me?.tid && me.tid === me.ownerTid && "everyone".startsWith(p)) {
         items.unshift({
           key: "@everyone",
           label: "@everyone — notify all members",

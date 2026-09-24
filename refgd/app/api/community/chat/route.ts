@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readMemberSession } from "@/lib/community-auth";
 import {
+  communityOwnerId,
   getCommunityBotUsername,
   isCommunityOwner,
   sendCommunityTelegram,
@@ -235,7 +236,9 @@ async function buildChatState(
   }
 
   return {
-    me,
+    // ownerTid gates every client-side @everyone affordance (autocomplete,
+    // unread-mention highlight) so only the OWNER's broadcast looks special.
+    me: me ? { ...me, ownerTid: communityOwnerId() } : null,
     messages: banned ? [] : messages,
     memberCount: showCount ? memberCount : null,
     hideMembers,

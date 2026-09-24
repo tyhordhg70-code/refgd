@@ -134,6 +134,8 @@ export interface Member {
   name: string;
   photo: string | null;
   admin: boolean;
+  /** Chat GET only: the owner's Telegram id — gates the @everyone UI. */
+  ownerTid?: string | null;
 }
 
 export interface ChatState {

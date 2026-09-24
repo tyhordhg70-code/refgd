@@ -1035,6 +1035,10 @@ export async function rewriteMentions(text: string): Promise<string> {
     for (const m of sorted) {
       const typed = m.name.startsWith("@") ? m.name.slice(1) : m.name;
       if (!typed) continue;
+      // "@everyone" is a reserved broadcast token (the owner's notifyAll
+      // ping), never a member mention — even if someone names themselves
+      // "everyone", rewriting it to [m:…] would swallow the broadcast.
+      if (typed.toLowerCase() === "everyone") continue;
       const re = new RegExp(
         `@${typed.replace(RE_ESCAPE, "\\$&")}(?![\\w@])`,
         "gi",
@@ -2754,9 +2758,11 @@ export async function editChatMessage(
   await initDb();
   const { rows: updated } = await getPool().query<{ id: string }>(
     mediaId
-      ? `UPDATE chat_messages m
+      ? // media_id IS NULL makes concurrent attach-on-edit requests lose the
+        // race atomically instead of overwriting each other's photo.
+        `UPDATE chat_messages m
             SET body = $2, edited_at = NOW(), media_id = $3
-          WHERE m.id = $1 AND m.deleted = FALSE
+          WHERE m.id = $1 AND m.deleted = FALSE AND m.media_id IS NULL
           RETURNING m.id`
       : `UPDATE chat_messages m
             SET body = $2, edited_at = NOW()

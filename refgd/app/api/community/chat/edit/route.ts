@@ -264,6 +264,17 @@ export async function POST(req: Request) {
     : null;
   const message = await editChatMessage(id, body, me.tid, mediaId);
   if (!message) {
+    // The media_id IS NULL guard makes a concurrent attach lose the race
+    // instead of silently overwriting the winner — surface it as a conflict.
+    if (photo) {
+      const after = await getMessageEditInfo(id).catch(() => null);
+      if (after && !after.deleted && after.mediaId) {
+        return NextResponse.json(
+          { ok: false, error: "That message already has media" },
+          { status: 409 },
+        );
+      }
+    }
     return NextResponse.json(
       { ok: false, error: "Message not found" },
       { status: 404 },
