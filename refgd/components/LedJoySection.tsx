@@ -325,7 +325,10 @@ export default function LedJoySection() {
           <div className="jb3-jumper-stage">
             <div className="jb3-img-human-wrap">
               <div className="jb3-img-glow" />
-              <img src="/illustrations/joy-shoppers.png" alt="" loading="lazy" className="jb3-img-human" />
+              {/* Eager on purpose: admin section order can put this section
+                  first, making the illustration above the fold — lazy would
+                  blank it during the entrance. */}
+              <img src="/illustrations/joy-shoppers.png" alt="" className="jb3-img-human" />
             </div>
           </div>
         </div>

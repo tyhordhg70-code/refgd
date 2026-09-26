@@ -68,7 +68,16 @@ export default function Hero3D({
         my.set((lastY - r.top) / r.height - 0.5);
       });
     };
-    const onLeave = () => { mx.set(0); my.set(0); };
+    const onLeave = () => {
+      // Cancel any queued frame first — otherwise it re-applies the stale
+      // pointer position AFTER the reset and leaves the hero tilted.
+      if (rafMove) {
+        cancelAnimationFrame(rafMove);
+        rafMove = 0;
+      }
+      mx.set(0);
+      my.set(0);
+    };
     window.addEventListener("mousemove", onMove, { passive: true });
     el.addEventListener("mouseleave", onLeave);
     return () => {

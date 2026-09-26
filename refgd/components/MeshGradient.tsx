@@ -87,20 +87,25 @@ export default function MeshGradient({
         raf = 0;
       }
     };
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) start();
-          else stop();
-        }
-      },
-      { rootMargin: "400px 0px 400px 0px", threshold: 0 },
-    );
-    io.observe(cnv);
+    // Ancient browsers without IntersectionObserver just run the loop
+    // continuously, exactly as before — never a blank canvas.
+    const io =
+      typeof IntersectionObserver === "undefined"
+        ? null
+        : new IntersectionObserver(
+            (entries) => {
+              for (const entry of entries) {
+                if (entry.isIntersecting) start();
+                else stop();
+              }
+            },
+            { rootMargin: "400px 0px 400px 0px", threshold: 0 },
+          );
+    io?.observe(cnv);
     start();
 
     return () => {
-      io.disconnect();
+      io?.disconnect();
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
     };
