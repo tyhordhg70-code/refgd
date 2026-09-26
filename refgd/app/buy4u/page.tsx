@@ -1149,13 +1149,9 @@ export default function Buy4uPage() {
         }</style>
         {/* Gradient animation layer */}
         <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-          {/* will-change promotes each pulsing gradient to a cached GPU
-              texture — the infinite scale/rotate/opacity then composites
-              instead of re-rasterising a full-viewport layer every frame.
-              Zero visual change. */}
-          <div className="absolute inset-0" style={{background:"radial-gradient(ellipse 70% 60% at 20% 40%, rgba(124,58,237,0.18) 0%, transparent 70%)",animation:"gradientPulse 9s ease-in-out infinite",willChange:"transform,opacity"}} />
-          <div className="absolute inset-0" style={{background:"radial-gradient(ellipse 60% 50% at 80% 70%, rgba(56,189,248,0.12) 0%, transparent 65%)",animation:"gradientPulse2 11s ease-in-out infinite",willChange:"transform,opacity"}} />
-          <div className="absolute inset-0" style={{background:"radial-gradient(ellipse 50% 40% at 50% 10%, rgba(245,158,11,0.07) 0%, transparent 60%)",animation:"gradientPulse 13s ease-in-out infinite reverse",willChange:"transform,opacity"}} />
+          <div className="absolute inset-0" style={{background:"radial-gradient(ellipse 70% 60% at 20% 40%, rgba(124,58,237,0.18) 0%, transparent 70%)",animation:"gradientPulse 9s ease-in-out infinite"}} />
+          <div className="absolute inset-0" style={{background:"radial-gradient(ellipse 60% 50% at 80% 70%, rgba(56,189,248,0.12) 0%, transparent 65%)",animation:"gradientPulse2 11s ease-in-out infinite"}} />
+          <div className="absolute inset-0" style={{background:"radial-gradient(ellipse 50% 40% at 50% 10%, rgba(245,158,11,0.07) 0%, transparent 60%)",animation:"gradientPulse 13s ease-in-out infinite reverse"}} />
         </div>
         <ParticleCanvas />
         <main className="relative z-10 container-px py-12">

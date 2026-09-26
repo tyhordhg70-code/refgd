@@ -46,9 +46,6 @@ export default function AnimatedTelegramBox() {
     <div
       aria-hidden="true"
       data-testid="animated-telegram-box"
-      // Freeze the star/float/glow/ring keyframes while the section is
-      // scrolled away (OffscreenGlowPauser) — zero visual change.
-      data-anim-section
       className="tg-inner-clip absolute inset-0 overflow-hidden"
       style={{
         // iOS WebKit treats the `transparent` keyword in a gradient as
@@ -144,7 +141,10 @@ export default function AnimatedTelegramBox() {
           wider, softer radial-gradient (alpha→0, not the `transparent` keyword
           which iOS treats as rgba(0,0,0,0)) reads as the same glow with no
           compositor blur layer. Desktop keeps the blurred halo unchanged. */}
+      {/* data-anim-freeze: halo pulse is infinite-only, so OffscreenGlowPauser
+          freezes it offscreen; the one-shot rings/logo entrance stay live. */}
       <div
+        data-anim-freeze
         style={{
           position: "absolute", left: clusterLeft, top: clusterTop,
           width: isMobile ? 260 : 210, height: isMobile ? 260 : 210,
@@ -178,6 +178,7 @@ export default function AnimatedTelegramBox() {
         }}
       >
         <div
+          data-anim-freeze
           style={{
             animation: reduced || isMobile ? undefined : "tg3-float 5.5s 1.7s ease-in-out infinite",
             // iOS WebKit renders `filter: drop-shadow()` inside the rounded,

@@ -171,10 +171,6 @@ export default function GalaxyBackground() {
             "linear-gradient(180deg, #0b0820 0%, #1a0e3a 35%, #0a0820 70%, #07061a 100%)",
           backgroundSize: "180% 180%, 200% 200%, 100% 280%",
           animation: "bgPulseSlow 22s ease-in-out infinite",
-          // Promote to a cached GPU layer: the full-viewport hue-rotate then
-          // costs one cheap filter COMPOSITE per frame instead of a
-          // full-screen re-raster. Zero visual change.
-          willChange: "filter",
         }}
       />
       {/* v6.14.6 — REMOVED radial vignette overlay. Previously a fixed

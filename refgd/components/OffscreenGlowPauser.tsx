@@ -40,6 +40,15 @@ import { useEffect } from "react";
  */
 const GLOW_SELECTOR = '[class*="pi-glow"],[class*="outer-glow"],[class*="pulse-glow"]';
 const SECTION_SELECTOR = "[data-anim-section]";
+/**
+ * Element-level opt-in for sections that mix infinite loops with one-shot
+ * CSS entrances (where the blanket data-anim-section freeze would stall an
+ * entrance at opacity:0). Mark the specific infinite-animated layers with
+ * data-anim-freeze; `consider()` still verifies the computed iteration
+ * count is `infinite`, so a mis-marked one-shot element is never paused.
+ */
+const FREEZE_SELECTOR = "[data-anim-freeze]";
+const SCAN_SELECTOR = `${GLOW_SELECTOR},${FREEZE_SELECTOR}`;
 
 export default function OffscreenGlowPauser() {
   useEffect(() => {
@@ -97,8 +106,8 @@ export default function OffscreenGlowPauser() {
     };
 
     const scan = (root: ParentNode) => {
-      if (root instanceof Element && root.matches(GLOW_SELECTOR)) consider(root);
-      root.querySelectorAll(GLOW_SELECTOR).forEach(consider);
+      if (root instanceof Element && root.matches(SCAN_SELECTOR)) consider(root);
+      root.querySelectorAll(SCAN_SELECTOR).forEach(consider);
     };
 
     const scanSections = (root: ParentNode) => {
@@ -111,7 +120,7 @@ export default function OffscreenGlowPauser() {
         io.unobserve(root);
         observed.delete(root);
       }
-      root.querySelectorAll(GLOW_SELECTOR).forEach((el) => {
+      root.querySelectorAll(SCAN_SELECTOR).forEach((el) => {
         if (observed.has(el)) {
           io.unobserve(el);
           observed.delete(el);
