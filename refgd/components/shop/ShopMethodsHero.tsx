@@ -31,7 +31,7 @@
     const frozen = useVouchesOpen();
 
     return (
-      <section className="relative z-10 pt-0 pb-8 sm:pt-4 sm:pb-12 overflow-x-clip">
+      <section data-anim-section className="relative z-10 pt-0 pb-8 sm:pt-4 sm:pb-12 overflow-x-clip">
         <style dangerouslySetInnerHTML={{ __html:
           `@keyframes shopHeroBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
            @media(prefers-reduced-motion:reduce){.shop-hero-bob{animation:none!important}}`

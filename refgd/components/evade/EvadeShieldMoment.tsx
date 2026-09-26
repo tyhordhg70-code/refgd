@@ -19,7 +19,7 @@ import HudEyebrow from "./HudEyebrow";
  */
 export default function EvadeShieldMoment() {
   return (
-    <section className="relative z-10 overflow-hidden py-24 sm:py-32">
+    <section data-anim-section className="relative z-10 overflow-hidden py-24 sm:py-32">
       {/* faint full-width baseline rule + mono coordinates (HUD furniture) */}
       <div className="pointer-events-none absolute inset-x-0 top-1/2 hidden -translate-y-1/2 lg:block" aria-hidden>
         <div className="container-wide">

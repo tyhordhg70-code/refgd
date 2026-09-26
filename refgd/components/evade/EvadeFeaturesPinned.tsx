@@ -26,7 +26,7 @@ const FEATURES: { title: string; body: string; tint: "cyan" | "violet" | "amber"
  */
 export default function EvadeFeaturesPinned() {
   return (
-    <section className="relative z-10 py-20 sm:py-28">
+    <section data-anim-section className="relative z-10 py-20 sm:py-28">
       <div className="container-wide">
         <div className="mb-10 flex flex-col items-start gap-5">
           <HudEyebrow editId="evade.features.eyebrow" defaultValue="chapter 04 / features" accent="amber" />

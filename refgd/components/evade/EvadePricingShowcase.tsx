@@ -57,7 +57,7 @@ const PRICING = [
  */
 export default function EvadePricingShowcase() {
   return (
-    <section className="relative z-10 py-24" id="Learn">
+    <section data-anim-section className="relative z-10 py-24" id="Learn">
       <div className="container-wide relative">
         <div className="flex flex-col items-start gap-5">
           <HudEyebrow editId="evade.ch4.eyebrow" defaultValue="Get started, today" accent="amber" />

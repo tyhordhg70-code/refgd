@@ -75,6 +75,10 @@ export default function LedTicker({
   return (
     <div
       ref={wrapRef}
+      // Lets OffscreenGlowPauser freeze the marquee track when fully
+      // offscreen (+400px resume margin) — zero visual change, big
+      // compositor relief on long pages.
+      data-anim-section
       className={`led-ticker lt ${hidden ? "lt-hidden" : ""} relative w-full overflow-hidden border-y border-white/[0.07] ${className}`}
       style={{ ["--led-accent" as string]: accent }}
     >

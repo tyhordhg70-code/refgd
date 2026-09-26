@@ -43,7 +43,7 @@ export default function ShopMethodsGrid({ categories }: { categories: Category[]
   const bobPaused = reduced || frozen;
 
   return (
-    <section id="categories" className="relative z-10 py-16 sm:py-24 overflow-x-clip">
+    <section id="categories" data-anim-section className="relative z-10 py-16 sm:py-24 overflow-x-clip">
       {/* One shared keyframe; each card sets its own duration/delay via inline style */}
       <style dangerouslySetInnerHTML={{ __html:
         `@keyframes shopCardBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}

@@ -46,6 +46,9 @@ export default function AnimatedTelegramBox() {
     <div
       aria-hidden="true"
       data-testid="animated-telegram-box"
+      // Freeze the star/float/glow/ring keyframes while the section is
+      // scrolled away (OffscreenGlowPauser) — zero visual change.
+      data-anim-section
       className="tg-inner-clip absolute inset-0 overflow-hidden"
       style={{
         // iOS WebKit treats the `transparent` keyword in a gradient as

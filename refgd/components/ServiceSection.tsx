@@ -52,6 +52,10 @@ function WastingTimeIllustration({ size }: { size: number }) {
        than a simple vertical bounce. */
   return (
     <motion.div
+      // OffscreenGlowPauser freezes the infinite wtGlowPulse blur while this
+      // orb is scrolled away; the framer whileInView entrance is WAAPI/JS and
+      // unaffected by animation-play-state. Zero visual change.
+      data-anim-section
       initial={reduce ? { opacity: 1 } : { opacity: 0, y: 60, scale: 0.94 }}
       whileInView={{ opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, amount: 0.25 }}

@@ -110,6 +110,9 @@ export default function MentorshipHero({
       ref={wrap}
       className="relative h-[130svh] overflow-clip sm:h-[180svh]"
       data-testid="mentorship-hero"
+      // Freeze the infinite star/shooting-star keyframes while the hero is
+      // scrolled away (OffscreenGlowPauser) — zero visual change.
+      data-anim-section
     >
       {/* Inner sticky canvas — pins to viewport while the outer runway
           scrolls past. */}
