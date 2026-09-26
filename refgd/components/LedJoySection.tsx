@@ -325,7 +325,7 @@ export default function LedJoySection() {
           <div className="jb3-jumper-stage">
             <div className="jb3-img-human-wrap">
               <div className="jb3-img-glow" />
-              <img src="/illustrations/joy-shoppers.png" alt="" className="jb3-img-human" />
+              <img src="/illustrations/joy-shoppers.png" alt="" loading="lazy" className="jb3-img-human" />
             </div>
           </div>
         </div>

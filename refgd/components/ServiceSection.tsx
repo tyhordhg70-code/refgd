@@ -257,9 +257,9 @@ export default function ServiceSection(
             page-level orb mesh that runs the full document height). */}
         {!noBg && (
           <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-            <div className="orb orb-1 absolute left-[10%] top-[15%] h-[60vh] w-[60vh] rounded-full" />
-            <div className="orb orb-2 absolute right-[8%] top-[28%] h-[55vh] w-[55vh] rounded-full" />
-            <div className="orb orb-3 absolute left-[40%] bottom-[10%] h-[50vh] w-[50vh] rounded-full" />
+            <div data-anim-freeze className="orb orb-1 absolute left-[10%] top-[15%] h-[60vh] w-[60vh] rounded-full" />
+            <div data-anim-freeze className="orb orb-2 absolute right-[8%] top-[28%] h-[55vh] w-[55vh] rounded-full" />
+            <div data-anim-freeze className="orb orb-3 absolute left-[40%] bottom-[10%] h-[50vh] w-[50vh] rounded-full" />
           </div>
         )}
 
@@ -527,6 +527,7 @@ export default function ServiceSection(
                       <img
                         src="/images/five-years-deep.webp"
                         alt=""
+                        loading="lazy"
                         className="absolute right-0 bottom-0 h-[90%] w-[90%] object-contain object-right-bottom opacity-35"
                         style={{ mixBlendMode: "screen" }}
                       />
@@ -537,6 +538,7 @@ export default function ServiceSection(
                       <img
                         src="/uploads/secure-lock.png"
                         alt=""
+                        loading="lazy"
                         className="absolute right-[-10%] bottom-[-10%] h-[85%] w-[85%] object-contain object-right-bottom opacity-30"
                         style={{ mixBlendMode: "screen" }}
                       />
@@ -547,6 +549,7 @@ export default function ServiceSection(
                       <img
                         src="/images/stores-nobody-has.webp"
                         alt=""
+                        loading="lazy"
                         className="absolute right-[-5%] bottom-[-5%] h-[90%] w-[90%] object-contain object-right-bottom opacity-35"
                         style={{ mixBlendMode: "screen" }}
                       />

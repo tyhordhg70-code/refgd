@@ -93,10 +93,19 @@ export default function InvoiceMonitor({
     };
 
     poll();
-    pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
+    // Skip poll ticks while the tab is hidden (server churn for nobody)
+    // and catch up immediately when it becomes visible again.
+    pollRef.current = setInterval(() => {
+      if (!document.hidden) poll();
+    }, POLL_INTERVAL_MS);
+    const onVis = () => {
+      if (!document.hidden) poll();
+    };
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       active = false;
       clearInterval(pollRef.current!);
+      document.removeEventListener("visibilitychange", onVis);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);

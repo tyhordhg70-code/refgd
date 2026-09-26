@@ -51,15 +51,28 @@ export default function Hero3D({
     if (reduced) return;
     const el = wrapRef.current;
     if (!el) return;
+    let rafMove = 0;
+    let lastX = 0;
+    let lastY = 0;
     const onMove = (e: MouseEvent) => {
-      const r = el.getBoundingClientRect();
-      mx.set((e.clientX - r.left) / r.width - 0.5);
-      my.set((e.clientY - r.top) / r.height - 0.5);
+      lastX = e.clientX;
+      lastY = e.clientY;
+      // Coalesce to one motion update (and one layout read) per frame
+      // instead of one forced getBoundingClientRect per raw mouse event.
+      // Identical tracking — the springs smooth out the difference.
+      if (rafMove) return;
+      rafMove = requestAnimationFrame(() => {
+        rafMove = 0;
+        const r = el.getBoundingClientRect();
+        mx.set((lastX - r.left) / r.width - 0.5);
+        my.set((lastY - r.top) / r.height - 0.5);
+      });
     };
     const onLeave = () => { mx.set(0); my.set(0); };
-    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mousemove", onMove, { passive: true });
     el.addEventListener("mouseleave", onLeave);
     return () => {
+      if (rafMove) cancelAnimationFrame(rafMove);
       window.removeEventListener("mousemove", onMove);
       el.removeEventListener("mouseleave", onLeave);
     };

@@ -74,9 +74,33 @@ export default function MeshGradient({
       c.globalCompositeOperation = "source-over";
       raf = requestAnimationFrame(draw);
     };
-    raf = requestAnimationFrame(draw);
+    // Pause the loop while the backdrop is fully offscreen — otherwise it
+    // keeps repainting 4 full-canvas radial gradients every frame for
+    // nobody. Resumes ~400px before it scrolls back in, so a frozen frame
+    // is never visible. One-shot start(): never chains a duplicate loop.
+    const start = () => {
+      if (!raf) raf = requestAnimationFrame(draw);
+    };
+    const stop = () => {
+      if (raf) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
+    };
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) start();
+          else stop();
+        }
+      },
+      { rootMargin: "400px 0px 400px 0px", threshold: 0 },
+    );
+    io.observe(cnv);
+    start();
 
     return () => {
+      io.disconnect();
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
     };

@@ -62,7 +62,7 @@ export default function MentorshipHero({
       mx.set((e.clientX / w - 0.5) * 2);
       my.set((e.clientY / h - 0.5) * 2);
     };
-    window.addEventListener("mousemove", handler);
+    window.addEventListener("mousemove", handler, { passive: true });
     return () => window.removeEventListener("mousemove", handler);
   }, [stable, isMobile, mx, my]);
 

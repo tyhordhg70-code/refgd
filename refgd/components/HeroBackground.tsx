@@ -10,11 +10,13 @@ export default function HeroBackground() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
       <MeshGradient intensity={0.95} />
-      {/* Pulsating gradient orbs — persist on every section */}
-      <div className="orb orb-1 absolute left-[8%] top-[6%]   h-[55vh] w-[55vh] rounded-full" />
-      <div className="orb orb-2 absolute right-[6%] top-[18%] h-[50vh] w-[50vh] rounded-full" />
-      <div className="orb orb-3 absolute left-[40%] bottom-[5%] h-[45vh] w-[45vh] rounded-full" />
-      <div className="orb orb-4 absolute right-[30%] bottom-[18%] h-[35vh] w-[35vh] rounded-full" />
+      {/* Pulsating gradient orbs — persist on every section. data-anim-freeze
+          lets OffscreenGlowPauser stop these blur(120px) blend layers while
+          the hero is scrolled away (infinite-only; zero visual change). */}
+      <div data-anim-freeze className="orb orb-1 absolute left-[8%] top-[6%]   h-[55vh] w-[55vh] rounded-full" />
+      <div data-anim-freeze className="orb orb-2 absolute right-[6%] top-[18%] h-[50vh] w-[50vh] rounded-full" />
+      <div data-anim-freeze className="orb orb-3 absolute left-[40%] bottom-[5%] h-[45vh] w-[45vh] rounded-full" />
+      <div data-anim-freeze className="orb orb-4 absolute right-[30%] bottom-[18%] h-[35vh] w-[35vh] rounded-full" />
       {/* Fine grid */}
       <div
         className="absolute inset-0 opacity-[0.06]"
