@@ -10,6 +10,7 @@
  */
 import { createHash } from "node:crypto";
 import { getPool, initDb } from "./db";
+import { evictCachedBlob } from "./blob-cache";
 import { memoTtl } from "./micro-cache";
 import { probeImageDims } from "./image-dims";
 import type { LinkPreview } from "./link-preview";
@@ -1492,7 +1493,7 @@ export async function sweepExpiredMessages(): Promise<number> {
   // Expired group-chat messages + anything already soft-deleted, removed from
   // the database for good. Their reactions and media go with them in one atomic
   // statement (data-modifying CTEs share the snapshot).
-  const { rows } = await pool.query<{ n: number }>(
+  const { rows } = await pool.query<{ n: number; media_ids: string[] }>(
     `WITH del AS (
        DELETE FROM chat_messages
         WHERE deleted = TRUE
@@ -1502,6 +1503,18 @@ export async function sweepExpiredMessages(): Promise<number> {
      _r AS (
        DELETE FROM message_reactions
         WHERE message_id IN (SELECT id::text FROM del)
+     ),
+     _pv AS (
+       -- Polls hide behind [poll:<id>] body tokens — question, options and
+       -- votes go with the message.
+       DELETE FROM poll_votes
+        WHERE poll_id::text IN (SELECT substring(body from '\\[poll:(\\d+)\\]')
+                                 FROM del WHERE body LIKE '[poll:%')
+     ),
+     _p AS (
+       DELETE FROM polls
+        WHERE id::text IN (SELECT substring(body from '\\[poll:(\\d+)\\]')
+                            FROM del WHERE body LIKE '[poll:%')
      ),
      _m AS (
        -- A deleted video's poster frame is a separate chat_media row linked
@@ -1516,9 +1529,14 @@ export async function sweepExpiredMessages(): Promise<number> {
                         AND poster_id IS NOT NULL)
            OR id::text IN (SELECT substring(body from '\\[voice:(\\d+):')
                             FROM del WHERE body LIKE '[voice:%')
+        RETURNING id
      )
-     SELECT COUNT(*)::int AS n FROM del`,
+     SELECT (SELECT COUNT(*)::int FROM del) AS n,
+            (SELECT COALESCE(array_agg(id::text), '{}'::text[]) FROM _m) AS media_ids`,
   );
+  // Evict swept media from the process blob cache as well (see
+  // deleteSingleMessage) so deleted/expired attachments stop serving at once.
+  for (const mid of rows[0]?.media_ids ?? []) evictCachedBlob(`cm:${mid}`);
   return rows[0]?.n ?? 0;
 }
 
@@ -2639,60 +2657,148 @@ export async function unpinAll(): Promise<number> {
   return res.rowCount ?? 0;
 }
 
-/** Soft-delete the most recent `count` live messages (hard cap 100). */
+/** Hard-delete the most recent `count` live messages (hard cap 100), with
+ *  the same reaction/media/voice cascade as deleteSingleMessage — purged
+ *  content is unrecoverable, not soft-deleted. */
 export async function purgeRecentMessages(count: number): Promise<number> {
   await initDb();
   const n = Math.min(Math.max(Math.floor(count), 1), 100);
-  const res = await getPool().query(
-    `UPDATE chat_messages SET deleted = TRUE
-      WHERE id IN (
-        SELECT id FROM chat_messages
-         WHERE deleted = FALSE
-         ORDER BY id DESC
-         LIMIT $1
-      )`,
+  const res = await getPool().query<{ n: number; media_ids: string[] }>(
+    `WITH del AS (
+       DELETE FROM chat_messages
+        WHERE id IN (
+          SELECT id FROM chat_messages
+           WHERE deleted = FALSE
+           ORDER BY id DESC
+           LIMIT $1
+        )
+       RETURNING id, media_id, body
+     ),
+     _r AS (
+       DELETE FROM message_reactions WHERE message_id IN (SELECT id::text FROM del)
+     ),
+     _pv AS (
+       DELETE FROM poll_votes
+        WHERE poll_id::text IN (SELECT substring(body from '\\[poll:(\\d+)\\]')
+                                 FROM del WHERE body LIKE '[poll:%')
+     ),
+     _p AS (
+       DELETE FROM polls
+        WHERE id::text IN (SELECT substring(body from '\\[poll:(\\d+)\\]')
+                            FROM del WHERE body LIKE '[poll:%')
+     ),
+     _m AS (
+       DELETE FROM chat_media
+        WHERE id IN (SELECT media_id FROM del WHERE media_id IS NOT NULL)
+           OR id IN (SELECT poster_id FROM chat_media
+                      WHERE id IN (SELECT media_id FROM del WHERE media_id IS NOT NULL)
+                        AND poster_id IS NOT NULL)
+           OR id::text IN (SELECT substring(body from '\\[voice:(\\d+):')
+                            FROM del WHERE body LIKE '[voice:%')
+        RETURNING id
+     )
+     SELECT (SELECT COUNT(*)::int FROM del) AS n,
+            (SELECT COALESCE(array_agg(id::text), '{}'::text[]) FROM _m) AS media_ids`,
     [n],
   );
-  return res.rowCount ?? 0;
+  for (const mid of res.rows[0]?.media_ids ?? []) evictCachedBlob(`cm:${mid}`);
+  return res.rows[0]?.n ?? 0;
 }
 
-/** Soft-delete a single live message (context-menu "Delete" → /del). */
+/** Hard-delete a single live message (context-menu "Delete" → /del).
+ *  Owner mandate: a deleted message must be unrecoverable — no soft-delete
+ *  row, no leftover content anywhere. The row and everything it owns —
+ *  reactions, attached media (incl. a video's poster frame) and voice-note
+ *  audio linked only via the [voice:<id>:…] body token — go in ONE
+ *  statement (CTEs share the snapshot). A concurrent double-delete affects
+ *  zero rows and returns false. */
 export async function deleteSingleMessage(id: string): Promise<boolean> {
   await initDb();
-  const res = await getPool().query<{ body: string | null }>(
-    `UPDATE chat_messages SET deleted = TRUE
-      WHERE id = $1 AND deleted = FALSE
-      RETURNING body`,
+  const res = await getPool().query<{ n: number; media_ids: string[] }>(
+    `WITH del AS (
+       DELETE FROM chat_messages WHERE id = $1 RETURNING id, media_id, body
+     ),
+     _r AS (
+       DELETE FROM message_reactions WHERE message_id IN (SELECT id::text FROM del)
+     ),
+     _pv AS (
+       -- Polls hide behind [poll:<id>] body tokens — remove the question,
+       -- options and every vote along with the message.
+       DELETE FROM poll_votes
+        WHERE poll_id::text IN (SELECT substring(body from '\\[poll:(\\d+)\\]')
+                                 FROM del WHERE body LIKE '[poll:%')
+     ),
+     _p AS (
+       DELETE FROM polls
+        WHERE id::text IN (SELECT substring(body from '\\[poll:(\\d+)\\]')
+                            FROM del WHERE body LIKE '[poll:%')
+     ),
+     _m AS (
+       DELETE FROM chat_media
+        WHERE id IN (SELECT media_id FROM del WHERE media_id IS NOT NULL)
+           OR id IN (SELECT poster_id FROM chat_media
+                      WHERE id IN (SELECT media_id FROM del WHERE media_id IS NOT NULL)
+                        AND poster_id IS NOT NULL)
+           OR id::text IN (SELECT substring(body from '\\[voice:(\\d+):')
+                            FROM del WHERE body LIKE '[voice:%')
+        RETURNING id
+     )
+     SELECT (SELECT COUNT(*)::int FROM del) AS n,
+            (SELECT COALESCE(array_agg(id::text), '{}'::text[]) FROM _m) AS media_ids`,
     [id],
   );
-  if (!(res.rowCount ?? 0)) return false;
-  // Voice notes keep their audio in a chat_media row linked ONLY via the
-  // [voice:<id>:…] body token (media_id stays NULL), so the generic sweep
-  // misses them. Remove the audio immediately — otherwise a deleted voice
-  // message keeps serving its clip by URL forever.
-  const voiceId = res.rows[0]?.body?.match(/^\[voice:(\d+):/)?.[1];
-  if (voiceId) {
-    await getPool()
-      .query(`DELETE FROM chat_media WHERE id::text = $1`, [voiceId])
-      .catch(() => undefined); // best-effort; the sweep also covers these
-  }
-  return true;
+  // Evict from the process blob cache too, or the serving route keeps
+  // returning bytes for rows that no longer exist until the instance
+  // restarts. (A browser that already downloaded a file keeps its copy —
+  // unavoidable, same as Telegram.)
+  for (const mid of res.rows[0]?.media_ids ?? []) evictCachedBlob(`cm:${mid}`);
+  return (res.rows[0]?.n ?? 0) > 0;
 }
 
-/** Soft-delete live messages from `fromId` forward (hard cap 100). */
+/** Hard-delete live messages from `fromId` forward (hard cap 100), with the
+ *  same reaction/media/voice cascade as deleteSingleMessage. */
 export async function purgeFromMessage(fromId: string): Promise<number> {
   await initDb();
-  const res = await getPool().query(
-    `UPDATE chat_messages SET deleted = TRUE
-      WHERE id IN (
-        SELECT id FROM chat_messages
-         WHERE deleted = FALSE AND id >= $1
-         ORDER BY id ASC
-         LIMIT 100
-      )`,
+  const res = await getPool().query<{ n: number; media_ids: string[] }>(
+    `WITH del AS (
+       DELETE FROM chat_messages
+        WHERE id IN (
+          SELECT id FROM chat_messages
+           WHERE deleted = FALSE AND id >= $1
+           ORDER BY id ASC
+           LIMIT 100
+        )
+       RETURNING id, media_id, body
+     ),
+     _r AS (
+       DELETE FROM message_reactions WHERE message_id IN (SELECT id::text FROM del)
+     ),
+     _pv AS (
+       DELETE FROM poll_votes
+        WHERE poll_id::text IN (SELECT substring(body from '\\[poll:(\\d+)\\]')
+                                 FROM del WHERE body LIKE '[poll:%')
+     ),
+     _p AS (
+       DELETE FROM polls
+        WHERE id::text IN (SELECT substring(body from '\\[poll:(\\d+)\\]')
+                            FROM del WHERE body LIKE '[poll:%')
+     ),
+     _m AS (
+       DELETE FROM chat_media
+        WHERE id IN (SELECT media_id FROM del WHERE media_id IS NOT NULL)
+           OR id IN (SELECT poster_id FROM chat_media
+                      WHERE id IN (SELECT media_id FROM del WHERE media_id IS NOT NULL)
+                        AND poster_id IS NOT NULL)
+           OR id::text IN (SELECT substring(body from '\\[voice:(\\d+):')
+                            FROM del WHERE body LIKE '[voice:%')
+        RETURNING id
+     )
+     SELECT (SELECT COUNT(*)::int FROM del) AS n,
+            (SELECT COALESCE(array_agg(id::text), '{}'::text[]) FROM _m) AS media_ids`,
     [fromId],
   );
-  return res.rowCount ?? 0;
+  for (const mid of res.rows[0]?.media_ids ?? []) evictCachedBlob(`cm:${mid}`);
+  return res.rows[0]?.n ?? 0;
 }
 
 export interface MessageAuthor {

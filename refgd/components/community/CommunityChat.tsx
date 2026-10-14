@@ -378,6 +378,7 @@ export default function CommunityChat({
   // Web A message context menu (right-click / long-press on a bubble). The
   // "readonly" variant is used for migrated history bubbles (vouches), which
   // have no live message id and so get a reduced Copy Text / Forward menu.
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<
     | { kind: "chat"; m: ChatMessage; x: number; y: number }
     | {
@@ -2315,9 +2316,9 @@ export default function CommunityChat({
                     onClick={() => {
                       const id = ctxMenu.m.id;
                       setCtxMenu(null);
-                      void chat.deleteMessage(id).then((ok) => {
-                        if (ok) showToast("Message deleted");
-                      });
+                      // Deletion is permanent (hard-delete server-side), so
+                      // confirm first — same as Telegram Web A.
+                      setDeleteConfirm(id);
                     }}
                   >
                     <IconDelete />
@@ -2439,6 +2440,60 @@ export default function CommunityChat({
             )}
           </div>
         </>,
+          overlayEl,
+        )}
+
+      {/* Delete confirmation — mirrors Telegram Web A's "Delete Message"
+          dialog (backdrop click / Cancel dismiss, red Delete confirms).
+          Portaled into the overlay root so the #MiddleColumn transform
+          can't misplace it. */}
+      {deleteConfirm &&
+        overlayEl &&
+        createPortal(
+          <div
+            className="tg-modal-backdrop tg-fs-backdrop"
+            onClick={() => setDeleteConfirm(null)}
+          >
+            <div
+              className="tg-modal tg-fs-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Delete message"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="tg-fs-title">
+                <h3>Delete Message</h3>
+              </div>
+              <p className="tg-fs-text">
+                Are you sure you want to delete this message? This action
+                cannot be undone.
+              </p>
+              <div className="tg-fs-actions">
+                <button
+                  type="button"
+                  className="tg-fs-btn"
+                  onClick={() => setDeleteConfirm(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="tg-fs-btn"
+                  style={{ color: "#ec3942" }}
+                  autoFocus
+                  onClick={() => {
+                    const id = deleteConfirm;
+                    setDeleteConfirm(null);
+                    void chat.deleteMessage(id).then((ok) => {
+                      if (ok) showToast("Message deleted");
+                    });
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>,
           overlayEl,
         )}
 

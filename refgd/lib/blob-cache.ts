@@ -56,6 +56,16 @@ export function getCachedBlob(key: string): CachedBlob | null {
   return hit;
 }
 
+/** Drop a cached blob (e.g. after its DB row was hard-deleted) so the
+ *  process cache stops serving content that no longer exists. */
+export function evictCachedBlob(key: string): void {
+  const s = store();
+  const hit = s.map.get(key);
+  if (!hit) return;
+  s.total -= hit.bytes.length;
+  s.map.delete(key);
+}
+
 export function putCachedBlob(key: string, bytes: Buffer, mime: string): void {
   if (bytes.length === 0 || bytes.length > MAX_ENTRY_BYTES) return;
   const s = store();
