@@ -1497,7 +1497,7 @@ export async function sweepExpiredMessages(): Promise<number> {
        DELETE FROM chat_messages
         WHERE deleted = TRUE
            OR (topic = 'chat' AND expires_at IS NOT NULL AND expires_at <= NOW())
-       RETURNING id, media_id
+       RETURNING id, media_id, body
      ),
      _r AS (
        DELETE FROM message_reactions
@@ -1507,11 +1507,15 @@ export async function sweepExpiredMessages(): Promise<number> {
        -- A deleted video's poster frame is a separate chat_media row linked
        -- via poster_id — remove it in the same statement (CTEs share the
        -- snapshot, so the parent rows are still visible to the subselect).
+       -- Voice notes link their audio only via the [voice:<id>:…] body
+       -- token (media_id NULL), so extract and remove those rows too.
        DELETE FROM chat_media
         WHERE id IN (SELECT media_id FROM del WHERE media_id IS NOT NULL)
            OR id IN (SELECT poster_id FROM chat_media
                       WHERE id IN (SELECT media_id FROM del WHERE media_id IS NOT NULL)
                         AND poster_id IS NOT NULL)
+           OR id::text IN (SELECT substring(body from '\\[voice:(\\d+):')
+                            FROM del WHERE body LIKE '[voice:%')
      )
      SELECT COUNT(*)::int AS n FROM del`,
   );
@@ -2655,12 +2659,24 @@ export async function purgeRecentMessages(count: number): Promise<number> {
 /** Soft-delete a single live message (context-menu "Delete" → /del). */
 export async function deleteSingleMessage(id: string): Promise<boolean> {
   await initDb();
-  const res = await getPool().query(
+  const res = await getPool().query<{ body: string | null }>(
     `UPDATE chat_messages SET deleted = TRUE
-      WHERE id = $1 AND deleted = FALSE`,
+      WHERE id = $1 AND deleted = FALSE
+      RETURNING body`,
     [id],
   );
-  return (res.rowCount ?? 0) > 0;
+  if (!(res.rowCount ?? 0)) return false;
+  // Voice notes keep their audio in a chat_media row linked ONLY via the
+  // [voice:<id>:…] body token (media_id stays NULL), so the generic sweep
+  // misses them. Remove the audio immediately — otherwise a deleted voice
+  // message keeps serving its clip by URL forever.
+  const voiceId = res.rows[0]?.body?.match(/^\[voice:(\d+):/)?.[1];
+  if (voiceId) {
+    await getPool()
+      .query(`DELETE FROM chat_media WHERE id::text = $1`, [voiceId])
+      .catch(() => undefined); // best-effort; the sweep also covers these
+  }
+  return true;
 }
 
 /** Soft-delete live messages from `fromId` forward (hard cap 100). */

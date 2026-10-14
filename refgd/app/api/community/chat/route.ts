@@ -598,10 +598,20 @@ export async function POST(req: Request) {
   // let any member write here, and the client hiding the composer is not an
   // access control — gate it on the server.
   if (topic !== "chat" && !me.admin) {
-    return NextResponse.json(
-      { ok: false, error: "This topic is read-only." },
-      { status: 403 },
-    );
+    // Members may still delete their OWN old messages in read-only topics
+    // (Telegram parity — e.g. a topic locked after they posted). The command
+    // dispatch below runs before any write gate, and executeModCommand
+    // verifies authorship for member /del — everything else stays blocked.
+    const earlyCmd =
+      photo || voice || video || docFile
+        ? null
+        : parseCommand(typeof payload.text === "string" ? payload.text.trim() : "");
+    if (!earlyCmd || earlyCmd.cmd !== "del") {
+      return NextResponse.json(
+        { ok: false, error: "This topic is read-only." },
+        { status: 403 },
+      );
+    }
   }
 
   let text = typeof payload.text === "string" ? payload.text.trim() : "";

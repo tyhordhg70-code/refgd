@@ -230,13 +230,17 @@ export async function executeModCommand(opts: {
       };
     }
     const ok = await deleteSingleMessage(replyToId);
-    await recordAction({
-      actorTgId: me.tid,
-      actorName: me.name,
-      action: "del-own",
-      target: replyToId,
-      meta: {},
-    }).catch(() => undefined);
+    if (ok) {
+      // Only audit successful deletes — concurrent/repeat requests against
+      // an already-deleted id must not create noise entries.
+      await recordAction({
+        actorTgId: me.tid,
+        actorName: me.name,
+        action: "del-own",
+        target: replyToId,
+        meta: {},
+      }).catch(() => undefined);
+    }
     return {
       handled: true,
       ok,
