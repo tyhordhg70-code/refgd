@@ -210,6 +210,40 @@ export async function executeModCommand(opts: {
     };
   }
 
+  // Members may delete their OWN messages (Telegram parity) — the context
+  // menu Delete and a bare "/del" reply both land here. Everything further
+  // down is admin-only.
+  if (cmd === "del" && !me.admin) {
+    if (!replyToId) {
+      return {
+        handled: true,
+        ok: false,
+        system: "Reply to the message you want to delete.",
+      };
+    }
+    const author = await getMessageAuthor(replyToId);
+    if (!author || author.tgId !== me.tid) {
+      return {
+        handled: true,
+        ok: false,
+        system: "You can only delete your own messages.",
+      };
+    }
+    const ok = await deleteSingleMessage(replyToId);
+    await recordAction({
+      actorTgId: me.tid,
+      actorName: me.name,
+      action: "del-own",
+      target: replyToId,
+      meta: {},
+    }).catch(() => undefined);
+    return {
+      handled: true,
+      ok,
+      system: ok ? "Message deleted." : "Couldn't find that message.",
+    };
+  }
+
   // Everything below is admin-only.
   if (!me.admin) {
     return { handled: true, ok: false, system: "That command is for admins only." };

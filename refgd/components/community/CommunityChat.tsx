@@ -2305,7 +2305,10 @@ export default function CommunityChat({
                     Forward
                   </button>
                 )}
-                {me?.admin && (
+                {/* Telegram parity: admins can delete anything, members can
+                    delete their OWN messages. Server enforces the same rule
+                    (moderation.ts member /del gate). */}
+                {(me?.admin || ctxMenu.m.tgId === me?.tid) && (
                   <button
                     type="button"
                     className="tg-menu-item tg-menu-item-danger"
